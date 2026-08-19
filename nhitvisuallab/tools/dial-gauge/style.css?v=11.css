@@ -1,0 +1,475 @@
+/* ═══════════════════════════════════════════════════════════════════
+   tools/dial-gauge/style.css  —  Dial Gauge Simulator styles
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Reset & Tokens ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b27;
+  --surface2:  #1f2535;
+  --border:    #2a3050;
+  --accent:    #4f8ef7;
+  --accent-lo: rgba(79,142,247,.22);
+  --green:     #3ddc84;
+  --red:       #ff5555;
+  --gold:      #f5c842;
+  --text:      #dde3f0;
+  --text-dim:  #6b7a99;
+  --font:      'Segoe UI', system-ui, sans-serif;
+  --mono:      'Courier New', monospace;
+  --radius:    12px;
+  /* cell accent colours */
+  --msr:  #26c6da;   /* teal   — mm  */
+  --csr:  #ab47bc;   /* purple — μm  */
+  --lc:   #ffa726;   /* amber  — in  */
+  /* readout glow */
+  --glow: #00e5ff;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  padding: 20px 16px 36px;
+}
+
+#app { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Header ─────────────────────────────────────────────────────── */
+header { text-align: center; padding: 4px 0; }
+header h1 {
+  font-size: 1.8rem; font-weight: 700;
+  background: linear-gradient(120deg, #006064 0%, #00acc1 45%, #4dd0e1 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { color: var(--text-dim); font-size: 0.85rem; margin-top: 3px; }
+
+/* ── Controls bar ────────────────────────────────────────────────── */
+.controls-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.ctrl-group { display: flex; align-items: center; gap: 8px; }
+.ctrl-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); white-space: nowrap; }
+.lc-hint { font-size: 0.65rem; opacity: 0.65; text-transform: none; letter-spacing: 0; }
+.lc-badge {
+  font-size: 0.78rem; font-weight: 700; color: var(--glow);
+  background: rgba(0,229,255,.10); border: 1px solid rgba(0,229,255,.30);
+  border-radius: 6px; padding: 3px 10px;
+}
+
+.zero-badge {
+  font-size: 0.78rem; font-weight: 700; color: #ffa726;
+  background: rgba(255,167,38,.12); border: 1px solid rgba(255,167,38,.35);
+  border-radius: 6px; padding: 3px 10px; white-space: nowrap;
+}
+
+.pill-tabs { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 2px; }
+.pill {
+  padding: 5px 13px; border: none; background: transparent; color: var(--text-dim);
+  border-radius: 6px; cursor: pointer; font-size: 0.81rem; transition: background .18s, color .18s, box-shadow .18s;
+}
+.pill.active { background: var(--accent); color: #fff; box-shadow: 0 0 12px var(--accent-lo); }
+.pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+/* ── Canvas card ──────────────────────────────────────────────────── */
+.canvas-card {
+  position: relative;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px; cursor: default;
+  display: flex; justify-content: center;
+}
+#gauge-canvas {
+  display: block;
+  /* touch-action:auto lets the page scroll on a swipe anywhere on the canvas;
+     the pointer handlers call preventDefault() ONLY when a touch starts on the
+     dial face, so needle-dragging and page-scrolling never fight. */
+  touch-action: auto;
+  width: 100%; height: auto; max-width: 520px;
+  cursor: default;   /* JS upgrades to grab / grabbing over the dial face */
+}
+
+.drag-hint {
+  position: absolute; bottom: 12px; right: 16px;
+  font-size: 0.72rem; color: var(--text-dim); pointer-events: none; transition: opacity .4s;
+}
+.drag-hint.hidden { opacity: 0; }
+
+/* ── Zoom toggle ────────────────────────────────────────────────── */
+.zoom-toggle {
+  position: absolute; top: 12px; right: 14px; z-index: 10;
+  background: rgba(13,17,23,0.80); border: 1px solid rgba(79,142,247,0.42);
+  color: #4f8ef7; border-radius: 8px; padding: 5px 13px;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  transition: background .18s, box-shadow .18s, border-color .18s;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.zoom-toggle:hover { background: rgba(30,42,70,0.90); box-shadow: 0 0 12px rgba(79,142,247,.28); }
+.zoom-toggle.active { background: rgba(79,142,247,0.20); border-color: var(--accent); color: #fff; }
+
+/* ── Info row ────────────────────────────────────────────────────── */
+.info-row {
+  display: grid;
+  grid-template-columns: 156px auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* ── 1. Digital readout ──────────────────────────────────────────── */
+.digital-readout {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: #060a0e; border: 2px solid #093040; border-radius: var(--radius);
+  padding: 14px 10px;
+  box-shadow: inset 0 0 24px rgba(0,229,255,.04), 0 0 16px rgba(0,229,255,.07);
+}
+.dr-label { font-size: 0.65rem; color: #1a5060; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 4px; }
+.dr-value {
+  font-family: var(--mono); font-size: 2.2rem; font-weight: 700;
+  color: var(--glow); text-shadow: 0 0 10px rgba(0,229,255,.55);
+  letter-spacing: .04em; line-height: 1;
+}
+.dr-input {
+  font-family: var(--mono); font-size: 2.2rem; font-weight: 700;
+  color: var(--glow); text-shadow: 0 0 10px rgba(0,229,255,.4);
+  background: transparent; border: none; outline: none;
+  width: 100%; text-align: center; caret-color: var(--glow);
+  letter-spacing: .04em; line-height: 1;
+  -moz-appearance: textfield;
+}
+.dr-input::-webkit-outer-spin-button,
+.dr-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.dr-input::placeholder { color: rgba(0,229,255,0.22); }
+.dr-unit { font-size: 0.72rem; color: #2a7a90; margin-top: 5px; letter-spacing: .06em; }
+
+.dr-input { display: none; }
+.dr-value { display: block; }
+
+/* ── 2. Reading cells ────────────────────────────────────────────── */
+.reading-cells { display: flex; gap: 8px; align-items: stretch; }
+
+.rcell {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 6px; min-width: 72px; text-align: center; position: relative; overflow: hidden;
+  transition: filter .35s ease;
+}
+.rcell::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 10px 10px 0 0;
+}
+.rcell-msr::before { background: var(--msr); }
+.rcell-csr::before { background: var(--csr); }
+.rcell-lc::before  { background: var(--lc); }
+
+.rcell-abbr { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-top: 2px; }
+.rcell-msr .rcell-abbr { color: var(--msr); }
+.rcell-csr .rcell-abbr { color: var(--csr); }
+.rcell-lc  .rcell-abbr { color: var(--lc); }
+
+.rcell-val {
+  font-family: var(--mono); font-size: 1.35rem; font-weight: 700;
+  color: var(--text); line-height: 1; margin: 4px 0 2px;
+}
+.rcell-unit { font-size: 0.62rem; color: var(--text-dim); }
+.rcell-name { font-size: 0.58rem; color: var(--text-dim); margin-top: 4px; letter-spacing: .04em; }
+
+.cells-hidden .rcell-val { filter: blur(7px); user-select: none; -webkit-user-select: none; }
+
+/* ── 3. Formula / info ───────────────────────────────────────────── */
+.tr-formula {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  transition: filter .35s ease;
+}
+.tr-title {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent); margin-bottom: 4px;
+}
+.tr-legend {
+  font-size: 0.6rem; color: var(--text-dim); line-height: 1.7;
+  border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 2px;
+}
+.trl-msr { color: var(--msr); font-weight: 700; }
+.trl-csr { color: var(--csr); font-weight: 700; }
+.trl-lc  { color: var(--lc);  font-weight: 700; }
+
+.tr-step { font-size: 0.82rem; color: var(--text-dim); font-family: var(--mono); }
+.tr-step span { color: var(--text); }
+.tr-result {
+  font-family: var(--mono); font-size: 1.05rem; font-weight: 700;
+  color: var(--gold); text-shadow: 0 0 8px rgba(245,200,66,.4); margin-top: 2px;
+}
+
+.formula-hidden .tr-step,
+.formula-hidden .tr-result,
+.formula-hidden .tr-legend { filter: blur(7px); user-select: none; -webkit-user-select: none; }
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn {
+  padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 0.84rem; font-weight: 600; transition: filter .18s, box-shadow .18s, opacity .18s;
+}
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:not(:disabled):hover { filter: brightness(1.12); box-shadow: 0 0 12px var(--accent-lo); }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--border); }
+
+/* ── Practice bar ────────────────────────────────────────────────── */
+.practice-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.pbar-score { font-size: 0.84rem; color: var(--text-dim); margin-left: auto; white-space: nowrap; }
+.pbar-score span { color: var(--text); font-weight: 700; }
+
+.feedback { font-size: 0.88rem; font-weight: 600; min-width: 0; }
+.feedback.ok  { color: var(--green); }
+.feedback.err { color: var(--red); }
+
+/* ── Quiz bar ────────────────────────────────────────────────────── */
+.quiz-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.qbar-counter {
+  display: flex; align-items: baseline; gap: 3px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
+}
+.qbar-q-label { font-size: 0.7rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.qbar-q-num   { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--text); line-height: 1; }
+.qbar-q-sep   { font-size: 0.82rem; color: var(--text-dim); }
+.qbar-q-total { font-family: var(--mono); font-size: 0.88rem; color: var(--text-dim); }
+.qbar-hint    { font-size: 0.78rem; color: var(--text-dim); }
+.quiz-feedback { font-size: 0.88rem; font-weight: 600; }
+.quiz-feedback.ok  { color: var(--green); }
+.quiz-feedback.err { color: var(--red); }
+
+/* ── Quiz result ─────────────────────────────────────────────────── */
+.quiz-result {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.qr-header { display: flex; align-items: flex-start; justify-content: space-between; }
+.qr-title-wrap { display: flex; flex-direction: column; gap: 5px; }
+.qr-title  { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.qr-stars  { font-size: 1.2rem; letter-spacing: 3px; }
+.qr-score-wrap { text-align: right; }
+.qr-score {
+  font-family: var(--mono); font-size: 2.2rem; font-weight: 700; line-height: 1;
+  text-shadow: 0 0 14px currentColor;
+}
+.qr-score.perfect { color: var(--gold); }
+.qr-score.good    { color: var(--green); }
+.qr-score.poor    { color: var(--red); }
+.qr-verdict { font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; }
+
+.qr-rows { display: flex; flex-direction: column; gap: 7px; }
+.qr-row {
+  display: grid; grid-template-columns: 30px 1fr 1fr 26px;
+  align-items: center; gap: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-left-width: 3px; border-radius: 8px; padding: 9px 12px;
+}
+.qr-row.ok  { border-left-color: var(--green); }
+.qr-row.err { border-left-color: var(--red); }
+.qr-qnum    { font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+.qr-correct, .qr-given { font-size: 0.78rem; color: var(--text-dim); }
+.qr-correct strong, .qr-given strong { color: var(--text); font-family: var(--mono); }
+.qr-mark { text-align: right; font-size: 1rem; font-weight: 700; }
+.qr-row.ok  .qr-mark { color: var(--green); }
+.qr-row.err .qr-mark { color: var(--red); }
+
+/* ── Spindle control buttons ─────────────────────────────────────── */
+.spindle-btns {
+  position: absolute;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 12;
+  pointer-events: auto;
+}
+.btn-spindle {
+  width: 54px; height: 54px;
+  border: none; border-radius: 14px;
+  font-size: 1.5rem; font-weight: 900; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.15);
+  user-select: none; -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: filter .12s, transform .1s, box-shadow .12s;
+}
+.btn-spindle-up {
+  background: linear-gradient(165deg, #2ee0ef 0%, #00acc1 55%, #007c91 100%);
+  color: #fff;
+  border: 1px solid rgba(0,229,255,0.40);
+}
+.btn-spindle-down {
+  background: linear-gradient(165deg, #ffcc80 0%, #fb8c00 55%, #e65100 100%);
+  color: #fff;
+  border: 1px solid rgba(255,167,38,0.40);
+}
+.btn-spindle:hover    { filter: brightness(1.14); box-shadow: 0 6px 20px rgba(0,0,0,0.70); }
+.btn-spindle:active   { transform: scale(0.90); box-shadow: 0 2px 8px rgba(0,0,0,0.50); }
+
+/* ── Reading breakdown strip ─────────────────────────────────────── */
+.reading-breakdown {
+  display: flex; flex-wrap: wrap; align-items: stretch; justify-content: center;
+  gap: 8px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.reading-breakdown.cells-hidden { display: none; }
+.rb-term {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 6px 14px; border-radius: 8px; min-width: 96px;
+  background: var(--bg); border: 1px solid var(--border);
+}
+.rb-lead { font-size: 0.6rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); }
+.rb-val  { font-family: var(--mono); font-size: 1.25rem; font-weight: 700; line-height: 1.1; }
+.rb-u    { font-size: 0.66rem; color: var(--text-dim); }
+.rb-x    { font-size: 0.62rem; color: var(--text-dim); margin-top: 1px; }
+.rb-sub   { border-color: rgba(171,71,188,.45); }
+.rb-sub   .rb-val { color: var(--csr); }
+.rb-main  { border-color: rgba(38,198,218,.45); }
+.rb-main  .rb-val { color: var(--msr); }
+.rb-total { border-color: rgba(0,229,255,.5); background: rgba(0,229,255,.06); }
+.rb-total .rb-val { color: var(--glow); }
+.rb-op { display: flex; align-items: center; font-size: 1.3rem; font-weight: 700; color: var(--text-dim); }
+
+/* ── Runout / TIR bar ────────────────────────────────────────────── */
+.runout-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.ro-ctrl { display: flex; align-items: center; gap: 8px; }
+.ro-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); white-space: nowrap; }
+.ro-ctrl input[type=range] { width: 120px; accent-color: var(--accent); }
+.ro-ecc-val { font-family: var(--mono); font-size: 0.82rem; font-weight: 700; color: var(--accent); min-width: 62px; }
+.ro-stats { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.ro-stat {
+  font-size: 0.72rem; color: var(--text-dim);
+  padding: 5px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ro-stat strong { font-family: var(--mono); font-size: 0.92rem; margin-left: 4px; }
+.ro-min strong { color: var(--msr); }
+.ro-max strong { color: var(--lc); }
+.ro-tir { border-color: rgba(0,229,255,.5); background: rgba(0,229,255,.06); }
+.ro-tir strong { color: var(--glow); }
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 500px) {
+  .info-row { grid-template-columns: 1fr; }
+  .reading-cells { flex-wrap: wrap; }
+  .reading-breakdown { gap: 5px; padding: 8px; }
+  .rb-term { min-width: 84px; padding: 5px 8px; }
+  .rb-val { font-size: 1.05rem; }
+  .runout-bar { gap: 8px; }
+  .ro-stats { margin-left: 0; width: 100%; justify-content: space-between; }
+  .ro-ctrl input[type=range] { width: 90px; }
+}
+
+/* INTERLINK-START  header quick-links */
+.head-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;}
+.btn-link{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;cursor:pointer;background:var(--surface2,#1f2535);color:var(--text,#dde3f0);border:1.5px solid var(--border,#2a3050);white-space:nowrap;transition:border-color .18s,background .18s,color .18s;}
+.btn-link:hover{border-color:var(--accent,#4fc3f7);background:var(--accent-lo,rgba(79,195,247,.18));color:#fff;}
+.btn-link img{width:20px;height:20px;border-radius:4px;flex:none;}
+.btn-link .lbl{line-height:1;}
+@media(max-width:560px){.btn-link .lbl{display:none;}.btn-link{padding:5px 9px;}}
+/* INTERLINK-END */
+
+
+/* ── Mobile compaction (Group A instrument pattern) ────────────────
+   Appended LAST so these win over the base component rules above and over the
+   earlier media blocks. Desktop (>768px) is untouched by design. */
+@media (max-width: 768px) {
+  /* Canvas toolbar collapses to its glyph — title/aria-label carry the meaning. */
+  .zoom-toggle .zt-lbl { display: none; }
+  .zoom-toggle {
+    width: 36px; height: 36px; padding: 0; font-size: 0.95rem;
+    display: flex; align-items: center; justify-content: center; border-radius: 9px;
+  }
+
+  /* The readout becomes a single strip instead of a tall stacked box. */
+  .digital-readout {
+    flex-direction: row; align-items: baseline; justify-content: center;
+    gap: 9px; padding: 9px 12px;
+  }
+  .dr-label { margin-bottom: 0; font-size: 0.6rem; }
+  .dr-value { font-size: 1.7rem; }
+  .dr-input { font-size: 1.7rem; width: auto; max-width: 54%; text-align: left; }
+  .dr-unit  { margin-top: 0; font-size: 0.68rem; }
+}
+
+@media (max-width: 500px) {
+  /* Controls: Mode fills row 1, everything else packs onto the rows below with
+     the tool shortcuts pushed right. Only Mode stretches its pills. */
+  .controls-bar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 9px; }
+  .ctrl-group { flex: 0 1 auto; flex-wrap: nowrap; gap: 7px; }
+  .ctrl-label { font-size: 0.58rem; white-space: nowrap; }
+  .lc-hint { display: none; }
+  .pill-tabs { flex-wrap: nowrap; padding: 2px; }
+  .pill { padding: 5px 9px; font-size: 0.72rem; min-height: 32px; }
+  #mode-group { flex: 1 1 100%; }
+  #mode-tabs { flex: 1 1 auto; }
+  #mode-tabs .pill { flex: 1 1 0; justify-content: center; padding: 5px 4px; }
+  .head-actions { flex: 0 0 auto; margin-left: auto; gap: 6px; }
+  .btn-guide .lbl { display: none; }
+  .btn-guide { padding: 6px 10px !important; font-size: 0.95rem !important; }
+
+  /* Single stacked column. Any grid-column assignment from the 768px block must
+     be reset here or the grid keeps an implicit second track. */
+  .info-row { grid-template-columns: 1fr; gap: 7px; }
+  .info-row .digital-readout,
+  .info-row .reading-cells,
+  .info-row .tr-formula { grid-column: 1; }
+
+  /* Three cells stay on ONE row — wrapping them is what made this panel tall.
+     The descriptor under each is dropped; the formula legend below already
+     spells the abbreviations out in full. */
+  .reading-cells { flex-wrap: nowrap; gap: 6px; }
+  .rcell { min-width: 0; flex: 1 1 0; padding: 7px 3px; }
+  .rcell-abbr { font-size: 0.6rem; margin-top: 1px; }
+  .rcell-val  { font-size: 1.15rem; margin: 3px 0 1px; }
+  .rcell-unit { font-size: 0.56rem; }
+  .rcell-name { display: none; }
+
+  .tr-formula { padding: 9px 11px; gap: 2px; }
+  .tr-title  { font-size: 0.62rem; margin-bottom: 2px; }
+  .tr-legend { font-size: 0.56rem; line-height: 1.35; }
+  .tr-step   { font-size: 0.72rem; }
+  .tr-result { font-size: 1rem; }
+
+  /* The canvas hint is a full-width sentence over artwork that now fills the
+     card; at phone width it wrapped across the instrument and made both
+     unreadable. Give it a chip background and cap its width. */
+  .drag-hint {
+    left: auto; right: 8px; bottom: 8px; max-width: 68%; text-align: right;
+    font-size: 0.6rem; line-height: 1.3;
+    padding: 4px 8px; border-radius: 6px;
+    background: rgba(6,12,18,.74);
+  }
+}
+
+
+/* Mobile: the drag hint is pinned inside the canvas and on the smaller phone
+   canvas it runs across the instrument itself. It sits after the canvas in
+   the DOM, so below 720px it becomes a caption underneath. It still fades
+   after the first interaction exactly as before. */
+@media (max-width: 720px) {
+  /* width/flex-basis matter when the card is a flex row (dial-gauge is):
+     without them the hint becomes a flex ITEM beside the canvas and pushes
+     the page into horizontal scroll instead of sitting under the drawing. */
+  .canvas-card { flex-wrap: wrap; }
+  .drag-hint {
+    position: static; bottom: auto; right: auto; left: auto;
+    display: block; margin: 6px 0 0; text-align: center;
+    width: 100%; flex: 0 0 100%;
+  }
+}

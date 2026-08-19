@@ -1,0 +1,1609 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     DATA
+     ================================================================ */
+
+  var CONCEPTS = [
+    /* ── Kinematics ────────────────────────────────────────────────── */
+    { id: 'range-equation', name: 'Range Equation', symbol: 'R = v²sin(2θ)/g',
+      formula: 'R = v² × sin(2θ) / g', unit: 'm', cat: 'kinematics',
+      desc: 'The horizontal range of a projectile launched from ground level is R = v²sin(2θ)/g. Maximum range occurs at θ = 45° because sin(90°) = 1. Complementary angles (θ and 90°−θ) yield the same range but different trajectories.',
+      example: { problem: 'A ball is launched at 25 m/s at 30° on Earth (g = 9.81 m/s²). Find the range.',
+        steps: ['Given: v = 25 m/s, θ = 30°, g = 9.81 m/s²','R = v² × sin(2θ) / g','R = 625 × sin(60°) / 9.81','R = 625 × 0.866 / 9.81','R = 55.17 m'], answer: 55.17, unit: 'm' } },
+    { id: 'max-height', name: 'Maximum Height', symbol: 'H = v²sin²(θ)/(2g)',
+      formula: 'H = v² × sin²(θ) / (2g)', unit: 'm', cat: 'kinematics',
+      desc: 'The maximum height is reached when the vertical velocity component becomes zero. At this point all vertical kinetic energy has been converted to gravitational potential energy. H = v²sin²(θ)/(2g). A 90° launch gives maximum height (all velocity is vertical).',
+      example: { problem: 'A projectile is launched at 40 m/s at 60° (g = 9.81 m/s²). Find max height.',
+        steps: ['Given: v = 40 m/s, θ = 60°, g = 9.81 m/s²','H = v² × sin²(θ) / (2g)','H = 1600 × sin²(60°) / 19.62','H = 1600 × 0.75 / 19.62','H = 61.16 m'], answer: 61.16, unit: 'm' } },
+    { id: 'time-of-flight', name: 'Time of Flight', symbol: 'T = 2v·sin(θ)/g',
+      formula: 'T = 2v × sin(θ) / g', unit: 's', cat: 'kinematics',
+      desc: 'The total time the projectile spends in the air (from launch to landing at the same height) is T = 2v·sin(θ)/g. The time to reach max height is exactly half of this.',
+      example: { problem: 'A ball is thrown at 20 m/s at 45° (g = 9.81 m/s²). Find time of flight.',
+        steps: ['Given: v = 20 m/s, θ = 45°, g = 9.81 m/s²','T = 2v × sin(θ) / g','T = 2 × 20 × sin(45°) / 9.81','T = 40 × 0.7071 / 9.81','T = 2.88 s'], answer: 2.88, unit: 's' } },
+    { id: 'trajectory-eq', name: 'Trajectory Equation', symbol: 'y = x·tanθ − gx²/(2v²cos²θ)',
+      formula: 'y = x·tan(θ) − gx² / (2v²cos²(θ))', unit: 'm', cat: 'kinematics',
+      desc: 'The trajectory equation gives the height y as a function of horizontal distance x. By eliminating time from the parametric equations (x = vcosθ·t, y = vsinθ·t − ½gt²), we get a parabolic equation.',
+      example: { problem: 'Projectile launched at 30 m/s, 45°. Find height at x = 20 m (g = 9.81 m/s²).',
+        steps: ['Given: v = 30 m/s, θ = 45°, x = 20 m','y = x·tan(θ) − gx²/(2v²cos²θ)','y = 20·tan(45°) − 9.81×400/(2×900×0.5)','y = 20 − 3924/900','y = 20 − 4.36 = 15.64 m'], answer: 15.64, unit: 'm' } },
+
+    /* ── Vectors ───────────────────────────────────────────────────── */
+    { id: 'velocity-components', name: 'Velocity Components', symbol: 'Vx, Vy',
+      formula: 'Vx = v·cos(θ), Vy = v·sin(θ) − gt', unit: 'm/s', cat: 'vectors',
+      desc: 'The initial velocity is decomposed into horizontal (Vx = v·cosθ) and vertical (Vy₀ = v·sinθ) components. The horizontal component remains constant while the vertical component decreases by g each second.',
+      example: { problem: 'v = 50 m/s at 37°. Find Vx and Vy at t = 0 and t = 2 s.',
+        steps: ['Vx = 50·cos(37°) = 50×0.7986 = 39.93 m/s (constant)','Vy₀ = 50·sin(37°) = 50×0.6018 = 30.09 m/s','At t = 2 s: Vy = 30.09 − 9.81×2 = 10.47 m/s','Vx stays 39.93 m/s at all times'], answer: 39.93, unit: 'm/s' } },
+    { id: 'independence', name: 'Independence of Motion', symbol: 'x ⊥ y',
+      formula: 'Horizontal and vertical motions are independent', unit: '', cat: 'vectors',
+      desc: 'Horizontal and vertical motions are completely independent. Gravity only affects vertical motion. A bullet fired horizontally and one dropped from the same height hit the ground at the same time.',
+      example: { problem: 'Ball A is dropped; Ball B is thrown horizontally at 10 m/s from h = 20 m. Which lands first?',
+        steps: ['Both start with Vy₀ = 0 (vertical)','Time to fall: h = ½gt² → t = √(2h/g)','t = √(2×20/9.81) = √4.077 = 2.02 s','Both land at t = 2.02 s (same time!)'], answer: 2.02, unit: 's' } },
+    { id: 'impact-velocity', name: 'Impact Velocity', symbol: 'v_f = √(Vx² + Vy²)',
+      formula: 'v_f = √(Vx² + Vy_f²)', unit: 'm/s', cat: 'vectors',
+      desc: 'The speed at impact is found using the Pythagorean theorem on the final velocity components. For launches from height h, energy conservation gives v_f = √(v² + 2gh).',
+      example: { problem: 'Launched at 30 m/s, 45° from h = 10 m (g = 9.81). Find impact speed.',
+        steps: ['v_f = √(v² + 2gh)','v_f = √(900 + 2×9.81×10)','v_f = √(900 + 196.2)','v_f = √1096.2 = 33.11 m/s'], answer: 33.11, unit: 'm/s' } },
+    { id: 'angle-symmetry', name: 'Launch Angle Symmetry', symbol: 'θ ↔ 90°−θ',
+      formula: 'R(θ) = R(90° − θ)', unit: '', cat: 'vectors',
+      desc: 'Complementary angles produce the same range on flat ground. 30° and 60° give identical ranges. The lower angle produces a flatter, faster trajectory; the higher angle gives a taller, slower arc.',
+      example: { problem: 'Show that 30° and 60° give the same range at v = 20 m/s (g = 9.81).',
+        steps: ['R(30°) = 20²×sin(60°)/9.81 = 35.31 m','R(60°) = 20²×sin(120°)/9.81 = 35.31 m','Both give R = 35.31 m ✔','But H(30°) = 5.10 m, H(60°) = 15.29 m'], answer: 35.31, unit: 'm' } },
+
+    /* ── Applications ──────────────────────────────────────────────── */
+    { id: 'optimal-angle', name: 'Optimal Angle', symbol: 'θ_opt = 45°',
+      formula: 'θ_opt = 45° (flat ground, no drag)', unit: '°', cat: 'applications',
+      desc: 'On flat ground with no air resistance, 45° maximises range. With air resistance, optimal angle drops to ~30°–40°. From an elevation, optimal angle is less than 45°.',
+      example: { problem: 'Find the maximum range for v = 50 m/s on flat ground (g = 9.81).',
+        steps: ['Optimal angle: θ = 45°','R_max = v²/g (since sin(90°) = 1)','R_max = 2500 / 9.81','R_max = 254.84 m'], answer: 254.84, unit: 'm' } },
+    { id: 'effect-of-height', name: 'Effect of Height', symbol: 'h > 0 → R↑',
+      formula: 'R = (v·cosθ/g)(v·sinθ + √(v²sin²θ + 2gh))', unit: 'm', cat: 'applications',
+      desc: 'Launching from an elevation increases the range. The optimal angle from an elevation is less than 45°.',
+      example: { problem: 'v = 20 m/s, θ = 45°, h = 15 m (g = 9.81). Find range.',
+        steps: ['Vx = 20·cos45° = 14.14 m/s','Vy₀ = 20·sin45° = 14.14 m/s','Time: 0 = 15 + 14.14t − 4.905t² → t = 3.72 s','R = 14.14 × 3.72 = 52.60 m'], answer: 52.60, unit: 'm' } },
+    { id: 'air-resistance', name: 'Air Resistance', symbol: 'F_d = ½C_dρAv²',
+      formula: 'F_d = ½ × C_d × ρ × A × v²', unit: 'N', cat: 'applications',
+      desc: 'Air drag opposes velocity and is proportional to v². It reduces range, lowers max height, and breaks parabolic symmetry. C_d ≈ 0.47 for a sphere; ρ ≈ 1.225 kg/m³.',
+      example: { problem: 'A ball (r = 0.05 m, C_d = 0.47) moves at 30 m/s. Find drag force (ρ = 1.225 kg/m³).',
+        steps: ['A = πr² = π(0.05)² = 0.00785 m²','F_d = 0.5 × 0.47 × 1.225 × 0.00785 × 30²','F_d = 0.5 × 0.47 × 1.225 × 0.00785 × 900','F_d = 2.03 N'], answer: 2.03, unit: 'N' } },
+    { id: 'real-world', name: 'Real-World Applications', symbol: 'Sports, Ballistics',
+      formula: 'Context-dependent equations', unit: '', cat: 'applications',
+      desc: 'Projectile motion appears everywhere: basketball, golf, water fountains, artillery, javelin throws. Each application modifies the basic model with factors like spin, drag, and wind.',
+      example: { problem: 'A basketball player shoots at v = 8 m/s, θ = 52°, h = 2 m. Find the range.',
+        steps: ['Vx = 8·cos52° = 4.93 m/s','Vy₀ = 8·sin52° = 6.30 m/s','Time: 0 = 2 + 6.30t − 4.905t² → t = 1.54 s','R = 4.93 × 1.54 = 7.59 m'], answer: 7.59, unit: 'm' } }
+  ];
+
+  /* ── Practice problem generators ──────────────────────────────── */
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function randF(a, b, d) { var v = a + Math.random() * (b - a); return +v.toFixed(d || 2); }
+  function deg2rad(d) { return d * Math.PI / 180; }
+  function rad2deg(r) { return r * 180 / Math.PI; }
+
+  var PRACTICE = [
+    function () { var v = randInt(15,60), th = randInt(20,70), g = 9.81;
+      var R = (v*v*Math.sin(2*deg2rad(th)))/g;
+      return { prompt: 'A projectile is launched at '+v+' m/s at '+th+'° on Earth (g = 9.81 m/s²). Calculate the range (ground level launch).',
+        answer: +R.toFixed(2), unit: 'm',
+        steps: ['Given: v = '+v+' m/s, θ = '+th+'°, g = 9.81 m/s²','R = v² × sin(2θ) / g','R = '+(v*v)+' × sin('+(2*th)+'°) / 9.81','R = '+(v*v)+' × '+Math.sin(2*deg2rad(th)).toFixed(4)+' / 9.81','R = '+R.toFixed(2)+' m'] }; },
+    function () { var v = randInt(15,60), th = randInt(25,75), g = 9.81;
+      var H = (v*v*Math.pow(Math.sin(deg2rad(th)),2))/(2*g);
+      return { prompt: 'A ball is launched at '+v+' m/s at '+th+'° (g = 9.81). Find the maximum height.',
+        answer: +H.toFixed(2), unit: 'm',
+        steps: ['Given: v = '+v+' m/s, θ = '+th+'°','H = v²sin²θ / (2g)','H = '+(v*v)+' × '+Math.pow(Math.sin(deg2rad(th)),2).toFixed(4)+' / 19.62','H = '+H.toFixed(2)+' m'] }; },
+    function () { var v = randInt(15,50), th = randInt(20,70), g = 9.81;
+      var T = 2*v*Math.sin(deg2rad(th))/g;
+      return { prompt: 'Projectile launched at '+v+' m/s at '+th+'° (g = 9.81). Find the time of flight (ground level).',
+        answer: +T.toFixed(2), unit: 's',
+        steps: ['Given: v = '+v+' m/s, θ = '+th+'°','T = 2v·sinθ / g','T = 2 × '+v+' × '+Math.sin(deg2rad(th)).toFixed(4)+' / 9.81','T = '+T.toFixed(2)+' s'] }; },
+    function () { var v = randInt(15,45), h = randInt(5,30), g = 9.81;
+      var vf = Math.sqrt(v*v + 2*g*h);
+      return { prompt: 'A projectile is launched at '+v+' m/s from height '+h+' m (g = 9.81). Find the impact speed (use energy conservation).',
+        answer: +vf.toFixed(2), unit: 'm/s',
+        steps: ['v_f = √(v² + 2gh)','v_f = √('+(v*v)+' + 2×9.81×'+h+')','v_f = √('+(v*v+2*g*h).toFixed(2)+')','v_f = '+vf.toFixed(2)+' m/s'] }; },
+    function () { var v = randInt(20,50), g = 9.81;
+      var Rmax = v*v/g; var R = randF(Rmax*0.3, Rmax*0.9, 1);
+      var sinVal = R*g/(v*v); if (sinVal>1) sinVal = 0.95;
+      var th = 0.5*rad2deg(Math.asin(sinVal));
+      return { prompt: 'What launch angle gives a range of '+R+' m with v = '+v+' m/s? (g = 9.81, give the smaller angle)',
+        answer: +th.toFixed(2), unit: '°',
+        steps: ['R = v²sin(2θ)/g → sin(2θ) = Rg/v²','sin(2θ) = '+R+'×9.81/'+(v*v),'sin(2θ) = '+sinVal.toFixed(4),'2θ = '+rad2deg(Math.asin(sinVal)).toFixed(2)+'°','θ = '+th.toFixed(2)+'°'] }; },
+    function () { var th = randInt(25,65), R = randInt(30,200), g = 9.81;
+      var v = Math.sqrt(R*g/Math.sin(2*deg2rad(th)));
+      return { prompt: 'What initial velocity gives a range of '+R+' m at θ = '+th+'°? (g = 9.81)',
+        answer: +v.toFixed(2), unit: 'm/s',
+        steps: ['R = v²sin(2θ)/g → v² = Rg/sin(2θ)','v² = '+R+'×9.81/sin('+(2*th)+'°)','v² = '+(R*g/Math.sin(2*deg2rad(th))).toFixed(2),'v = '+v.toFixed(2)+' m/s'] }; },
+    function () { var v = randInt(15,60), th = randInt(15,75);
+      var vx = v*Math.cos(deg2rad(th));
+      return { prompt: 'A projectile is launched at '+v+' m/s at '+th+'°. Find the horizontal velocity component.',
+        answer: +vx.toFixed(2), unit: 'm/s',
+        steps: ['Vx = v·cos(θ)','Vx = '+v+' × cos('+th+'°)','Vx = '+v+' × '+Math.cos(deg2rad(th)).toFixed(4),'Vx = '+vx.toFixed(2)+' m/s'] }; },
+    function () { var v = randInt(20,50), th = randInt(30,70), t = randF(0.5,2,1), g = 9.81;
+      var vy0 = v*Math.sin(deg2rad(th)); var vy = vy0 - g*t;
+      return { prompt: 'v = '+v+' m/s, θ = '+th+'°. Find vertical velocity at t = '+t+' s (g = 9.81).',
+        answer: +vy.toFixed(2), unit: 'm/s',
+        steps: ['Vy₀ = v·sinθ = '+v+'×sin('+th+'°) = '+vy0.toFixed(2)+' m/s','Vy = Vy₀ − gt','Vy = '+vy0.toFixed(2)+' − 9.81×'+t,'Vy = '+vy.toFixed(2)+' m/s'] }; },
+    function () { var v = randInt(15,55), th = randInt(25,75), g = 9.81;
+      var t = v*Math.sin(deg2rad(th))/g;
+      return { prompt: 'Launched at '+v+' m/s at '+th+'° (g = 9.81). Find time to reach maximum height.',
+        answer: +t.toFixed(2), unit: 's',
+        steps: ['At max height Vy = 0','0 = v·sinθ − gt → t = v·sinθ/g','t = '+v+'×sin('+th+'°)/9.81','t = '+(v*Math.sin(deg2rad(th))).toFixed(2)+'/9.81','t = '+t.toFixed(2)+' s'] }; },
+    function () { var v = randInt(20,60), th = randInt(20,70);
+      var vAtPeak = v*Math.cos(deg2rad(th));
+      return { prompt: 'A projectile launched at '+v+' m/s at '+th+'°. What is the speed at the highest point?',
+        answer: +vAtPeak.toFixed(2), unit: 'm/s',
+        steps: ['At max height, Vy = 0','Speed = Vx = v·cosθ','Speed = '+v+'×cos('+th+'°)','Speed = '+vAtPeak.toFixed(2)+' m/s'] }; },
+    function () { var v = randInt(15,40), th = randInt(30,60), h = randInt(3,20), g = 9.81;
+      var vx = v*Math.cos(deg2rad(th)); var vy0 = v*Math.sin(deg2rad(th));
+      var disc = vy0*vy0 + 2*g*h; var T = (vy0+Math.sqrt(disc))/g; var R = vx*T;
+      return { prompt: 'Launched at '+v+' m/s, '+th+'° from h = '+h+' m (g = 9.81). Find the range.',
+        answer: +R.toFixed(2), unit: 'm',
+        steps: ['Vx = '+vx.toFixed(2)+' m/s, Vy₀ = '+vy0.toFixed(2)+' m/s','Time: 0 = h + Vy₀·t − ½gt²','t = (Vy₀ + √(Vy₀² + 2gh))/g','t = ('+vy0.toFixed(2)+' + √'+disc.toFixed(2)+')/'+g,'t = '+T.toFixed(2)+' s','R = Vx×t = '+vx.toFixed(2)+'×'+T.toFixed(2)+' = '+R.toFixed(2)+' m'] }; },
+    function () { var v = randInt(20,80), g = 9.81; var Rmax = v*v/g;
+      return { prompt: 'Find the maximum possible range for a projectile launched at '+v+' m/s on flat ground (g = 9.81).',
+        answer: +Rmax.toFixed(2), unit: 'm',
+        steps: ['Max range at θ = 45°','R_max = v²/g (since sin90° = 1)','R_max = '+(v*v)+'/9.81','R_max = '+Rmax.toFixed(2)+' m'] }; }
+  ];
+
+  var QUIZ_POOL = [
+    { q: 'At what angle is the range of a projectile maximised on flat ground (no drag)?', opts: ['30°','45°','60°','90°'], correct: 1 },
+    { q: 'What happens to the time of flight if the launch angle increases from 30° to 60° (same speed)?', opts: ['Decreases','Increases','Stays the same','Becomes zero'], correct: 1 },
+    { q: 'Which component of velocity remains constant during projectile motion (no air resistance)?', opts: ['Vertical','Horizontal','Both','Neither'], correct: 1 },
+    { q: 'If the initial velocity doubles, the range becomes:', opts: ['2×','4×','8×','√2×'], correct: 1 },
+    { q: 'What is the speed of a projectile at its highest point?', opts: ['Zero','v·cosθ','v·sinθ','v'], correct: 1 },
+    { q: 'Two projectiles are launched at 30° and 60° with the same speed. Which has greater max height?', opts: ['30°','60°','Same height','Cannot determine'], correct: 1 },
+    { q: 'The trajectory of a projectile (no drag) is a:', opts: ['Circle','Hyperbola','Parabola','Straight line'], correct: 2 },
+    { q: 'If you launch a projectile at 45° on the Moon (g = 1.62 m/s²) vs Earth (g = 9.81), how does the range compare?', opts: ['Same','Moon range is ~6× greater','Earth range is greater','Moon range is ~2× greater'], correct: 1 },
+    { q: 'What is the vertical acceleration during projectile motion (no drag)?', opts: ['Zero','g upward','g downward','Varies with time'], correct: 2 },
+    { q: 'Air resistance causes the optimal launch angle to:', opts: ['Increase above 45°','Decrease below 45°','Stay at 45°','Become 90°'], correct: 1 },
+    { q: 'The time to reach maximum height is:', opts: ['T = v/g','T = v·sinθ/g','T = v·cosθ/g','T = 2v/g'], correct: 1 },
+    { q: 'Launching from a cliff (height h > 0) compared to ground level:', opts: ['Decreases range','Increases range','No effect on range','Decreases max height'], correct: 1 },
+    { q: 'A ball thrown horizontally from a height falls in the same time as one dropped vertically. Why?', opts: ['Air resistance helps','Horizontal and vertical motions are independent','Gravity is stronger horizontally','They have the same mass'], correct: 1 },
+    { q: 'The drag force on a projectile is proportional to:', opts: ['v','v²','v³','1/v'], correct: 1 },
+    { q: 'At 45° launch, how do range and max height compare (same v, flat ground)?', opts: ['Range = Height','Range = 2×Height','Range = 4×Height','Range = 3×Height'], correct: 2 }
+  ];
+
+  var PRESETS = {
+    basketball: { v: 8,  angle: 52, h: 2, label: 'Basketball Shot' },
+    artillery:  { v: 80, angle: 45, h: 0, label: 'Artillery' },
+    golf:       { v: 70, angle: 12, h: 0, label: 'Golf Drive' },
+    optimal:    { v: 30, angle: 45, h: 0, label: 'Optimal 45°' }
+  };
+
+  /* ================================================================
+     UNIT SYSTEM
+     ================================================================ */
+  /* All internal computation stays in SI (m, m/s, s, m/s^2). */
+  var M_PER_FT = 0.3048;
+  var unitSystem = 'si';
+
+  function U() {
+    var imp = unitSystem === 'imp';
+    return {
+      isImp: imp,
+      lenLabel: imp ? 'ft' : 'm',
+      velLabel: imp ? 'ft/s' : 'm/s',
+      accLabel: imp ? 'ft/s²' : 'm/s²',
+      lenFromSI: function (m) { return imp ? m / M_PER_FT : m; },
+      velFromSI: function (ms) { return imp ? ms / M_PER_FT : ms; },
+      accFromSI: function (a) { return imp ? a / M_PER_FT : a; },   /* acceleration scales like length */
+      lenToSI:   function (v) { return imp ? v * M_PER_FT : v; },
+      velToSI:   function (v) { return imp ? v * M_PER_FT : v; }
+    };
+  }
+
+  /* ================================================================
+     DOM REFS
+     ================================================================ */
+  var $ = function (s) { return document.getElementById(s) || document.querySelector(s); };
+  var cvs = $('sim-canvas');
+  var ctx = cvs.getContext('2d');
+
+  var angleSlider = $('angle-slider'), angleInput = $('angle-input');
+  var velSlider   = $('vel-slider'),   velInput   = $('vel-input');
+  var heightSlider = $('height-slider'), heightInput = $('height-input');
+  var velUnit = $('vel-unit'), heightUnit = $('height-unit');
+  var chkAir = $('chk-air');
+  var chkGrid = $('chk-grid'), chkVectors = $('chk-vectors'),
+      chkMarkers = $('chk-markers'), chkGhosts = $('chk-ghosts');
+
+  var rRange  = $('r-range'),  rHeight = $('r-height'), rTime = $('r-time');
+  var rImpact = $('r-impact'), rAngle  = $('r-angle'),  rVel  = $('r-vel');
+  var ruRange = $('ru-range'), ruHeight = $('ru-height'), ruImpact = $('ru-impact'), ruVel = $('ru-vel');
+
+  var simPanel     = $('sim-panel');
+  var learnPanels  = $('learn-panels');
+  var catRow       = $('cat-row');
+  var itemSelector = $('item-selector');
+  var conceptGrid  = $('concept-grid');
+  var itemInfo     = $('item-info');
+  var practicePanel = $('practice-panel');
+  var practiceBar   = $('practice-bar');
+  var ppPrompt = $('pp-prompt'), ppInput = $('pp-input'), ppUnit = $('pp-unit');
+  var ppCheck  = $('pp-check'),  ppNext  = $('pp-next'),  ppFeedback = $('pp-feedback');
+  var ppSolution = $('pp-solution');
+  var quizPanel  = $('quiz-panel'), quizBar = $('quiz-bar'), quizResult = $('quiz-result');
+  var qbarNum = $('qbar-num');
+  var btnFire  = $('btn-fire');
+  var btnReset = $('btn-reset');
+  var btnUndo = $('btn-undo'), btnRedo = $('btn-redo');
+  var btnCsv = $('btn-csv'), btnPng = $('btn-png');
+  var ctxMenu = $('ctx-menu');
+  var canvasHint = $('canvas-hint');
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var W = 900, H = 520;
+  var mode = 'simulate';
+  var curCat = 'kinematics';
+  var curConcept = null;
+
+  /* sim state — all SI internally */
+  var simAngle = 45, simVel = 30, simH = 0, simG = 9.81;
+  var airRes = false;
+  var animating = false, animTime = 0, animDuration = 0;
+  var trajectory = [];
+  var ghostTrails = [];
+  var currentTrailIndex = 0;
+  var animFrame = null;
+  var simResult = null;
+
+  /* feature toggles */
+  var showGrid = true, showVectors = true, showMarkers = true, showGhosts = true;
+
+  /* undo / redo */
+  var undoStack = [], redoStack = [];
+  var MAX_UNDO = 50;
+  var suppressSnapshot = false;
+
+  /* practice */
+  var practiceProblem = null, practiceScore = 0, practiceTotal = 0, practiceChecked = false;
+
+  /* quiz */
+  var quizQuestions = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+
+  /* ================================================================
+     CANVAS SETUP (HiDPI)
+     ================================================================ */
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width || W;
+    var cssH = cssW * (H / W);
+    cvs.style.height = cssH + 'px';
+    cvs.width  = Math.round(cssW * dpr);
+    cvs.height = Math.round(cssH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(cvs.width / W, cvs.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+  }
+  resizeCanvas();
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(function () { resizeCanvas(); draw(); }).observe(cvs);
+
+  /* ================================================================
+     PHYSICS
+     ================================================================ */
+  /* Atmospheric density by planet (kg/m³). Moon ≈ vacuum, Mars is thin. */
+  function airDensityFor(g) {
+    if (Math.abs(g - 1.62) < 0.1) return 0;       // Moon — no atmosphere
+    if (Math.abs(g - 3.72) < 0.1) return 0.020;   // Mars — ~1.6% of Earth's
+    return 1.225;                                  // Earth (sea level)
+  }
+
+  function computeTrajectory(v0, angleDeg, h0, g, drag) {
+    var th = deg2rad(angleDeg);
+    var vx = v0 * Math.cos(th);
+    var vy = v0 * Math.sin(th);
+    var dt = 0.005;
+    var x = 0, y = h0;
+    var points = [{ x: x, y: y, vx: vx, vy: vy, t: 0 }];
+    var t = 0;
+    var maxY = y;
+    var Cd = 0.47, rho = airDensityFor(g), radius = 0.05, A = Math.PI * radius * radius, mass = 0.5;
+
+    for (var i = 0; i < 100000; i++) {
+      t += dt;
+      if (drag) {
+        var speed = Math.sqrt(vx * vx + vy * vy);
+        if (speed < 1e-6) speed = 1e-6;
+        var Fd = 0.5 * Cd * rho * A * speed * speed;
+        var ax = -(Fd / mass) * (vx / speed);
+        var ay = -g - (Fd / mass) * (vy / speed);
+        vx += ax * dt; vy += ay * dt;
+      } else {
+        vy -= g * dt;
+      }
+      x += vx * dt; y += vy * dt;
+      if (y > maxY) maxY = y;
+      points.push({ x: x, y: y, vx: vx, vy: vy, t: t });
+      if (y <= 0 && t > 0.01) {
+        var prev = points[points.length - 2];
+        var frac = prev.y / (prev.y - y);
+        var gx = prev.x + (x - prev.x) * frac;
+        var gt = prev.t + (t - prev.t) * frac;
+        var gvx = prev.vx + (vx - prev.vx) * frac;
+        var gvy = prev.vy + (vy - prev.vy) * frac;
+        points[points.length - 1] = { x: gx, y: 0, vx: gvx, vy: gvy, t: gt };
+        break;
+      }
+    }
+    var last = points[points.length - 1];
+    return { points: points, range: last.x, maxH: maxY, time: last.t, vImpact: Math.sqrt(last.vx*last.vx + last.vy*last.vy) };
+  }
+
+  function analyticalCalc(v0, angleDeg, h0, g) {
+    var th = deg2rad(angleDeg);
+    var vx = v0 * Math.cos(th);
+    var vy0 = v0 * Math.sin(th);
+    var maxH = h0 + (vy0 * vy0) / (2 * g);
+    var disc = vy0 * vy0 + 2 * g * h0;
+    var T = (vy0 + Math.sqrt(Math.max(0, disc))) / g;
+    var R = vx * T;
+    var vyf = -Math.sqrt(Math.max(0, disc));
+    var vImpact = Math.sqrt(vx * vx + vyf * vyf);
+    return { range: R, maxH: maxH, time: T, vImpact: vImpact };
+  }
+
+  /* ================================================================
+     DRAWING
+     ================================================================ */
+  var MARGIN = { left: 60, right: 30, top: 30, bottom: 60 };
+  var plotW = W - MARGIN.left - MARGIN.right;
+  var plotH = H - MARGIN.top - MARGIN.bottom;
+
+  function getScale(traj) {
+    var maxX = 10, maxY = 10;
+    for (var i = 0; i < traj.length; i++) {
+      if (traj[i].x > maxX) maxX = traj[i].x;
+      if (traj[i].y > maxY) maxY = traj[i].y;
+    }
+    if (showGhosts) {
+      for (var gi = 0; gi < ghostTrails.length; gi++) {
+        var gt = ghostTrails[gi];
+        for (var j = 0; j < gt.length; j++) {
+          if (gt[j].x > maxX) maxX = gt[j].x;
+          if (gt[j].y > maxY) maxY = gt[j].y;
+        }
+      }
+    }
+    maxX *= 1.15; maxY *= 1.15;
+    /* Equal aspect ratio: same metres-per-pixel on both axes so launch
+       angles render true (a 45° shot looks like 45°). The non-limiting
+       axis simply shows extra empty space. */
+    var s = Math.min(plotW / maxX, plotH / maxY);
+    return { sx: s, sy: s, maxX: plotW / s, maxY: plotH / s };
+  }
+
+  function toScreen(px, py, scale) {
+    return { x: MARGIN.left + px * scale.sx, y: H - MARGIN.bottom - py * scale.sy };
+  }
+
+  function niceStep(max, targetTicks) {
+    var rough = max / targetTicks;
+    var pow10 = Math.pow(10, Math.floor(Math.log10(rough)));
+    var frac = rough / pow10;
+    var nice;
+    if (frac <= 1.5) nice = 1;
+    else if (frac <= 3.5) nice = 2;
+    else if (frac <= 7.5) nice = 5;
+    else nice = 10;
+    return nice * pow10 || 1;
+  }
+
+  function drawGrid(scale) {
+    if (!showGrid) {
+      /* still draw axis labels */
+      ctx.fillStyle = '#6b7a99';
+      ctx.font = '11px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Horizontal Distance (' + U().lenLabel + ')', W / 2, H - 10);
+      ctx.save(); ctx.translate(14, H / 2); ctx.rotate(-Math.PI / 2);
+      ctx.fillText('Height (' + U().lenLabel + ')', 0, 0); ctx.restore();
+      return;
+    }
+    var u = U();
+    ctx.strokeStyle = 'rgba(42,48,80,0.5)';
+    ctx.lineWidth = 0.5;
+    ctx.font = '10px Courier New';
+    ctx.fillStyle = '#6b7a99';
+    ctx.textAlign = 'center';
+
+    var stepX = niceStep(scale.maxX, 8);
+    for (var gx = 0; gx <= scale.maxX; gx += stepX) {
+      var sx = toScreen(gx, 0, scale);
+      ctx.beginPath(); ctx.moveTo(sx.x, MARGIN.top); ctx.lineTo(sx.x, H - MARGIN.bottom); ctx.stroke();
+      var dispX = u.lenFromSI(gx);
+      ctx.fillText(dispX.toFixed(dispX >= 100 ? 0 : 1) + ' ' + u.lenLabel, sx.x, H - MARGIN.bottom + 16);
+    }
+    ctx.textAlign = 'right';
+    var stepY = niceStep(scale.maxY, 6);
+    for (var gy = 0; gy <= scale.maxY; gy += stepY) {
+      var sy = toScreen(0, gy, scale);
+      ctx.beginPath(); ctx.moveTo(MARGIN.left, sy.y); ctx.lineTo(W - MARGIN.right, sy.y); ctx.stroke();
+      var dispY = u.lenFromSI(gy);
+      ctx.fillText(dispY.toFixed(dispY >= 100 ? 0 : 1) + ' ' + u.lenLabel, MARGIN.left - 6, sy.y + 3);
+    }
+    ctx.fillStyle = '#6b7a99';
+    ctx.font = '11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Horizontal Distance (' + u.lenLabel + ')', W / 2, H - 10);
+    ctx.save(); ctx.translate(14, H / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Height (' + u.lenLabel + ')', 0, 0); ctx.restore();
+  }
+
+  function drawTrail(pts, endIdx, scale, color, width) {
+    if (endIdx < 2) return;
+    ctx.beginPath();
+    var s0 = toScreen(pts[0].x, pts[0].y, scale);
+    ctx.moveTo(s0.x, s0.y);
+    for (var i = 1; i < endIdx && i < pts.length; i++) {
+      var sp = toScreen(pts[i].x, pts[i].y, scale);
+      ctx.lineTo(sp.x, sp.y);
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  function drawVelocityArrows(screenPos, point) {
+    if (!showVectors) return;
+    var u = U();
+    var arrowScale = 1.8;
+    if (Math.abs(point.vx) > 0.5) {
+      var vxLen = point.vx * arrowScale;
+      if (Math.abs(vxLen) > 80) vxLen = 80 * Math.sign(vxLen);
+      ctx.beginPath(); ctx.moveTo(screenPos.x, screenPos.y); ctx.lineTo(screenPos.x + vxLen, screenPos.y);
+      ctx.strokeStyle = '#aed581'; ctx.lineWidth = 2; ctx.stroke();
+      var dir = Math.sign(vxLen);
+      ctx.beginPath();
+      ctx.moveTo(screenPos.x + vxLen, screenPos.y);
+      ctx.lineTo(screenPos.x + vxLen - 6 * dir, screenPos.y - 4);
+      ctx.lineTo(screenPos.x + vxLen - 6 * dir, screenPos.y + 4);
+      ctx.closePath(); ctx.fillStyle = '#aed581'; ctx.fill();
+      ctx.font = '10px Courier New'; ctx.fillStyle = '#aed581'; ctx.textAlign = 'center';
+      ctx.fillText('Vx=' + u.velFromSI(Math.abs(point.vx)).toFixed(1), screenPos.x + vxLen / 2, screenPos.y + 16);
+    }
+    if (Math.abs(point.vy) > 0.5) {
+      var vyLen = -point.vy * arrowScale;
+      if (Math.abs(vyLen) > 80) vyLen = 80 * Math.sign(vyLen);
+      ctx.beginPath(); ctx.moveTo(screenPos.x, screenPos.y); ctx.lineTo(screenPos.x, screenPos.y + vyLen);
+      ctx.strokeStyle = '#4fc3f7'; ctx.lineWidth = 2; ctx.stroke();
+      var diry = Math.sign(vyLen);
+      ctx.beginPath();
+      ctx.moveTo(screenPos.x, screenPos.y + vyLen);
+      ctx.lineTo(screenPos.x - 4, screenPos.y + vyLen - 6 * diry);
+      ctx.lineTo(screenPos.x + 4, screenPos.y + vyLen - 6 * diry);
+      ctx.closePath(); ctx.fillStyle = '#4fc3f7'; ctx.fill();
+      ctx.font = '10px Courier New'; ctx.fillStyle = '#4fc3f7'; ctx.textAlign = 'left';
+      ctx.fillText('Vy=' + u.velFromSI(point.vy).toFixed(1), screenPos.x + 10, screenPos.y + vyLen / 2);
+    }
+  }
+
+  function drawLaunchIndicator(scale) {
+    var origin = toScreen(0, simH, scale);
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#7cb342'; ctx.fill();
+
+    var arcR = 30;
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, arcR, 0, -deg2rad(simAngle), true);
+    ctx.strokeStyle = '#aed581'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    var labelAngle = deg2rad(simAngle / 2);
+    var lx = origin.x + (arcR + 12) * Math.cos(-labelAngle);
+    var ly = origin.y + (arcR + 12) * Math.sin(-labelAngle);
+    ctx.font = '11px Segoe UI, sans-serif'; ctx.fillStyle = '#aed581'; ctx.textAlign = 'center';
+    ctx.fillText(simAngle + '°', lx, ly);
+
+    var lineLen = 40;
+    var lx2 = origin.x + lineLen * Math.cos(-deg2rad(simAngle));
+    var ly2 = origin.y + lineLen * Math.sin(-deg2rad(simAngle));
+    ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(lx2, ly2);
+    ctx.strokeStyle = 'rgba(174,213,129,0.6)'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  function drawGround(scale) {
+    var ground = toScreen(0, 0, scale);
+    ctx.beginPath(); ctx.moveTo(MARGIN.left, ground.y); ctx.lineTo(W - MARGIN.right, ground.y);
+    ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(58,69,104,0.6)'; ctx.lineWidth = 1;
+    for (var hx = MARGIN.left; hx < W - MARGIN.right; hx += 12) {
+      ctx.beginPath(); ctx.moveTo(hx, ground.y); ctx.lineTo(hx - 5, ground.y + 7); ctx.stroke();
+    }
+  }
+
+  function drawInfoOverlay(point) {
+    var u = U();
+    ctx.fillStyle = 'rgba(22,27,39,0.88)'; ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    var bx = W - 200, by = 70, bw = 190, bh = 85;   /* below the rotating planet icon */
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 8); else ctx.rect(bx, by, bw, bh);
+    ctx.fill(); ctx.stroke();
+
+    ctx.font = '11px Courier New'; ctx.fillStyle = '#7cb342'; ctx.textAlign = 'left';
+    ctx.fillText('t = ' + point.t.toFixed(2) + ' s', bx + 10, by + 20);
+    ctx.fillStyle = '#dde3f0';
+    ctx.fillText('x = ' + u.lenFromSI(point.x).toFixed(2) + ' ' + u.lenLabel, bx + 10, by + 36);
+    ctx.fillText('y = ' + u.lenFromSI(point.y).toFixed(2) + ' ' + u.lenLabel, bx + 10, by + 50);
+    var speed = Math.sqrt(point.vx * point.vx + point.vy * point.vy);
+    ctx.fillText('v = ' + u.velFromSI(speed).toFixed(2) + ' ' + u.velLabel, bx + 10, by + 64);
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Vx=' + u.velFromSI(point.vx).toFixed(1) + '  Vy=' + u.velFromSI(point.vy).toFixed(1), bx + 10, by + 78);
+  }
+
+  function drawGravityLabel() {
+    var label = 'Earth';
+    if (Math.abs(simG - 1.62) < 0.1) label = 'Moon';
+    else if (Math.abs(simG - 3.72) < 0.1) label = 'Mars';
+    var u = U();
+    var gDisp = +u.accFromSI(simG).toFixed(2);
+    ctx.font = '11px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(107,122,153,0.7)';
+    ctx.textAlign = 'center';
+    ctx.fillText('g = ' + gDisp + ' ' + u.accLabel + ' (' + label + ')', W / 2, MARGIN.top + 14);
+  }
+
+  function drawAirResLabel() {
+    if (!airRes) return;
+    ctx.font = '10px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(255,85,85,0.65)';
+    ctx.textAlign = 'center';
+    ctx.fillText('Air Resistance: ON', W / 2, MARGIN.top + 28);
+  }
+
+  function drawHeightOffset(scale) {
+    if (simH <= 0) return;
+    var origin = toScreen(0, simH, scale);
+    var ground = toScreen(0, 0, scale);
+    ctx.beginPath(); ctx.moveTo(origin.x - 15, origin.y); ctx.lineTo(origin.x - 15, ground.y);
+    ctx.strokeStyle = 'rgba(79,195,247,0.45)'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(79,195,247,0.6)';
+    ctx.beginPath(); ctx.moveTo(origin.x - 15, origin.y); ctx.lineTo(origin.x - 18, origin.y + 5); ctx.lineTo(origin.x - 12, origin.y + 5); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(origin.x - 15, ground.y); ctx.lineTo(origin.x - 18, ground.y - 5); ctx.lineTo(origin.x - 12, ground.y - 5); ctx.closePath(); ctx.fill();
+    var u = U();
+    ctx.font = '10px Courier New'; ctx.fillStyle = '#4fc3f7'; ctx.textAlign = 'right';
+    ctx.fillText('h=' + u.lenFromSI(simH).toFixed(1) + u.lenLabel, origin.x - 20, (origin.y + ground.y) / 2 + 4);
+  }
+
+  function drawLandingMarker(scale) {
+    if (!showMarkers || !simResult || !trajectory.length) return;
+    var u = U();
+    var last = trajectory[trajectory.length - 1];
+    var ls = toScreen(last.x, last.y, scale);
+    ctx.strokeStyle = 'rgba(124,179,66,0.7)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ls.x - 8, ls.y); ctx.lineTo(ls.x + 8, ls.y);
+    ctx.moveTo(ls.x, ls.y - 8); ctx.lineTo(ls.x, ls.y + 8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ls.x, ls.y, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(124,179,66,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.font = '10px Courier New'; ctx.fillStyle = '#7cb342'; ctx.textAlign = 'center';
+    ctx.fillText(u.lenFromSI(last.x).toFixed(1) + ' ' + u.lenLabel, ls.x, ls.y + 20);
+  }
+
+  function drawMaxHeightIndicator(scale) {
+    if (!showMarkers || !simResult || !trajectory.length) return;
+    var u = U();
+    var maxPt = trajectory[0];
+    for (var i = 1; i < trajectory.length; i++) { if (trajectory[i].y > maxPt.y) maxPt = trajectory[i]; }
+    var ms = toScreen(maxPt.x, maxPt.y, scale);
+    var gs = toScreen(maxPt.x, 0, scale);
+    ctx.beginPath(); ctx.moveTo(ms.x, ms.y); ctx.lineTo(ms.x, gs.y);
+    ctx.strokeStyle = 'rgba(107,122,153,0.4)'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = '10px Courier New'; ctx.fillStyle = '#6b7a99'; ctx.textAlign = 'left';
+    ctx.fillText('H=' + u.lenFromSI(maxPt.y).toFixed(1) + u.lenLabel, ms.x + 6, ms.y + (gs.y - ms.y) / 2);
+    ctx.beginPath();
+    ctx.moveTo(ms.x, ms.y - 4); ctx.lineTo(ms.x + 4, ms.y); ctx.lineTo(ms.x, ms.y + 4); ctx.lineTo(ms.x - 4, ms.y);
+    ctx.closePath(); ctx.fillStyle = 'rgba(245,200,66,0.7)'; ctx.fill();
+  }
+
+  function drawRangeArrow(scale) {
+    if (!showMarkers || !simResult || !trajectory.length) return;
+    var u = U();
+    var last = trajectory[trajectory.length - 1];
+    if (last.x < 1) return;
+    var startS = toScreen(0, 0, scale); var endS = toScreen(last.x, 0, scale);
+    var arrowY = startS.y + 18;
+    ctx.beginPath(); ctx.moveTo(startS.x, arrowY); ctx.lineTo(endS.x, arrowY);
+    ctx.strokeStyle = 'rgba(124,179,66,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = 'rgba(124,179,66,0.5)';
+    ctx.beginPath(); ctx.moveTo(startS.x, arrowY); ctx.lineTo(startS.x + 5, arrowY - 3); ctx.lineTo(startS.x + 5, arrowY + 3); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(endS.x, arrowY); ctx.lineTo(endS.x - 5, arrowY - 3); ctx.lineTo(endS.x - 5, arrowY + 3); ctx.closePath(); ctx.fill();
+    ctx.font = '11px Courier New'; ctx.fillStyle = '#7cb342'; ctx.textAlign = 'center';
+    ctx.fillText('R = ' + u.lenFromSI(last.x).toFixed(1) + ' ' + u.lenLabel, (startS.x + endS.x) / 2, arrowY + 14);
+  }
+
+  function drawGhostLabels(scale) {
+    if (!showGhosts) return;
+    var u = U();
+    for (var i = 0; i < ghostTrails.length; i++) {
+      var gt = ghostTrails[i];
+      if (gt.length < 2) continue;
+      var last = gt[gt.length - 1];
+      var ls = toScreen(last.x, last.y, scale);
+      ctx.font = '9px Courier New'; ctx.fillStyle = 'rgba(124,179,66,0.45)'; ctx.textAlign = 'center';
+      ctx.fillText(u.lenFromSI(last.x).toFixed(1) + u.lenLabel, ls.x, ls.y - 8);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    var pts = trajectory.length ? trajectory : [{ x: 0, y: simH, vx: 0, vy: 0, t: 0 }];
+    var scale = getScale(pts);
+
+    drawGrid(scale);
+    drawGravityLabel(); drawAirResLabel();
+    drawHeightOffset(scale);
+
+    if (showGhosts) {
+      for (var gi = 0; gi < ghostTrails.length; gi++) {
+        drawTrail(ghostTrails[gi], ghostTrails[gi].length, scale, 'rgba(124,179,66,0.18)', 1.5);
+      }
+      drawGhostLabels(scale);
+    }
+
+    if (trajectory.length > 1) {
+      var endIdx = animating ? currentTrailIndex : trajectory.length;
+      drawTrail(trajectory, endIdx, scale, 'rgba(124,179,66,0.55)', 2.5);
+
+      if (endIdx > 2) {
+        ctx.beginPath();
+        var s0 = toScreen(trajectory[0].x, trajectory[0].y, scale);
+        ctx.moveTo(s0.x, s0.y);
+        for (var ti = 1; ti < endIdx && ti < trajectory.length; ti++) {
+          var sp = toScreen(trajectory[ti].x, trajectory[ti].y, scale);
+          ctx.lineTo(sp.x, sp.y);
+        }
+        ctx.strokeStyle = 'rgba(124,179,66,0.12)'; ctx.lineWidth = 8; ctx.stroke();
+      }
+
+      if (endIdx > 0 && endIdx <= trajectory.length) {
+        var bp = trajectory[Math.min(endIdx - 1, trajectory.length - 1)];
+        var bs = toScreen(bp.x, bp.y, scale);
+        drawVelocityArrows(bs, bp);
+        var groundY = toScreen(0, 0, scale).y;
+        ctx.beginPath(); ctx.ellipse(bs.x, groundY, 5, 2, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(bs.x, bs.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = '#4caf50'; ctx.fill();
+        ctx.strokeStyle = '#7cb342'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(bs.x - 2, bs.y - 2, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fill();
+      }
+      if (!animating) {
+        drawLandingMarker(scale); drawMaxHeightIndicator(scale); drawRangeArrow(scale);
+      }
+    }
+
+    drawLaunchIndicator(scale);
+    drawGround(scale);
+
+    if (animating && currentTrailIndex > 0 && currentTrailIndex <= trajectory.length) {
+      drawInfoOverlay(trajectory[Math.min(currentTrailIndex - 1, trajectory.length - 1)]);
+    }
+
+    ctx.font = '10px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(107,122,153,0.3)';
+    ctx.textAlign = 'right';
+    ctx.fillText('MechSimulator', W - MARGIN.right - 5, H - 10);
+  }
+
+  /* ================================================================
+     ANIMATION
+     ================================================================ */
+  function startAnimation() {
+    if (animating) stopAnimation();
+    var result = computeTrajectory(simVel, simAngle, simH, simG, airRes);
+    trajectory = result.points; simResult = result;
+    currentTrailIndex = 0; animating = true; animTime = 0; animDuration = result.time;
+    btnFire.disabled = true;
+
+    var startTs = null; var speedMult = Math.max(1, animDuration / 4);
+    function tick(ts) {
+      if (!animating) return;
+      if (!startTs) startTs = ts;
+      var elapsed = (ts - startTs) / 1000 * speedMult;
+      animTime = Math.min(elapsed, animDuration);
+      currentTrailIndex = 0;
+      for (var i = 0; i < trajectory.length; i++) {
+        if (trajectory[i].t <= animTime) currentTrailIndex = i + 1; else break;
+      }
+      if (currentTrailIndex > 0) updateReadoutsLive(trajectory[Math.min(currentTrailIndex - 1, trajectory.length - 1)]);
+      draw();
+      if (animTime >= animDuration) {
+        animating = false; currentTrailIndex = trajectory.length;
+        updateReadoutsFinal(simResult);
+        btnFire.disabled = false; draw(); updateAriaLabel(); updateLearnPanels();
+        return;
+      }
+      animFrame = requestAnimationFrame(tick);
+    }
+    animFrame = requestAnimationFrame(tick);
+  }
+
+  function stopAnimation() {
+    animating = false;
+    if (animFrame) cancelAnimationFrame(animFrame);
+    animFrame = null; btnFire.disabled = false;
+  }
+
+  /* ================================================================
+     READOUTS
+     ================================================================ */
+  function updateReadoutsLive(point) {
+    var u = U();
+    rRange.textContent  = u.lenFromSI(point.x).toFixed(2);
+    rHeight.textContent = u.lenFromSI(point.y).toFixed(2);
+    rTime.textContent   = point.t.toFixed(2);
+    var spd = Math.sqrt(point.vx * point.vx + point.vy * point.vy);
+    rImpact.textContent = u.velFromSI(spd).toFixed(2);
+    rAngle.textContent  = simAngle;
+    rVel.textContent    = u.velFromSI(simVel).toFixed(0);
+    syncReadoutUnits();
+  }
+
+  function updateReadoutsFinal(result) {
+    var u = U();
+    rRange.textContent  = u.lenFromSI(result.range).toFixed(2);
+    rHeight.textContent = u.lenFromSI(result.maxH).toFixed(2);
+    rTime.textContent   = result.time.toFixed(2);
+    rImpact.textContent = u.velFromSI(result.vImpact).toFixed(2);
+    rAngle.textContent  = simAngle;
+    rVel.textContent    = u.velFromSI(simVel).toFixed(0);
+    syncReadoutUnits();
+  }
+
+  function updateReadoutsStatic() {
+    /* With drag on, the closed-form kinematics no longer apply — run the
+       same integrator the animation uses so readouts match what a shot
+       will actually do. Vacuum keeps the exact analytical solution. */
+    var r = airRes ? computeTrajectory(simVel, simAngle, simH, simG, true)
+                   : analyticalCalc(simVel, simAngle, simH, simG);
+    updateReadoutsFinal(r);
+  }
+
+  function syncReadoutUnits() {
+    var u = U();
+    ruRange.textContent  = ' ' + u.lenLabel;
+    ruHeight.textContent = ' ' + u.lenLabel;
+    ruImpact.textContent = ' ' + u.velLabel;
+    ruVel.textContent    = ' ' + u.velLabel;
+  }
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+  function switchMode(m) {
+    mode = m;
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.mode === m);
+    });
+    var simEls  = [simPanel, learnPanels];
+    var expEls  = [catRow, itemSelector, itemInfo];
+    var pracEls = [practicePanel, practiceBar];
+    var quizEls = [quizPanel, quizBar, quizResult];
+    simEls.forEach(function (e) { if (e) e.style.display = m === 'simulate' ? '' : 'none'; });
+    expEls.forEach(function (e) { e.style.display = m === 'explore' ? '' : 'none'; });
+    pracEls.forEach(function (e) { e.style.display = m === 'practice' ? '' : 'none'; });
+    quizEls.forEach(function (e) { e.style.display = m === 'quiz' ? '' : 'none'; });
+    document.querySelector('.canvas-card').style.display = m === 'simulate' ? '' : 'none';
+    if (m === 'explore') buildExplore();
+    if (m === 'practice') newPractice();
+    if (m === 'quiz') startQuiz();
+    if (m === 'simulate') { draw(); updateLearnPanels(); }
+  }
+
+  /* ================================================================
+     EXPLORE
+     ================================================================ */
+  function buildExplore() { buildConceptGrid(); if (curConcept) showConceptInfo(curConcept); else itemInfo.style.display = 'none'; }
+  function buildConceptGrid() {
+    conceptGrid.innerHTML = '';
+    CONCEPTS.filter(function (c) { return c.cat === curCat; }).forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn' + (curConcept && curConcept.id === c.id ? ' active' : '');
+      btn.innerHTML = '<span class="is-btn-name">' + c.name + '</span><span class="is-btn-sym">' + c.symbol + '</span>';
+      btn.addEventListener('click', function () { selectConcept(c); });
+      conceptGrid.appendChild(btn);
+    });
+  }
+  function selectConcept(c) { curConcept = c; buildConceptGrid(); showConceptInfo(c); }
+  function showConceptInfo(c) {
+    itemInfo.style.display = '';
+    var html = '<div class="ii-top"><span class="ii-name">' + c.name + '</span>' +
+      '<span class="ii-cat-badge">' + c.cat + '</span></div>' +
+      '<div class="ii-desc">' + c.desc + '</div>';
+    if (c.formula) {
+      html += '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span>';
+      if (c.unit) html += '<span class="fb-unit">Unit: ' + c.unit + '</span>';
+      html += '</div>';
+    }
+    if (c.example) {
+      html += '<div class="example-box"><h4>Worked Example</h4>' +
+        '<div class="ex-problem">' + c.example.problem + '</div>';
+      c.example.steps.forEach(function (s) {
+        html += '<div class="ex-step">' + s.replace(/=\s*([\d.]+\s*\S*)$/g, '= <strong>$1</strong>') + '</div>';
+      });
+      html += '</div>';
+    }
+    itemInfo.innerHTML = html;
+  }
+  document.querySelectorAll('#cat-tabs .pill').forEach(function (p) {
+    p.addEventListener('click', function () {
+      curCat = p.dataset.cat; curConcept = null;
+      document.querySelectorAll('#cat-tabs .pill').forEach(function (pp) { pp.classList.toggle('active', pp === p); });
+      buildExplore();
+    });
+  });
+
+  /* ================================================================
+     PRACTICE
+     ================================================================ */
+  function newPractice() {
+    var gen = PRACTICE[Math.floor(Math.random() * PRACTICE.length)];
+    practiceProblem = gen(); practiceChecked = false;
+    ppPrompt.textContent = practiceProblem.prompt;
+    ppUnit.textContent = practiceProblem.unit;
+    ppInput.value = ''; ppFeedback.textContent = ''; ppFeedback.className = 'feedback';
+    ppNext.style.display = 'none'; ppSolution.style.display = 'none'; ppCheck.style.display = '';
+    ppInput.focus();
+  }
+  ppCheck.addEventListener('click', function () {
+    if (practiceChecked || !practiceProblem) return;
+    var userAns = parseFloat(ppInput.value);
+    if (isNaN(userAns)) { ppFeedback.textContent = 'Enter a number'; ppFeedback.className = 'feedback err'; return; }
+    practiceChecked = true; practiceTotal++;
+    var correct = practiceProblem.answer;
+    var tol = Math.abs(correct) * 0.01; if (tol < 0.01) tol = 0.01;
+    var isCorrect = Math.abs(userAns - correct) <= tol;
+    if (isCorrect) { practiceScore++; ppFeedback.textContent = 'Correct!'; ppFeedback.className = 'feedback ok'; }
+    else { ppFeedback.textContent = 'Incorrect. Answer: ' + correct + ' ' + practiceProblem.unit; ppFeedback.className = 'feedback err'; }
+    $('pbar-score-val').textContent = practiceScore + ' / ' + practiceTotal;
+    ppNext.style.display = ''; ppCheck.style.display = 'none';
+    showSolution(practiceProblem);
+  });
+  ppInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { if (practiceChecked) newPractice(); else ppCheck.click(); }
+  });
+  ppNext.addEventListener('click', newPractice);
+  function showSolution(prob) {
+    ppSolution.style.display = '';
+    var html = '<h4>Solution</h4>';
+    prob.steps.forEach(function (s) {
+      html += '<div class="sol-step">' + s.replace(/=\s*([\d.\-]+\s*\S*)$/g, '= <strong>$1</strong>') + '</div>';
+    });
+    ppSolution.innerHTML = html;
+  }
+
+  /* ================================================================
+     QUIZ
+     ================================================================ */
+  function startQuiz() {
+    quizResult.style.display = 'none'; quizPanel.style.display = ''; quizBar.style.display = '';
+    quizScore = 0; quizIdx = 0;
+    var pool = QUIZ_POOL.slice(); quizQuestions = [];
+    for (var i = 0; i < 5 && pool.length; i++) {
+      var ri = Math.floor(Math.random() * pool.length);
+      quizQuestions.push(pool.splice(ri, 1)[0]);
+    }
+    showQuizQuestion();
+  }
+  function showQuizQuestion() {
+    if (quizIdx >= quizQuestions.length) { showQuizResult(); return; }
+    quizAnswered = false; var q = quizQuestions[quizIdx];
+    qbarNum.textContent = quizIdx + 1;
+    var html = '<p class="qp-prompt">' + q.q + '</p><div class="answer-grid">';
+    q.opts.forEach(function (o, i) { html += '<button class="answer-btn" data-idx="' + i + '">' + o + '</button>'; });
+    html += '</div>'; quizPanel.innerHTML = html;
+    quizPanel.querySelectorAll('.answer-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { handleQuizAnswer(btn, q); });
+    });
+  }
+  function handleQuizAnswer(btn, q) {
+    if (quizAnswered) return; quizAnswered = true;
+    var picked = parseInt(btn.dataset.idx, 10), correct = q.correct;
+    quizPanel.querySelectorAll('.answer-btn').forEach(function (b) {
+      b.classList.add('locked');
+      var bi = parseInt(b.dataset.idx, 10);
+      if (bi === correct) b.classList.add('correct');
+      if (bi === picked && picked !== correct) b.classList.add('wrong');
+    });
+    if (picked === correct) quizScore++;
+    q._userPick = picked;
+    setTimeout(function () { quizIdx++; showQuizQuestion(); }, 1200);
+  }
+  function showQuizResult() {
+    quizPanel.style.display = 'none'; quizBar.style.display = 'none'; quizResult.style.display = '';
+    var pct = (quizScore / quizQuestions.length * 100).toFixed(0);
+    var stars = '', cls = 'poor';
+    if (quizScore === 5) { stars = '★★★★★'; cls = 'perfect'; }
+    else if (quizScore >= 4) { stars = '★★★★☆'; cls = 'good'; }
+    else if (quizScore >= 3) { stars = '★★★☆☆'; cls = 'good'; }
+    else if (quizScore >= 2) { stars = '★★☆☆☆'; cls = 'poor'; }
+    else { stars = '★☆☆☆☆'; cls = 'poor'; }
+    var verdict = quizScore === 5 ? 'Perfect score!' : quizScore >= 3 ? 'Good job!' : 'Keep practising!';
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><span class="qr-title">Quiz Complete</span>' +
+      '<span class="qr-stars">' + stars + '</span></div>' +
+      '<div class="qr-score-wrap"><span class="qr-score ' + cls + '">' + pct + '%</span>' +
+      '<div class="qr-verdict">' + verdict + '</div></div></div>';
+    html += '<div class="qr-rows">';
+    quizQuestions.forEach(function (q, i) {
+      var ok = q._userPick === q.correct;
+      html += '<div class="qr-row ' + (ok ? 'ok' : 'err') + '">' +
+        '<span class="qr-qnum">Q' + (i + 1) + '</span>' +
+        '<span class="qr-detail"><strong>' + q.q.substring(0, 60) + (q.q.length > 60 ? '...' : '') + '</strong></span>' +
+        '<span class="qr-mark">' + (ok ? '✔' : '✘') + '</span></div>';
+    });
+    html += '</div>';
+    html += '<button class="btn btn-primary" id="quiz-retry">Retake Quiz</button>';
+    quizResult.innerHTML = html;
+    $('quiz-retry').addEventListener('click', startQuiz);
+  }
+
+  /* ================================================================
+     UNDO / REDO
+     ================================================================ */
+  function snapshot() {
+    if (suppressSnapshot) return;
+    undoStack.push({ a: simAngle, v: simVel, h: simH, g: simG, air: airRes });
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack.length = 0;
+    updateUndoButtons();
+  }
+  function applyState(s) {
+    stopAnimation();   /* an in-flight tick would overwrite the restored readouts */
+    suppressSnapshot = true;
+    simAngle = s.a; simVel = s.v; simH = s.h; simG = s.g; airRes = !!s.air;
+    syncInputsFromState();
+    updateReadoutsStatic(); draw(); updateLearnPanels();
+    suppressSnapshot = false;
+    updateUndoButtons();
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    redoStack.push({ a: simAngle, v: simVel, h: simH, g: simG, air: airRes });
+    applyState(undoStack.pop());
+  }
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push({ a: simAngle, v: simVel, h: simH, g: simG, air: airRes });
+    applyState(redoStack.pop());
+  }
+  function updateUndoButtons() {
+    btnUndo.disabled = undoStack.length === 0;
+    btnRedo.disabled = redoStack.length === 0;
+  }
+  btnUndo.addEventListener('click', undo);
+  btnRedo.addEventListener('click', redo);
+
+  /* ================================================================
+     SYNC INPUTS (sliders ↔ steppers ↔ unit toggle)
+     ================================================================ */
+  function syncInputsFromState() {
+    var u = U();
+    angleSlider.value = simAngle; angleInput.value = simAngle;
+    velSlider.value = simVel;
+    velInput.value = +u.velFromSI(simVel).toFixed(u.isImp ? 1 : 0);
+    heightSlider.value = simH;
+    heightInput.value = +u.lenFromSI(simH).toFixed(u.isImp ? 1 : 1);
+    /* slider mins/maxes for velocity & height stay in SI (sliders bound on raw SI values);
+       imperial display uses the stepper text box. */
+    velUnit.textContent = u.velLabel;
+    heightUnit.textContent = u.lenLabel;
+    /* Keep the number-input constraints in DISPLAY units, else Imperial
+       values above the SI bounds (e.g. 200 ft/s) are flagged invalid. */
+    velInput.min = u.isImp ? Math.floor(u.velFromSI(5)) : 5;
+    velInput.max = u.isImp ? Math.ceil(u.velFromSI(100)) : 100;
+    velInput.step = u.isImp ? 0.1 : 1;
+    heightInput.max = u.isImp ? Math.ceil(u.lenFromSI(50)) : 50;
+    heightInput.step = u.isImp ? 0.1 : 0.5;
+    chkAir.checked = airRes;
+    var at = $('air-toggle'); if (at) at.classList.toggle('checked', airRes);
+    document.querySelectorAll('#gravity-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', Math.abs(parseFloat(p.dataset.g) - simG) < 0.001);
+    });
+    document.querySelectorAll('#unit-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.unit === unitSystem);
+    });
+    updateGravityPlanet();
+    updateAirAvailability();
+  }
+
+  /* Air resistance is meaningless on the Moon (no atmosphere): disable
+     the toggle, force it off, and explain why on hover. */
+  function updateAirAvailability() {
+    var lbl = $('air-toggle');
+    var isMoon = Math.abs(simG - 1.62) < 0.1;
+    if (isMoon) {
+      airRes = false;
+      chkAir.checked = false;
+      chkAir.disabled = true;
+      if (lbl) {
+        lbl.classList.add('disabled'); lbl.classList.remove('checked');
+        lbl.setAttribute('title', 'No atmosphere on the Moon — air resistance does not apply');
+      }
+    } else {
+      chkAir.disabled = false;
+      chkAir.checked = airRes;
+      if (lbl) {
+        lbl.classList.remove('disabled');
+        lbl.classList.toggle('checked', airRes);
+        lbl.setAttribute('title', 'Toggle air resistance (drag)');
+      }
+    }
+  }
+
+  /* Swap the rotating-planet icon to match the selected gravity,
+     and pulse it briefly when the body changes so users notice. */
+  var lastPlanetClass = '';
+  function updateGravityPlanet() {
+    var el = document.getElementById('gravity-planet');
+    if (!el) return;
+    var cls = 'gp-earth', label = 'Earth';
+    if (Math.abs(simG - 1.62) < 0.1) { cls = 'gp-moon'; label = 'Moon'; }
+    else if (Math.abs(simG - 3.72) < 0.1) { cls = 'gp-mars'; label = 'Mars'; }
+    el.className = 'gravity-planet ' + cls;
+    el.setAttribute('title', label + ' gravity');
+    el.setAttribute('aria-label', label + ' gravity selected');
+    if (cls !== lastPlanetClass) {
+      void el.offsetWidth;            /* reflow so the pulse re-triggers */
+      el.classList.add('gp-notice');
+      lastPlanetClass = cls;
+    }
+  }
+
+  /* Stepper buttons */
+  function stepValue(target, dir) {
+    var u = U();
+    if (target === 'angle') {
+      var newA = clamp(simAngle + dir, 0, 90);
+      if (newA === simAngle) return;
+      snapshot();
+      simAngle = newA;
+    } else if (target === 'vel') {
+      /* step in display units: 1 m/s or 1 ft/s */
+      var step = 1;
+      var displayVel = u.velFromSI(simVel) + step * dir;
+      var siVel = clamp(u.velToSI(displayVel), 5, 100);
+      if (Math.abs(siVel - simVel) < 0.001) return;
+      snapshot(); simVel = siVel;
+    } else if (target === 'height') {
+      var stepH = u.isImp ? 1 : 0.5;
+      var displayH = u.lenFromSI(simH) + stepH * dir;
+      var siH = clamp(u.lenToSI(displayH), 0, 50);
+      if (Math.abs(siH - simH) < 0.001) return;
+      snapshot(); simH = siH;
+    }
+    syncInputsFromState(); if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+  }
+  document.querySelectorAll('.step-btn').forEach(function (b) {
+    b.addEventListener('click', function () { stepValue(b.dataset.step, parseInt(b.dataset.dir, 10)); });
+  });
+
+  /* Stepper text inputs commit on change/blur */
+  function commitStepperInput(target, raw) {
+    var u = U();
+    var val = parseFloat(raw);
+    if (isNaN(val)) { syncInputsFromState(); return; }
+    var changed = false;
+    if (target === 'angle') {
+      var newA = clamp(Math.round(val), 0, 90);
+      if (newA !== simAngle) { snapshot(); simAngle = newA; changed = true; }
+    } else if (target === 'vel') {
+      var siV = clamp(u.velToSI(val), 5, 100);
+      if (Math.abs(siV - simVel) > 0.001) { snapshot(); simVel = siV; changed = true; }
+    } else if (target === 'height') {
+      var siH = clamp(u.lenToSI(val), 0, 50);
+      if (Math.abs(siH - simH) > 0.001) { snapshot(); simH = siH; changed = true; }
+    }
+    syncInputsFromState();
+    if (changed && !animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+  }
+  angleInput.addEventListener('change', function () { commitStepperInput('angle', this.value); });
+  velInput.addEventListener('change',   function () { commitStepperInput('vel',   this.value); });
+  heightInput.addEventListener('change',function () { commitStepperInput('height',this.value); });
+
+  /* Sliders */
+  function sliderSnapshotPending() {
+    /* snapshot only on first input event since last commit, throttled per change */
+  }
+  var sliderChanging = false;
+  function startSliderChange() { if (!sliderChanging) { snapshot(); sliderChanging = true; } }
+  angleSlider.addEventListener('change', function () { sliderChanging = false; });
+  velSlider.addEventListener('change', function () { sliderChanging = false; });
+  heightSlider.addEventListener('change', function () { sliderChanging = false; });
+
+  angleSlider.addEventListener('input', function () {
+    startSliderChange();
+    simAngle = parseInt(this.value, 10);
+    syncInputsFromState();
+    if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+  });
+  velSlider.addEventListener('input', function () {
+    startSliderChange();
+    simVel = parseInt(this.value, 10);
+    syncInputsFromState();
+    if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+  });
+  heightSlider.addEventListener('input', function () {
+    startSliderChange();
+    simH = parseFloat(this.value);
+    syncInputsFromState();
+    if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+  });
+
+  /* Gravity tabs */
+  document.querySelectorAll('#gravity-tabs .pill').forEach(function (p) {
+    p.addEventListener('click', function () {
+      var ng = parseFloat(p.dataset.g);
+      if (Math.abs(ng - simG) < 0.001) return;
+      snapshot(); simG = ng;
+      syncInputsFromState();
+      if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+    });
+  });
+
+  /* Unit toggle */
+  document.querySelectorAll('#unit-tabs .pill').forEach(function (p) {
+    p.addEventListener('click', function () {
+      var ns = p.dataset.unit;
+      if (ns === unitSystem) return;
+      unitSystem = ns;
+      syncInputsFromState();
+      updateReadoutsStatic(); draw(); updateLearnPanels();
+    });
+  });
+
+  /* Air toggle */
+  chkAir.addEventListener('change', function () {
+    snapshot();
+    airRes = this.checked;
+    var t = $('air-toggle'); if (airRes) t.classList.add('checked'); else t.classList.remove('checked');
+    if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+  });
+
+  /* Presets */
+  document.querySelectorAll('.preset-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var preset = PRESETS[btn.dataset.preset]; if (!preset) return;
+      snapshot();
+      simVel = preset.v; simAngle = preset.angle; simH = preset.h;
+      document.querySelectorAll('.preset-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      syncInputsFromState();
+      if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+    });
+  });
+
+  /* Feature toggles */
+  function bindFeature(chk, setter) {
+    chk.addEventListener('change', function () { setter(this.checked); draw(); });
+  }
+  bindFeature(chkGrid,     function (v) { showGrid = v; });
+  bindFeature(chkVectors,  function (v) { showVectors = v; });
+  bindFeature(chkMarkers,  function (v) { showMarkers = v; });
+  bindFeature(chkGhosts,   function (v) { showGhosts = v; });
+
+  /* Fire */
+  btnFire.addEventListener('click', function () {
+    if (showGhosts && trajectory.length > 1) {
+      ghostTrails.push(trajectory.slice());
+      if (ghostTrails.length > 4) ghostTrails.shift();
+    }
+    startAnimation();
+  });
+
+  /* Reset */
+  btnReset.addEventListener('click', function () {
+    stopAnimation();
+    trajectory = []; ghostTrails = []; simResult = null; currentTrailIndex = 0;
+    updateReadoutsStatic(); draw(); updateLearnPanels();
+  });
+
+  /* ================================================================
+     CANVAS POINTER (drag to aim)
+     ================================================================ */
+  var dragging = false; var aimSnapshotted = false;
+  cvs.addEventListener('pointerdown', function (e) {
+    if (animating || e.button !== 0) return;
+    dragging = true; aimSnapshotted = false;
+    cvs.setPointerCapture(e.pointerId);
+    handlePointerAim(e);
+    dismissHint();
+  });
+  cvs.addEventListener('pointermove', function (e) {
+    if (!dragging || animating) return;
+    handlePointerAim(e);
+  });
+  cvs.addEventListener('pointerup', function () { dragging = false; aimSnapshotted = false; });
+  cvs.addEventListener('pointercancel', function () { dragging = false; aimSnapshotted = false; });
+
+  function handlePointerAim(e) {
+    var rect = cvs.getBoundingClientRect();
+    var scaleX = W / rect.width; var scaleY = H / rect.height;
+    var mx = (e.clientX - rect.left) * scaleX;
+    var my = (e.clientY - rect.top) * scaleY;
+    var pts = trajectory.length ? trajectory : [{ x: 0, y: simH, vx: 0, vy: 0, t: 0 }];
+    var scale = getScale(pts);
+    var origin = toScreen(0, simH, scale);
+    var dx = mx - origin.x; var dy = origin.y - my;
+    if (dx < 5) dx = 5;
+    var aimAngle = Math.round(rad2deg(Math.atan2(dy, dx)));
+    aimAngle = clamp(aimAngle, 0, 90);
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var mappedVel = clamp(Math.round(dist / 3), 5, 100);
+    if (!aimSnapshotted && (aimAngle !== simAngle || mappedVel !== simVel)) {
+      snapshot(); aimSnapshotted = true;
+    }
+    simAngle = aimAngle; simVel = mappedVel;
+    syncInputsFromState();
+    if (!animating) { updateReadoutsStatic(); draw(); updateLearnPanels(); }
+    drawAimLine(origin, mx, my);
+  }
+  function drawAimLine(origin, mx, my) {
+    ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(mx, my);
+    ctx.strokeStyle = 'rgba(174,213,129,0.45)'; ctx.lineWidth = 2;
+    ctx.setLineDash([8, 5]); ctx.stroke(); ctx.setLineDash([]);
+    var angle = Math.atan2(my - origin.y, mx - origin.x);
+    ctx.beginPath(); ctx.moveTo(mx, my);
+    ctx.lineTo(mx - 10 * Math.cos(angle - 0.3), my - 10 * Math.sin(angle - 0.3));
+    ctx.lineTo(mx - 10 * Math.cos(angle + 0.3), my - 10 * Math.sin(angle + 0.3));
+    ctx.closePath(); ctx.fillStyle = 'rgba(174,213,129,0.55)'; ctx.fill();
+  }
+
+  /* ================================================================
+     EXPORT — CSV & PNG
+     ================================================================ */
+  function exportCSV() {
+    var pts = trajectory.length ? trajectory : computeTrajectory(simVel, simAngle, simH, simG, airRes).points;
+    var u = U();
+    var lines = ['# Projectile Motion Trajectory — MechSimulator',
+                 '# v0=' + simVel + ' m/s, angle=' + simAngle + ' deg, h0=' + simH + ' m, g=' + simG + ' m/s^2, air=' + (airRes?'on':'off'),
+                 '# Units: ' + (u.isImp ? 'Imperial (ft, ft/s)' : 'SI (m, m/s)'),
+                 't_s,x_' + u.lenLabel + ',y_' + u.lenLabel + ',vx_' + u.velLabel + ',vy_' + u.velLabel];
+    var stride = Math.max(1, Math.floor(pts.length / 500));
+    for (var i = 0; i < pts.length; i += stride) {
+      var p = pts[i];
+      lines.push(p.t.toFixed(4) + ',' + u.lenFromSI(p.x).toFixed(4) + ',' + u.lenFromSI(p.y).toFixed(4) + ',' +
+                 u.velFromSI(p.vx).toFixed(4) + ',' + u.velFromSI(p.vy).toFixed(4));
+    }
+    var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url;
+    a.download = 'projectile-motion-' + simVel + 'mps-' + simAngle + 'deg.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  function exportPNG() {
+    var a = document.createElement('a');
+    a.href = cvs.toDataURL('image/png');
+    a.download = 'projectile-motion-' + simVel + 'mps-' + simAngle + 'deg.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  btnCsv.addEventListener('click', exportCSV);
+  btnPng.addEventListener('click', exportPNG);
+
+  /* ================================================================
+     CONTEXT MENU
+     ================================================================ */
+  cvs.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    ctxMenu.style.left = e.clientX + 'px';
+    ctxMenu.style.top  = e.clientY + 'px';
+    ctxMenu.classList.add('active');
+    /* Keep on-screen */
+    var rect = ctxMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth)  ctxMenu.style.left = (window.innerWidth - rect.width - 6) + 'px';
+    if (rect.bottom > window.innerHeight) ctxMenu.style.top  = (window.innerHeight - rect.height - 6) + 'px';
+  });
+  document.addEventListener('click', function () { ctxMenu.classList.remove('active'); });
+  ctxMenu.querySelectorAll('.ctx-item').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var act = b.dataset.act;
+      ctxMenu.classList.remove('active');
+      if (act === 'csv') exportCSV();
+      else if (act === 'png') exportPNG();
+      else if (act === 'grid') { showGrid = !showGrid; chkGrid.checked = showGrid; draw(); }
+      else if (act === 'reset') btnReset.click();
+    });
+  });
+
+  /* ================================================================
+     SHOW CALCULATIONS MODAL
+     ================================================================ */
+  function calcStep(num, title, formulaLatex, calculation, result) {
+    var html = '<div class="cs-step">';
+    html += '<div class="cs-step-hd"><span class="cs-num">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+    if (formulaLatex) html += '<div class="cs-formula">' + formulaLatex + '</div>';
+    if (calculation) html += '<div class="cs-calc">' + calculation.replace(/\n/g, '<br>') + '</div>';
+    if (result != null) html += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+    html += '</div>'; return html;
+  }
+  function buildCalcSteps() {
+    var u = U();
+    /* Work entirely in the displayed unit system. The kinematics are
+       unit-agnostic once v, h and g are expressed consistently, so we
+       convert the inputs up front and every result comes out in the
+       chosen units. (g is an acceleration → scales like length.) */
+    var v = u.velFromSI(simVel), theta = simAngle, h = u.lenFromSI(simH), g = u.accFromSI(simG);
+    var L = u.lenLabel, V = u.velLabel, A = u.accLabel;
+    var th = deg2rad(theta);
+    var vx = v * Math.cos(th); var vy0 = v * Math.sin(th);
+    var H_simple = (vy0 * vy0) / (2 * g);
+    var H_total = h + H_simple;
+    var disc = vy0 * vy0 + 2 * g * h;
+    var T = (vy0 + Math.sqrt(disc)) / g;
+    var R = vx * T;
+    var vImpact = Math.sqrt(vx * vx + 2 * g * H_total);
+    var nf = function (x) { return +x.toFixed(2); };   /* tidy number for the "given" line */
+
+    var html = '<div class="cs-inputs"><span class="cs-badge">Given &mdash; Current Simulation State</span>';
+    html += '<div class="cs-given">' +
+      '<span>v = ' + nf(v) + ' ' + V + '</span>' +
+      '<span>θ = ' + theta + '°</span>' +
+      '<span>h = ' + nf(h) + ' ' + L + '</span>' +
+      '<span>g = ' + nf(g) + ' ' + A + '</span>' +
+      '<span>Air drag: ' + (airRes ? 'on' : 'off') + '</span>' +
+      '</div><p class="cs-si-note">ℹ Computed in ' + (u.isImp ? 'Imperial (ft, ft/s)' : 'SI (m, m/s)') + ' units, matching the SI / Imperial toggle.</p></div>';
+
+    html += calcStep(1, 'Decompose initial velocity',
+      '\\(V_x = v\\cos\\theta, \\quad V_{y0} = v\\sin\\theta\\)',
+      'V_x  = ' + nf(v) + ' × cos(' + theta + '°) = ' + vx.toFixed(3) + ' ' + V + '\n' +
+      'V_y0 = ' + nf(v) + ' × sin(' + theta + '°) = ' + vy0.toFixed(3) + ' ' + V,
+      'V_x = ' + vx.toFixed(2) + ' ' + V + ',  V_y0 = ' + vy0.toFixed(2) + ' ' + V);
+
+    html += calcStep(2, 'Time to peak (V_y = 0)',
+      '\\(t_p = V_{y0} / g\\)',
+      't_p = ' + vy0.toFixed(3) + ' / ' + nf(g) + ' = ' + (vy0/g).toFixed(3) + ' s',
+      't_p = ' + (vy0/g).toFixed(2) + ' s');
+
+    html += calcStep(3, 'Maximum height above ground',
+      '\\(H = h + \\dfrac{V_{y0}^{2}}{2g}\\)',
+      'H = ' + nf(h) + ' + ' + (vy0*vy0).toFixed(2) + ' / ' + (2*g).toFixed(2) + '\n' +
+      'H = ' + nf(h) + ' + ' + H_simple.toFixed(3) + ' ' + L,
+      'H = ' + H_total.toFixed(2) + ' ' + L);
+
+    html += calcStep(4, 'Time of flight (solve y = 0)',
+      '\\(T = \\dfrac{V_{y0} + \\sqrt{V_{y0}^{2} + 2gh}}{g}\\)',
+      'T = (' + vy0.toFixed(2) + ' + √(' + (vy0*vy0).toFixed(2) + ' + ' + (2*g*h).toFixed(2) + ')) / ' + nf(g) + '\n' +
+      'T = (' + vy0.toFixed(2) + ' + ' + Math.sqrt(disc).toFixed(2) + ') / ' + nf(g),
+      'T = ' + T.toFixed(2) + ' s');
+
+    html += calcStep(5, 'Horizontal range',
+      '\\(R = V_x \\cdot T\\)',
+      'R = ' + vx.toFixed(3) + ' × ' + T.toFixed(3),
+      'R = ' + R.toFixed(2) + ' ' + L);
+
+    if (simH === 0) {
+      html += calcStep(6, 'Range — closed form (ground launch)',
+        '\\(R = \\dfrac{v^{2}\\,\\sin(2\\theta)}{g}\\)',
+        'R = ' + nf(v*v) + ' × sin(' + (2*theta) + '°) / ' + nf(g) + '\n' +
+        'R = ' + nf(v*v) + ' × ' + Math.sin(2*th).toFixed(4) + ' / ' + nf(g),
+        'R = ' + R.toFixed(2) + ' ' + L);
+    }
+
+    html += calcStep(simH === 0 ? 7 : 6, 'Impact speed (energy conservation)',
+      '\\(v_f = \\sqrt{v^{2} + 2gh}\\)',
+      'v_f = √(' + nf(v*v) + ' + 2 × ' + nf(g) + ' × ' + nf(h) + ')\n' +
+      'v_f = √' + (v*v + 2*g*h).toFixed(2),
+      'v_f = ' + vImpact.toFixed(2) + ' ' + V);
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Insight</span><span class="cs-title">Real-world context</span></div>' +
+      '<div class="cs-result">' +
+      (theta === 45 && h === 0 ? 'At 45° from ground level, the range is maximised: R_max = v² / g.' :
+       theta < 45 ? 'A flatter (lower) launch is faster but loses range vs 45°.' :
+       'A higher launch trades horizontal speed for time aloft.') +
+      (airRes ? ' Air drag in the simulation shortens R and shifts optimum below 45°.' : ' Without drag, this is the textbook ideal.') +
+      '</div></div>';
+
+    return html;
+  }
+
+  function renderKaTeX(root) {
+    if (typeof renderMathInElement === 'function') {
+      try {
+        renderMathInElement(root, {
+          delimiters: [
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      } catch (e) { /* ignore */ }
+    }
+  }
+  function openCalcModal() {
+    var modal = $('calc-modal'); var body = $('calc-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildCalcSteps();
+    modal.classList.add('active');
+    renderKaTeX(body);
+    var cb = $('calc-modal-close'); if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    var modal = $('calc-modal'); if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = $('btn-calc'); if (b) b.focus();
+  }
+  $('btn-calc').addEventListener('click', openCalcModal);
+  $('calc-modal-close').addEventListener('click', closeCalcModal);
+  $('calc-modal').addEventListener('click', function (e) {
+    if (e.target === $('calc-modal')) closeCalcModal();
+  });
+
+  /* ================================================================
+     LEARNING PANELS
+     ================================================================ */
+  function updateLearnPanels() {
+    var u = U();
+    var L = u.lenLabel, V = u.velLabel;
+    /* Display-unit values (kinematics are consistent once v, h, g share units) */
+    var v = u.velFromSI(simVel), g = u.accFromSI(simG), h = u.lenFromSI(simH);
+    var th = deg2rad(simAngle);
+    var vx = v * Math.cos(th); var vy0 = v * Math.sin(th);
+    var Hmax = h + (vy0*vy0)/(2*g);
+    var T = (vy0 + Math.sqrt(vy0*vy0 + 2*g*h)) / g;
+    var R = vx * T;   /* height-aware; equals v²sin(2θ)/g when h = 0 */
+    var nf = function (x) { return +x.toFixed(2); };
+
+    /* The classic closed form only holds for a ground-level launch; from
+       a height, range must come from R = Vx·T with the elevated T. */
+    var rangeLine = h > 0.001
+      ? '<div class="eq-line"><div class="eq-label">Range (elevated launch)</div>\\(R = V_x\\,T = ' + vx.toFixed(2) + ' \\times ' + T.toFixed(2) + ' = ' + R.toFixed(2) + '\\;\\text{' + L + '}\\)</div>'
+      : '<div class="eq-line"><div class="eq-label">Range</div>\\(R = \\dfrac{v^{2}\\sin(2\\theta)}{g} = \\dfrac{' + nf(v) + '^{2}\\,\\sin(' + (2*simAngle) + '^{\\circ})}{' + nf(g) + '} = ' + R.toFixed(2) + '\\;\\text{' + L + '}\\)</div>';
+
+    var eqBody = $('lp-equations-body');
+    if (eqBody) {
+      eqBody.innerHTML =
+        rangeLine +
+        '<div class="eq-line"><div class="eq-label">Maximum height</div>\\(H = h + \\dfrac{v^{2}\\sin^{2}\\theta}{2g} = ' + nf(h) + ' + \\dfrac{' + nf(v) + '^{2}\\sin^{2}(' + simAngle + '^{\\circ})}{' + (2*g).toFixed(2) + '} = ' + Hmax.toFixed(2) + '\\;\\text{' + L + '}\\)</div>' +
+        '<div class="eq-line"><div class="eq-label">Time of flight</div>\\(T = \\dfrac{v\\sin\\theta + \\sqrt{v^{2}\\sin^{2}\\theta + 2gh}}{g} = ' + T.toFixed(2) + '\\;\\text{s}\\)</div>';
+      renderKaTeX(eqBody);
+    }
+
+    var compBody = $('lp-components-body');
+    if (compBody) {
+      compBody.innerHTML =
+        '<div class="eq-line"><div class="eq-label">Horizontal component (constant in vacuum)</div>\\(V_x = v\\cos\\theta = ' + nf(v) + '\\cos(' + simAngle + '^{\\circ}) = ' + vx.toFixed(2) + '\\;\\text{' + V + '}\\)</div>' +
+        '<div class="eq-line"><div class="eq-label">Initial vertical component</div>\\(V_{y0} = v\\sin\\theta = ' + nf(v) + '\\sin(' + simAngle + '^{\\circ}) = ' + vy0.toFixed(2) + '\\;\\text{' + V + '}\\)</div>' +
+        '<div class="eq-line"><div class="eq-label">Vertical velocity over time</div>\\(V_y(t) = V_{y0} - gt\\)</div>';
+      renderKaTeX(compBody);
+    }
+
+    var coachBody = $('lp-coach-body');
+    if (coachBody) {
+      var tips = [];
+      if (simAngle === 45 && simH === 0) tips.push('<strong>Optimal:</strong> 45° from ground level maximises range &mdash; R = v²/g = ' + ((v*v)/g).toFixed(2) + ' ' + L + '.');
+      else if (simAngle < 45) tips.push('<strong>Low angle:</strong> the trajectory is flat and fast. Try ' + (90 - simAngle) + '° &mdash; complementary angle gives the same range with a taller arc.');
+      else if (simAngle > 45) tips.push('<strong>High angle:</strong> long flight time, lower range. Try ' + (90 - simAngle) + '° to compare.');
+      if (simH > 0) tips.push('<strong>Elevated launch:</strong> from h = ' + nf(h) + ' ' + L + ' the projectile travels farther than a ground launch; optimum angle drops below 45°.');
+      if (Math.abs(simG - 9.81) > 0.1) {
+        var gE = u.accFromSI(9.81);
+        var TE = (vy0 + Math.sqrt(vy0*vy0 + 2*gE*h)) / gE;
+        var earthR = vx * TE;
+        tips.push('<strong>Different gravity:</strong> on Earth (g = ' + nf(u.accFromSI(9.81)) + ' ' + u.accLabel + ') the same shot would travel ' + earthR.toFixed(1) + ' ' + L + ' vs ' + R.toFixed(1) + ' ' + L + ' here.');
+      }
+      if (airRes) tips.push('<strong>Air drag is on:</strong> measured range will be less than the closed-form R = v²sin(2θ)/g, and the descent is steeper than the ascent.');
+      if (simVel >= 80) tips.push('<strong>High speed:</strong> at v = ' + nf(v) + ' ' + V + ' drag effects become significant; toggle Air Resistance to compare.');
+      if (!tips.length) tips.push('Adjust angle, velocity or height to see contextual insights.');
+      coachBody.innerHTML = tips.map(function (t) { return '<div class="coach-tip">' + t + '</div>'; }).join('');
+    }
+  }
+
+  function wireLearnPanels() {
+    var expAll = $('learn-expand-all'), colAll = $('learn-collapse-all');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+  }
+
+  /* ================================================================
+     HINT
+     ================================================================ */
+  function dismissHint() {
+    if (!canvasHint) return;
+    canvasHint.classList.add('hidden');
+    try { localStorage.setItem('pm_hint_dismissed', '1'); } catch (e) { /* ignore */ }
+  }
+  $('hint-close').addEventListener('click', dismissHint);
+  try {
+    if (localStorage.getItem('pm_hint_dismissed') === '1') canvasHint.classList.add('hidden');
+  } catch (e) { /* ignore */ }
+
+  /* ================================================================
+     KEYBOARD
+     ================================================================ */
+  document.addEventListener('keydown', function (e) {
+    var inField = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    /* Undo/Redo work in any mode — but never steal Ctrl+Z from a text field */
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+      if (inField) return;
+      if (e.shiftKey) { redo(); } else { undo(); }
+      e.preventDefault(); return;
+    }
+    if (e.key === 'Escape') {
+      var modal = $('calc-modal');
+      if (modal && modal.classList.contains('active')) { closeCalcModal(); return; }
+      ctxMenu.classList.remove('active');
+    }
+    if (mode !== 'simulate') return;
+    if (inField) return;
+    switch (e.key) {
+      case ' ':
+      case 'Enter':
+        e.preventDefault(); if (!animating) btnFire.click(); break;
+      case 'r': case 'R': e.preventDefault(); btnReset.click(); break;
+      case 'ArrowUp':    e.preventDefault(); stepValue('angle', 1); break;
+      case 'ArrowDown':  e.preventDefault(); stepValue('angle', -1); break;
+      case 'ArrowRight': e.preventDefault(); stepValue('vel', 1); break;
+      case 'ArrowLeft':  e.preventDefault(); stepValue('vel', -1); break;
+    }
+  });
+
+  /* ================================================================
+     ARIA
+     ================================================================ */
+  function updateAriaLabel() {
+    var u = U();
+    var label = 'Projectile motion simulator. ';
+    if (simResult) {
+      label += 'Range: ' + u.lenFromSI(simResult.range).toFixed(1) + ' ' + u.lenLabel + '. ';
+      label += 'Max height: ' + u.lenFromSI(simResult.maxH).toFixed(1) + ' ' + u.lenLabel + '. ';
+      label += 'Time of flight: ' + simResult.time.toFixed(2) + ' seconds. ';
+    } else {
+      label += 'Angle: ' + simAngle + ' degrees. ';
+      label += 'Velocity: ' + u.velFromSI(simVel).toFixed(0) + ' ' + u.velLabel + '. ';
+    }
+    cvs.setAttribute('aria-label', label);
+  }
+
+  /* ================================================================
+     HELPERS
+     ================================================================ */
+  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+  /* ================================================================
+     MODE TABS
+     ================================================================ */
+  document.querySelectorAll('#mode-tabs .pill').forEach(function (p) {
+    p.addEventListener('click', function () { switchMode(p.dataset.mode); });
+  });
+
+  /* ================================================================
+     VALIDATE DOM
+     ================================================================ */
+  (function validateDom() {
+    var required = ['sim-canvas','angle-slider','vel-slider','height-slider','btn-fire','btn-reset',
+      'mode-tabs','sim-panel','r-range','r-height','r-time','r-impact','r-angle','r-vel',
+      'unit-tabs','btn-calc','calc-modal','learn-panels'];
+    for (var i = 0; i < required.length; i++) {
+      if (!document.getElementById(required[i])) console.warn('[ProjectileMotion] Missing DOM: #' + required[i]);
+    }
+  })();
+
+  /* ================================================================
+     RESIZE
+     ================================================================ */
+  var resizeTimeout;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(function () { resizeCanvas(); draw(); }, 120);
+  });
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  syncInputsFromState();
+  updateReadoutsStatic();
+  draw();
+  switchMode('simulate');
+  updateAriaLabel();
+  wireLearnPanels();
+  updateLearnPanels();
+  updateUndoButtons();
+
+})();

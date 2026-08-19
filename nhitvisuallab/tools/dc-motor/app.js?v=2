@@ -1,0 +1,2437 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     DATA — CONCEPTS (10 concepts, 4 categories)
+     ================================================================ */
+
+  var CONCEPTS = [
+    /* Basics */
+    {
+      id: 'dc-motor-principle', name: 'DC Motor Principle', symbol: 'F = BIL',
+      formula: 'F = B × I × L', unit: 'N (newtons)', cat: 'basics',
+      desc: 'A DC motor exploits the Lorentz force: a current-carrying conductor in a magnetic field experiences a force F = BIL. The commutator reverses the armature current every half-turn so the torque always pushes the rotor the same way. Direction follows Fleming\'s left-hand rule.',
+      diagram: 'motorPrinciple',
+      example: { problem: 'A conductor of length 0.5 m carrying 10 A is placed in a field of 0.8 T. Find the force.', steps: ['F = B × I × L', 'F = 0.8 × 10 × 0.5', 'F = 4 N'], answer: 4, unit: 'N' }
+    },
+    {
+      id: 'back-emf', name: 'Back EMF', symbol: 'E_b = V − I_a R_a',
+      formula: 'E_b = V − I_a × R_a', unit: 'V', cat: 'basics',
+      desc: 'A rotating armature in a magnetic field generates an EMF that opposes the supply. This back EMF E_b = KφN rises with speed and limits the steady-state armature current. At standstill E_b = 0 and the only thing limiting current is R_a.',
+      diagram: 'backEmf',
+      example: { problem: 'V = 220 V, R_a = 0.5 Ω, I_a = 40 A. Find E_b.', steps: ['E_b = V − I_a × R_a', 'E_b = 220 − 40 × 0.5', 'E_b = 200 V'], answer: 200, unit: 'V' }
+    },
+    {
+      id: 'motor-equation', name: 'Motor Speed Equation', symbol: 'N = E_b / (Kφ)',
+      formula: 'N = (V − I_a R_a) / (K × φ)', unit: 'RPM', cat: 'basics',
+      desc: 'Combining E_b = V − I_a R_a with E_b = KφN gives N = (V − I_a R_a)/(Kφ). Three knobs control speed: armature voltage V, field flux φ, and armature resistance R_a. The first two are practical; the third is lossy.',
+      diagram: 'motorEquation',
+      example: { problem: 'E_b = 200 V, Kφ = 0.2. Find N.', steps: ['N = E_b / (Kφ)', 'N = 200 / 0.2', 'N = 1000 RPM'], answer: 1000, unit: 'RPM' }
+    },
+    {
+      id: 'torque-equation', name: 'Torque Equation', symbol: 'T = Kφ I_a',
+      formula: 'T = K × φ × I_a', unit: 'Nm', cat: 'basics',
+      desc: 'Electromagnetic torque is proportional to flux and armature current: T = Kφ I_a. The same K appears in both N and T equations. Mechanical power P_out = Tω = T×(2πN/60).',
+      diagram: 'motorEquation',
+      example: { problem: 'K = 0.5, φ = 0.4 Wb, I_a = 20 A. Find T.', steps: ['T = K × φ × I_a', 'T = 0.5 × 0.4 × 20', 'T = 4 Nm'], answer: 4, unit: 'Nm' }
+    },
+
+    /* Motor Types */
+    {
+      id: 'shunt-motor', name: 'Shunt Motor', symbol: 'I_L = I_a + I_sh',
+      formula: 'I_a = I_L − I_sh', unit: 'A', cat: 'types',
+      desc: 'Field winding in parallel with the armature sees the full supply voltage. Flux is nearly constant, so speed-torque is almost flat (regulation 5–10%). Used for lathes, blowers, conveyors — anywhere constant speed matters.',
+      diagram: 'shuntMotor',
+      example: { problem: 'V = 240 V, R_sh = 120 Ω, I_L = 50 A. Find I_a.', steps: ['I_sh = V / R_sh = 240/120 = 2 A', 'I_a = I_L − I_sh = 50 − 2', 'I_a = 48 A'], answer: 48, unit: 'A' }
+    },
+    {
+      id: 'series-motor', name: 'Series Motor', symbol: 'T ∝ I_a²',
+      formula: 'T = K × k_f × I_a²', unit: 'Nm', cat: 'types',
+      desc: 'Field winding in series with the armature — field current equals armature current. Flux φ ∝ I_a (below saturation), so T ∝ I_a². Huge starting torque, hyperbolic speed curve, runaway at no load. Cranes, hoists, traction.',
+      diagram: 'seriesMotor',
+      example: { problem: 'I_a doubles from 30 A to 60 A (unsaturated). How does T change?', steps: ['T ∝ I_a²', 'Ratio = (60/30)² = 4', 'Torque quadruples (4×)'], answer: 4, unit: '×' }
+    },
+    {
+      id: 'separately-excited', name: 'Separately Excited', symbol: 'V_a, V_f independent',
+      formula: 'φ = f(V_f), N adjustable', unit: 'V, Wb', cat: 'types',
+      desc: 'Field and armature have independent DC supplies. Best speed control because V and φ are decoupled. Foundation of the Ward-Leonard system and modern four-quadrant thyristor drives. Used in rolling-mill main drives and precision machine tools.',
+      diagram: 'separateMotor',
+      example: { problem: 'V_a = 200 V, V_f = 110 V (rated 220 V). What happens to φ and N?', steps: ['φ ≈ φ_rated × (110/220) = 0.5 φ_rated', 'For same E_b, N doubles', 'Field weakening above base speed'], answer: 2, unit: '× base N' }
+    },
+    {
+      id: 'compound-motor', name: 'Compound Motor', symbol: 'φ = φ_sh ± φ_se',
+      formula: 'φ_total = φ_shunt ± φ_series', unit: 'Wb', cat: 'types',
+      desc: 'Both shunt and series field windings on the same poles. Cumulative compound (+) gives high starting torque AND good regulation — used in rolling mills, presses, elevators. Differential compound (−) is rare; it can become unstable.',
+      diagram: 'compoundMotor',
+      example: { problem: 'φ_shunt = 0.04 Wb, φ_series = 0.01 Wb (cumulative). Total flux?', steps: ['φ = φ_sh + φ_se', 'φ = 0.04 + 0.01', 'φ = 0.05 Wb'], answer: 0.05, unit: 'Wb' }
+    },
+
+    /* Speed Control */
+    {
+      id: 'armature-control', name: 'Armature Voltage Control', symbol: 'N ∝ V_a',
+      formula: 'N ∝ V (for constant φ)', unit: 'RPM', cat: 'control',
+      desc: 'Vary V_a to scale speed BELOW base value (constant torque region). Most efficient method — modern DC drives use a thyristor bridge (Ward-Leonard, chopper). Below ~5% V the brush voltage drop becomes significant.',
+      diagram: 'armatureControl',
+      example: { problem: 'Base V = 240 V, base N = 1500 RPM. Speed at V = 120 V (constant φ, light load)?', steps: ['N ∝ V (φ constant)', 'N = 1500 × (120/240)', 'N = 750 RPM'], answer: 750, unit: 'RPM' }
+    },
+    {
+      id: 'field-weakening', name: 'Field Weakening', symbol: 'N ∝ 1/φ',
+      formula: 'N ∝ 1 / φ (above base)', unit: 'RPM', cat: 'control',
+      desc: 'Reduce φ ABOVE base speed (constant-power region). Since N ∝ E_b/φ, dropping flux raises speed. Limited by commutation problems and reduced torque (T ∝ φ too).',
+      diagram: 'fieldControl',
+      example: { problem: 'Base φ = 0.4 Wb, base N = 1500 RPM. Speed at φ = 0.2 Wb (same E_b)?', steps: ['N ∝ 1/φ', 'N = 1500 × (0.4/0.2)', 'N = 3000 RPM'], answer: 3000, unit: 'RPM' }
+    },
+
+    /* Losses & Efficiency */
+    {
+      id: 'copper-losses', name: 'Copper Losses', symbol: 'P_cu = I_a² R_a',
+      formula: 'P_cu = I² × R', unit: 'W', cat: 'losses',
+      desc: 'Joule heating in the armature winding: P_cu = I_a² R_a. Scales with the square of current, so doubling the load nearly quadruples the loss. Shunt motors also have shunt-field loss V²/R_sh.',
+      diagram: 'powerFlow',
+      example: { problem: 'I_a = 40 A, R_a = 0.5 Ω. Copper loss?', steps: ['P_cu = I_a² × R_a', 'P_cu = 40² × 0.5 = 1600 × 0.5', 'P_cu = 800 W'], answer: 800, unit: 'W' }
+    },
+    {
+      id: 'efficiency', name: 'Efficiency', symbol: 'η = P_out / P_in',
+      formula: 'η = (P_in − Σlosses) / P_in', unit: '%', cat: 'losses',
+      desc: 'Total efficiency η = P_out/P_in. Losses: copper (I²R), iron (hysteresis + eddy), mechanical (friction + windage), brush contact. Peak efficiency occurs at moderate load where variable losses equal constant losses.',
+      diagram: 'powerFlow',
+      example: { problem: 'P_in = 5000 W, total losses = 600 W. Efficiency?', steps: ['P_out = P_in − losses = 5000 − 600 = 4400 W', 'η = P_out/P_in × 100', 'η = 4400/5000 × 100 = 88%'], answer: 88, unit: '%' }
+    }
+  ];
+
+  /* ================================================================
+     PRESETS
+     ================================================================ */
+
+  var PRESETS = [
+    { id: 'hobby-12',     name: '12 V Hobby',        type: 'shunt',    V: 12,  Ra: 0.5, phi: 0.05, Tload: 0.5,  Vf: 12  },
+    { id: 'lathe-220',    name: '220 V Lathe',       type: 'shunt',    V: 220, Ra: 0.8, phi: 0.50, Tload: 15,   Vf: 220 },
+    { id: 'mill-440',     name: '440 V Mill',        type: 'shunt',    V: 440, Ra: 0.6, phi: 0.65, Tload: 35,   Vf: 440 },
+    { id: 'crane-220',    name: 'Crane Hoist',       type: 'series',   V: 220, Ra: 0.4, phi: 0.30, Tload: 60,   Vf: 220 },
+    { id: 'traction-600', name: 'EV Traction',       type: 'series',   V: 600, Ra: 0.15,phi: 0.45, Tload: 90,   Vf: 600 },
+    { id: 'starter-12',   name: 'Auto Starter',      type: 'series',   V: 12,  Ra: 0.05,phi: 0.10, Tload: 4,    Vf: 12  },
+    { id: 'wardleonard',  name: 'Ward-Leonard',      type: 'separate', V: 240, Ra: 0.5, phi: 0.55, Tload: 20,   Vf: 220 },
+    { id: 'fieldweaken',  name: 'Field Weakening',   type: 'separate', V: 240, Ra: 0.5, phi: 0.25, Tload: 8,    Vf: 110 }
+  ];
+
+  /* ================================================================
+     UNIT SYSTEM
+     ================================================================ */
+
+  /* Conversions (SI -> Imperial multipliers) */
+  var CONV = {
+    torque:   { si: 'Nm',   imp: 'lbf·ft', factor: 0.7375621, digits: 2 },
+    power:    { si: 'W',    imp: 'hp',          factor: 0.001341,  digits: 2 },
+    powerKw:  { si: 'W',    imp: 'hp',          factor: 0.001341,  digits: 3 }
+  };
+
+  function isImp() { return unitSys === 'imp'; }
+  function toTorqueD(siVal) { return isImp() ? siVal * CONV.torque.factor : siVal; }
+  function fromTorqueD(dispVal) { return isImp() ? dispVal / CONV.torque.factor : dispVal; }
+  function torqueLabel() { return isImp() ? 'lbf·ft' : 'Nm'; }
+  function toPowerD(siVal) { return isImp() ? siVal * CONV.power.factor : siVal; }
+  function powerLabel() { return isImp() ? 'hp' : 'W'; }
+  function powerDigits(siVal) {
+    if (isImp()) return Math.abs(siVal * CONV.power.factor) < 10 ? 2 : 1;
+    return Math.abs(siVal) < 100 ? 1 : 0;
+  }
+
+  function rN(x, d) {
+    if (!isFinite(x)) return String(x);
+    var p = Math.pow(10, d || 0);
+    return (Math.round(x * p) / p).toString();
+  }
+
+  /* ================================================================
+     DOM REFS
+     ================================================================ */
+
+  var cvs = document.getElementById('sim-canvas');
+  var ctx = cvs.getContext('2d');
+  var W = 900, H = 480;
+
+  var modeTabs   = document.getElementById('mode-tabs');
+  var unitTabs   = document.getElementById('unit-tabs');
+  var motorTabs  = document.getElementById('motor-tabs');
+  var simPanel   = document.getElementById('sim-panel');
+  var presetChips= document.getElementById('preset-chips');
+  var canvasCard = document.getElementById('canvas-card');
+
+  var vSlider = document.getElementById('v-slider');
+  var raSlider = document.getElementById('ra-slider');
+  var fluxSlider = document.getElementById('flux-slider');
+  var tlSlider = document.getElementById('tl-slider');
+  var vfSlider = document.getElementById('vf-slider');
+  var vInput   = document.getElementById('v-input');
+  var raInput  = document.getElementById('ra-input');
+  var fluxInput= document.getElementById('flux-input');
+  var tlInput  = document.getElementById('tl-input');
+  var vfInput  = document.getElementById('vf-input');
+  var vfRow    = document.getElementById('vf-row');
+
+  var tlLabel  = document.getElementById('tl-label');
+  var tlUnit   = document.getElementById('tl-unit');
+
+  var rSpeed = document.getElementById('r-speed');
+  var rTorque = document.getElementById('r-torque');
+  var rTorqueU = document.getElementById('r-torque-u');
+  var rBemf  = document.getElementById('r-bemf');
+  var rIa    = document.getElementById('r-ia');
+  var rPin   = document.getElementById('r-pin');
+  var rPinU  = document.getElementById('r-pin-u');
+  var rPout  = document.getElementById('r-pout');
+  var rPoutU = document.getElementById('r-pout-u');
+  var rEff   = document.getElementById('r-eff');
+
+  var chkSchematic = document.getElementById('chk-schematic');
+  var chkCurve     = document.getElementById('chk-curve');
+  var chkEquation  = document.getElementById('chk-equation');
+  var chkGrid      = document.getElementById('chk-grid');
+
+  var catRow     = document.getElementById('cat-row');
+  var catTabs    = document.getElementById('cat-tabs');
+  var itemSelector = document.getElementById('item-selector');
+  var conceptGrid= document.getElementById('concept-grid');
+  var itemInfo   = document.getElementById('item-info');
+
+  var practicePanel = document.getElementById('practice-panel');
+  var practiceBar = document.getElementById('practice-bar');
+  var ppPrompt = document.getElementById('pp-prompt');
+  var ppInput  = document.getElementById('pp-input');
+  var ppUnit   = document.getElementById('pp-unit');
+  var ppCheck  = document.getElementById('pp-check');
+  var ppNext   = document.getElementById('pp-next');
+  var ppFeedback = document.getElementById('pp-feedback');
+  var ppSolution = document.getElementById('pp-solution');
+  var pbarScoreVal = document.getElementById('pbar-score-val');
+
+  var quizPanel = document.getElementById('quiz-panel');
+  var quizBar   = document.getElementById('quiz-bar');
+  var quizResult = document.getElementById('quiz-result');
+  var qbarNum   = document.getElementById('qbar-num');
+  var qbarTotal = document.getElementById('qbar-total');
+
+  var hintBar = document.getElementById('hint-bar');
+  var hintClose = document.getElementById('hint-close');
+  var btnUndo = document.getElementById('btn-undo');
+  var btnRedo = document.getElementById('btn-redo');
+  var btnReset= document.getElementById('btn-reset');
+  var btnCalc = document.getElementById('btn-calc');
+  var calcModal = document.getElementById('calc-modal');
+  var calcModalBody = document.getElementById('calc-modal-body');
+  var calcModalClose = document.getElementById('calc-modal-close');
+
+  var ctxMenu = document.getElementById('ctx-menu');
+
+  var expCsv  = document.getElementById('exp-csv');
+  var expPng  = document.getElementById('exp-png');
+
+  var learnExpand   = document.getElementById('learn-expand-all');
+  var learnCollapse = document.getElementById('learn-collapse-all');
+  var lpEqBody  = document.getElementById('lp-eq-body');
+  var lpPwrBody = document.getElementById('lp-pwr-body');
+  var lpCoachBody = document.getElementById('lp-coach-body');
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+
+  var mode = 'simulate';
+  var unitSys = 'si';
+  var motorType = 'shunt';
+  var supplyV = 120;
+  var Ra = 1.0;
+  var fieldFlux = 0.5;        /* nominal flux setpoint (Wb) */
+  var loadTorque = 10;        /* SI Nm */
+  var Vfield = 120;           /* separately excited field supply */
+
+  var Kmotor = 1.0;
+  var phiRated = 0.5;
+  var Vrated  = 120;
+
+  /* Canvas toggles */
+  var showSchematic = true;
+  var showCurve     = true;
+  var showEquation  = true;
+  var showGrid      = false;
+
+  /* Undo/redo */
+  var undoStack = [];
+  var redoStack = [];
+  var UNDO_MAX = 50;
+
+  /* Animation */
+  var animFrame = null;
+  var rotorAngle = 0;
+
+  /* Physics results */
+  var phys = {};
+
+  /* Practice */
+  var pScore = 0, pTotal = 0, curProblem = null, pAnswered = false;
+
+  /* Quiz */
+  var QUIZ_SIZE = 8;
+  var quizPool = [], quizSet = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+  var quizHistory = [], quizResults = [];
+
+  /* Explore */
+  var exploreCat = 'basics';
+  var selectedConcept = null;
+
+  /* DPR */
+  var dpr = 1;
+
+  /* Learn cache (prevents KaTeX flicker) */
+  var _learnCache = { eq: '', pwr: '', coach: '' };
+
+  /* ================================================================
+     UTIL
+     ================================================================ */
+
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function round2(n) { return +(Math.round(n * 100) / 100).toFixed(2); }
+  function round1(n) { return +(Math.round(n * 10) / 10).toFixed(1); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* ================================================================
+     DPR CANVAS
+     ================================================================ */
+
+  function resizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width || W;
+    var targetH = cssW * (H / W);
+    cvs.style.height = targetH + 'px';
+    cvs.width  = Math.round(cssW * dpr);
+    cvs.height = Math.round(targetH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(cvs.width / W, cvs.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    if (mode === 'simulate') draw();
+    else if (mode === 'explore' && selectedConcept) drawExploreDiagram(selectedConcept.diagram);
+  }
+
+  /* ================================================================
+     PHYSICS
+     ================================================================ */
+
+  function calcPhysics() {
+    var V = supplyV, phi = fieldFlux, Tload = loadTorque, Kphi;
+
+    if (motorType === 'shunt') {
+      /* Shunt: field sees the supply, so if V changes, phi scales somewhat.
+         We treat the slider phi as the field-design constant (at rated V). */
+      var effPhi = phi * (V / Math.max(Vrated, 1));   /* scales with supply for shunt */
+      effPhi = Math.max(effPhi, 0.001);
+      Kphi = Kmotor * effPhi;
+
+      var Ia = Tload / Kphi;
+      var IaMax = V / Math.max(Ra, 0.001);
+      if (Ia > IaMax) Ia = IaMax;
+      var Eb = V - Ia * Ra;
+      if (Eb < 0) Eb = 0;
+      var N = Kphi > 0.001 ? (Eb / Kphi) : 0;
+      var T = Kphi * Ia;
+      var omega = N * 2 * Math.PI / 60;
+      var Pout = T * omega;
+      var Pin  = V * Ia + (V * V / 200);   /* approximate shunt field loss */
+      var eff  = Pin > 0 ? (Pout / Pin) * 100 : 0;
+      var N0   = Kphi > 0.001 ? V / Kphi : 0;
+      var Tstall = Kphi * IaMax;
+      phys = { N: N, T: T, Eb: Eb, Ia: Ia, Pin: Pin, Pout: Pout, eff: eff, N0: N0, Tstall: Tstall, Kphi: Kphi, IaMax: IaMax, Pcu: Ia*Ia*Ra, phiEff: effPhi };
+
+    } else if (motorType === 'separate') {
+      /* Separately excited: V and Vf independent. Phi depends only on Vf. */
+      var effPhiS = phi * (Vfield / Math.max(Vrated, 1));
+      effPhiS = Math.max(effPhiS, 0.001);
+      Kphi = Kmotor * effPhiS;
+
+      var IaS = Tload / Kphi;
+      var IaMaxS = V / Math.max(Ra, 0.001);
+      if (IaS > IaMaxS) IaS = IaMaxS;
+      var EbS = V - IaS * Ra;
+      if (EbS < 0) EbS = 0;
+      var Ns  = Kphi > 0.001 ? (EbS / Kphi) : 0;
+      var Ts  = Kphi * IaS;
+      var omS = Ns * 2 * Math.PI / 60;
+      var PoS = Ts * omS;
+      var PiS = V * IaS + (Vfield * Vfield / 200);    /* armature + field-supply */
+      var efS = PiS > 0 ? (PoS / PiS) * 100 : 0;
+      var N0s = Kphi > 0.001 ? V / Kphi : 0;
+      var TstS= Kphi * IaMaxS;
+      phys = { N: Ns, T: Ts, Eb: EbS, Ia: IaS, Pin: PiS, Pout: PoS, eff: efS, N0: N0s, Tstall: TstS, Kphi: Kphi, IaMax: IaMaxS, Pcu: IaS*IaS*Ra, phiEff: effPhiS };
+
+    } else {
+      /* Series motor: phi ~ Ia, T = Km*kf*Ia^2 */
+      var Kf = phi;
+      var KmKf = Kmotor * Kf;
+      var IaR;
+      if (KmKf < 0.0001) IaR = 0;
+      else IaR = Math.sqrt(Math.max(0, Tload / KmKf));
+
+      var IaMaxR = V / Math.max(Ra, 0.001);
+      if (IaR > IaMaxR) IaR = IaMaxR;
+
+      var EbR = (IaR < 0.01) ? V : V - IaR * Ra;
+      if (EbR < 0) EbR = 0;
+      var Nr;
+      if (IaR < 0.01 || KmKf < 0.0001) Nr = 5000;
+      else Nr = EbR / (KmKf * IaR);
+      if (Nr > 5000) Nr = 5000;
+      var Tr = KmKf * IaR * IaR;
+      var omR= Nr * 2 * Math.PI / 60;
+      var PoR= Tr * omR;
+      var PiR= V * IaR;
+      var efR= PiR > 0 ? (PoR / PiR) * 100 : 0;
+      var TstR = KmKf * IaMaxR * IaMaxR;
+      phys = { N: Nr, T: Tr, Eb: EbR, Ia: IaR, Pin: PiR, Pout: PoR, eff: efR, N0: 5000, Tstall: TstR, Kphi: KmKf, IaMax: IaMaxR, Pcu: IaR*IaR*Ra, phiEff: Kf * IaR };
+    }
+
+    phys.eff = clamp(phys.eff, 0, 100);
+  }
+
+  /* ================================================================
+     READOUTS + LABELS
+     ================================================================ */
+
+  function updateReadouts() {
+    rSpeed.textContent = Math.round(phys.N);
+    var tDisp = toTorqueD(phys.T);
+    rTorque.textContent = tDisp.toFixed(isImp() ? 2 : 1);
+    rTorqueU.textContent = ' ' + torqueLabel();
+    rBemf.textContent = phys.Eb.toFixed(1);
+    rIa.textContent   = phys.Ia.toFixed(2);
+    rPin.textContent  = toPowerD(phys.Pin).toFixed(powerDigits(phys.Pin));
+    rPinU.textContent = ' ' + powerLabel();
+    rPout.textContent = toPowerD(phys.Pout).toFixed(powerDigits(phys.Pout));
+    rPoutU.textContent= ' ' + powerLabel();
+    rEff.textContent  = phys.eff.toFixed(1);
+  }
+
+  function updateUnitLabels() {
+    /* Load torque slider label + unit + value */
+    tlLabel.innerHTML = 'Load Torque (' + torqueLabel() + ')';
+    tlUnit.textContent = torqueLabel();
+    /* Re-render stepper inputs to displayed units */
+    if (document.activeElement !== tlInput) {
+      tlInput.value = toTorqueD(loadTorque).toFixed(isImp() ? 2 : 1);
+    }
+  }
+
+  /* ================================================================
+     UNDO / REDO
+     ================================================================ */
+
+  function snapState() {
+    return {
+      type: motorType, V: supplyV, Ra: Ra, phi: fieldFlux, Tload: loadTorque, Vf: Vfield,
+      ss: showSchematic, sc: showCurve, se: showEquation, sg: showGrid
+    };
+  }
+  function loadState(s) {
+    if (!s) return;
+    motorType = s.type || 'shunt';
+    supplyV   = s.V; Ra = s.Ra; fieldFlux = s.phi; loadTorque = s.Tload;
+    Vfield    = (s.Vf === undefined) ? supplyV : s.Vf;
+    showSchematic = (s.ss === undefined) ? true  : !!s.ss;
+    showCurve     = (s.sc === undefined) ? true  : !!s.sc;
+    showEquation  = (s.se === undefined) ? true  : !!s.se;
+    showGrid      = (s.sg === undefined) ? false : !!s.sg;
+    syncMotorTabs(); syncToggleDOM(); syncSlidersFromState(); syncSteppersFromState();
+    updateVfRow(); render();
+  }
+  function saveUndo() {
+    undoStack.push(JSON.stringify(snapState()));
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    redoStack = [];
+    syncUndoBtns();
+  }
+  function doUndo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(JSON.stringify(snapState()));
+    var s = undoStack.pop();
+    loadState(JSON.parse(s));
+    syncUndoBtns();
+  }
+  function doRedo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(JSON.stringify(snapState()));
+    var s = redoStack.pop();
+    loadState(JSON.parse(s));
+    syncUndoBtns();
+  }
+  function syncUndoBtns() {
+    btnUndo.disabled = undoStack.length === 0;
+    btnRedo.disabled = redoStack.length === 0;
+  }
+
+  /* ================================================================
+     UI SYNC HELPERS
+     ================================================================ */
+
+  function syncSlidersFromState() {
+    vSlider.value    = supplyV;
+    raSlider.value   = Ra;
+    fluxSlider.value = fieldFlux;
+    tlSlider.value   = loadTorque;
+    if (vfSlider) vfSlider.value = Vfield;
+  }
+  function syncSteppersFromState() {
+    if (document.activeElement !== vInput)    vInput.value    = supplyV;
+    if (document.activeElement !== raInput)   raInput.value   = Ra.toFixed(2);
+    if (document.activeElement !== fluxInput) fluxInput.value = fieldFlux.toFixed(2);
+    if (document.activeElement !== tlInput)   tlInput.value   = toTorqueD(loadTorque).toFixed(isImp() ? 2 : 1);
+    if (vfInput && document.activeElement !== vfInput) vfInput.value = Vfield;
+  }
+  function syncMotorTabs() {
+    motorTabs.querySelectorAll('.pill').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.type === motorType);
+    });
+  }
+  function syncToggleDOM() {
+    chkSchematic.checked = showSchematic;
+    chkCurve.checked     = showCurve;
+    chkEquation.checked  = showEquation;
+    chkGrid.checked      = showGrid;
+  }
+  function updateVfRow() {
+    vfRow.style.display = motorType === 'separate' ? '' : 'none';
+  }
+  function clearPresetActive() {
+    presetChips.querySelectorAll('.preset-chip').forEach(function (c) { c.classList.remove('active'); });
+  }
+
+  /* ================================================================
+     CANVAS — DRAW
+     ================================================================ */
+
+  function clearCanvas() {
+    ctx.fillStyle = '#161b27';
+    ctx.fillRect(0, 0, W, H);
+  }
+  function drawGrid() {
+    ctx.strokeStyle = 'rgba(66,165,245,0.07)';
+    ctx.lineWidth = 1;
+    for (var x = 0; x <= W; x += 30) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (var y = 0; y <= H; y += 30) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  function draw() {
+    clearCanvas();
+    if (showGrid) drawGrid();
+    if (showSchematic) drawMotorDiagram();
+    if (showCurve)     drawSpeedTorqueCurve();
+    if (showEquation)  drawCanvasEquation();
+  }
+
+  function render() {
+    calcPhysics();
+    draw();
+    updateReadouts();
+    updateLearnPanels();
+  }
+
+  /* --- Realistic motor schematic ------------------------------ */
+  function drawMotorDiagram() {
+    var cx = 200, cy = 230;
+    var Rout = 100;    /* outer yoke */
+    var Rin  = 78;     /* inside yoke */
+    var Rcore= 56;     /* rotor outer */
+    var Rshaft = 9;    /* shaft radius */
+
+    /* ---- Mounting feet ---- */
+    ctx.fillStyle = '#3a4258';
+    ctx.strokeStyle = '#1a1f2e';
+    ctx.lineWidth = 1.5;
+    var footY = cy + Rout + 6;
+    ctx.beginPath();
+    ctx.moveTo(cx - Rout - 18, footY);
+    ctx.lineTo(cx - Rout + 8,  footY);
+    ctx.lineTo(cx - Rout + 18, footY + 14);
+    ctx.lineTo(cx - Rout - 22, footY + 14);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + Rout + 18, footY);
+    ctx.lineTo(cx + Rout - 8,  footY);
+    ctx.lineTo(cx + Rout - 18, footY + 14);
+    ctx.lineTo(cx + Rout + 22, footY + 14);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    /* Bolt holes */
+    ctx.fillStyle = '#0d1117';
+    ctx.beginPath(); ctx.arc(cx - Rout - 4, footY + 8, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + Rout + 4, footY + 8, 2.5, 0, Math.PI * 2); ctx.fill();
+
+    /* ---- Terminal junction box on top ---- */
+    var tbW = 50, tbH = 22;
+    var tbX = cx - tbW / 2, tbY = cy - Rout - tbH - 2;
+    var tbGrad = ctx.createLinearGradient(tbX, tbY, tbX, tbY + tbH);
+    tbGrad.addColorStop(0, '#4a5266');
+    tbGrad.addColorStop(1, '#2a3142');
+    ctx.fillStyle = tbGrad;
+    ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = 1.5;
+    ctx.fillRect(tbX, tbY, tbW, tbH);
+    ctx.strokeRect(tbX, tbY, tbW, tbH);
+    /* Terminal screws */
+    [0.3, 0.7].forEach(function (f) {
+      var x = tbX + tbW * f;
+      ctx.beginPath(); ctx.arc(x, tbY + tbH / 2, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#c0c0c0'; ctx.fill();
+      ctx.strokeStyle = '#5a5a5a'; ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 2, tbY + tbH / 2); ctx.lineTo(x + 2, tbY + tbH / 2);
+      ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1; ctx.stroke();
+    });
+
+    /* ---- Outer yoke (housing) — radial gradient for 3D feel ---- */
+    var yokeGrad = ctx.createRadialGradient(cx - 30, cy - 40, 20, cx, cy, Rout);
+    yokeGrad.addColorStop(0, '#5a6478');
+    yokeGrad.addColorStop(0.6, '#3a4258');
+    yokeGrad.addColorStop(1, '#1a1f2e');
+    ctx.beginPath(); ctx.arc(cx, cy, Rout, 0, Math.PI * 2);
+    ctx.fillStyle = yokeGrad; ctx.fill();
+    ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 2; ctx.stroke();
+
+    /* Inner yoke ring (air gap edge) */
+    ctx.beginPath(); ctx.arc(cx, cy, Rin, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d1117'; ctx.fill();
+
+    /* ---- Stator pole shoes (curved, pointing inward) ---- */
+    var poleColor = motorType === 'series' ? '#ff8a65' : '#90caf9';
+    var poleColorDark = motorType === 'series' ? '#bf6149' : '#4a6680';
+    [Math.PI, 0].forEach(function (poleAngle, idx) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(poleAngle);
+      /* Pole body (rectangle from inner ring) */
+      var pw = 28, pdepth = Rin - Rcore - 4;
+      var poleGrad = ctx.createLinearGradient(Rcore + 2, 0, Rin, 0);
+      poleGrad.addColorStop(0, poleColor);
+      poleGrad.addColorStop(1, poleColorDark);
+      ctx.fillStyle = poleGrad;
+      ctx.beginPath();
+      ctx.moveTo(Rcore + 4, -pw * 0.55);
+      ctx.lineTo(Rin,        -pw * 0.4);
+      ctx.lineTo(Rin,         pw * 0.4);
+      ctx.lineTo(Rcore + 4,   pw * 0.55);
+      /* curved pole face on the rotor side */
+      ctx.arc(0, 0, Rcore + 4, Math.atan2(pw * 0.55, Rcore + 4), -Math.atan2(pw * 0.55, Rcore + 4), true);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = 1.2; ctx.stroke();
+
+      /* Pole label N / S */
+      ctx.font = 'bold 14px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#0d1117'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(idx === 0 ? 'N' : 'S', (Rcore + Rin) / 2 + 2, 0);
+
+      /* Field coils wrapped around the pole — multiple turns rendered as stacked ellipses */
+      var coilTurns = 6;
+      var coilStartR = Rcore + 6;
+      var coilEndR   = Rin - 2;
+      var coilStepR  = (coilEndR - coilStartR) / coilTurns;
+      for (var t = 0; t < coilTurns; t++) {
+        var rR = coilStartR + (t + 0.5) * coilStepR;
+        /* Top turn */
+        ctx.beginPath();
+        ctx.ellipse(rR, -pw * 0.5 - 2, 4, 5, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#c87f3a';
+        ctx.fill();
+        ctx.strokeStyle = '#704720'; ctx.lineWidth = 0.6; ctx.stroke();
+        /* Bottom turn */
+        ctx.beginPath();
+        ctx.ellipse(rR, pw * 0.5 + 2, 4, 5, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#c87f3a'; ctx.fill();
+        ctx.strokeStyle = '#704720'; ctx.lineWidth = 0.6; ctx.stroke();
+      }
+
+      ctx.restore();
+    });
+
+    /* ---- Curved field-flux lines from N to S inside the air gap ---- */
+    if (Math.abs(phys.phiEff) > 0.05) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      var fluxLines = 5;
+      for (var fi = 0; fi < fluxLines; fi++) {
+        var off = (fi - (fluxLines - 1) / 2) * 7;
+        ctx.beginPath();
+        ctx.moveTo(-Rcore - 4, off);
+        ctx.bezierCurveTo(-Rcore + 10, off - 16, Rcore - 10, off - 16, Rcore + 4, off);
+        ctx.strokeStyle = 'rgba(144,202,249,' + (0.18 + 0.12 * Math.min(1, phys.phiEff / 0.6)).toFixed(2) + ')';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    /* ---- Armature (rotor) — laminated core look ---- */
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotorAngle);
+
+    /* Core fill with subtle radial gradient */
+    var coreGrad = ctx.createRadialGradient(0, 0, Rshaft, 0, 0, Rcore);
+    coreGrad.addColorStop(0, '#2a3450');
+    coreGrad.addColorStop(0.7, '#1a2238');
+    coreGrad.addColorStop(1, '#0d1422');
+    ctx.beginPath(); ctx.arc(0, 0, Rcore, 0, Math.PI * 2);
+    ctx.fillStyle = coreGrad; ctx.fill();
+    ctx.strokeStyle = '#3d4f70'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    /* 12 armature slots with current direction (• out / × in) */
+    var nSlots = 12;
+    var slotR  = Rcore - 8;
+    var slotRad = 6;
+    /* Direction follows torque sign — flip halves for two-pole machine. */
+    var Idir = phys.Ia > 0.01 ? 1 : 0;
+    for (var s = 0; s < nSlots; s++) {
+      var sa = (s / nSlots) * Math.PI * 2;
+      var sx = Math.cos(sa) * slotR;
+      var sy = Math.sin(sa) * slotR;
+
+      /* Slot well */
+      ctx.beginPath(); ctx.arc(sx, sy, slotRad, 0, Math.PI * 2);
+      ctx.fillStyle = '#3a2a45'; ctx.fill();
+      ctx.strokeStyle = '#1a1422'; ctx.lineWidth = 0.8; ctx.stroke();
+
+      /* Conductor disc */
+      ctx.beginPath(); ctx.arc(sx, sy, slotRad - 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#e57373'; ctx.fill();
+      ctx.strokeStyle = '#8a3a3a'; ctx.lineWidth = 0.5; ctx.stroke();
+
+      if (Idir) {
+        /* Top half (relative to rotor frame): current OUT (•) */
+        /* Bottom half: current IN (×) */
+        var topHalf = Math.sin(sa) < -0.05;
+        var botHalf = Math.sin(sa) >  0.05;
+        if (topHalf) {
+          ctx.beginPath(); ctx.arc(sx, sy, 1.6, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff'; ctx.fill();
+        } else if (botHalf) {
+          ctx.beginPath();
+          ctx.moveTo(sx - 2.2, sy - 2.2); ctx.lineTo(sx + 2.2, sy + 2.2);
+          ctx.moveTo(sx - 2.2, sy + 2.2); ctx.lineTo(sx + 2.2, sy - 2.2);
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke();
+        }
+      }
+    }
+
+    /* Inner laminated ring */
+    ctx.beginPath(); ctx.arc(0, 0, Rshaft + 8, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(120,135,160,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, Rshaft + 16, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(120,135,160,0.15)'; ctx.lineWidth = 1; ctx.stroke();
+
+    /* Shaft cross-section through rotor */
+    ctx.beginPath(); ctx.arc(0, 0, Rshaft, 0, Math.PI * 2);
+    var shaftGrad = ctx.createRadialGradient(-3, -3, 1, 0, 0, Rshaft);
+    shaftGrad.addColorStop(0, '#d8dde6');
+    shaftGrad.addColorStop(1, '#5a6172');
+    ctx.fillStyle = shaftGrad; ctx.fill();
+    ctx.strokeStyle = '#2a2f3a'; ctx.lineWidth = 1; ctx.stroke();
+
+    /* Keyway slot */
+    ctx.fillStyle = '#1a1f2e';
+    ctx.fillRect(-1.5, -Rshaft, 3, 4);
+
+    /* Rotation arrow indicator */
+    if (phys.N > 10) {
+      ctx.save();
+      ctx.rotate(-rotorAngle * 0.0);  /* keep arrow in rotor frame */
+      ctx.beginPath();
+      var arrowR = Rcore - 22;
+      ctx.arc(0, 0, arrowR, -Math.PI / 4, Math.PI / 4);
+      ctx.strokeStyle = 'rgba(245,200,66,0.7)'; ctx.lineWidth = 2;
+      ctx.stroke();
+      /* Arrow head */
+      var ax = Math.cos(Math.PI / 4) * arrowR;
+      var ay = Math.sin(Math.PI / 4) * arrowR;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - 6, ay - 4);
+      ctx.lineTo(ax - 2, ay + 4);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(245,200,66,0.7)'; ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.restore();
+
+    /* ---- Shaft extending out to the right with bearing pillow ---- */
+    var shaftStart = cx + Rcore + 8;
+    var shaftEnd = cx + Rout + 110;
+
+    /* Bearing pillow housing */
+    var bpX = cx + Rout - 5;
+    ctx.fillStyle = '#3a4258';
+    ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = 1.2;
+    ctx.fillRect(bpX, cy - 16, 24, 32);
+    ctx.strokeRect(bpX, cy - 16, 24, 32);
+    /* Bearing inner ring */
+    ctx.beginPath(); ctx.arc(bpX + 12, cy, 11, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1f2e'; ctx.fill();
+    ctx.beginPath(); ctx.arc(bpX + 12, cy, 8, 0, Math.PI * 2);
+    ctx.strokeStyle = '#9aa5bf'; ctx.lineWidth = 1.5; ctx.stroke();
+    /* Bearing balls */
+    for (var bi = 0; bi < 6; bi++) {
+      var ba = bi / 6 * Math.PI * 2 + rotorAngle * 0.5;
+      ctx.beginPath();
+      ctx.arc(bpX + 12 + Math.cos(ba) * 9.5, cy + Math.sin(ba) * 9.5, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#d8dde6'; ctx.fill();
+    }
+
+    /* Shaft */
+    var shGrad = ctx.createLinearGradient(0, cy - 9, 0, cy + 9);
+    shGrad.addColorStop(0, '#a0a8b8');
+    shGrad.addColorStop(0.5, '#dfe4ee');
+    shGrad.addColorStop(1, '#6a7282');
+    ctx.fillStyle = shGrad;
+    ctx.fillRect(shaftStart, cy - 7, shaftEnd - shaftStart, 14);
+    ctx.strokeStyle = '#2a2f3a'; ctx.lineWidth = 1;
+    ctx.strokeRect(shaftStart, cy - 7, shaftEnd - shaftStart, 14);
+
+    /* ---- Flywheel / load disc on the shaft ---- */
+    var flyX = shaftEnd + 28, flyR = 30;
+    /* Rotor angle reuse for flywheel rotation */
+    ctx.save();
+    ctx.translate(flyX, cy);
+    ctx.rotate(rotorAngle);
+    var flyGrad = ctx.createRadialGradient(-8, -8, 4, 0, 0, flyR);
+    flyGrad.addColorStop(0, '#7a8398');
+    flyGrad.addColorStop(0.7, '#4a5266');
+    flyGrad.addColorStop(1, '#2a3142');
+    ctx.beginPath(); ctx.arc(0, 0, flyR, 0, Math.PI * 2);
+    ctx.fillStyle = flyGrad; ctx.fill();
+    ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = 1.5; ctx.stroke();
+    /* Spokes */
+    ctx.strokeStyle = '#2a3142'; ctx.lineWidth = 1.5;
+    for (var sp = 0; sp < 6; sp++) {
+      var spa = sp / 6 * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(spa) * 9,  Math.sin(spa) * 9);
+      ctx.lineTo(Math.cos(spa) * (flyR - 6), Math.sin(spa) * (flyR - 6));
+      ctx.stroke();
+    }
+    /* Hub */
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#3a4258'; ctx.fill();
+    ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1f2e'; ctx.fill();
+    /* Load marker */
+    ctx.beginPath();
+    ctx.moveTo(flyR - 14, 0); ctx.lineTo(flyR - 8, -3); ctx.lineTo(flyR - 8, 3); ctx.closePath();
+    ctx.fillStyle = loadTorque > 0.1 ? '#e91e63' : '#5a6172'; ctx.fill();
+    ctx.restore();
+
+    /* Flywheel label */
+    ctx.font = 'bold 9px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Load (' + toTorqueD(loadTorque).toFixed(1) + ' ' + torqueLabel() + ')', flyX, cy + flyR + 6);
+
+    /* ---- Commutator (segmented cylinder seen from end) at bottom ---- */
+    var commCx = cx, commCy = cy + Rout + 36;
+    var commR = 22;
+    /* Commutator body */
+    var commGrad = ctx.createRadialGradient(commCx - 6, commCy - 6, 4, commCx, commCy, commR);
+    commGrad.addColorStop(0, '#ffc46b');
+    commGrad.addColorStop(0.7, '#d28a2a');
+    commGrad.addColorStop(1, '#7a4c10');
+    ctx.beginPath(); ctx.arc(commCx, commCy, commR, 0, Math.PI * 2);
+    ctx.fillStyle = commGrad; ctx.fill();
+    ctx.strokeStyle = '#4a2e08'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    /* 8 commutator segments separated by mica */
+    var nSeg = 8;
+    ctx.save();
+    ctx.translate(commCx, commCy);
+    ctx.rotate(rotorAngle);
+    ctx.strokeStyle = '#1a1308'; ctx.lineWidth = 1.2;
+    for (var sg = 0; sg < nSeg; sg++) {
+      var sga = sg / nSeg * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(sga) * commR, Math.sin(sga) * commR);
+      ctx.stroke();
+    }
+    /* Center boss */
+    ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#7a4c10'; ctx.fill();
+    ctx.restore();
+
+    /* ---- Brushes with brush holders + leaf springs ---- */
+    /* Left brush */
+    var bx1 = commCx - commR - 26;
+    var bx2 = commCx + commR + 4;
+    /* Brush holder rectangles */
+    ctx.fillStyle = '#3a4258'; ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = 1;
+    ctx.fillRect(bx1, commCy - 7, 26, 14);
+    ctx.strokeRect(bx1, commCy - 7, 26, 14);
+    ctx.fillRect(bx2, commCy - 7, 26, 14);
+    ctx.strokeRect(bx2, commCy - 7, 26, 14);
+    /* Carbon brushes (touching commutator) */
+    ctx.fillStyle = '#1a1f2e';
+    ctx.fillRect(bx1 + 18, commCy - 5, 8, 10);
+    ctx.fillRect(bx2,      commCy - 5, 8, 10);
+    /* Leaf spring (zigzag) pressing brush in */
+    ctx.strokeStyle = '#c0c0c0'; ctx.lineWidth = 1;
+    [[bx1 + 2, +1], [bx2 + 24, -1]].forEach(function (br) {
+      var bxs = br[0], dir = br[1];
+      ctx.beginPath();
+      ctx.moveTo(bxs, commCy);
+      for (var z = 0; z < 4; z++) {
+        ctx.lineTo(bxs + dir * (z + 1) * 4, commCy + ((z % 2) ? -3 : 3));
+      }
+      ctx.stroke();
+    });
+
+    /* ---- Supply terminal wires from terminal box to brushes ---- */
+    /* + wire (red) */
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, tbY + tbH);
+    ctx.lineTo(cx - 12, tbY + tbH + 14);
+    ctx.bezierCurveTo(cx - 12, tbY + tbH + 30, bx1 + 5, commCy - 60, bx1 + 5, commCy);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+    /* − wire (blue) */
+    ctx.beginPath();
+    ctx.moveTo(cx + 12, tbY + tbH);
+    ctx.lineTo(cx + 12, tbY + tbH + 14);
+    ctx.bezierCurveTo(cx + 12, tbY + tbH + 30, bx2 + 21, commCy - 60, bx2 + 21, commCy);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+
+    /* +/- labels at terminal box */
+    ctx.font = 'bold 11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ff5555'; ctx.fillText('+', tbX + tbW * 0.3, tbY - 8);
+    ctx.fillStyle = '#42a5f5'; ctx.fillText('−', tbX + tbW * 0.7, tbY - 8);
+
+    /* ---- Floating value badges around the motor ---- */
+    /* Eb badge top-left */
+    drawValueBadge(20, 15, 'Eₐ', phys.Eb.toFixed(1) + ' V', '#ffa000');
+    /* Ia badge below Eb */
+    drawValueBadge(20, 45, 'Iₐ', phys.Ia.toFixed(2) + ' A', '#3ddc84');
+    /* RPM badge top right above curve area */
+    drawValueBadge(310, 15, 'N',  Math.round(phys.N) + ' RPM', '#42a5f5');
+    /* phi badge bottom-left */
+    drawValueBadge(20, H - 65, 'φ', phys.phiEff.toFixed(2) + ' Wb', '#90caf9');
+
+    /* V supply badge under the terminal box */
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#f5c842'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('V = ' + supplyV.toFixed(0) + ' V', cx, tbY - 22);
+
+    /* Motor type title with subtle backdrop */
+    ctx.font = 'bold 13px "Segoe UI", sans-serif';
+    var typeLabels = { shunt: 'DC Shunt Motor', series: 'DC Series Motor', separate: 'Separately Excited Motor' };
+    var tlText = typeLabels[motorType];
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    var twPad = 8;
+    var tw = ctx.measureText(tlText).width + twPad * 2;
+    ctx.fillStyle = 'rgba(233,30,99,0.18)';
+    roundedRect(140, 6, tw, 22, 6); ctx.fill();
+    ctx.fillStyle = '#f48fb1';
+    ctx.fillText(tlText, 140 + twPad, 11);
+  }
+
+  function drawValueBadge(x, y, sym, val, color) {
+    var padX = 6, padY = 4, gap = 5;
+    ctx.font = 'bold 11px "Cambria Math", "Times New Roman", serif';
+    var ws = ctx.measureText(sym).width;
+    ctx.font = 'bold 11px "JetBrains Mono", "Courier New", monospace';
+    var wv = ctx.measureText(val).width;
+    var w = ws + gap + wv + padX * 2;
+    var h = 20;
+    /* backdrop */
+    ctx.fillStyle = 'rgba(13,17,30,0.78)';
+    ctx.strokeStyle = 'rgba(139,157,195,0.25)'; ctx.lineWidth = 1;
+    roundedRect(x, y, w, h, 5); ctx.fill(); ctx.stroke();
+    /* sym */
+    ctx.font = 'italic bold 11px "Cambria Math", "Times New Roman", serif';
+    ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(sym, x + padX, y + h / 2);
+    /* = */
+    ctx.font = 'bold 11px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#dde3f0';
+    ctx.fillText('= ' + val, x + padX + ws + gap, y + h / 2);
+  }
+
+  function roundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  /* --- Speed-torque curve ------------------------------------- */
+  function drawSpeedTorqueCurve() {
+    var ox = 460, oy = 40, cw = 400, ch = 380;
+    var px = ox + 40, py = oy + 10;
+    var pw = cw - 60, ph = ch - 60;
+
+    ctx.fillStyle = 'rgba(15,20,32,0.6)';
+    ctx.fillRect(ox, oy, cw, ch);
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    ctx.strokeRect(ox, oy, cw, ch);
+
+    ctx.font = 'bold 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(233,30,99,0.85)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText('Speed-Torque Characteristic', ox + cw - 10, oy + 6);
+
+    ctx.beginPath();
+    ctx.moveTo(px, py); ctx.lineTo(px, py + ph); ctx.lineTo(px + pw, py + ph);
+    ctx.strokeStyle = '#8b9dc3'; ctx.lineWidth = 2; ctx.stroke();
+
+    var torqueAxisLabel = 'Torque (' + torqueLabel() + ')';
+    ctx.font = 'bold 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(torqueAxisLabel, px + pw / 2, py + ph + 25);
+
+    ctx.save();
+    ctx.translate(px - 32, py + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Speed (RPM)', 0, 0);
+    ctx.restore();
+
+    var maxT_SI = Math.max(phys.Tstall * 1.1, 10);
+    var maxN    = Math.max(phys.N0 * 1.1, 100);
+    if (maxT_SI > 500) maxT_SI = 500;
+    if (maxN > 6000) maxN = 6000;
+    var maxT_D  = toTorqueD(maxT_SI);
+
+    ctx.strokeStyle = 'rgba(42,48,80,0.6)'; ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    var numYGrid = 5;
+    for (var yi = 0; yi <= numYGrid; yi++) {
+      var yy = py + ph - (yi / numYGrid) * ph;
+      var speedLabel = Math.round((yi / numYGrid) * maxN);
+      ctx.beginPath(); ctx.moveTo(px, yy); ctx.lineTo(px + pw, yy); ctx.stroke();
+      ctx.font = '10px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(speedLabel, px - 5, yy);
+    }
+    var numXGrid = 5;
+    for (var xi = 0; xi <= numXGrid; xi++) {
+      var xx = px + (xi / numXGrid) * pw;
+      var torqueLab = round1((xi / numXGrid) * maxT_D);
+      ctx.beginPath(); ctx.moveTo(xx, py); ctx.lineTo(xx, py + ph); ctx.stroke();
+      ctx.font = '10px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(torqueLab, xx, py + ph + 5);
+    }
+    ctx.setLineDash([]);
+
+    /* Curve in SI then mapped to displayed-T axis */
+    ctx.beginPath();
+    var numPoints = 200;
+    var firstPoint = true;
+    for (var i = 0; i <= numPoints; i++) {
+      var torque_SI = (i / numPoints) * maxT_SI;
+      var speed;
+      if (motorType === 'shunt' || motorType === 'separate') {
+        if (phys.Tstall > 0) speed = phys.N0 - (phys.N0 / phys.Tstall) * torque_SI;
+        else speed = 0;
+        if (speed < 0) speed = 0;
+      } else {
+        var KmKf = phys.Kphi;
+        if (KmKf < 0.0001 || torque_SI < 0.01) speed = maxN;
+        else {
+          var IaC = Math.sqrt(torque_SI / KmKf);
+          if (IaC > phys.IaMax) IaC = phys.IaMax;
+          var EbC = supplyV - IaC * Ra;
+          if (EbC < 0) EbC = 0;
+          if (IaC < 0.01) speed = maxN;
+          else speed = EbC / (KmKf * IaC);
+        }
+        if (speed > maxN) speed = maxN;
+        if (speed < 0) speed = 0;
+      }
+      var plotX = px + (torque_SI / maxT_SI) * pw;
+      var plotY = py + ph - (speed / maxN) * ph;
+      if (firstPoint) { ctx.moveTo(plotX, plotY); firstPoint = false; }
+      else            ctx.lineTo(plotX, plotY);
+    }
+    ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(233,30,99,0.2)'; ctx.lineWidth = 8; ctx.stroke();
+
+    /* Op point */
+    var opT = phys.T, opN = phys.N;
+    var opX = px + (opT / maxT_SI) * pw;
+    var opY = py + ph - (opN / maxN) * ph;
+    opX = clamp(opX, px, px + pw);
+    opY = clamp(opY, py, py + ph);
+
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(opX, opY); ctx.lineTo(opX, py + ph);
+    ctx.strokeStyle = 'rgba(233,30,99,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(opX, opY); ctx.lineTo(px, opY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath(); ctx.arc(opX, opY, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(233,30,99,0.3)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(opX, opY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#e91e63'; ctx.fill();
+    ctx.beginPath(); ctx.arc(opX, opY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+
+    ctx.font = 'bold 10px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    var lx = opX + 12, ly = opY - 8;
+    if (lx + 110 > px + pw) lx = opX - 110;
+    if (ly < py + 20)       ly = opY + 18;
+    var opLabel = '(' + toTorqueD(opT).toFixed(isImp() ? 2 : 1) + ' ' + torqueLabel() + ', ' + Math.round(opN) + ' RPM)';
+    ctx.fillText(opLabel, lx, ly);
+
+    /* N0 + Tstall ticks */
+    var n0Y = py + ph - (Math.min(phys.N0, maxN) / maxN) * ph;
+    ctx.beginPath(); ctx.moveTo(px - 6, n0Y); ctx.lineTo(px + 6, n0Y);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 9px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    if (phys.N0 <= maxN) ctx.fillText('N₀', px - 10, n0Y);
+
+    var tsX = px + (Math.min(phys.Tstall, maxT_SI) / maxT_SI) * pw;
+    ctx.beginPath(); ctx.moveTo(tsX, py + ph - 6); ctx.lineTo(tsX, py + ph + 6);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 9px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    if (phys.Tstall <= maxT_SI) ctx.fillText('Tₛ', tsX, py + ph + 10);
+  }
+
+  /* --- Canvas classical equation overlay ---------------------- */
+  function drawCanvasEquation() {
+    var cy = 460;
+    ctx.save();
+    ctx.font = '700 13px "Cambria Math", "Times New Roman", serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+    var C_F = '#ff8a65', C_V = '#42a5f5', C_E = '#ffa000', C_EQ = '#f5c842', C_N = '#3ddc84';
+
+    var eb_val = phys.Eb.toFixed(1);
+    var v_val  = supplyV.toFixed(0);
+    var ia_val = phys.Ia.toFixed(1);
+    var ra_val = Ra.toFixed(2);
+    var n_val  = Math.round(phys.N);
+    var kphi_val = phys.Kphi.toFixed(3);
+
+    ctx.fillStyle = C_E; ctx.fillText('E', 20, cy);
+    var w = ctx.measureText('E').width;
+    ctx.font = '700 9px "Cambria Math", "Times New Roman", serif';
+    ctx.fillText('b', 20 + w, cy + 4);
+    var w2 = ctx.measureText('b').width;
+    ctx.font = '700 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(' = ' + v_val + ' − ' + ia_val + '×' + ra_val + ' = ' + eb_val + ' V', 20 + w + w2, cy);
+
+    var rhsStart = 320;
+    ctx.font = '700 13px "Cambria Math", "Times New Roman", serif';
+    ctx.fillStyle = C_N; ctx.fillText('N', rhsStart, cy);
+    var wn = ctx.measureText('N').width;
+    ctx.font = '700 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(' = ' + eb_val + ' / ' + kphi_val + ' = ' + n_val + ' RPM', rhsStart + wn, cy);
+
+    ctx.restore();
+  }
+
+  /* ================================================================
+     EXPLORE DIAGRAMS
+     ================================================================ */
+
+  function drawExploreDiagram(diagramId) {
+    clearCanvas();
+    if (showGrid) drawGrid();
+
+    ctx.font = 'bold 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(233,30,99,0.85)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+
+    var cx = W / 2;
+
+    if (diagramId === 'motorPrinciple') {
+      ctx.fillText('DC Motor Principle: F = BIL', cx, 20);
+      ctx.fillStyle = '#ff5555'; ctx.fillRect(200, 120, 60, 240);
+      ctx.font = 'bold 24px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('N', 230, 240);
+      ctx.fillStyle = '#42a5f5'; ctx.fillRect(640, 120, 60, 240);
+      ctx.fillStyle = '#fff'; ctx.fillText('S', 670, 240);
+      ctx.setLineDash([6, 6]);
+      for (var fi = 0; fi < 5; fi++) {
+        var fy = 150 + fi * 50;
+        ctx.beginPath(); ctx.moveTo(260, fy); ctx.lineTo(640, fy);
+        ctx.strokeStyle = 'rgba(100,150,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(450, 240, 20, 0, Math.PI * 2);
+      ctx.fillStyle = '#e91e63'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(450, 240, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(450, 210); ctx.lineTo(450, 120);
+      ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(450, 120); ctx.lineTo(440, 140); ctx.lineTo(460, 140); ctx.closePath();
+      ctx.fillStyle = '#3ddc84'; ctx.fill();
+      ctx.font = 'bold 16px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'left';
+      ctx.fillText('F (Force)', 470, 120);
+      ctx.font = 'bold 13px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#ffa000'; ctx.textAlign = 'center';
+      ctx.fillText('B (field)', 450, 400);
+      ctx.fillText('I (current into page)', 450, 420);
+
+    } else if (diagramId === 'backEmf') {
+      ctx.fillText('Back EMF: Eₐ = V − IₐRₐ', cx, 20);
+      ctx.beginPath(); ctx.moveTo(200, 150); ctx.lineTo(200, 330);
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(180, 220); ctx.lineTo(220, 220);
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 5; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(186, 240); ctx.lineTo(214, 240);
+      ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#ffa000'; ctx.textAlign = 'center';
+      ctx.fillText('V', 170, 235);
+      ctx.beginPath(); ctx.moveTo(200, 150); ctx.lineTo(700, 150);
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+      drawZigzag(400, 150, 'h');
+      ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#ffa000'; ctx.textAlign = 'center';
+      ctx.fillText('Rₐ', 400, 125);
+      ctx.beginPath(); ctx.arc(620, 240, 40, 0, Math.PI * 2);
+      ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.font = 'bold 16px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Eₐ', 620, 240);
+      ctx.fillText('M', 620, 260);
+      ctx.beginPath(); ctx.moveTo(700, 150); ctx.lineTo(700, 200);
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(700, 280); ctx.lineTo(700, 330); ctx.lineTo(200, 330);
+      ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(660, 240); ctx.lineTo(700, 240);
+      ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = 'bold 18px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center';
+      ctx.fillText('Eₐ = V − Iₐ×Rₐ', cx, 400);
+
+    } else if (diagramId === 'motorEquation') {
+      ctx.fillText('Motor Speed Equation: N = Eₐ / (Kφ)', cx, 20);
+      drawMotorSpeedDiagram();
+
+    } else if (diagramId === 'shuntMotor') {
+      ctx.fillText('DC Shunt Motor: Field in parallel with armature', cx, 20);
+      drawShuntCircuit();
+
+    } else if (diagramId === 'seriesMotor') {
+      ctx.fillText('DC Series Motor: Field in series with armature', cx, 20);
+      drawSeriesCircuit();
+
+    } else if (diagramId === 'separateMotor') {
+      ctx.fillText('Separately Excited: Independent V_a and V_f', cx, 20);
+      drawSeparateCircuit();
+
+    } else if (diagramId === 'compoundMotor') {
+      ctx.fillText('DC Compound Motor: Shunt + Series fields', cx, 20);
+      drawCompoundDiagram();
+
+    } else if (diagramId === 'armatureControl') {
+      ctx.fillText('Armature Voltage Control: Vary V (constant φ)', cx, 20);
+      drawSpeedControlComparison('armature');
+
+    } else if (diagramId === 'fieldControl') {
+      ctx.fillText('Field Weakening: Vary φ (constant V)', cx, 20);
+      drawSpeedControlComparison('field');
+
+    } else if (diagramId === 'powerFlow') {
+      ctx.fillText('Power Flow: P_in → Losses → P_out', cx, 20);
+      drawPowerFlowDiagram();
+    }
+  }
+
+  function drawZigzag(x, y, orient) {
+    var peaks = 5, amp = 12, segW = 8;
+    var totalW = peaks * segW;
+    ctx.save();
+    ctx.translate(x, y);
+    if (orient === 'v') ctx.rotate(Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(-totalW / 2 - 10, 0);
+    ctx.lineTo(-totalW / 2, 0);
+    for (var i = 0; i < peaks; i++) {
+      var pxz = -totalW / 2 + i * segW + segW / 2;
+      var pyz = (i % 2 === 0) ? -amp : amp;
+      ctx.lineTo(pxz, pyz);
+    }
+    ctx.lineTo(totalW / 2, 0);
+    ctx.lineTo(totalW / 2 + 10, 0);
+    ctx.strokeStyle = '#ffa000'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMotorSpeedDiagram() {
+    var methods = [
+      { label: 'Armature\nVoltage', desc: 'Vary V', color: '#ff5555', x: 180 },
+      { label: 'Field\nWeakening', desc: 'Reduce φ', color: '#42a5f5', x: 450 },
+      { label: 'Armature\nResistance', desc: 'Add R (lossy)', color: '#ffa000', x: 720 }
+    ];
+    for (var i = 0; i < methods.length; i++) {
+      var m = methods[i];
+      ctx.beginPath(); ctx.arc(m.x, 200, 50, 0, Math.PI * 2);
+      ctx.strokeStyle = m.color; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+      ctx.font = 'bold 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = m.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      var lines = m.label.split('\n');
+      for (var li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], m.x, 192 + li * 16 - (lines.length - 1) * 8);
+      }
+      ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#dde3f0';
+      ctx.fillText(m.desc, m.x, 270);
+    }
+    ctx.font = 'bold 16px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center';
+    ctx.fillText('N = (V − IₐRₐ) / (Kφ)', W / 2, 350);
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('Three methods to control DC motor speed', W / 2, 390);
+  }
+
+  function drawShuntCircuit() {
+    var lx = 200, rx = 700, ty = 100, by = 380;
+    ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(rx, ty);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx, by); ctx.lineTo(rx, by);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(lx, by);
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#ffa000'; ctx.textAlign = 'right';
+    ctx.fillText('V', lx - 15, 240);
+    drawZigzag(350, ty, 'h');
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#ffa000'; ctx.textAlign = 'center';
+    ctx.fillText('Rₐ', 350, ty - 20);
+    ctx.beginPath(); ctx.arc(550, 240, 40, 0, Math.PI * 2);
+    ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('M', 550, 240);
+    ctx.beginPath(); ctx.moveTo(550, ty); ctx.lineTo(550, 200);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(550, 280); ctx.lineTo(550, by);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx, ty); ctx.lineTo(rx, 180);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(66,165,245,0.2)';
+    ctx.fillRect(rx - 15, 180, 30, 100);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.strokeRect(rx - 15, 180, 30, 100);
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center';
+    ctx.fillText('Shunt\nField', rx, 310);
+    ctx.beginPath(); ctx.moveTo(rx, 280); ctx.lineTo(rx, by);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center';
+    ctx.fillText('Iₗ = Iₐ + I_sh', 450, by + 30);
+    ctx.fillText('Field || Armature', 450, by + 50);
+  }
+
+  function drawSeriesCircuit() {
+    var lx = 200, rx = 700, ty = 120, by = 360;
+    ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(rx, ty);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx, by); ctx.lineTo(rx, by);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(lx, by);
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#ffa000'; ctx.textAlign = 'right';
+    ctx.fillText('V', lx - 15, 240);
+    ctx.fillStyle = 'rgba(66,165,245,0.2)';
+    ctx.fillRect(310, ty - 20, 80, 40);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.strokeRect(310, ty - 20, 80, 40);
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center';
+    ctx.fillText('R_se', 350, ty - 30);
+    drawZigzag(520, ty, 'h');
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#ffa000'; ctx.textAlign = 'center';
+    ctx.fillText('Rₐ', 520, ty - 20);
+    ctx.beginPath(); ctx.arc(rx, 240, 40, 0, Math.PI * 2);
+    ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('M', rx, 240);
+    ctx.beginPath(); ctx.moveTo(rx, ty); ctx.lineTo(rx, 200);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx, 280); ctx.lineTo(rx, by);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center';
+    ctx.fillText('Iₐ = I_se = Iₗ (same current)', 450, ty - 45);
+    ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center';
+    ctx.fillText('T ∝ Iₐ² (high starting torque)', 450, by + 40);
+  }
+
+  function drawSeparateCircuit() {
+    /* Two independent loops */
+    /* Armature loop */
+    ctx.font = 'bold 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Armature supply (V_a)', 250, 70);
+    ctx.beginPath(); ctx.moveTo(120, 110); ctx.lineTo(400, 110); ctx.lineTo(400, 250); ctx.lineTo(120, 250); ctx.closePath();
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2; ctx.stroke();
+    drawZigzag(260, 110, 'h');
+    ctx.fillStyle = '#ffa000'; ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('R_a', 260, 90);
+    ctx.beginPath(); ctx.arc(330, 180, 30, 0, Math.PI * 2);
+    ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#e91e63'; ctx.fillText('A', 330, 180);
+
+    /* Field loop */
+    ctx.fillStyle = '#42a5f5'; ctx.font = 'bold 13px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Field supply (V_f)', 650, 70);
+    ctx.beginPath(); ctx.moveTo(520, 110); ctx.lineTo(800, 110); ctx.lineTo(800, 250); ctx.lineTo(520, 250); ctx.closePath();
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(66,165,245,0.2)';
+    ctx.fillRect(640, 130, 60, 100);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.strokeRect(640, 130, 60, 100);
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Field', 670, 180);
+
+    ctx.font = 'bold 16px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('V_a and V_f are independent', W / 2, 320);
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillText('Speed via V_a, flux via V_f — best speed control', W / 2, 360);
+  }
+
+  function drawCompoundDiagram() {
+    var cx = W / 2, cy = 220;
+    ctx.beginPath(); ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+    ctx.strokeStyle = '#e91e63'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = 'bold 20px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('M', cx, cy);
+    ctx.fillStyle = 'rgba(66,165,245,0.2)';
+    ctx.fillRect(cx - 160, cy - 30, 60, 60);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 160, cy - 30, 60, 60);
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center';
+    ctx.fillText('Shunt', cx - 130, cy - 40);
+    ctx.fillText('Field', cx - 130, cy + 50);
+    ctx.fillStyle = 'rgba(255,85,85,0.2)';
+    ctx.fillRect(cx + 100, cy - 30, 60, 60);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx + 100, cy - 30, 60, 60);
+    ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center';
+    ctx.fillText('Series', cx + 130, cy - 40);
+    ctx.fillText('Field', cx + 130, cy + 50);
+    ctx.beginPath(); ctx.moveTo(cx - 100, cy); ctx.lineTo(cx - 60, cy);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 60, cy); ctx.lineTo(cx + 100, cy);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = 'bold 16px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center';
+    ctx.fillText('φ = φ_sh ± φ_se', cx, 360);
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillText('Cumulative: fields aid (+)', cx, 390);
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('Differential: fields oppose (−)', cx, 410);
+  }
+
+  function drawSpeedControlComparison(mode2) {
+    /* Show 3 lines: low / nominal / high */
+    var ox = 100, oy = 70, w = 700, h = 320;
+    ctx.strokeStyle = '#8b9dc3'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + h); ctx.lineTo(ox + w, oy + h); ctx.stroke();
+    ctx.font = 'bold 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Torque', ox + w / 2, oy + h + 5);
+    ctx.save(); ctx.translate(ox - 30, oy + h / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Speed N', 0, 0); ctx.restore();
+
+    var lines = mode2 === 'armature'
+      ? [{ N0: 0.9, color: '#42a5f5', lbl: 'V high' }, { N0: 0.6, color: '#3ddc84', lbl: 'V nominal' }, { N0: 0.3, color: '#ff5555', lbl: 'V low' }]
+      : [{ N0: 0.95, color: '#42a5f5', lbl: 'φ low (high N)' }, { N0: 0.65, color: '#3ddc84', lbl: 'φ nominal' }, { N0: 0.4, color: '#ff5555', lbl: 'φ high (low N)' }];
+
+    lines.forEach(function (ln) {
+      ctx.beginPath();
+      ctx.moveTo(ox, oy + h * (1 - ln.N0));
+      ctx.lineTo(ox + w * 0.85, oy + h);
+      ctx.strokeStyle = ln.color; ctx.lineWidth = 3; ctx.stroke();
+      ctx.font = 'bold 11px "Segoe UI", sans-serif';
+      ctx.fillStyle = ln.color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(ln.lbl, ox + w * 0.85 + 8, oy + h * (1 - ln.N0 / 2));
+    });
+  }
+
+  function drawPowerFlowDiagram() {
+    var boxes = [
+      { label: 'P_in', desc: 'V × I', color: '#ff5555', x: 130 },
+      { label: 'P_cu', desc: 'I² R_a', color: '#ffa000', x: 350 },
+      { label: 'P_em', desc: 'E_b × I', color: '#42a5f5', x: 550 },
+      { label: 'P_out', desc: 'T × ω', color: '#3ddc84', x: 770 }
+    ];
+    boxes.forEach(function (b) {
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(b.x - 55, 180, 110, 90, 10) : ctx.rect(b.x - 55, 180, 110, 90);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+      ctx.strokeStyle = b.color; ctx.lineWidth = 3; ctx.stroke();
+      ctx.font = 'bold 20px "Segoe UI", sans-serif';
+      ctx.fillStyle = b.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(b.label, b.x, 210);
+      ctx.font = 'bold 12px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillStyle = '#dde3f0';
+      ctx.fillText(b.desc, b.x, 245);
+    });
+    /* Arrows */
+    for (var i = 0; i < boxes.length - 1; i++) {
+      var x1 = boxes[i].x + 55, x2 = boxes[i + 1].x - 55;
+      ctx.beginPath(); ctx.moveTo(x1, 225); ctx.lineTo(x2, 225);
+      ctx.strokeStyle = '#dde3f0'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, 225); ctx.lineTo(x2 - 8, 220); ctx.lineTo(x2 - 8, 230); ctx.closePath();
+      ctx.fillStyle = '#dde3f0'; ctx.fill();
+    }
+    ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#e91e63'; ctx.textAlign = 'center';
+    ctx.fillText('P_in = P_cu + P_out + iron + mech losses', W / 2, 340);
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('η = P_out / P_in', W / 2, 370);
+  }
+
+  /* ================================================================
+     KaTeX LEARN PANELS
+     ================================================================ */
+
+  function updateLearnPanels() {
+    if (!lpEqBody) return;
+
+    /* Live equations */
+    var eq = '';
+    eq += '<div class="eq-line">\\[ E_b = V - I_a \\cdot R_a \\]</div>';
+    eq += '<div class="eq-line">\\(E_b = ' + supplyV.toFixed(0) + ' - ' + phys.Ia.toFixed(2) + ' \\cdot ' + Ra.toFixed(2) + ' = \\mathbf{' + phys.Eb.toFixed(2) + '\\;\\mathrm{V}}\\)</div>';
+    eq += '<div class="eq-line">\\[ N = \\dfrac{E_b}{K \\varphi} \\]</div>';
+    eq += '<div class="eq-line">\\(N = \\dfrac{' + phys.Eb.toFixed(2) + '}{' + phys.Kphi.toFixed(3) + '} = \\mathbf{' + Math.round(phys.N) + '\\;\\mathrm{RPM}}\\)</div>';
+    eq += '<div class="eq-line">\\[ T = K \\varphi \\cdot I_a \\]</div>';
+    var tDispEq = toTorqueD(phys.T);
+    eq += '<div class="eq-line">\\(T = ' + phys.Kphi.toFixed(3) + ' \\cdot ' + phys.Ia.toFixed(2) + ' = \\mathbf{' + tDispEq.toFixed(2) + '\\;\\mathrm{' + (isImp() ? 'lbf{\\cdot}ft' : 'N{\\cdot}m') + '}}\\)</div>';
+    if (eq !== _learnCache.eq) { lpEqBody.innerHTML = eq; _learnCache.eq = eq; }
+
+    /* Power flow */
+    var pwr = '';
+    var Pin = phys.Pin, Pcu = phys.Pcu, Pout = phys.Pout;
+    var uP = isImp() ? '\\mathrm{hp}' : '\\mathrm{W}';
+    pwr += '<div class="eq-line">\\[ P_{in} = V \\cdot I_a + P_{field} \\]</div>';
+    pwr += '<div class="eq-line">\\(P_{in} = ' + supplyV.toFixed(0) + ' \\cdot ' + phys.Ia.toFixed(2) + ' \\approx \\mathbf{' + toPowerD(Pin).toFixed(powerDigits(Pin)) + '\\;' + uP + '}\\)</div>';
+    pwr += '<div class="eq-line">\\[ P_{cu} = I_a^{2} \\cdot R_a \\]</div>';
+    pwr += '<div class="eq-line">\\(P_{cu} = ' + phys.Ia.toFixed(2) + '^{2} \\cdot ' + Ra.toFixed(2) + ' = \\mathbf{' + toPowerD(Pcu).toFixed(powerDigits(Pcu)) + '\\;' + uP + '}\\)</div>';
+    pwr += '<div class="eq-line">\\[ P_{out} = T \\cdot \\omega = T \\cdot \\dfrac{2\\pi N}{60} \\]</div>';
+    pwr += '<div class="eq-line">\\(P_{out} = \\mathbf{' + toPowerD(Pout).toFixed(powerDigits(Pout)) + '\\;' + uP + '}\\quad\\eta = \\mathbf{' + phys.eff.toFixed(1) + '\\%}\\)</div>';
+    if (pwr !== _learnCache.pwr) {
+      lpPwrBody.innerHTML = pwr; _learnCache.pwr = pwr;
+      if (window.renderMathInElement) {
+        try { window.renderMathInElement(lpPwrBody, { delimiters: [
+          { left: '\\[', right: '\\]', display: true },
+          { left: '\\(', right: '\\)', display: false }
+        ], throwOnError: false }); } catch (e) {}
+      }
+    }
+
+    /* Coach */
+    var co = '';
+    if (phys.Ia >= phys.IaMax * 0.98 && phys.Eb < supplyV * 0.05) {
+      co += coachItem('bad', '&#9888;', '<strong>Near stall</strong> &mdash; load too large for current settings. Armature current is saturated at V/R_a (~' + phys.IaMax.toFixed(1) + ' A) and back EMF has collapsed. Reduce load torque or raise V.');
+    } else if (motorType === 'series' && phys.N >= 4900) {
+      co += coachItem('bad', '&#9888;', '<strong>Runaway risk</strong> &mdash; series motor at near-zero load is heading for unsafe speed. Apply some load torque or use a different motor type.');
+    } else if (phys.eff > 80) {
+      co += coachItem('good', '&#9989;', '<strong>Efficient operation</strong> &mdash; you are running near the sweet spot. η = ' + phys.eff.toFixed(1) + '% means most of the input power becomes mechanical work.');
+    } else if (phys.eff < 40 && phys.Pin > 50) {
+      co += coachItem('warn', '&#128268;', '<strong>Low efficiency (' + phys.eff.toFixed(1) + '%)</strong> &mdash; either very light load (no-load losses dominate) or very heavy load (copper loss dominates). Try a moderate Tload.');
+    } else {
+      co += coachItem('', '&#9881;', '<strong>Operating normally.</strong> ' + Math.round(phys.N) + ' RPM at ' + toTorqueD(phys.T).toFixed(2) + ' ' + torqueLabel() + ', efficiency ' + phys.eff.toFixed(1) + '%.');
+    }
+    if (phys.Pcu / Math.max(phys.Pin, 1) > 0.25) {
+      co += coachItem('warn', '&#128293;', 'Copper loss (' + toPowerD(phys.Pcu).toFixed(0) + ' ' + powerLabel() + ') is consuming over 25% of input power. R_a or current is high.');
+    }
+    if (motorType === 'shunt' && fieldFlux < 0.2) {
+      co += coachItem('warn', '&#11015;', '<strong>Field weakening regime</strong> &mdash; flux below 0.2 Wb. Speed is boosted but torque capability drops proportionally.');
+    }
+    if (co !== _learnCache.coach) { lpCoachBody.innerHTML = co; _learnCache.coach = co; }
+  }
+  function coachItem(cls, icon, text) {
+    return '<div class="coach-item ' + cls + '"><span class="coach-icon">' + icon + '</span><span>' + text + '</span></div>';
+  }
+
+  /* ================================================================
+     CALC MODAL
+     ================================================================ */
+
+  function buildCalcSteps() {
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Given &mdash; Current State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>Type = ' + motorType + '</span>';
+    html += '<span>V = ' + supplyV.toFixed(0) + ' V</span>';
+    html += '<span>R_a = ' + Ra.toFixed(2) + ' Ω</span>';
+    html += '<span>φ = ' + fieldFlux.toFixed(2) + ' Wb</span>';
+    html += '<span>T_load = ' + loadTorque.toFixed(2) + ' Nm</span>';
+    if (motorType === 'separate') html += '<span>V_f = ' + Vfield.toFixed(0) + ' V</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">&#9432; All calculations performed in SI; display unit follows the SI / Imperial toggle.</p></div>';
+
+    var step = 1;
+    /* Step 1: Effective Kphi */
+    if (motorType === 'shunt') {
+      html += calcStep(step++, 'Compute effective flux (shunt)',
+        '\\[ \\varphi_{eff} = \\varphi_{0} \\cdot \\dfrac{V}{V_{rated}} \\]',
+        '\\(\\varphi_{eff} = ' + fieldFlux.toFixed(2) + ' \\cdot \\dfrac{' + supplyV.toFixed(0) + '}{' + Vrated + '} = ' + phys.phiEff.toFixed(3) + '\\;\\mathrm{Wb}\\)',
+        'Kφ = ' + phys.Kphi.toFixed(3));
+    } else if (motorType === 'separate') {
+      html += calcStep(step++, 'Compute effective flux (separately excited)',
+        '\\[ \\varphi_{eff} = \\varphi_{0} \\cdot \\dfrac{V_{f}}{V_{rated}} \\]',
+        '\\(\\varphi_{eff} = ' + fieldFlux.toFixed(2) + ' \\cdot \\dfrac{' + Vfield.toFixed(0) + '}{' + Vrated + '} = ' + phys.phiEff.toFixed(3) + '\\;\\mathrm{Wb}\\)',
+        'Kφ = ' + phys.Kphi.toFixed(3));
+    } else {
+      html += calcStep(step++, 'Series flux ∝ armature current',
+        '\\[ \\varphi = k_{f} \\cdot I_{a} \\]',
+        '\\(K \\cdot k_{f} = ' + phys.Kphi.toFixed(3) + '\\)',
+        'flux rises with load');
+    }
+
+    /* Step 2: Ia from Tload */
+    if (motorType === 'series') {
+      html += calcStep(step++, 'Solve armature current from T = K k_f I_a²',
+        '\\[ I_a = \\sqrt{\\dfrac{T}{K \\cdot k_f}} \\]',
+        '\\(I_a = \\sqrt{\\dfrac{' + loadTorque.toFixed(2) + '}{' + phys.Kphi.toFixed(3) + '}} = ' + phys.Ia.toFixed(2) + '\\;\\mathrm{A}\\)',
+        'I_a = ' + phys.Ia.toFixed(2) + ' A');
+    } else {
+      html += calcStep(step++, 'Solve armature current from T = Kφ I_a',
+        '\\[ I_a = \\dfrac{T_{load}}{K\\varphi} \\]',
+        '\\(I_a = \\dfrac{' + loadTorque.toFixed(2) + '}{' + phys.Kphi.toFixed(3) + '} = ' + phys.Ia.toFixed(2) + '\\;\\mathrm{A}\\)',
+        'I_a = ' + phys.Ia.toFixed(2) + ' A');
+    }
+
+    /* Step 3: Back EMF */
+    html += calcStep(step++, 'Back EMF',
+      '\\[ E_b = V - I_a \\cdot R_a \\]',
+      '\\(E_b = ' + supplyV.toFixed(0) + ' - ' + phys.Ia.toFixed(2) + ' \\cdot ' + Ra.toFixed(2) + ' = ' + phys.Eb.toFixed(2) + '\\;\\mathrm{V}\\)',
+      'E_b = ' + phys.Eb.toFixed(2) + ' V');
+
+    /* Step 4: Speed */
+    if (motorType === 'series') {
+      html += calcStep(step++, 'Speed from E_b and (K k_f I_a)',
+        '\\[ N = \\dfrac{E_b}{K \\cdot k_f \\cdot I_a} \\]',
+        '\\(N = \\dfrac{' + phys.Eb.toFixed(2) + '}{' + phys.Kphi.toFixed(3) + ' \\cdot ' + phys.Ia.toFixed(2) + '} = ' + Math.round(phys.N) + '\\;\\mathrm{RPM}\\)',
+        'N = ' + Math.round(phys.N) + ' RPM');
+    } else {
+      html += calcStep(step++, 'Speed',
+        '\\[ N = \\dfrac{E_b}{K\\varphi} \\]',
+        '\\(N = \\dfrac{' + phys.Eb.toFixed(2) + '}{' + phys.Kphi.toFixed(3) + '} = ' + Math.round(phys.N) + '\\;\\mathrm{RPM}\\)',
+        'N = ' + Math.round(phys.N) + ' RPM');
+    }
+
+    /* Step 5: Power balance */
+    html += calcStep(step++, 'Output power and copper loss',
+      '\\[ P_{out} = T \\cdot \\omega,\\quad P_{cu} = I_a^{2} R_a \\]',
+      '\\(\\omega = \\dfrac{2\\pi \\cdot ' + Math.round(phys.N) + '}{60} = ' + (phys.N * 2 * Math.PI / 60).toFixed(2) + '\\;\\mathrm{rad/s}\\)\\\\\n' +
+      '\\(P_{out} = ' + phys.T.toFixed(2) + ' \\cdot ' + (phys.N * 2 * Math.PI / 60).toFixed(2) + ' = ' + phys.Pout.toFixed(1) + '\\;\\mathrm{W}\\)\\\\\n' +
+      '\\(P_{cu} = ' + phys.Ia.toFixed(2) + '^{2} \\cdot ' + Ra.toFixed(2) + ' = ' + phys.Pcu.toFixed(1) + '\\;\\mathrm{W}\\)',
+      'P_out = ' + phys.Pout.toFixed(1) + ' W, P_cu = ' + phys.Pcu.toFixed(1) + ' W');
+
+    /* Step 6: Efficiency */
+    html += calcStep(step++, 'Efficiency',
+      '\\[ \\eta = \\dfrac{P_{out}}{P_{in}} \\cdot 100\\% \\]',
+      '\\(\\eta = \\dfrac{' + phys.Pout.toFixed(1) + '}{' + phys.Pin.toFixed(1) + '} \\cdot 100 = ' + phys.eff.toFixed(1) + '\\%\\)',
+      'η = ' + phys.eff.toFixed(1) + '%');
+
+    return html;
+  }
+  function calcStep(num, title, formula, calc, result) {
+    var h = '<div class="cs-step">';
+    h += '<div class="cs-step-hd"><span class="cs-num">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+    if (formula) h += '<div class="cs-formula">' + formula + '</div>';
+    if (calc)    h += '<div class="cs-calc">' + calc + '</div>';
+    if (result != null) h += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+    h += '</div>';
+    return h;
+  }
+  function openCalcModal() {
+    calcModalBody.innerHTML = buildCalcSteps();
+    calcModal.classList.add('active');
+    if (window.renderMathInElement) {
+      try { window.renderMathInElement(calcModalBody, { delimiters: [
+        { left: '\\[', right: '\\]', display: true },
+        { left: '\\(', right: '\\)', display: false }
+      ], throwOnError: false }); } catch (e) {}
+    }
+    if (calcModalClose) calcModalClose.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    calcModal.classList.remove('active');
+    document.body.style.overflow = '';
+    if (btnCalc) btnCalc.focus();
+  }
+
+  /* ================================================================
+     EXPORT
+     ================================================================ */
+
+  function downloadFile(name, blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 200);
+  }
+
+  function exportCSV() {
+    var lines = ['# DC Motor Simulator sweep export',
+      '# motor_type=' + motorType + ' V=' + supplyV + ' Ra=' + Ra + ' phi=' + fieldFlux + ' Tload=' + loadTorque,
+      'Torque_Nm,Speed_RPM,BackEMF_V,Ia_A,Pout_W,Eff_%'];
+    var maxT_SI = Math.max(phys.Tstall * 1.05, 10);
+    var N = 50;
+    for (var i = 0; i <= N; i++) {
+      var T = i / N * maxT_SI;
+      var s = simulatedPointAt(T);
+      lines.push(T.toFixed(3) + ',' + Math.round(s.N) + ',' + s.Eb.toFixed(2) + ',' + s.Ia.toFixed(3) + ',' + s.Pout.toFixed(2) + ',' + s.eff.toFixed(2));
+    }
+    var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    downloadFile('dc-motor-' + motorType + '-' + Date.now() + '.csv', blob);
+  }
+
+  function simulatedPointAt(Tload_SI) {
+    var saveT = loadTorque;
+    loadTorque = Tload_SI;
+    calcPhysics();
+    var p = { N: phys.N, Eb: phys.Eb, Ia: phys.Ia, Pout: phys.Pout, eff: phys.eff };
+    loadTorque = saveT;
+    calcPhysics();
+    return p;
+  }
+
+  function exportPNG() {
+    /* Watermark overlay */
+    ctx.save();
+    ctx.fillStyle = 'rgba(139,157,195,0.4)';
+    ctx.font = 'bold 10px "Segoe UI", sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText('mechsimulator.com  ·  DC Motor Simulator', W - 10, H - 6);
+    ctx.restore();
+    cvs.toBlob(function (blob) {
+      downloadFile('dc-motor-' + motorType + '-' + Date.now() + '.png', blob);
+    }, 'image/png');
+    /* Re-render to clear the watermark */
+    setTimeout(render, 50);
+  }
+
+  function copyOperatingPoint() {
+    var txt = 'DC Motor Operating Point\n' +
+      'Type: ' + motorType + '\n' +
+      'V=' + supplyV + ' V, Ra=' + Ra + ' Ω, phi=' + fieldFlux + ' Wb, T=' + loadTorque + ' Nm\n' +
+      'Speed: ' + Math.round(phys.N) + ' RPM\n' +
+      'Torque: ' + toTorqueD(phys.T).toFixed(2) + ' ' + torqueLabel() + '\n' +
+      'Back EMF: ' + phys.Eb.toFixed(2) + ' V\n' +
+      'Armature I: ' + phys.Ia.toFixed(2) + ' A\n' +
+      'P_in: ' + toPowerD(phys.Pin).toFixed(2) + ' ' + powerLabel() + '\n' +
+      'P_out: ' + toPowerD(phys.Pout).toFixed(2) + ' ' + powerLabel() + '\n' +
+      'Efficiency: ' + phys.eff.toFixed(1) + '%';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt);
+    }
+  }
+
+  /* ================================================================
+     CONTEXT MENU
+     ================================================================ */
+
+  function showCtxMenu(x, y) {
+    ctxMenu.style.display = '';
+    var rect = ctxMenu.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var menuW = rect.width || 220, menuH = rect.height || 180;
+    var posX = Math.min(x, vw - menuW - 8);
+    var posY = Math.min(y, vh - menuH - 8);
+    ctxMenu.style.left = posX + 'px';
+    ctxMenu.style.top  = posY + 'px';
+  }
+  function hideCtxMenu() { ctxMenu.style.display = 'none'; }
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+
+  function hideAllPanels() {
+    simPanel.style.display = 'none';
+    catRow.style.display = 'none';
+    itemSelector.style.display = 'none';
+    itemInfo.style.display = 'none';
+    practicePanel.style.display = 'none';
+    practiceBar.style.display = 'none';
+    quizPanel.style.display = 'none';
+    quizBar.style.display = 'none';
+    quizResult.style.display = 'none';
+    document.getElementById('learn-panels').style.display = 'none';
+  }
+
+  function switchMode(m) {
+    mode = m;
+    hideAllPanels();
+    if (m === 'simulate') {
+      simPanel.style.display = '';
+      document.getElementById('learn-panels').style.display = '';
+      canvasCard.style.display = '';
+      startAnim();
+    } else if (m === 'explore') {
+      canvasCard.style.display = '';
+      catRow.style.display = '';
+      itemSelector.style.display = '';
+      buildConceptGrid();
+      if (selectedConcept) { showConceptInfo(selectedConcept); drawExploreDiagram(selectedConcept.diagram); }
+      else {
+        clearCanvas();
+        ctx.font = 'bold 18px "Segoe UI", sans-serif';
+        ctx.fillStyle = 'rgba(233,30,99,0.6)';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('Select a concept to explore', W / 2, H / 2);
+      }
+      stopAnim();
+    } else if (m === 'practice') {
+      canvasCard.style.display = 'none';
+      practicePanel.style.display = '';
+      practiceBar.style.display = '';
+      if (!curProblem) newPracticeProblem();
+      stopAnim();
+    } else if (m === 'quiz') {
+      canvasCard.style.display = 'none';
+      quizBar.style.display = '';
+      startQuiz();
+      stopAnim();
+    }
+  }
+
+  /* ================================================================
+     ANIMATION
+     ================================================================ */
+
+  function animate() {
+    var speedRad = (phys.N || 0) / 60 * 2 * Math.PI;
+    rotorAngle += speedRad * 0.016;
+    if (rotorAngle > Math.PI * 200) rotorAngle -= Math.PI * 200;
+    render();
+    animFrame = requestAnimationFrame(animate);
+  }
+  function startAnim() { if (!animFrame) animate(); }
+  function stopAnim()  { if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; } }
+
+  /* ================================================================
+     PRESETS
+     ================================================================ */
+
+  function buildPresets() {
+    presetChips.innerHTML = '';
+    PRESETS.forEach(function (p) {
+      var c = document.createElement('button');
+      c.className = 'preset-chip';
+      c.textContent = p.name;
+      c.title = p.type + ' V=' + p.V + 'V Ra=' + p.Ra + ' φ=' + p.phi;
+      c.addEventListener('click', function () { applyPreset(p, c); });
+      presetChips.appendChild(c);
+    });
+  }
+  function applyPreset(p, btnEl) {
+    saveUndo();
+    motorType = p.type;
+    supplyV   = p.V;
+    Ra        = p.Ra;
+    fieldFlux = p.phi;
+    loadTorque= p.Tload;
+    Vfield    = p.Vf;
+    clearPresetActive();
+    if (btnEl) btnEl.classList.add('active');
+    syncMotorTabs(); syncSlidersFromState(); syncSteppersFromState();
+    updateVfRow();
+    render();
+  }
+
+  /* ================================================================
+     PROBLEM GENERATORS (12)
+     ================================================================ */
+
+  var PROBLEM_GEN = [
+    function () {
+      var V = randInt(50, 240), Ra = round1(randInt(2, 20) / 10), Ia = randInt(10, 80);
+      var Eb = round2(V - Ia * Ra);
+      return { prompt: 'V = ' + V + ' V, R_a = ' + Ra + ' Ω, I_a = ' + Ia + ' A. Find the back EMF (V).', steps: ['E_b = V − I_a × R_a', 'E_b = ' + V + ' − ' + Ia + ' × ' + Ra, 'E_b = ' + Eb + ' V'], answer: Eb, unit: 'V', tol: 0.5 };
+    },
+    function () {
+      var V = randInt(100, 240), Ra = round1(randInt(2, 20) / 10);
+      var Eb = randInt(Math.floor(V * 0.7), Math.floor(V * 0.95));
+      var Ia = round2((V - Eb) / Ra);
+      return { prompt: 'V = ' + V + ' V, E_b = ' + Eb + ' V, R_a = ' + Ra + ' Ω. Find I_a (A).', steps: ['I_a = (V − E_b) / R_a', 'I_a = (' + V + ' − ' + Eb + ') / ' + Ra, 'I_a = ' + Ia + ' A'], answer: Ia, unit: 'A', tol: 0.5 };
+    },
+    function () {
+      var K = round2(randInt(5, 20) / 100), phi = round2(randInt(20, 80) / 100), Ia = randInt(10, 60);
+      var T = round2(K * phi * Ia);
+      return { prompt: 'K = ' + K + ', φ = ' + phi + ' Wb, I_a = ' + Ia + ' A. Find torque T (Nm).', steps: ['T = K × φ × I_a', 'T = ' + K + ' × ' + phi + ' × ' + Ia, 'T = ' + T + ' Nm'], answer: T, unit: 'Nm', tol: 0.5 };
+    },
+    function () {
+      var Eb = randInt(80, 220), Kphi = round2(randInt(5, 30) / 100);
+      var N = round1(Eb / Kphi);
+      return { prompt: 'E_b = ' + Eb + ' V, Kφ = ' + Kphi + '. Find speed N (RPM).', steps: ['N = E_b / (Kφ)', 'N = ' + Eb + ' / ' + Kphi, 'N = ' + N + ' RPM'], answer: N, unit: 'RPM', tol: 5 };
+    },
+    function () {
+      var T = randInt(5, 40), N = randInt(500, 2000);
+      var omega = round2(N * 2 * Math.PI / 60);
+      var Pout = round1(T * omega);
+      return { prompt: T + ' Nm at ' + N + ' RPM. Output power P_out (W).', steps: ['ω = 2πN/60 = ' + omega + ' rad/s', 'P_out = T × ω = ' + T + ' × ' + omega, 'P_out = ' + Pout + ' W'], answer: Pout, unit: 'W', tol: 5 };
+    },
+    function () {
+      var V = randInt(100, 240), Ia = randInt(10, 50), Pin = V * Ia;
+      var Ra = round1(randInt(2, 15) / 10);
+      var loss = round1(Ia * Ia * Ra);
+      var Pout = round1(Pin - loss);
+      var eff = round1(Pout / Pin * 100);
+      return { prompt: 'V = ' + V + ' V, I_a = ' + Ia + ' A, R_a = ' + Ra + ' Ω (armature copper loss only). Efficiency (%)?', steps: ['P_in = V × I_a = ' + Pin + ' W', 'P_cu = I_a² × R_a = ' + loss + ' W', 'P_out = ' + Pout + ' W', 'η = ' + eff + '%'], answer: eff, unit: '%', tol: 1 };
+    },
+    function () {
+      var V = randInt(100, 240), Rsh = randInt(60, 240);
+      var Ish = round2(V / Rsh);
+      return { prompt: 'V = ' + V + ' V, R_shunt = ' + Rsh + ' Ω. Shunt-field current I_sh (A)?', steps: ['I_sh = V / R_shunt', 'I_sh = ' + V + ' / ' + Rsh, 'I_sh = ' + Ish + ' A'], answer: Ish, unit: 'A', tol: 0.05 };
+    },
+    function () {
+      var V = randInt(100, 240), Ra = round1(randInt(2, 20) / 10);
+      var Istart = round1(V / Ra);
+      return { prompt: 'V = ' + V + ' V, R_a = ' + Ra + ' Ω. Starting current I_start (A) when E_b = 0?', steps: ['At start E_b = 0', 'I_start = V / R_a = ' + V + ' / ' + Ra, 'I_start = ' + Istart + ' A'], answer: Istart, unit: 'A', tol: 1 };
+    },
+    function () {
+      var V = randInt(120, 240), Kphi = round2(randInt(10, 30) / 100);
+      var N0 = round1(V / Kphi);
+      return { prompt: 'V = ' + V + ' V, Kφ = ' + Kphi + '. No-load speed N_0 (RPM) assuming I_a ≈ 0?', steps: ['At no load E_b ≈ V', 'N_0 = V / (Kφ)', 'N_0 = ' + V + ' / ' + Kphi + ' = ' + N0 + ' RPM'], answer: N0, unit: 'RPM', tol: 5 };
+    },
+    function () {
+      var Kphi = round2(randInt(10, 40) / 100);
+      var V = randInt(120, 240), Ra = round1(randInt(2, 20) / 10);
+      var Tstall = round1(Kphi * V / Ra);
+      return { prompt: 'V = ' + V + ' V, R_a = ' + Ra + ' Ω, Kφ = ' + Kphi + '. Stall torque T_s (Nm)?', steps: ['I_stall = V / R_a = ' + (V/Ra).toFixed(2) + ' A', 'T_s = Kφ × I_stall', 'T_s = ' + Tstall + ' Nm'], answer: Tstall, unit: 'Nm', tol: 1 };
+    },
+    function () {
+      var Nnl = randInt(1500, 2000), Nfl = randInt(1300, Nnl - 50);
+      var reg = round1((Nnl - Nfl) / Nfl * 100);
+      return { prompt: 'No-load speed = ' + Nnl + ' RPM, full-load = ' + Nfl + ' RPM. Speed regulation (%)?', steps: ['Reg = (N_nl − N_fl) / N_fl × 100', 'Reg = (' + Nnl + ' − ' + Nfl + ') / ' + Nfl + ' × 100', 'Reg = ' + reg + '%'], answer: reg, unit: '%', tol: 0.5 };
+    },
+    function () {
+      var Ia = randInt(15, 60), Ra = round1(randInt(2, 15) / 10);
+      var Pcu = round1(Ia * Ia * Ra);
+      return { prompt: 'I_a = ' + Ia + ' A, R_a = ' + Ra + ' Ω. Armature copper loss P_cu (W)?', steps: ['P_cu = I_a² × R_a', 'P_cu = ' + Ia + '² × ' + Ra, 'P_cu = ' + Pcu + ' W'], answer: Pcu, unit: 'W', tol: 1 };
+    }
+  ];
+
+  /* ================================================================
+     QUIZ POOL
+     ================================================================ */
+
+  function genQuizPool() {
+    var pool = [];
+    pool.push({ type: 'mcq', prompt: 'Back EMF in a DC motor:', options: ['Opposes the supply voltage', 'Aids the supply voltage', 'Has no effect on current', 'Equals the supply voltage'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'In a DC shunt motor, the field winding is connected:', options: ['In parallel with armature', 'In series with armature', 'Separately from armature', 'To ground only'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'A DC series motor should never be run:', options: ['Without a load (no-load)', 'At full load', 'In reverse', 'At rated voltage'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Motor speed is proportional to:', options: ['Back EMF / flux', 'Supply voltage × flux', 'Armature current × resistance', 'Torque × current'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'At startup, back EMF of a DC motor is:', options: ['Zero', 'Equal to V', 'Maximum', 'Negative'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Torque in a DC motor is given by:', options: ['T = KφI_a', 'T = V/I_a', 'T = E_b/R_a', 'T = N×φ'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Which motor type gives the highest starting torque?', options: ['DC Series motor', 'DC Shunt motor', 'DC Separately excited', 'Reluctance motor'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Speed control by field weakening (reducing φ) causes the motor to:', options: ['Speed up', 'Slow down', 'Stop', 'Reverse'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Efficiency of a DC motor equals:', options: ['P_out / P_in × 100', 'P_in / P_out × 100', 'V × I_a', 'T × N'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'The commutator\'s function is to:', options: ['Reverse current in armature coils', 'Generate magnetic field', 'Reduce friction', 'Increase voltage'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'A separately excited DC motor allows independent control of:', options: ['Armature and field supplies', 'Speed and direction only', 'Torque alone', 'Current alone'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Copper loss in the armature scales as:', options: ['I_a²', 'I_a', '1 / I_a', 'V × I_a'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'In armature voltage control, speed:', options: ['Varies linearly with V', 'Varies inversely with V', 'Stays constant', 'Goes to zero'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'In a cumulative compound motor, the two fields:', options: ['Aid each other', 'Oppose each other', 'Cancel each other', 'Are perpendicular'], correct: 0 });
+
+    /* Numeric */
+    var V1 = randInt(100, 240), Ra1 = round1(randInt(2, 15) / 10), Ia1 = randInt(10, 60);
+    pool.push({ type: 'numeric', prompt: 'V = ' + V1 + ' V, R_a = ' + Ra1 + ' Ω, I_a = ' + Ia1 + ' A. Back EMF (V)?', answer: round2(V1 - Ia1 * Ra1), unit: 'V', tol: 0.5 });
+    var V2 = randInt(100, 240), Ra2 = round1(randInt(2, 10) / 10);
+    pool.push({ type: 'numeric', prompt: 'V = ' + V2 + ' V, R_a = ' + Ra2 + ' Ω. Starting current (A)?', answer: round1(V2 / Ra2), unit: 'A', tol: 1 });
+    var T3 = randInt(5, 30), N3 = randInt(500, 1500);
+    var w3 = round2(N3 * 2 * Math.PI / 60);
+    pool.push({ type: 'numeric', prompt: T3 + ' Nm at ' + N3 + ' RPM. Output power (W)?', answer: round1(T3 * w3), unit: 'W', tol: 5 });
+    var V4 = randInt(100, 240), Rsh4 = randInt(60, 200);
+    pool.push({ type: 'numeric', prompt: 'Shunt motor: V = ' + V4 + ' V, R_shunt = ' + Rsh4 + ' Ω. I_sh (A)?', answer: round2(V4 / Rsh4), unit: 'A', tol: 0.05 });
+    var V5 = randInt(100, 240), Ia5 = randInt(10, 50), Ra5 = round1(randInt(3, 15) / 10);
+    var Pin5 = V5 * Ia5, loss5 = round1(Ia5 * Ia5 * Ra5);
+    pool.push({ type: 'numeric', prompt: 'V = ' + V5 + ' V, I_a = ' + Ia5 + ' A, R_a = ' + Ra5 + ' Ω. Efficiency (%)?', answer: round1((Pin5 - loss5) / Pin5 * 100), unit: '%', tol: 1 });
+
+    /* Shuffle */
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = randInt(0, i);
+      var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    return pool;
+  }
+
+  /* ================================================================
+     EXPLORE
+     ================================================================ */
+
+  function buildConceptGrid() {
+    conceptGrid.innerHTML = '';
+    var filtered = CONCEPTS.filter(function (c) { return c.cat === exploreCat; });
+    filtered.forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn' + (selectedConcept && selectedConcept.id === c.id ? ' active' : '');
+      btn.innerHTML = '<span class="is-btn-name">' + c.name + '</span><span class="is-btn-sym">' + c.symbol + '</span>';
+      btn.addEventListener('click', function () {
+        conceptGrid.querySelectorAll('.is-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        selectedConcept = c;
+        showConceptInfo(c);
+        drawExploreDiagram(c.diagram);
+      });
+      conceptGrid.appendChild(btn);
+    });
+  }
+  function showConceptInfo(c) {
+    itemInfo.style.display = '';
+    var catLabels = { basics: 'Basics', types: 'Motor Types', control: 'Speed Control', losses: 'Losses & Efficiency' };
+    var html = '<div class="ii-top"><span class="ii-name">' + c.name + '</span><span class="ii-cat-badge">' + catLabels[c.cat] + '</span></div>';
+    html += '<p class="ii-desc">' + c.desc + '</p>';
+    html += '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span><span class="fb-unit">' + c.unit + '</span></div>';
+    if (c.example) {
+      html += '<div class="example-box"><h4>Example Calculation</h4>';
+      html += '<p class="ex-problem">' + c.example.problem + '</p>';
+      c.example.steps.forEach(function (s) { html += '<p class="ex-step">' + s + '</p>'; });
+      html += '</div>';
+    }
+    itemInfo.innerHTML = html;
+  }
+
+  /* ================================================================
+     PRACTICE
+     ================================================================ */
+
+  function newPracticeProblem() {
+    var idx = randInt(0, PROBLEM_GEN.length - 1);
+    curProblem = PROBLEM_GEN[idx]();
+    pAnswered = false;
+    ppPrompt.textContent = curProblem.prompt;
+    ppUnit.textContent = curProblem.unit;
+    ppInput.value = '';
+    ppInput.disabled = false;
+    ppFeedback.textContent = '';
+    ppFeedback.className = 'feedback';
+    ppCheck.style.display = '';
+    ppNext.style.display = 'none';
+    ppSolution.style.display = 'none';
+    ppInput.focus();
+  }
+
+  /* ================================================================
+     QUIZ
+     ================================================================ */
+
+  function startQuiz() {
+    quizPool = genQuizPool();
+    quizSet = quizPool.slice(0, QUIZ_SIZE);
+    qbarTotal.textContent = QUIZ_SIZE;
+    quizIdx = 0; quizScore = 0; quizAnswered = false; quizHistory = []; quizResults = [];
+    quizResult.style.display = 'none';
+    quizPanel.style.display = '';
+    quizBar.style.display = '';
+    showQuizQuestion();
+  }
+  function showQuizQuestion() {
+    var q = quizSet[quizIdx];
+    qbarNum.textContent = quizIdx + 1;
+    quizAnswered = false;
+    var html = '<p class="qp-prompt">Q' + (quizIdx + 1) + '. ' + q.prompt + '</p>';
+    if (q.type === 'mcq') {
+      html += '<div class="answer-grid">';
+      q.options.forEach(function (opt, i) {
+        html += '<button class="answer-btn" data-idx="' + i + '">' + opt + '</button>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="quiz-input-row">';
+      html += '<input class="qi-input" id="qi-input" type="number" step="any" placeholder="Answer">';
+      html += '<span class="qi-unit">' + q.unit + '</span>';
+      html += '<button class="btn btn-primary" id="qi-submit">Submit</button>';
+      html += '</div>';
+    }
+    html += '<div style="margin-top:12px;display:flex;align-items:center;gap:10px;">';
+    html += '<span class="quiz-feedback" id="quiz-fb"></span>';
+    html += '<button class="btn btn-ghost" id="quiz-next" style="display:none;margin-left:auto;">Next &rarr;</button>';
+    html += '</div>';
+    quizPanel.innerHTML = html;
+    if (q.type === 'mcq') {
+      quizPanel.querySelectorAll('.answer-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (quizAnswered) return;
+          submitQuizMCQ(parseInt(btn.dataset.idx));
+        });
+      });
+    } else {
+      document.getElementById('qi-submit').addEventListener('click', submitQuizNumeric);
+      document.getElementById('qi-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitQuizNumeric(); });
+      document.getElementById('qi-input').focus();
+    }
+    document.getElementById('quiz-next').addEventListener('click', nextQuizQuestion);
+  }
+  function submitQuizMCQ(chosen) {
+    quizAnswered = true;
+    var q = quizSet[quizIdx];
+    var correct = chosen === q.correct;
+    if (correct) quizScore++;
+    quizResults.push(!!correct);
+    quizHistory.push({ prompt: q.prompt, given: q.options[chosen], correct: q.options[q.correct], ok: correct });
+    quizPanel.querySelectorAll('.answer-btn').forEach(function (b) {
+      b.classList.add('locked');
+      var idx = parseInt(b.dataset.idx);
+      if (idx === q.correct) b.classList.add('correct');
+      else if (idx === chosen && !correct) b.classList.add('wrong');
+    });
+    var fb = document.getElementById('quiz-fb');
+    fb.textContent = correct ? 'Correct!' : 'Incorrect.';
+    fb.className = 'quiz-feedback ' + (correct ? 'ok' : 'err');
+    document.getElementById('quiz-next').style.display = '';
+  }
+  function submitQuizNumeric() {
+    if (quizAnswered) return;
+    var q = quizSet[quizIdx];
+    var inp = document.getElementById('qi-input');
+    var val = parseFloat(inp.value);
+    if (isNaN(val)) { inp.focus(); return; }
+    quizAnswered = true;
+    var tol = q.tol || 0.5;
+    var correct = Math.abs(val - q.answer) <= tol;
+    if (correct) quizScore++;
+    quizResults.push(!!correct);
+    quizHistory.push({ prompt: q.prompt, given: val + ' ' + q.unit, correct: q.answer + ' ' + q.unit, ok: correct });
+    var fb = document.getElementById('quiz-fb');
+    fb.textContent = correct ? 'Correct!' : 'Incorrect. Answer: ' + q.answer + ' ' + q.unit;
+    fb.className = 'quiz-feedback ' + (correct ? 'ok' : 'err');
+    inp.disabled = true;
+    document.getElementById('qi-submit').disabled = true;
+    document.getElementById('quiz-next').style.display = '';
+  }
+  function nextQuizQuestion() {
+    quizIdx++;
+    if (quizIdx >= QUIZ_SIZE) showQuizResult();
+    else showQuizQuestion();
+  }
+  function showQuizResult() {
+    quizPanel.style.display = 'none';
+    quizBar.style.display = 'none';
+    quizResult.style.display = '';
+    var pct = quizScore / QUIZ_SIZE;
+    var cls = pct === 1 ? 'perfect' : pct >= 0.6 ? 'good' : 'poor';
+    var stars = pct === 1 ? '★★★' : pct >= 0.6 ? '★★☆' : '★☆☆';
+    var verdict = pct === 1 ? 'Perfect score!' : pct >= 0.6 ? 'Good work!' : 'Keep practising!';
+    var html = '<div class="qr-header">';
+    html += '<div class="qr-title-wrap"><span class="qr-title">Quiz Complete</span><span class="qr-stars">' + stars + '</span></div>';
+    html += '<div class="qr-score-wrap"><span class="qr-score ' + cls + '">' + quizScore + '/' + QUIZ_SIZE + '</span><span class="qr-verdict">' + verdict + '</span></div>';
+    html += '</div>';
+    html += '<div class="qr-rows">';
+    quizHistory.forEach(function (h, i) {
+      var ok = quizResults[i];
+      html += '<div class="qr-row ' + (ok ? 'ok' : 'err') + '">';
+      html += '<span class="qr-qnum">Q' + (i + 1) + '</span>';
+      html += '<span class="qr-detail"><strong>' + h.given + '</strong> &mdash; Correct: ' + h.correct + '</span>';
+      html += '<span class="qr-mark">' + (ok ? '✓' : '✗') + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '<button class="btn btn-primary" id="quiz-retry">New Quiz</button>';
+    quizResult.innerHTML = html;
+    document.getElementById('quiz-retry').addEventListener('click', function () {
+      quizResult.style.display = 'none';
+      startQuiz();
+    });
+  }
+
+  /* ================================================================
+     RESET
+     ================================================================ */
+
+  function resetAll() {
+    saveUndo();
+    motorType = 'shunt';
+    supplyV = 120; Ra = 1.0; fieldFlux = 0.5; loadTorque = 10; Vfield = 120;
+    showSchematic = true; showCurve = true; showEquation = true; showGrid = false;
+    syncMotorTabs(); syncToggleDOM(); syncSlidersFromState(); syncSteppersFromState();
+    clearPresetActive(); updateVfRow();
+    render();
+  }
+
+  /* ================================================================
+     SLIDER + STEPPER FACTORY
+     ================================================================ */
+
+  function bindParam(slider, input, getter, setter, opts) {
+    opts = opts || {};
+    var lo = opts.lo, hi = opts.hi, step = opts.step || 1, fixedDigits = opts.digits;
+    var displayFromSI = opts.displayFromSI || function (v) { return v; };
+    var siFromDisplay = opts.siFromDisplay || function (v) { return v; };
+
+    slider.addEventListener('input', function () {
+      saveUndo();
+      var v = parseFloat(this.value);
+      v = clamp(v, lo, hi);
+      setter(v);
+      clearPresetActive();
+      syncSteppersFromState();
+      render();
+    });
+    var stp = input.closest('.stepper');
+    if (stp) {
+      stp.querySelectorAll('.stp-btn').forEach(function (b) {
+        b.addEventListener('click', function () {
+          saveUndo();
+          var dir = parseFloat(b.dataset.step);
+          var cur = displayFromSI(getter());
+          var next = cur + dir * step;
+          var siVal = clamp(siFromDisplay(next), lo, hi);
+          setter(siVal);
+          clearPresetActive();
+          syncSlidersFromState(); syncSteppersFromState();
+          render();
+        });
+      });
+    }
+    input.addEventListener('change', function () {
+      saveUndo();
+      var v = parseFloat(this.value);
+      if (isNaN(v)) { this.value = displayFromSI(getter()).toFixed(fixedDigits || 2); return; }
+      var siVal = clamp(siFromDisplay(v), lo, hi);
+      setter(siVal);
+      clearPresetActive();
+      syncSlidersFromState();
+      render();
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') this.blur();
+    });
+  }
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+
+  function init() {
+    /* Mode tabs */
+    modeTabs.addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      modeTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+      switchMode(e.target.dataset.mode);
+    });
+
+    /* Unit tabs */
+    unitTabs.addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      unitTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+      unitSys = e.target.dataset.unit;
+      updateUnitLabels();
+      syncSteppersFromState();
+      _learnCache = { eq: '', pwr: '', coach: '' };
+      render();
+    });
+
+    /* Motor type tabs */
+    motorTabs.addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      saveUndo();
+      motorType = e.target.dataset.type;
+      motorTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+      clearPresetActive();
+      updateVfRow();
+      render();
+    });
+
+    /* Presets */
+    buildPresets();
+
+    /* Sliders + steppers */
+    bindParam(vSlider, vInput, function () { return supplyV; }, function (v) { supplyV = v; }, { lo: 6, hi: 600, step: 1, digits: 0 });
+    bindParam(raSlider, raInput, function () { return Ra; }, function (v) { Ra = v; }, { lo: 0.05, hi: 20, step: 0.1, digits: 2 });
+    bindParam(fluxSlider, fluxInput, function () { return fieldFlux; }, function (v) { fieldFlux = v; }, { lo: 0.05, hi: 2, step: 0.05, digits: 2 });
+    bindParam(tlSlider, tlInput, function () { return loadTorque; }, function (v) { loadTorque = v; }, {
+      lo: 0, hi: 200, step: 1, digits: 1,
+      displayFromSI: function (v) { return toTorqueD(v); },
+      siFromDisplay: function (v) { return fromTorqueD(v); }
+    });
+    bindParam(vfSlider, vfInput, function () { return Vfield; }, function (v) { Vfield = v; }, { lo: 6, hi: 600, step: 1, digits: 0 });
+
+    /* Toggle checkboxes */
+    chkSchematic.addEventListener('change', function () { saveUndo(); showSchematic = this.checked; render(); });
+    chkCurve.addEventListener('change',     function () { saveUndo(); showCurve     = this.checked; render(); });
+    chkEquation.addEventListener('change',  function () { saveUndo(); showEquation  = this.checked; render(); });
+    chkGrid.addEventListener('change',      function () { saveUndo(); showGrid      = this.checked; render(); });
+
+    /* Explore category */
+    catTabs.addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      exploreCat = e.target.dataset.cat;
+      catTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+      buildConceptGrid();
+      itemInfo.style.display = 'none';
+      selectedConcept = null;
+      clearCanvas();
+      ctx.font = 'bold 18px "Segoe UI", sans-serif';
+      ctx.fillStyle = 'rgba(233,30,99,0.6)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Select a concept to explore', W / 2, H / 2);
+    });
+
+    /* Practice */
+    ppCheck.addEventListener('click', function () {
+      if (pAnswered) return;
+      var val = parseFloat(ppInput.value);
+      if (isNaN(val)) { ppInput.focus(); return; }
+      pAnswered = true; pTotal++;
+      var tol = curProblem.tol || 0.5;
+      var correct = Math.abs(val - curProblem.answer) <= tol;
+      if (correct) {
+        pScore++;
+        ppFeedback.textContent = 'Correct!';
+        ppFeedback.className = 'feedback ok';
+      } else {
+        ppFeedback.textContent = 'Incorrect. Answer: ' + curProblem.answer + ' ' + curProblem.unit;
+        ppFeedback.className = 'feedback err';
+      }
+      ppInput.disabled = true;
+      ppCheck.style.display = 'none';
+      ppNext.style.display = '';
+      pbarScoreVal.textContent = pScore + ' / ' + pTotal;
+      var solHtml = '<h4>Solution</h4>';
+      curProblem.steps.forEach(function (s) { solHtml += '<p class="sol-step">' + s + '</p>'; });
+      ppSolution.innerHTML = solHtml;
+      ppSolution.style.display = '';
+    });
+    ppNext.addEventListener('click', newPracticeProblem);
+    ppInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { if (!pAnswered) ppCheck.click(); else ppNext.click(); }
+    });
+
+    /* Learn panel toggles */
+    var allCards = document.querySelectorAll('.learn-card');
+    learnExpand.addEventListener('click',   function () { allCards.forEach(function (c) { c.open = true; }); });
+    learnCollapse.addEventListener('click', function () { allCards.forEach(function (c) { c.open = false; }); });
+
+    /* Toolbar buttons */
+    btnUndo.addEventListener('click', doUndo);
+    btnRedo.addEventListener('click', doRedo);
+    btnReset.addEventListener('click', resetAll);
+    syncUndoBtns();
+
+    /* Calc modal */
+    btnCalc.addEventListener('click', openCalcModal);
+    calcModalClose.addEventListener('click', closeCalcModal);
+    calcModal.addEventListener('click', function (e) { if (e.target === calcModal) closeCalcModal(); });
+
+    /* Exports */
+    expCsv.addEventListener('click', exportCSV);
+    expPng.addEventListener('click', exportPNG);
+
+    /* Hint banner */
+    if (localStorage.getItem('dc-motor-hint-dismissed') === '1') hintBar.style.display = 'none';
+    hintClose.addEventListener('click', function () {
+      hintBar.style.display = 'none';
+      try { localStorage.setItem('dc-motor-hint-dismissed', '1'); } catch (e) {}
+    });
+
+    /* Context menu */
+    cvs.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      showCtxMenu(e.clientX, e.clientY);
+    });
+    document.addEventListener('click', function (e) {
+      if (ctxMenu.style.display !== 'none' && !ctxMenu.contains(e.target)) hideCtxMenu();
+    });
+    ctxMenu.addEventListener('click', function (e) {
+      var btn = e.target.closest('.ctx-item');
+      if (!btn) return;
+      var act = btn.dataset.action;
+      hideCtxMenu();
+      if (act === 'png') exportPNG();
+      else if (act === 'csv') exportCSV();
+      else if (act === 'copy') copyOperatingPoint();
+      else if (act === 'grid') { saveUndo(); showGrid = !showGrid; chkGrid.checked = showGrid; render(); }
+      else if (act === 'reset') resetAll();
+    });
+
+    /* Keyboard shortcuts */
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'Escape' && calcModal.classList.contains('active')) closeCalcModal();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) doRedo(); else doUndo();
+      }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); resetAll(); }
+      if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault();
+        var next = unitSys === 'si' ? 'imp' : 'si';
+        unitTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p.dataset.unit === next); });
+        unitSys = next;
+        updateUnitLabels(); syncSteppersFromState();
+        _learnCache = { eq: '', pwr: '', coach: '' };
+        render();
+      }
+    });
+
+    /* First-paint state — must run BEFORE resizeCanvas so phys is populated */
+    updateUnitLabels();
+    syncToggleDOM();
+    syncSteppersFromState();
+    updateVfRow();
+    calcPhysics();
+    updateReadouts();
+    updateLearnPanels();
+
+    /* Resize */
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeCanvas).observe(cvs);
+
+    startAnim();
+  }
+
+  /* Defer init until DOMContentLoaded for KaTeX availability */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+})();

@@ -1,0 +1,2447 @@
+(function () {
+'use strict';
+/* =========================================================
+   Vernier Caliper Simulator  –  app.js  v16
+   v14: true-position vernier (no floating window); aligned division physically
+        coincides with a real main-scale line.
+   v15: single FIXED px/mm for every precision — instrument is the same physical
+        size whichever LC is selected; main scale fills the beam identically.
+   v16: realistic geometry — 100 mm metric / 4″ imperial capacity, beam drawn to
+        ~150 mm, ONE fixed-size sliding head (standard graduations fill its left
+        end like a real caliper), precision-aware Zoom for the dense fine scale.
+   v17: density-aware vernier labels (fixes overlapping numerals on the 0.1 mm
+        scale at the fixed instrument size).
+   v18: head enlarged to fully contain the 0.02 mm vernier (px/mm 5.2 so it fits
+        at full travel); main scale numbered only to capacity (100 mm / 4″) with a
+        plain graduated run-out past it for the vernier to coincide against.
+   v19: extended (long-form) verniers so coarse scales fill the same head —
+        0.02/0.1 → 49 mm, 0.05 → 39 mm, imperial → ~47 mm; coincidence at MSR+m·VSR.
+   v20: engraved mechsimulator.com watermark on the beam run-out (past capacity).
+   v21: default least count on load is 0.02 mm.
+   v22: imperial fixes — main scale numbered at whole inches (bold) + tenths 1–9
+        (was a meaningless 0.3″ interval); imperial vernier reverted to the
+        authentic 25-div / 0.600″ short form (LC 0.001″).
+   v23: imperial sliding head proportioned to its 0.6″ vernier (not the metric head).
+   v24: optional "Coincidence" toggle (gold line on/off) beside Zoom, on by default.
+   v25: practice-mode Enter key guarded until a target exists (was scoring against
+        0.00 before Play→Pause); removed unused fmtLabel dead code.
+   Dual-mode: SI (metric mm) + Imperial (inch) caliper
+   Uses real PNG sprites; ticks drawn programmatically
+   ========================================================= */
+
+// ── Sprite coordinate constants ───────────────────────────────────
+const S = {
+  scaleOriginX:    67,
+  scaleOriginY0:  105,
+  scaleOriginY:   162,
+  offsetOriginX:   12,
+  vernierOriginX:  55,
+  vernierOriginY: 161,
+  rulerWidthPx:   915,
+  bladeWidthPx:   716,
+  bladeHeightPx:   20,
+  majorTickH:      22,
+  minorTickH:      13,
+  vMajorTickH:     10,
+  vMinorTickH:      8,
+  CW: 923, CH: 357,
+  // The sprite's inside-jaw tips reach y = 2, i.e. the very top of the artwork.
+  // A ring being measured has to sit ABOVE them with the knife edges rising into
+  // its bore, so the output canvas carries a strip of headroom and the whole
+  // instrument is drawn translated down into it.
+  PAD_TOP: 22,
+};
+S.CH_OUT = S.CH + S.PAD_TOP;
+
+// ── SI scale parameters ───────────────────────────────────────────
+const SI = {
+  totalDivs:    100,       // 100 mm measuring capacity
+  totalRange:   100,       // mm
+  majorEvery:   5,         // major tick every 5 divisions
+  vernierSets:  { '0.05': 20, '0.02': 50, '0.1': 10 },
+};
+
+// ── Imperial scale parameters ─────────────────────────────────────
+const IMP = {
+  totalDivs:    160,       // 40 per inch × 4 inches
+  totalRange:   101.6,     // mm (4 inches in mm)
+  totalInches:  4,
+  msd:          0.025,     // inches per main scale division
+  majorEvery:   4,         // major tick every 4 divs (0.1 inch)
+  vernierDivs:  25,        // 25 vernier divisions
+  lc:           0.001,     // least count in inches
+  lcMm:         0.0254,    // least count in mm
+};
+
+const ANIM_SPEED = 15;      // mm/s
+const QUIZ_TOTAL = 5;
+const MM_TO_IN = 1 / 25.4;
+
+// ── Sprites ───────────────────────────────────────────────────────
+const imgVernier1 = new Image(); imgVernier1.src = 'assets/vernier1.png';
+const imgVernier2 = new Image(); imgVernier2.src = 'assets/vernier2.png';
+const imgVernier3 = new Image(); imgVernier3.src = 'assets/vernier3.png';
+const imgBase     = new Image(); imgBase.src     = 'assets/vernier_base.png';
+const imgBlade    = new Image(); imgBlade.src    = 'assets/blade.png';
+
+// ── Satin stainless-steel shading ─────────────────────────────────
+// Each flat-grey sprite is re-shaded ONCE into an offscreen canvas with a
+// top-lit metallic gradient + sheen + fine brushed texture, composited onto the
+// sprite's own silhouette (source-atop) so only the metal is touched. Cached, so
+// dragging stays 60fps. The scale/coincidence geometry is drawn later, untouched.
+const shaded = {};
+function shadeSprite(img) {
+  const w = img.width, h = img.height;
+  const off = document.createElement('canvas'); off.width = w; off.height = h;
+  const o = off.getContext('2d');
+  o.drawImage(img, 0, 0);
+  o.globalCompositeOperation = 'source-atop';
+
+  // Top-lit satin-steel gradient (sheen band falls across the beam ~32–42%).
+  const g = o.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0.00, 'rgba(150,158,166,0.55)');
+  g.addColorStop(0.24, 'rgba(196,203,210,0.45)');
+  g.addColorStop(0.33, 'rgba(248,251,253,0.55)');   // primary specular sheen
+  g.addColorStop(0.42, 'rgba(214,221,227,0.40)');
+  g.addColorStop(0.52, 'rgba(150,158,166,0.38)');
+  g.addColorStop(0.66, 'rgba(205,212,218,0.32)');   // secondary highlight
+  g.addColorStop(0.82, 'rgba(150,158,166,0.40)');
+  g.addColorStop(1.00, 'rgba(96,103,112,0.60)');    // lower body in shadow
+  o.fillStyle = g; o.globalAlpha = 1; o.fillRect(0, 0, w, h);
+
+  // Fine horizontal brushed-metal streaks.
+  o.globalAlpha = 0.05;
+  for (let y = 2; y < h; y += 3) {
+    o.fillStyle = (y % 6 === 0) ? '#ffffff' : '#5a626b';
+    o.fillRect(0, y, w, 1);
+  }
+  // A couple of brighter specular streaks along the beam band.
+  o.globalAlpha = 0.18;
+  o.fillStyle = '#ffffff';
+  o.fillRect(0, Math.round(h * 0.305), w, 1.4);
+  o.globalAlpha = 0.10;
+  o.fillRect(0, Math.round(h * 0.40), w, 1);
+
+  o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
+  return off;
+}
+function buildShadedSprites() {
+  shaded.base = shadeSprite(imgBase);
+  shaded.blade = shadeSprite(imgBlade);
+  shaded.v1 = shadeSprite(imgVernier1);
+  shaded.v2 = shadeSprite(imgVernier2);
+  shaded.v3 = shadeSprite(imgVernier3);
+}
+
+let imagesLoaded = 0;
+[imgVernier1, imgVernier2, imgVernier3, imgBase, imgBlade].forEach(img => {
+  img.onload  = () => { imagesLoaded++; if (imagesLoaded === 5) { buildShadedSprites(); render(); } };
+  img.onerror = () => { imagesLoaded++; if (imagesLoaded === 5) { buildShadedSprites(); render(); } };
+});
+
+// ── State ─────────────────────────────────────────────────────────
+const state = {
+  mm: 23.46, prec: '0.02', mode: 'free', unit: 'si',
+  dragging: false, dragRefX: 0, dragRefMm: 0,
+  quizTarget: 0, answered: false, score: 0, attempts: 0,
+  playing: false, animDir: 1, animLast: 0, animRaf: null,
+  zoomOpen: false, hinted: false, showAlign: true,
+  quizQuestions: [], quizCurrent: 0, quizAnswers: [], quizAnswered: false,
+  exploreCat: 0, exploreIdx: 0,
+  partIdx: 0, partPin: 0,
+  wp: null, wpRaf: null, pickerOpen: false,
+  audioCtx: null,
+  zeOn: false, zeLc: 0,   // Zero Error: off by default; zeLc is signed integer count of LC divisions (±5)
+};
+
+// ── DOM ───────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const cEl = $('caliper');
+if (!cEl) throw new Error('Canvas element #caliper not found');
+const ctx = cEl.getContext('2d');
+
+// ── Hi-DPI crisp canvas ───────────────────────────────────────────
+// Backing store = logical size × devicePixelRatio so the steel renders razor
+// sharp on Retina/4K instead of an upscaled 923-px bitmap. We draw everything in
+// logical (S.CW × S.CH) units; pointer math must therefore map with the LOGICAL
+// width (see getCanvasX) — the two move together (graphics-upgrade B1).
+let DPR = 1;
+function setupHiDPI() {
+  DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));   // clamp: 3× rarely worth it
+  cEl.width  = Math.round(S.CW * DPR);
+  cEl.height = Math.round(S.CH_OUT * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+setupHiDPI();
+window.addEventListener('resize', () => { setupHiDPI(); render(); });
+
+// ── Scale helpers (abstract SI vs Imperial) ───────────────────────
+function isImperial()  { return state.unit === 'imperial'; }
+function getMaxMm()    { return isImperial() ? IMP.totalRange : SI.totalRange; }
+function getMainDivs() { return isImperial() ? IMP.totalDivs : SI.totalDivs; }
+
+// One main-scale division, in mm (1 mm for SI, 0.635 mm for imperial).
+function getMsdMm()    { return getMaxMm() / getMainDivs(); }
+
+// ONE fixed scale for every precision AND both unit systems, so the instrument is
+// always the same physical size — a real caliper body does not change when you
+// switch graduation or jaw position. Sized so that at full 100 mm travel the
+// ENTIRE sliding head (which holds the 49 mm vernier) stays on the 923 px canvas:
+// head right ≈ 149·p + 129 ≤ 923  ⇒  p ≤ 5.33. We use 5.2 for a safe margin.
+// The fine 0.02 mm scale is necessarily dense at this size, exactly like a real
+// 100 mm caliper — use the Zoom button (precision-aware) to read it.
+const FIXED_PX_PER_MM = 5.2;          // px per mm, identical for all scales
+function getPxPerMm()  { return FIXED_PX_PER_MM; }
+function getMsdPx()    { return FIXED_PX_PER_MM * getMsdMm(); }
+
+// Fill the whole beam with main-scale divisions so the scale looks identical for
+// every precision (the draw loop trims to the canvas edge). The beam reaches
+// ~150 mm — the 100 mm measuring range plus the headroom the 49 mm vernier needs
+// to coincide against when the jaw is near full travel (as on a real 150 mm beam).
+function getMainDivsToDraw() {
+  const maxLocalX = S.CW - (S.scaleOriginX + S.offsetOriginX);
+  return Math.ceil(maxLocalX / getMsdPx()) + 1;
+}
+
+function getVsdCount() {
+  return isImperial() ? IMP.vernierDivs : SI.vernierSets[state.prec];
+}
+
+// Least count in mm (internal unit)
+function getLcMm() {
+  return isImperial() ? IMP.lcMm : parseFloat(state.prec);
+}
+
+// Least count in display unit
+function getLcDisplay() {
+  return isImperial() ? IMP.lc : parseFloat(state.prec);
+}
+
+function getShiftPx() { return getDisplayMm() * getPxPerMm(); }
+
+// ── Zero-error helpers ────────────────────────────────────────────
+// MODEL (per NCERT / industrial convention):
+//   state.mm     = TRUE measurement (physical jaw gap, ≥ 0)
+//   displayMm    = state.mm + ZE_signed  = OBSERVED reading shown on canvas
+//   Corrected    = state.mm  =  Observed − ZE_signed
+const ZE_MAX_LC = 5;
+function getZeOffsetMm() { return state.zeOn ? state.zeLc * getLcMm() : 0; }
+function getDisplayMm()  { return state.mm + getZeOffsetMm(); }
+function clampZeLc(n)    { return Math.max(-ZE_MAX_LC, Math.min(ZE_MAX_LC, n | 0)); }
+function fmtZeSigned() {
+  const dp = isImperial() ? 3 : 2;
+  if (state.zeLc === 0) return (0).toFixed(dp);
+  const dispVal = state.zeLc * getLcDisplay();
+  const sign = state.zeLc > 0 ? '+' : '−';
+  return sign + Math.abs(dispVal).toFixed(dp);
+}
+function parseNumericInput(raw) {
+  const s = (raw || '').trim();
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return NaN;
+  return parseFloat(s);
+}
+
+// Vernier "form" multiplier m: the scale spans (m·n − 1) main divisions. This
+// gives the SAME least count (MSD / n) but a longer physical scale, so the coarse
+// metric graduations spread out and fill (nearly) the same head as the 0.02 mm
+// scale — a real "extended" / long-form vernier. Spans at 1 mm MSD:
+//   0.02 → 49 mm (m1) · 0.1 → 49 mm (m5) · 0.05 → 39 mm (m2)
+// (A 20-division 0.05 mm scale is geometrically limited to 19/39/59 mm — 39 mm is
+//  the closest it can come to the 49 mm head.) Imperial keeps the AUTHENTIC,
+// textbook short vernier: m1 → 25 div over 24 main divisions = 0.600″, LC 0.001″,
+// occupying part of the head with plain metal beyond, exactly like a real inch
+// caliper. The reading method is unchanged: the coincident division a reads
+// VSR = a and the gold tick lands on main line MSR + m·a (verified to coincide).
+function getVernierMult() {
+  if (isImperial()) return 1;   // standard 0.600″ inch vernier (24-div span)
+  return { '0.02': 1, '0.05': 2, '0.1': 5 }[state.prec] || 1;
+}
+
+// VSD pixel width for the (m·n − 1)/n long-form scale.
+function getVsdPx() {
+  const n = getVsdCount();
+  return getMsdPx() * (getVernierMult() * n - 1) / n;
+}
+
+// The observed reading QUANTIZED to the least count. A workpiece can hold the
+// jaws off the LC grid (a 15.88 mm ball on a 0.05 mm vernier), so MSR, VSR and TR
+// must all be derived from one rounded value — otherwise a fraction that rounds
+// up to a full main division (0.99 → 50/50) would drop a whole millimetre.
+function getQuantMm() {
+  const lc = getLcMm();
+  return Math.round(getDisplayMm() / lc) * lc;
+}
+
+// Which vernier tick aligns with a main-scale mark (based on the OBSERVED reading)
+function getAlignedIdx() {
+  const n = getVsdCount();
+  const mm = getQuantMm();
+  if (isImperial()) {
+    const inches = mm * MM_TO_IN;
+    const msrInches = Math.floor(inches / IMP.msd + 1e-9) * IMP.msd;
+    const idx = Math.round((inches - msrInches) / IMP.lc);
+    return ((idx % n) + n) % n;   // modular for negative ZE near closed
+  } else {
+    const pf = parseFloat(state.prec);
+    const idx = Math.round((mm - Math.floor(mm + 1e-9)) / pf);
+    return ((idx % n) + n) % n;
+  }
+}
+
+// The sliding head is ONE fixed physical size for every precision (a real caliper
+// body doesn't change with the graduation). It is wide enough to hold the longest
+// vernier — the 0.02 mm, 50-division scale spanning 49 mm — plus a little plain
+// metal. Coarser verniers (0.05 mm/19 mm, 0.1 mm/9 mm) engrave only the left part
+// of this same head, exactly like a real instrument's vernier window.
+// The fixed head must CONTAIN the longest vernier (0.02 mm = 50 div ≈ 49 mm). The
+// vernier zero sits HEAD_ZERO_OFFSET_PX in from the head's left edge (the jaw side
+// of the head); past the last vernier line we leave a metal margin for the right
+// cap. Same width for every precision — coarse verniers just fill less of it.
+const HEAD_VERNIER_MM      = 49;   // longest metric vernier span (0.02 mm, 50 div)
+const HEAD_RIGHT_MARGIN_PX = 50;   // plain metal + right cap past the last line
+function getVernierStripPx() {
+  const headZeroOffsetPx = 2 * S.offsetOriginX + S.vernierOriginX;  // 79 px
+  // Metric: a FIXED 49 mm region so 0.02/0.05/0.1 share ONE head size. Imperial:
+  // size to the actual 0.6" inch vernier so it sits in a proportionate inch-caliper
+  // head instead of a tight cluster floating on the larger metric head.
+  let regionMm;
+  if (isImperial()) {
+    const n = getVsdCount(), m = getVernierMult();
+    regionMm = (m * n - 1) * getMsdMm();        // 24 × 0.635" = 15.24 mm (0.6")
+  } else {
+    regionMm = HEAD_VERNIER_MM;
+  }
+  const w = headZeroOffsetPx + regionMm * getPxPerMm() + HEAD_RIGHT_MARGIN_PX;
+  return Math.max(imgVernier1.width + imgVernier3.width, w);
+}
+
+// ── Display formatting ────────────────────────────────────────────
+function uLabel() { return isImperial() ? 'in' : 'mm'; }
+
+function fmtReading(mm) {
+  if (isImperial()) return (mm * MM_TO_IN).toFixed(3);
+  return mm.toFixed(2);
+}
+
+function fmtMsr() {
+  // MSR reflects the OBSERVED reading on the canvas. For negative-ZE near closed,
+  // displayMm can be slightly < 0; the main scale physically still shows 0 there.
+  const mm = getQuantMm();
+  if (isImperial()) {
+    const inches = mm * MM_TO_IN;
+    const msr = Math.max(0, Math.floor(inches / IMP.msd + 1e-9) * IMP.msd);
+    return msr.toFixed(3);
+  }
+  return String(Math.max(0, Math.floor(mm + 1e-9)));
+}
+
+function fmtLc() {
+  if (isImperial()) return IMP.lc.toFixed(3);
+  return parseFloat(state.prec).toFixed(2);
+}
+
+function fmtPart() {
+  const alignIdx = getAlignedIdx();
+  const lcVal = getLcDisplay();
+  return (alignIdx * lcVal).toFixed(isImperial() ? 3 : 2);
+}
+
+function fmtTr() {
+  // TR is the literal arithmetic on the displayed cells (clamped MSR + VSR × LC).
+  // For positive ZE / no-ZE this equals fmtReading(displayMm). For negative-ZE
+  // near-closed (rare), this shows the raw formula sum; the signed observed value
+  // appears in the ZE box (matches the NCERT negative-ZE convention).
+  const mm = getQuantMm();
+  const alignIdx = getAlignedIdx();
+  if (isImperial()) {
+    const inches = mm * MM_TO_IN;
+    const msr = Math.max(0, Math.floor(inches / IMP.msd + 1e-9) * IMP.msd);
+    return (msr + alignIdx * IMP.lc).toFixed(3);
+  }
+  const mainMm = Math.max(0, Math.floor(mm + 1e-9));
+  const pf = parseFloat(state.prec);
+  return (mainMm + alignIdx * pf).toFixed(2);
+}
+
+// Snap to least count in mm
+function snapToLc(mm) {
+  const lc = getLcMm();
+  return Math.round(mm / lc) * lc;
+}
+
+// ── Sound helpers ─────────────────────────────────────────────────
+function getAudioCtx() {
+  if (!state.audioCtx) {
+    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return state.audioCtx;
+}
+function playTone(freq, dur, type, vol) {
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = type || 'sine'; osc.frequency.value = freq;
+    g.gain.value = vol || 0.08;
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(ac.currentTime); osc.stop(ac.currentTime + dur);
+  } catch (e) { /* audio not available */ }
+}
+function playClick()   { playTone(800, 0.05, 'square', 0.04); }
+function playTick()    { playTone(1200, 0.02, 'sine', 0.03); }
+function playSuccess() { playTone(880, 0.12, 'sine', 0.1); setTimeout(() => playTone(1100, 0.15, 'sine', 0.1), 120); }
+function playError()   { playTone(300, 0.2, 'sawtooth', 0.06); }
+// Jaw-on-metal: a short damped knock, distinct from the graduation tick.
+function playContact() { playTone(260, 0.07, 'triangle', 0.09); setTimeout(function(){ playTone(180, 0.05, 'sine', 0.05); }, 55); }
+
+// ── Helpers ───────────────────────────────────────────────────────
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// ── Workpieces (measure a real object) ────────────────────────────
+// The outside jaws close along x. Measured face geometry, in canvas px:
+//   fixed jaw measuring face  →  WP_FACE_X
+//   sliding jaw measuring face →  WP_FACE_X + getShiftPx()
+// so the throat opening is exactly getDisplayMm() × px/mm. A workpiece rests
+// against the FIXED jaw (as you would hold it), its silhouette is exactly its
+// true size wide, and state.mm is clamped so the sliding jaw can never travel
+// past it — the jaws stop on the part, they do not pass through it.
+// Internal measurement rides the upper knife edges. Both inside-jaw measuring
+// faces sit at x = 32 (fixed jaw's LEFT face; sliding jaw's RIGHT face, offset by
+// the head travel) and stay parallel down to y = 46, where the sliding jaw meets
+// the head body. So the inside jaws read exactly what the outside jaws read, and
+// the bore's widest points — which is where the jaws touch — must sit at y ≤ 46.
+const WP_IN_FACE_X = 32;
+const WP_IN_CY     = 15;   // bore centreline — high enough that the knife edges
+                           // rise INTO the bore, still inside the parallel band
+const WP_IN_TILT   = 0.52; // foreshortening of the tilted ring (b / a)
+const WP_IN_WALL   = 13;   // radial wall, px
+const WP_IN_DEPTH  = 9;    // apparent axial thickness of the ring, px
+
+const WP_FACE_X = 67;    // fixed outside-jaw face, canvas px
+const WP_TOP_Y  = 180;   // top of the usable throat band, just under the beam
+const WP_MAX_Y  = 314;   // bottom of the usable band (leaves room for the dim line)
+const WP_MID_Y  = (WP_TOP_Y + WP_MAX_Y) / 2;   // parts sit CENTRED in the jaw throat
+const WP_DIM_Y  = 326;   // dimension line sits at a fixed offset, drawing-style
+
+// Vertical placement: a part is centred in the throat rather than hung from the
+// top, so a short bar and a tall cylinder both sit on the jaws' centreline —
+// which is also where you would hold real work, clear of the jaw tips.
+function wpBandY(h) { return WP_MID_Y - h / 2; }
+
+// True sizes are realistic, not tidy: a 5/8" ball is 15.88 mm and an M12 nut
+// measures under its 18.00 mm nominal. Where a size is finer than the selected
+// least count the instrument genuinely cannot resolve it — that mismatch is the
+// lesson, and the object bar spells it out.
+const WORKPIECES = [
+  { id: 'bar', short: 'Bar',   name: 'Rectangular bar',    what: 'across the width',     mm: 24.60, hMm: 13.0,  shape: 'bar',
+    note: 'Flat mild-steel bar, nominal 25 mm &times; 13 mm. Bar stock is rolled undersize, so it will not read a round 25.00 mm.' },
+  { id: 'cylv', short: 'Cylinder ↕',  name: 'Cylinder — standing', what: 'across the diameter', mm: 18.40, hMm: 25.0,  shape: 'cylV',
+    note: 'Stand a cylinder on end and the jaws close on its <strong>diameter</strong>. Rock the caliper and take the <strong>smallest</strong> reading &mdash; tilting the jaws spans a diagonal, which reads large.' },
+  { id: 'cylh', short: 'Cylinder ↔',  name: 'Cylinder — lying down', what: 'along the length',  mm: 30.00, hMm: 18.4,  shape: 'cylH',
+    note: 'The same cylinder laid down. Now the jaws span its <strong>length</strong>, not its diameter &mdash; orientation decides which dimension you get.' },
+  { id: 'ball', short: 'Ball',  name: 'Ball bearing',       what: 'across the diameter',  mm: 15.88, hMm: 15.88, shape: 'ball',
+    note: 'A 5/8&Prime; bearing ball = 15.875 mm. Flat jaws tangent to a sphere are always a diameter apart, so angle cannot mislead you here &mdash; squeeze can. Close with the thumb roller until the ball will just still roll.' },
+  { id: 'cube', short: 'Cube',  name: 'Cube block',         what: 'across one face',      mm: 20.00, hMm: 20.0,  shape: 'cube',
+    note: 'A ground cube. Measure all three axes &mdash; a cube that reads the same on every pair of faces is square within your least count.' },
+  { id: 'nut', short: 'Hex nut',   name: 'M12 hex nut',        what: 'across the flats',     mm: 17.86, hMm: 20.62, shape: 'nut',
+    note: 'ISO 4032 gives M12 a nominal 18.00 mm across flats, made to a minus tolerance. Measure across <em>flats</em>, never across corners.' },
+  { id: 'drill', short: 'Drill', name: 'Ø10 drill shank',    what: 'across the diameter',  mm: 9.90,  hMm: 25.0,  shape: 'drill',
+    note: 'Drill shanks are ground a few hundredths under nominal so they enter the chuck. Measure the plain shank, never across the flutes.' },
+  { id: 'plate', short: 'Plate', name: 'Gauge plate',        what: 'across the thickness', mm: 6.35,  hMm: 24.0,  shape: 'plate',
+    note: '1/4&Prime; ground plate = 6.35 mm. Thin work is easy to over-squeeze &mdash; close with the thumb roller until the jaws just drag.' },
+  // minMm: the inside jaws sit INSIDE the hole, so they cannot retract through
+  // the wall. At 4.70 mm the sliding nib's outer edge (head travel + its 8 px
+  // half-width) has just cleared the bore wall at x = 32 — closed as far as the
+  // pair physically goes while both nibs stay in the bore.
+  { id: 'ring', short: 'Ring',  name: 'Ring / bush (bore)', what: 'the internal diameter', mm: 19.96, minMm: 4.70,
+    shape: 'ring', kind: 'internal',
+    note: 'A bush reamed for a nominal 20 mm shaft. Internal diameters are taken on the <strong>upper knife edges</strong>: start with them closed inside the bore and open until both nibs touch the wall. Because the nibs carry a tip radius they cannot quite reach the true diameter, so a caliper reads a bore a few hundredths <em>small</em> &mdash; use a bore gauge or internal micrometer when that matters.' }
+];
+
+// Practice and Quiz draw from a SEPARATE catalogue. A student who has worked
+// through Simulate has seen those nine sizes; graded exercises use different
+// parts so the answer still has to be measured rather than recalled.
+//
+// Every size is an even number of hundredths, so all three metric least counts
+// resolve it without landing on a half-LC tie, and the notes deliberately carry
+// no dimensions — the object bar would otherwise print the answer.
+const WP_EXERCISE = [
+  { id: 'x1',  short: 'Bar',   name: 'Flat bar',            what: 'across the width',     mm: 34.16, hMm: 13.0,  shape: 'bar',
+    note: 'Hold the bar square to the jaws — cocked stock reads wide.' },
+  { id: 'x2',  short: 'Bar',   name: 'Narrow bar',          what: 'across the width',     mm: 17.24, hMm: 13.0,  shape: 'bar',
+    note: 'Measure well inside the jaw, not on the tips.' },
+  { id: 'x3',  short: 'Cylinder ↕', name: 'Cylinder — standing', what: 'across the diameter', mm: 22.62, hMm: 25.0, shape: 'cylV',
+    note: 'Rock the caliper and take the <strong>smallest</strong> reading &mdash; on an outside diameter a tilted jaw always reads large.' },
+  { id: 'x4',  short: 'Cylinder ↕', name: 'Pin — standing',      what: 'across the diameter', mm: 12.08, hMm: 25.0, shape: 'cylV',
+    note: 'Small diameters magnify jaw-pressure error; close with the thumb roller.' },
+  { id: 'x5',  short: 'Cylinder ↔', name: 'Cylinder — lying down', what: 'along the length', mm: 41.30, hMm: 18.4, shape: 'cylH',
+    note: 'Lying down, the jaws span the length — not the diameter.' },
+  { id: 'x6',  short: 'Cylinder ↔', name: 'Roller — lying down',   what: 'along the length', mm: 27.72, hMm: 16.0, shape: 'cylH',
+    note: 'Both end faces must sit flat against the jaws.' },
+  { id: 'x7',  short: 'Ball',  name: 'Bearing ball',        what: 'across the diameter',  mm: 9.52,  hMm: 9.52,  shape: 'ball',
+    note: 'A sphere touches at two points only — keep the jaws square or you read a chord.' },
+  { id: 'x8',  short: 'Ball',  name: 'Large bearing ball',  what: 'across the diameter',  mm: 22.22, hMm: 22.22, shape: 'ball',
+    note: 'Take two readings at right angles; a true ball reads the same both ways.' },
+  { id: 'x9',  short: 'Cube',  name: 'Cube block',          what: 'across one face',      mm: 14.56, hMm: 14.56, shape: 'cube',
+    note: 'Check all three axes — equal readings mean the block is square.' },
+  { id: 'x10', short: 'Cube',  name: 'Ground cube',         what: 'across one face',      mm: 23.40, hMm: 23.40, shape: 'cube',
+    note: 'Wipe the faces first; a burr or chip reads as extra size.' },
+  { id: 'x11', short: 'Hex nut', name: 'M8 hex nut',        what: 'across the flats',     mm: 12.92, hMm: 14.92, shape: 'nut',
+    note: 'Across FLATS, never across corners — corners read about 15% larger.' },
+  { id: 'x12', short: 'Hex nut', name: 'M14 hex nut',       what: 'across the flats',     mm: 21.72, hMm: 25.08, shape: 'nut',
+    note: 'Nuts are made to a minus tolerance, so expect to read under nominal.' },
+  { id: 'x13', short: 'Drill', name: 'Drill shank',         what: 'across the diameter',  mm: 7.94,  hMm: 25.0,  shape: 'drill',
+    note: 'Measure the plain shank, never across the flutes.' },
+  { id: 'x14', short: 'Drill', name: 'Large drill shank',   what: 'across the diameter',  mm: 13.86, hMm: 25.0,  shape: 'drill',
+    note: 'Shanks are ground under nominal so they enter the chuck.' },
+  { id: 'x15', short: 'Plate', name: 'Thin plate',          what: 'across the thickness', mm: 3.18,  hMm: 24.0,  shape: 'plate',
+    note: 'Thin work is easy to over-squeeze — close until the jaws just drag.' },
+  { id: 'x16', short: 'Plate', name: 'Ground plate',        what: 'across the thickness', mm: 9.54,  hMm: 24.0,  shape: 'plate',
+    note: 'Take the reading near the middle of the jaw face.' },
+  { id: 'x17', short: 'Ring',  name: 'Ring / bush (bore)',  what: 'the internal diameter', mm: 16.34, minMm: 4.70,
+    wallPx: 13, shape: 'ring', kind: 'internal',
+    note: 'Inside jaws: open them until both nibs just touch the bore wall.' },
+  { id: 'x18', short: 'Ring',  name: 'Small bush (bore)',   what: 'the internal diameter', mm: 10.32, minMm: 4.70,
+    wallPx: 13, shape: 'ring', kind: 'internal',
+    note: 'Rock the caliper in the bore and take the largest reading.' }
+];
+
+function findWp(id) {
+  const all = WORKPIECES.concat(WP_EXERCISE);
+  for (let i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+  return null;
+}
+
+// Avoid handing out the same part twice in a row (or twice in one quiz).
+function pickExerciseWp(exclude) {
+  const pool = WP_EXERCISE.filter(function (w) { return !exclude || exclude.indexOf(w.id) < 0; });
+  const from = pool.length ? pool : WP_EXERCISE;
+  return from[Math.floor(Math.random() * from.length)];
+}
+
+function getWp() { return state.wp; }
+function wpIsInternal() { return !!state.wp && state.wp.kind === 'internal'; }
+
+// In Simulate the true size is shown on contact as instant feedback. In a graded
+// exercise that would BE the answer, so every reveal — the canvas caption, the
+// object bar's size and its resolution note — waits until the attempt is marked.
+function wpRevealAllowed() {
+  if (state.mode === 'practice') return !!state.answered;
+  if (state.mode === 'quiz')     return !!state.quizAnswered;
+  return state.mode === 'free';
+}
+
+// An external part blocks the jaws from CLOSING past it; a bore blocks them from
+// OPENING past it. Same stop, opposite direction.
+function wpMinMm() {
+  if (!state.wp) return 0;
+  return wpIsInternal() ? (state.wp.minMm || 0) : state.wp.mm;
+}
+function wpMaxMm() { return wpIsInternal() ? state.wp.mm : getMaxMm(); }
+function wpInContact() {
+  if (!state.wp) return false;
+  return wpIsInternal() ? state.mm >= state.wp.mm - 1e-6
+                        : state.mm <= state.wp.mm + 1e-6;
+}
+
+// Every path that moves the head funnels through here so the workpiece stop is
+// impossible to bypass. Snapping happens first, then the part stops the jaws —
+// which is why a part can rest off the least-count grid, exactly as in reality.
+function setMm(v) {
+  if (!isFinite(v)) return;              // a stray NaN must never poison the state
+  state.mm = clamp(v, wpMinMm(), wpMaxMm());
+}
+
+function wpSteel(y, h, lo, mid, hi) {
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0.00, lo  || '#79828f');
+  g.addColorStop(0.16, '#c2ccd8');
+  g.addColorStop(0.32, hi  || '#f0f5fa');
+  g.addColorStop(0.54, mid || '#a3adbb');
+  g.addColorStop(0.80, '#c6cfdb');
+  g.addColorStop(1.00, '#5f6774');
+  return g;
+}
+// Barrel shading for a round bar: bright specular band offset from centre.
+function wpBarrel(a, b, horiz) {
+  const g = horiz ? ctx.createLinearGradient(0, a, 0, b) : ctx.createLinearGradient(a, 0, b, 0);
+  g.addColorStop(0.00, '#4e5661');
+  g.addColorStop(0.10, '#8b95a3');
+  g.addColorStop(0.30, '#eef3f8');
+  g.addColorStop(0.42, '#c4ccd8');
+  g.addColorStop(0.62, '#98a2b0');
+  g.addColorStop(0.86, '#6d7683');
+  g.addColorStop(1.00, '#454c56');
+  return g;
+}
+function wpRoundRect(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, rr);
+  else {
+    ctx.moveTo(x + rr, y); ctx.lineTo(x + w - rr, y); ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr); ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr); ctx.quadraticCurveTo(x, y, x + rr, y);
+  }
+}
+
+// Each shape's silhouette is EXACTLY w px wide — w is the true size in pixels,
+// so what the jaws close on is what the drawing shows. Nothing may overhang.
+const WP_SHAPES = {
+  bar: function (x, y, w, h) {
+    ctx.fillStyle = wpSteel(y, h);
+    wpRoundRect(x, y, w, h, 2.5); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + 2, y + 3.5); ctx.lineTo(x + w - 2, y + 3.5); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.moveTo(x + 2, y + h - 3.5); ctx.lineTo(x + w - 2, y + h - 3.5); ctx.stroke();
+  },
+  cylV: function (x, y, w, h) {
+    const capH = Math.min(w * 0.30, 16);
+    ctx.fillStyle = wpBarrel(x, x + w, false);
+    ctx.beginPath(); ctx.rect(x, y + capH / 2, w, h - capH / 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + w / 2, y + h - capH / 2, w / 2, capH / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#dfe6ee';
+    ctx.beginPath(); ctx.ellipse(x + w / 2, y + capH / 2, w / 2, capH / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = 'rgba(120,132,148,0.55)';
+    ctx.beginPath(); ctx.ellipse(x + w / 2, y + capH / 2, w / 2 - 3, capH / 2 - 1.6, 0, 0, Math.PI * 2); ctx.fill();
+  },
+  cylH: function (x, y, w, h) {
+    const capW = Math.min(h * 0.30, 16);
+    ctx.fillStyle = wpBarrel(y, y + h, true);
+    ctx.beginPath(); ctx.rect(x, y, w - capW / 2, h); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + capW / 2, y + h / 2, capW / 2, h / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#dfe6ee';
+    ctx.beginPath(); ctx.ellipse(x + w - capW / 2, y + h / 2, capW / 2, h / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = 'rgba(120,132,148,0.55)';
+    ctx.beginPath(); ctx.ellipse(x + w - capW / 2, y + h / 2, capW / 2 - 1.6, h / 2 - 3, 0, 0, Math.PI * 2); ctx.fill();
+  },
+  ball: function (x, y, w, h) {
+    const r = w / 2, cx = x + r, cy = y + h / 2;
+    const g = ctx.createRadialGradient(cx - r * 0.34, cy - r * 0.40, r * 0.06, cx, cy, r);
+    g.addColorStop(0.00, '#ffffff');
+    g.addColorStop(0.16, '#e6edf5');
+    g.addColorStop(0.48, '#a9b3c1');
+    g.addColorStop(0.80, '#6d7683');
+    g.addColorStop(1.00, '#3f464f');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.ellipse(cx - r * 0.36, cy - r * 0.44, r * 0.20, r * 0.13, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.86, 0.8, 2.1); ctx.stroke();
+  },
+  cube: function (x, y, w, h) {
+    ctx.fillStyle = wpSteel(y, h, '#6f7784', '#9aa4b2', '#e8eef5');
+    wpRoundRect(x, y, w, h, 2); ctx.fill();
+    // Bevelled top and left edges, drawn INSIDE the silhouette so the measured
+    // width stays exactly w.
+    const b = Math.min(w, h) * 0.14;
+    ctx.fillStyle = 'rgba(255,255,255,0.26)';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - b, y + b); ctx.lineTo(x + b, y + b); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - b, y + h - b); ctx.lineTo(x + w - b, y + b); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 1;
+    wpRoundRect(x + 0.5, y + 0.5, w - 1, h - 1, 2); ctx.stroke();
+  },
+  nut: function (x, y, w, h) {
+    // Regular hexagon with FLATS vertical: width = across flats (= w, the
+    // measured dimension), height = across corners = w × 2/√3.
+    const cx = x + w / 2, cy = y + h / 2, af = w / 2, ac = h / 2;
+    ctx.fillStyle = wpSteel(y, h, '#5d6572', '#8f99a7', '#dde5ee');
+    ctx.beginPath();
+    ctx.moveTo(cx - af, cy - ac / 2); ctx.lineTo(cx, cy - ac); ctx.lineTo(cx + af, cy - ac / 2);
+    ctx.lineTo(cx + af, cy + ac / 2); ctx.lineTo(cx, cy + ac); ctx.lineTo(cx - af, cy + ac / 2);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.38)'; ctx.lineWidth = 1; ctx.stroke();
+    const br = af * 0.56;
+    ctx.fillStyle = '#2b313a';
+    ctx.beginPath(); ctx.ellipse(cx, cy, br, br, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,200,214,0.5)'; ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath(); ctx.moveTo(cx - br, cy + i * br * 0.42); ctx.lineTo(cx + br, cy + i * br * 0.42 - br * 0.16); ctx.stroke();
+    }
+  },
+  drill: function (x, y, w, h) {
+    const shankH = h * 0.36;
+    ctx.fillStyle = wpBarrel(x, x + w, false);
+    ctx.beginPath(); ctx.rect(x, y, w, h - shankH * 0.1); ctx.fill();
+    // Helical flutes over the cutting portion (kept inside the silhouette).
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h - shankH); ctx.clip();
+    ctx.strokeStyle = 'rgba(30,36,44,0.55)'; ctx.lineWidth = Math.max(1.4, w * 0.16);
+    for (let k = -2; k < 8; k++) {
+      ctx.beginPath();
+      ctx.moveTo(x - w * 0.2, y + k * 18);
+      ctx.bezierCurveTo(x + w * 0.5, y + k * 18 + 6, x + w * 0.5, y + k * 18 + 12, x + w * 1.2, y + k * 18 + 18);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(x, y + h - shankH, w, 1.5);
+    ctx.strokeStyle = 'rgba(0,0,0,0.34)'; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  },
+  plate: function (x, y, w, h) {
+    ctx.fillStyle = wpBarrel(x, x + w, false);
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(0,0,0,0.34)'; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+    ctx.beginPath(); ctx.moveTo(x + w / 2, y + 3); ctx.lineTo(x + w / 2, y + h - 3); ctx.stroke();
+  }
+};
+
+// Bore geometry. The ring is drawn as a circle tilted away from the viewer, which
+// is why it reads as 3-D — and tilting about a horizontal axis leaves the
+// HORIZONTAL diameter untouched, so the jaws still span the true bore. The left
+// wall sits exactly on the fixed inside jaw's face and the bore's horizontal axis
+// is exactly mm × px/mm, so at contact the sliding jaw's face lands precisely on
+// the right wall.
+function ringGeom() {
+  const wp = state.wp;
+  const d = wp.mm * getPxPerMm();
+  const a = d / 2, k = WP_IN_TILT, t = WP_IN_WALL;
+  return {
+    d: d, a: a, b: a * k,                 // bore semi-axes
+    A: a + t, B: (a + t) * k,             // outer semi-axes
+    hd: WP_IN_DEPTH,
+    bl: WP_IN_FACE_X, br: WP_IN_FACE_X + d,
+    cx: WP_IN_FACE_X + a, cy: WP_IN_CY
+  };
+}
+
+function ringAnnulus(g, dy) {
+  ctx.beginPath();
+  ctx.ellipse(g.cx, g.cy + dy, g.A, g.B, 0, 0, Math.PI * 2);
+  ctx.ellipse(g.cx, g.cy + dy, g.a, g.b, 0, 0, Math.PI * 2);
+}
+
+// The ring is painted AFTER the instrument: its material is nearer the viewer
+// than the caliper, while the bore is a genuine hole through which the two knife
+// edges rising into it stay visible. Two stacked annuli give the ring its
+// thickness — the lower one shows as the near bottom face and, through the hole,
+// as the far inner wall at the top.
+function drawRing() {
+  if (!wpIsInternal()) return;
+  const g = ringGeom();
+  const contact = wpInContact();
+  const TAU = Math.PI * 2;
+
+  ctx.save();
+  // Cast shadow on whatever is behind, so the ring floats in front of the jaws.
+  ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+  ringAnnulus(g, g.hd);
+  ctx.fillStyle = '#39404b';                       // underside / far inner wall
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  ctx.save();
+  ringAnnulus(g, 0);
+  ctx.fillStyle = wpSteel(g.cy - g.B, 2 * g.B, '#6e7683', '#9ea8b6', '#eaf0f7');
+  ctx.fill('evenodd');
+
+  // Edges: outer rim, then the bore lip — dark on the near (lower) side where it
+  // turns away, bright along the top where it catches the light.
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(g.cx, g.cy, g.A - 0.5, g.B - 0.5, 0, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(g.cx, g.cy, g.a + 0.8, g.b + 0.8, 0, 0, Math.PI); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(g.cx, g.cy, g.a + 0.8, g.b + 0.8, 0, Math.PI, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(g.cx, g.cy, g.A - 3.5, g.B - 3.5, 0, Math.PI * 1.06, Math.PI * 1.78); ctx.stroke();
+
+  // Contact marks hug the bore wall at the two points the nibs actually touch —
+  // the ellipse's horizontal extremes, which is where the true diameter lies.
+  if (contact) {
+    ctx.strokeStyle = 'rgba(61,220,132,0.95)'; ctx.lineWidth = 2.6;
+    ctx.shadowColor = 'rgba(61,220,132,0.9)'; ctx.shadowBlur = 7;
+    ctx.beginPath(); ctx.ellipse(g.cx, g.cy, g.a + 1, g.b + 1, 0, -0.42, 0.42); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(g.cx, g.cy, g.a + 1, g.b + 1, 0, Math.PI - 0.42, Math.PI + 0.42); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawWorkpiece() {
+  const wp = state.wp;
+  if (!wp || wp.kind === 'internal') return;   // bores are drawn in the top layer
+  const ppm = getPxPerMm();
+  const w = wp.mm * ppm;
+  const h = Math.min(wp.hMm * ppm, WP_MAX_Y - WP_TOP_Y);
+  const x = WP_FACE_X;
+  const y = wpBandY(h);
+  const contact = wpInContact();
+
+  // Contact shadow on the throat floor.
+  ctx.save();
+  const sg = ctx.createRadialGradient(x + w / 2, y + h + 4, 2, x + w / 2, y + h + 4, w * 0.75);
+  sg.addColorStop(0, 'rgba(0,0,0,0.42)');
+  sg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 5, w * 0.62, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  (WP_SHAPES[wp.shape] || WP_SHAPES.bar)(x, y, w, h);
+  ctx.restore();
+
+  // Contact marks — thin bright lines on the two faces the jaws are touching.
+  if (contact) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(61,220,132,0.95)'; ctx.lineWidth = 2.5;
+    ctx.shadowColor = 'rgba(61,220,132,0.9)'; ctx.shadowBlur = 7;
+    const cy = y + h / 2, half = Math.min(h * 0.34, 26);
+    ctx.beginPath(); ctx.moveTo(x + 1, cy - half); ctx.lineTo(x + 1, cy + half); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w - 1, cy - half); ctx.lineTo(x + w - 1, cy + half); ctx.stroke();
+    ctx.restore();
+  }
+
+}
+
+// Dimension line beneath the part, spanning exactly the measured face-to-face
+// distance — a technical-drawing cue for WHICH dimension the jaws are on. Drawn
+// as a top annotation layer so the fixed jaw cannot clip its label.
+function wpDimText(contact) {
+  const wp = state.wp;
+  if (!contact) return wp.what;
+  if (!wpRevealAllowed()) return 'read the scale';
+  return isImperial() ? (wp.mm * MM_TO_IN).toFixed(3) + '″' : wp.mm.toFixed(2) + ' mm';
+}
+
+// Caption chip, drawn centred on (cx, cy). Returns nothing — purely a stamp.
+function wpDimChip(txt, cx, cy, contact) {
+  ctx.font = 'bold 9pt sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(txt).width;
+  ctx.fillStyle = 'rgba(6,12,18,0.78)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cx - tw / 2 - 6, cy - 9, tw + 12, 18, 4);
+  else ctx.rect(cx - tw / 2 - 6, cy - 9, tw + 12, 18);
+  ctx.fill();
+  ctx.fillStyle = contact ? '#3ddc84' : 'rgba(190,206,224,0.85)';
+  ctx.fillText(txt, cx, cy);
+}
+
+// Internal dimension: the line lies inside the bore and its arrows point OUTWARD
+// into the two walls — the drawing convention for a hole, and the opposite of
+// the inward arrows used on an external size.
+function drawRingDims() {
+  const g = ringGeom();
+  const contact = wpInContact();
+  const col = contact ? 'rgba(61,220,132,0.9)' : 'rgba(180,196,216,0.6)';
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(g.bl + 7, g.cy); ctx.lineTo(g.br - 7, g.cy); ctx.stroke();
+  [[g.bl, 1], [g.br, -1]].forEach(function (a) {
+    ctx.beginPath();
+    ctx.moveTo(a[0], g.cy); ctx.lineTo(a[0] + 8 * a[1], g.cy - 3.2); ctx.lineTo(a[0] + 8 * a[1], g.cy + 3.2);
+    ctx.closePath(); ctx.fill();
+  });
+  // Leader out to a caption parked clear of the ring and both knife edges.
+  const chipY = g.cy - 4, chipX = g.cx + g.A + 66;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(g.br + 2, g.cy);
+  ctx.lineTo(chipX - 46, chipY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  wpDimChip('I.D.  ' + wpDimText(contact), chipX, chipY, contact);
+  ctx.restore();
+}
+
+function drawWorkpieceDims() {
+  const wp = state.wp;
+  if (!wp) return;
+  if (wp.kind === 'internal') { drawRingDims(); return; }
+  const ppm = getPxPerMm();
+  const w = wp.mm * ppm;
+  const h = Math.min(wp.hMm * ppm, WP_MAX_Y - WP_TOP_Y);
+  const x = WP_FACE_X;
+  const contact = wpInContact();
+
+  // Held a constant gap under the part, but never low enough to clip the label.
+  const partBottom = wpBandY(h) + h;
+  const dy = Math.min(partBottom + 18, WP_DIM_Y);
+  ctx.save();
+  ctx.strokeStyle = contact ? 'rgba(61,220,132,0.9)' : 'rgba(180,196,216,0.55)';
+  ctx.fillStyle   = ctx.strokeStyle;
+  ctx.lineWidth = 1.1;
+  // Witness lines run down from the part's measured faces to the dimension line.
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath(); ctx.moveTo(x, partBottom + 3); ctx.lineTo(x, dy + 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + w, partBottom + 3); ctx.lineTo(x + w, dy + 5); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.moveTo(x, dy); ctx.lineTo(x + w, dy); ctx.stroke();
+  [[x, 1], [x + w, -1]].forEach(function (a) {
+    ctx.beginPath();
+    ctx.moveTo(a[0], dy); ctx.lineTo(a[0] + 7 * a[1], dy - 3); ctx.lineTo(a[0] + 7 * a[1], dy + 3);
+    ctx.closePath(); ctx.fill();
+  });
+  ctx.font = 'bold 9pt sans-serif';
+  const dimTxt = wpDimText(contact);
+  const tw = ctx.measureText(dimTxt).width;
+  // Keep the caption clear of the fixed jaw on the left and the canvas edge.
+  wpDimChip(dimTxt, clamp(x + w / 2, WP_FACE_X + tw / 2 + 8, S.CW - tw / 2 - 10), dy + 15, contact);
+  ctx.restore();
+}
+
+// ── Draw caliper ──────────────────────────────────────────────────
+function drawCaliper() {
+  const shift        = getShiftPx();
+  const msdPx        = getMsdPx();
+  const vsdPx        = getVsdPx();
+  const vsdCount     = getVsdCount();
+  const alignedIdx   = getAlignedIdx();
+  const stripPx      = getVernierStripPx();
+  const mainDivsDraw = getMainDivsToDraw();
+  const imperial     = isImperial();
+
+  // 1. Background — deep studio gradient with a soft top light + vignette.
+  const bg = ctx.createLinearGradient(0, 0, 0, S.CH_OUT);
+  bg.addColorStop(0, '#12222c');
+  bg.addColorStop(0.55, '#0b1820');
+  bg.addColorStop(1, '#060f15');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, S.CW, S.CH_OUT);
+  const glow = ctx.createRadialGradient(S.CW * 0.5, 56 + S.PAD_TOP, 40, S.CW * 0.5, 56 + S.PAD_TOP, S.CW * 0.72);
+  glow.addColorStop(0, 'rgba(125,175,205,0.12)');
+  glow.addColorStop(1, 'rgba(125,175,205,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, S.CW, S.CH_OUT);
+
+  if (imagesLoaded < 5) return;   // sprites carry the original profile; wait for them
+
+  // Everything from here down is authored in SPRITE coordinates; the headroom
+  // strip is applied once, here, so no existing geometry had to move.
+  ctx.save();
+  ctx.translate(0, S.PAD_TOP);
+
+  // 1b. Soft contact shadow under the instrument (gradient, no per-frame blur).
+  const shY = S.scaleOriginY0 + 150;
+  const sh = ctx.createLinearGradient(0, shY - 40, 0, shY + 34);
+  sh.addColorStop(0, 'rgba(0,0,0,0)');
+  sh.addColorStop(0.5, 'rgba(0,0,0,0.30)');
+  sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh; ctx.fillRect(36, shY - 40, S.CW - 72, 74);
+
+  // 1c. Workpiece in the jaw throat — drawn BEFORE the beam and the sliding head
+  //     so both jaws overlap its edges and it reads as gripped, not floating.
+  drawWorkpiece();
+
+  // 2. Blade (behind base) — original depth-rod sprite, re-shaded.
+  const bladeX = S.rulerWidthPx + shift - S.bladeWidthPx;
+  const bladeY = (S.scaleOriginY0 + S.scaleOriginY) / 2 - S.bladeHeightPx / 2;
+  ctx.drawImage(shaded.blade || imgBlade, bladeX, bladeY);
+
+  // 3. Fixed base (beam + fixed jaws) — original sprite, re-shaded, with relief shadow.
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.42)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 5;
+  ctx.drawImage(shaded.base || imgBase, 0, 0);
+  ctx.restore();
+
+  // 4. Main scale ticks — SI or Imperial
+  ctx.save();
+  ctx.translate(S.scaleOriginX + S.offsetOriginX, S.scaleOriginY);
+  ctx.strokeStyle = 'black'; ctx.fillStyle = 'black';
+
+  if (imperial) {
+    // Imperial main scale: 40 graduations per inch (0.025"). Whole inches get a
+    // tall, bold number; the 0.1" lines (every 4th div) get a small 1–9 sub-number
+    // within each inch, and the 0.025" lines are short minor ticks — exactly how a
+    // real inch caliper beam is engraved.
+    const maxLocalX = S.CW - (S.scaleOriginX + S.offsetOriginX);
+    const capDivs   = getMainDivs();   // number only within the 4" measuring range
+    for (let i = 0; i <= mainDivsDraw; i++) {
+      const x = i * msdPx;
+      if (x > maxLocalX) break;
+      const isInchMark = (i % 40 === 0);
+      const isTenth    = (i % 4 === 0);
+      const h = isInchMark ? S.majorTickH : (isTenth ? S.majorTickH - 5 : S.minorTickH);
+      ctx.lineWidth = isInchMark ? 1.8 : (isTenth ? 1.2 : 0.7);
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, -h); ctx.stroke();
+
+      if (i <= capDivs) {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        if (isInchMark) {
+          ctx.font = 'bold 11pt sans-serif';
+          ctx.fillText(String(i / 40), x, -S.majorTickH - 2);   // whole inch
+        } else if (isTenth) {
+          ctx.font = '6.5pt sans-serif';
+          ctx.fillText(String((i % 40) / 4), x, -S.majorTickH - 2);   // tenth 1–9
+        }
+      }
+    }
+  } else {
+    // SI: 50 divs (1mm each), major every 5, labels in mm
+    let labelGap = 0;
+    while (msdPx * labelGap < 50) labelGap += 5;
+
+    const maxLocalX = S.CW - (S.scaleOriginX + S.offsetOriginX);
+    const capDivs   = getMainDivs();   // number only within the measuring range
+    for (let i = 0; i <= mainDivsDraw; i++) {
+      const x = i * msdPx;
+      if (x > maxLocalX) break;
+      const h = (i % 5 === 0) ? S.majorTickH : S.minorTickH;
+      ctx.lineWidth = (i % 5 === 0) ? 1.4 : 0.8;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, -h); ctx.stroke();
+      // Number only up to the 100 mm capacity; ticks continue as a plain
+      // graduated run-out so the vernier always has a line to coincide with.
+      if (i % labelGap === 0 && i <= capDivs) {
+        ctx.font = '9pt sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(i, x, -S.majorTickH - 2);
+      }
+    }
+  }
+  ctx.restore();
+
+  // 4b. Engraved branding watermark on the beam's run-out (past the capacity).
+  //     Drawn BEFORE the sliding head so the head covers it like a real engraving.
+  {
+    const capEndX = S.scaleOriginX + S.offsetOriginX + getMaxMm() * getPxPerMm();
+    const wmX = (capEndX + S.CW) / 2;   // centred in the run-out, clear of numbers
+    const wmY = 122;
+    ctx.save();
+    ctx.font = 'italic 700 13px Georgia, "Times New Roman", serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';   // light bevel highlight (etched edge)
+    ctx.fillText('mechsimulator.com', wmX, wmY + 1);
+    ctx.fillStyle = 'rgba(70,82,96,0.50)';       // recessed dark engrave on top
+    ctx.fillText('mechsimulator.com', wmX, wmY);
+    ctx.restore();
+  }
+
+  // 5. Sliding head — original sprite (left cap + stretched middle + right cap),
+  //    re-shaded, with a drop shadow so it reads as a separate part over the beam.
+  const vernierImgX = S.scaleOriginX - S.offsetOriginX + shift - S.vernierOriginX;
+  const vernierImgY = S.scaleOriginY - S.vernierOriginY;
+  const v1 = shaded.v1 || imgVernier1, v2 = shaded.v2 || imgVernier2, v3 = shaded.v3 || imgVernier3;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.38)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+  ctx.drawImage(v1, vernierImgX, vernierImgY);
+  const midW = stripPx - imgVernier1.width - imgVernier3.width;
+  if (midW > 0) {
+    ctx.drawImage(v2, 0, 0, midW, imgVernier1.height,
+                  vernierImgX + imgVernier1.width, vernierImgY, midW, imgVernier1.height);
+  }
+  ctx.drawImage(v3, vernierImgX + imgVernier1.width + Math.max(0, midW), vernierImgY);
+  ctx.restore();
+
+  // 6. Vernier ticks — FULL SCALE at true physical positions.
+  // Division j sits at (vernier zero) + j × VSD, exactly as on a real caliper,
+  // so the aligned division genuinely coincides with a main-scale line.
+  const vTickStartX = S.scaleOriginX + S.offsetOriginX + shift;
+  const vTickBaseY  = S.vernierOriginY - 1;
+
+  // Density-aware vernier labels: every 5th division (every 10th for the dense
+  // 50-div scale), then widen further if the fixed instrument size would still
+  // crowd the numbers (e.g. the tiny 0.1 mm scale). Prevents overlapping labels.
+  let vLabelGap = (vsdCount >= 40) ? 10 : 5;
+  while (vsdPx * vLabelGap < 15 && vLabelGap < vsdCount) vLabelGap *= 2;
+
+  for (let j = 0; j <= vsdCount; j++) {
+    const x = vTickStartX + j * vsdPx;
+    if (x > S.CW) break;
+    const isLabeled = (j % vLabelGap === 0);
+    const isAligned = state.showAlign && (j === alignedIdx);
+    const h         = isLabeled ? S.vMajorTickH : S.vMinorTickH;
+
+    if (isAligned) {
+      ctx.save();
+      ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(255,215,0,0.85)'; ctx.shadowBlur = 8;
+    } else {
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth   = isLabeled ? 1.2 : 0.7; ctx.shadowBlur = 0;
+    }
+    ctx.beginPath(); ctx.moveTo(x, vTickBaseY); ctx.lineTo(x, vTickBaseY + h); ctx.stroke();
+    if (isAligned) ctx.restore();
+
+    if (isLabeled) {
+      ctx.fillStyle    = isAligned ? '#FFD700' : 'black';
+      ctx.font         = '8pt sans-serif';
+      ctx.textAlign    = 'center'; ctx.textBaseline = 'top'; ctx.shadowBlur = 0;
+      ctx.fillText(j, x, vTickBaseY + S.vMajorTickH + 2);
+    }
+  }
+
+  // 7. LC badge
+  {
+    const lcTxt = `LC = ${fmtLc()} ${uLabel()}`;
+    const lcAnnotX = Math.min(
+      vernierImgX + stripPx - 50,   // tucked just inside the head's right cap
+      S.CW - 68
+    );
+    const lcAnnotY = 97;
+
+    ctx.save();
+    ctx.font = 'bold 8.5pt sans-serif';
+    const tw = ctx.measureText(lcTxt).width;
+    const bx = lcAnnotX - tw / 2 - 6;
+    const by = lcAnnotY - 11;
+    const bw = tw + 12;
+    const bh = 18;
+    ctx.fillStyle = 'rgba(0,0,0,0.58)';
+    ctx.beginPath();
+    if (ctx.roundRect) { ctx.roundRect(bx, by, bw, bh, 4); } else { ctx.rect(bx, by, bw, bh); }
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,183,77,0.55)';
+    ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.fillStyle = '#ffb74d';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(lcTxt, lcAnnotX, lcAnnotY - 2);
+    ctx.restore();
+  }
+
+  // 8. Remask base jaw area so the vernier ticks never bleed over the fixed jaw.
+  ctx.drawImage(shaded.base || imgBase, 0, 0, 64, 102, 0, 0, 64, 102);
+
+  // 9. A bore sits in FRONT of the instrument (the caliper reaches into it), then
+  //    the dimension annotation on top of everything.
+  drawRing();
+  drawWorkpieceDims();
+
+  ctx.restore();   // undo the headroom translate
+}
+
+// Stronger zoom for the dense fine scales so coincident lines are separable.
+function getZoomFactor() {
+  if (isImperial())         return 3.5;   // 25-div imperial is dense too
+  if (state.prec === '0.02') return 4.5;  // 50-div fine scale needs the most
+  if (state.prec === '0.05') return 3.8;
+  return 3.0;                             // 0.1 mm coarse scale
+}
+
+// ── Zoomed render ─────────────────────────────────────────────────
+function drawCaliperZoomed() {
+  const ZF   = getZoomFactor();
+  const srcW = S.CW / ZF;
+  const srcH = S.CH_OUT / ZF;
+  // Auto-centre on the COINCIDENCE point — the aligned vernier division where the
+  // vernier line meets a main-scale line. This is what the user must see, and it
+  // can sit far from the vernier zero on the dense 0.02 mm scale (up to ~49 mm).
+  const coincX = S.scaleOriginX + S.offsetOriginX + getShiftPx() + getAlignedIdx() * getVsdPx();
+  // drawCaliper shifts the instrument down by the headroom strip, so the centring
+  // target must be in OUTPUT coordinates too.
+  const coincY = S.vernierOriginY + S.PAD_TOP;   // the main↔vernier reading boundary
+  const srcX = Math.max(0, Math.min(S.CW - srcW, coincX - srcW * 0.5));
+  const srcY = Math.max(0, Math.min(S.CH_OUT - srcH, coincY - srcH * 0.46));
+
+  ctx.save();
+  ctx.scale(ZF, ZF);
+  ctx.translate(-srcX, -srcY);
+  drawCaliper();
+  ctx.restore();
+}
+
+// ── Reading panel + badge update ──────────────────────────────────
+function updateReadingPanel() {
+  const u        = uLabel();
+  const alignIdx = getAlignedIdx();
+  const msrStr   = fmtMsr();
+  const lcStr    = fmtLc();
+  const partStr  = fmtPart();
+  const trStr    = fmtTr();
+  const readStr  = fmtReading(state.mm);
+
+  // Digital readout
+  $('readout-display').textContent = readStr;
+
+  // Reading cells
+  $('msr-val').textContent = msrStr;
+  $('vsr-val').textContent = alignIdx;
+  $('lc-val').textContent  = lcStr;
+
+  // Unit labels in cells
+  document.querySelectorAll('.rcell-msr .rcell-unit, .rcell-lc .rcell-unit').forEach(el => el.textContent = u);
+  document.querySelector('.dr-unit').textContent = u;
+
+  // Formula
+  $('f-msr').textContent  = msrStr;
+  $('f-vsr').textContent  = alignIdx;
+  $('f-lc').textContent   = lcStr;
+  $('f-msr2').textContent = msrStr;
+  $('f-part').textContent = partStr;
+  $('f-tr').textContent   = trStr;
+  document.querySelector('.tr-unit').textContent = u;
+
+  // ── Zero error readout (visible when state.zeOn, hidden until reveal in practice/quiz) ──
+  var zeBox = $('ze-readout');
+  var hideUnanswered = (state.mode === 'practice' && !state.answered) ||
+                       (state.mode === 'quiz'     && !state.quizAnswered);
+  var zeVisible = state.zeOn && state.mode !== 'explore' && !hideUnanswered;
+  if (zeBox) zeBox.style.display = zeVisible ? '' : 'none';
+  if (zeVisible) {
+    var obs = $('ze-observed');   if (obs) obs.textContent = fmtReading(getDisplayMm());
+    var ze  = $('ze-error');      if (ze)  ze.textContent  = fmtZeSigned();
+    var cor = $('ze-corrected');  if (cor) cor.textContent = fmtReading(state.mm);
+    document.querySelectorAll('#ze-readout .ze-cell-unit').forEach(function(el){ el.textContent = u; });
+  }
+  var zeVal = $('ze-val');
+  if (zeVal) zeVal.textContent = fmtZeSigned() + ' ' + u;
+  var zeStep = $('ze-stepper');
+  if (zeStep) zeStep.style.display = state.zeOn ? '' : 'none';
+}
+
+// ── Render ────────────────────────────────────────────────────────
+function render() {
+  updateReadingPanel();
+  updateObjBar();
+  syncExerciseUi();
+  // Clear the whole backing store at identity, then draw in DPR-scaled logical space.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cEl.width, cEl.height);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (state.zoomOpen) drawCaliperZoomed();
+  else drawCaliper();
+}
+
+// ── Animation ─────────────────────────────────────────────────────
+function animStep(ts) {
+  if (!state.playing) return;
+  if (state.animLast) {
+    const dt = (ts - state.animLast) / 1000;
+    let next = state.mm + state.animDir * ANIM_SPEED * dt;
+    const maxMm = wpMaxMm();
+    const minMm = wpMinMm();
+    if (next >= maxMm) { next = maxMm; state.animDir = -1; }
+    if (next <= minMm) { next = minMm; state.animDir =  1; }
+    setMm(snapToLc(next));
+  }
+  state.animLast = ts;
+  render();
+  state.animRaf = requestAnimationFrame(animStep);
+}
+
+function startAnim() {
+  if (state.animRaf) cancelAnimationFrame(state.animRaf);
+  state.playing  = true;
+  state.animLast = 0;
+  state.animDir  = Math.random() < 0.5 ? 1 : -1;
+  $('btn-play').innerHTML = '&#9646;&#9646;&nbsp; Pause';
+  $('btn-play').classList.add('playing');
+  $('btn-check').disabled   = true;
+  $('practice-input').value = '';
+  $('feedback').textContent = '';
+  $('feedback').className   = 'feedback';
+  state.animRaf = requestAnimationFrame(animStep);
+}
+
+function stopAnim() {
+  state.playing = false;
+  if (state.animRaf) { cancelAnimationFrame(state.animRaf); state.animRaf = null; }
+  state.animLast   = 0;
+  state.quizTarget = state.mm;
+  state.answered   = false;
+  $('btn-play').innerHTML = '&#9654;&nbsp; Play';
+  $('btn-play').classList.remove('playing');
+  $('btn-check').disabled   = false;
+  $('practice-input').value = '';
+  $('practice-input').focus();
+  playClick();
+}
+
+function randomZeLc() {
+  const mag = 1 + Math.floor(Math.random() * ZE_MAX_LC);
+  return (Math.random() < 0.5 ? -1 : 1) * mag;
+}
+
+// ── Practice mode ─────────────────────────────────────────────────
+// Two drills share the bar and never overlap: Play/Pause freezes the jaws at a
+// random opening, and Measure-an-object clamps a real part in them. Starting
+// either one ends the other, so there is only ever a single target.
+function practiceResetUi() {
+  $('practice-input').value = '';
+  $('feedback').textContent = '';
+  $('feedback').className   = 'feedback';
+  $('reading-cells').classList.add('cells-hidden');
+  $('tr-formula').classList.add('formula-hidden');
+  $('readout-display').style.display = 'none';
+  $('practice-input').style.display  = 'block';
+  $('dr-label').textContent = 'Your Answer';
+}
+
+function practiceMeasureObject() {
+  if (state.playing) stopAnim();
+  if (state.zeOn) state.zeLc = randomZeLc();
+  const wp = pickExerciseWp(state.wp ? [state.wp.id] : null);
+  state.answered   = false;
+  state.quizTarget = wp.mm;          // the part IS the target
+  practiceResetUi();
+  $('btn-check').disabled = true;    // until the jaws are on the part
+  $('btn-play').disabled  = true;    // Play would fight the clamp
+  $('btn-play').innerHTML = '&#9654;&nbsp; Play';
+  $('btn-play').classList.remove('playing');
+  $('caliper-card').style.cursor = 'grab';
+  loadWorkpieceObj(wp);
+}
+
+function newQuiz() {
+  if (state.playing) stopAnim();
+  if (state.wp) clearWorkpiece();
+  $('btn-play').disabled = false;
+  $('caliper-card').style.cursor = 'default';
+  const maxMm = getMaxMm();
+  const lcMm = getLcMm();
+  if (state.zeOn) {
+    state.zeLc = randomZeLc();
+    const zeM  = state.zeLc * lcMm;
+    const lo   = Math.max(lcMm * 10, -zeM + lcMm);
+    const hi   = Math.min(maxMm - lcMm * 10, maxMm - zeM - lcMm);
+    state.mm   = snapToLc(lo + Math.random() * Math.max(lcMm, hi - lo));
+  } else {
+    state.mm   = clamp(snapToLc(lcMm * 10 + Math.random() * (maxMm - lcMm * 20)), lcMm, maxMm);
+  }
+  state.quizTarget = 0;
+  state.answered   = false;
+
+  $('practice-input').value = '';
+  $('feedback').textContent = '';
+  $('feedback').className   = 'feedback';
+  $('btn-check').disabled   = true;
+  $('btn-play').innerHTML   = '&#9654;&nbsp; Play';
+  $('btn-play').classList.remove('playing');
+
+  $('reading-cells').classList.add('cells-hidden');
+  $('tr-formula').classList.add('formula-hidden');
+  $('readout-display').style.display = 'none';
+  $('practice-input').style.display  = 'block';
+  $('dr-label').textContent = 'Your Answer';
+  render();
+}
+
+function getTargetDisplay() {
+  if (isImperial()) {
+    const inches = state.quizTarget * MM_TO_IN;
+    const msr = Math.floor(inches / IMP.msd + 1e-9) * IMP.msd;
+    const alignIdx = Math.min(Math.round((inches - msr) / IMP.lc), IMP.vernierDivs);
+    return (msr + alignIdx * IMP.lc).toFixed(3);
+  }
+  return state.quizTarget.toFixed(2);
+}
+
+function checkAnswer() {
+  if (state.answered || state.playing) return;
+  if ($('btn-check').disabled) return;   // no target yet (Play → Pause first)
+  const input = parseNumericInput($('practice-input').value);
+  if (isNaN(input)) {
+    $('feedback').textContent = 'Enter a valid number (e.g. 23.45).';
+    $('feedback').className   = 'feedback err';
+    return;
+  }
+  state.attempts++;
+
+  const targetStr = getTargetDisplay();
+  const targetVal = parseFloat(targetStr);
+  const tolerance = getLcDisplay() / 2 + 1e-6;
+  const ok = Math.abs(input - targetVal) <= tolerance;
+
+  $('readout-display').textContent   = fmtReading(state.quizTarget);
+  $('readout-display').style.display = 'block';
+  $('practice-input').style.display  = 'none';
+  $('dr-label').textContent          = 'Measurement';
+  $('reading-cells').classList.remove('cells-hidden');
+  $('tr-formula').classList.remove('formula-hidden');
+
+  if (ok) {
+    state.score++;
+    $('feedback').innerHTML = `&#10003; Correct! &nbsp;<strong>${targetStr} ${uLabel()}</strong>`;
+    $('feedback').className = 'feedback ok';
+    playSuccess();
+  } else {
+    $('feedback').innerHTML = `&#10007; Wrong &nbsp;|&nbsp; Answer: <strong>${targetStr} ${uLabel()}</strong>`;
+    $('feedback').className = 'feedback err';
+    playError();
+  }
+  state.answered = true;
+  $('score').textContent    = state.score;
+  $('attempts').textContent = state.attempts;
+  $('btn-check').disabled   = true;
+  render();    // refresh ZE readout box now that answered = true
+}
+
+// ── Quiz mode ─────────────────────────────────────────────────────
+const QUIZ_OBJ_MIN = 2;   // at least this many of the five are real parts
+
+function startQuiz() {
+  if (state.wp) clearWorkpiece();
+  const maxMm = getMaxMm();
+  const lcMm = getLcMm();
+  // Self-contained questions — robust to mid-quiz toggle changes.
+  //   kind 'scale'  → { trueMm, zeLc }: the jaws are preset, just read them.
+  //   kind 'object' → { wp, trueMm, zeLc }: close the jaws on a part first.
+  // Two or three of the five are always objects, placed at random positions.
+  const objCount = QUIZ_OBJ_MIN + (Math.random() < 0.5 ? 0 : 1);
+  const slots = [];
+  for (let i = 0; i < QUIZ_TOTAL; i++) slots.push(i < objCount ? 'object' : 'scale');
+  for (let i = slots.length - 1; i > 0; i--) {     // Fisher–Yates
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = slots[i]; slots[i] = slots[j]; slots[j] = t;
+  }
+
+  state.quizQuestions = [];
+  const used = new Set();
+  const usedWp = [];
+  slots.forEach(function (kind) {
+    let z = state.zeOn ? randomZeLc() : 0;
+    if (kind === 'object') {
+      const wp = pickExerciseWp(usedWp);
+      usedWp.push(wp.id);
+      state.quizQuestions.push({ kind: 'object', wp: wp, trueMm: wp.mm, zeLc: z });
+      return;
+    }
+    const zeM = z * lcMm;
+    const lo  = Math.max(lcMm * 10, -zeM + lcMm);
+    const hi  = Math.min(maxMm - lcMm * 10, maxMm - zeM - lcMm);
+    if (hi <= lo) { z = 0; }
+    let trueMm, key, guard = 0;
+    do {
+      trueMm = clamp(snapToLc(lo + Math.random() * Math.max(lcMm, hi - lo)), 0, maxMm);
+      key = trueMm.toFixed(4) + '_' + z;
+    } while (used.has(key) && ++guard < 50);
+    used.add(key);
+    state.quizQuestions.push({ kind: 'scale', trueMm: trueMm, zeLc: z });
+  });
+
+  state.quizCurrent   = 0;
+  state.quizAnswers   = [];
+  state.quizAnswered  = false;
+
+  $('quiz-result').style.display  = 'none';
+  $('quiz-bar').style.display     = '';
+  $('quiz-q-total').textContent   = QUIZ_TOTAL;
+  showQuizQuestion(0);
+}
+
+function showQuizQuestion(idx) {
+  const q = state.quizQuestions[idx];
+  state.zeLc = q.zeLc;
+  state.quizAnswered = false;
+
+  const isObj = q.kind === 'object';
+  const hint = document.querySelector('.qbar-hint');
+  if (isObj) {
+    // The part is the question: the jaws arrive open and the student has to
+    // close onto it before the scale means anything.
+    state.mm = getMaxMm();
+    loadWorkpieceObj(q.wp, true);
+    $('caliper-card').style.cursor = 'grab';
+    if (hint) hint.innerHTML = 'Close the jaws onto the part &middot; then read the scale&nbsp;&uarr;';
+  } else {
+    if (state.wp) clearWorkpiece();
+    state.mm = q.trueMm;
+    $('caliper-card').style.cursor = 'default';
+    if (hint) hint.innerHTML = 'Read the caliper &middot; type your answer above&nbsp;&uarr;';
+  }
+
+  $('quiz-q-num').textContent    = idx + 1;
+  $('quiz-feedback').textContent = '';
+  $('quiz-feedback').className   = 'quiz-feedback';
+  $('btn-quiz-submit').style.display = '';
+  $('btn-quiz-submit').disabled      = isObj;   // enabled by syncExerciseUi on contact
+  $('btn-quiz-next').style.display   = 'none';
+
+  $('reading-cells').classList.add('cells-hidden');
+  $('tr-formula').classList.add('formula-hidden');
+  $('readout-display').style.display = 'none';
+  $('practice-input').style.display  = 'block';
+  $('practice-input').value          = '';
+  $('dr-label').textContent          = 'Your Reading';
+
+  setTimeout(() => $('practice-input').focus(), 50);
+  render();
+}
+
+function getCorrectDisplay(mmVal) {
+  if (isImperial()) {
+    const inches = mmVal * MM_TO_IN;
+    const msr = Math.floor(inches / IMP.msd + 1e-9) * IMP.msd;
+    const alignIdx = Math.min(Math.round((inches - msr) / IMP.lc), IMP.vernierDivs);
+    return (msr + alignIdx * IMP.lc).toFixed(3);
+  }
+  return mmVal.toFixed(2);
+}
+
+function submitQuizAnswer() {
+  if (state.quizAnswered) return;
+  if ($('btn-quiz-submit').disabled) return;   // object question: not on the part yet
+  const input = parseNumericInput($('practice-input').value);
+  if (isNaN(input)) {
+    $('quiz-feedback').textContent = 'Enter a valid number (e.g. 23.45).';
+    $('quiz-feedback').className   = 'quiz-feedback err';
+    return;
+  }
+
+  const correctMm = state.quizQuestions[state.quizCurrent].trueMm;
+  const correctStr = getCorrectDisplay(correctMm);
+  const correctVal = parseFloat(correctStr);
+  const tolerance = getLcDisplay() / 2 + 1e-6;
+  const ok = Math.abs(input - correctVal) <= tolerance;
+
+  state.quizAnswers.push({ given: input, correctMm, correctStr, ok });
+  state.quizAnswered = true;
+
+  $('readout-display').textContent   = fmtReading(correctMm);
+  $('readout-display').style.display = 'block';
+  $('practice-input').style.display  = 'none';
+  $('dr-label').textContent          = 'Measurement';
+  $('reading-cells').classList.remove('cells-hidden');
+  $('tr-formula').classList.remove('formula-hidden');
+
+  $('btn-quiz-submit').style.display = 'none';
+
+  if (ok) {
+    $('quiz-feedback').innerHTML = '&#10003; Correct!';
+    $('quiz-feedback').className = 'quiz-feedback ok';
+    playSuccess();
+  } else {
+    $('quiz-feedback').innerHTML =
+      `&#10007; Incorrect &nbsp;|&nbsp; Answer: <strong>${correctStr} ${uLabel()}</strong>`;
+    $('quiz-feedback').className = 'quiz-feedback err';
+    playError();
+  }
+
+  const isLast = state.quizCurrent + 1 >= QUIZ_TOTAL;
+  $('btn-quiz-next').innerHTML     = isLast ? '&#128202;&nbsp;Results' : 'Next &rarr;';
+  $('btn-quiz-next').style.display = '';
+  render();    // refresh ZE readout box now that quizAnswered = true
+}
+
+function nextQuizQuestion() {
+  state.quizCurrent++;
+  if (state.quizCurrent >= QUIZ_TOTAL) showQuizResult();
+  else showQuizQuestion(state.quizCurrent);
+}
+
+function showQuizResult() {
+  if (state.wp) clearWorkpiece();
+  $('caliper-card').style.cursor = 'default';
+  $('quiz-bar').style.display    = 'none';
+  $('quiz-result').style.display = '';
+
+  const u = uLabel();
+  const score     = state.quizAnswers.filter(a => a.ok).length;
+  const scoreEl   = $('qr-score');
+  const starsEl   = $('qr-stars');
+  const verdictEl = $('qr-verdict');
+
+  scoreEl.textContent = `${score} / ${QUIZ_TOTAL}`;
+  const starFull  = '\u2605';
+  const starEmpty = '\u2606';
+  const filled = n => starFull.repeat(n) + starEmpty.repeat(QUIZ_TOTAL - n);
+
+  if (score === QUIZ_TOTAL) {
+    scoreEl.className = 'qr-score perfect'; starsEl.textContent = filled(QUIZ_TOTAL);
+    starsEl.style.color = 'var(--gold)'; verdictEl.textContent = 'Perfect score! \uD83C\uDFAF';
+  } else if (score >= Math.ceil(QUIZ_TOTAL * 0.8)) {
+    scoreEl.className = 'qr-score good'; starsEl.textContent = filled(score);
+    starsEl.style.color = 'var(--green)'; verdictEl.textContent = 'Great job! \uD83D\uDC4D';
+  } else if (score >= Math.ceil(QUIZ_TOTAL * 0.6)) {
+    scoreEl.className = 'qr-score good'; starsEl.textContent = filled(score);
+    starsEl.style.color = 'var(--green)'; verdictEl.textContent = 'Good effort! \uD83D\uDCAA';
+  } else if (score >= 1) {
+    scoreEl.className = 'qr-score poor'; starsEl.textContent = filled(score);
+    starsEl.style.color = '#ffb74d'; verdictEl.textContent = 'Keep practising! \uD83D\uDCAA';
+  } else {
+    scoreEl.className = 'qr-score poor'; starsEl.textContent = filled(0);
+    starsEl.style.color = 'var(--red)'; verdictEl.textContent = 'Try again! \uD83D\uDCAA';
+  }
+
+  const rowsEl = $('qr-rows');
+  rowsEl.innerHTML = '';
+  state.quizAnswers.forEach((ans, i) => {
+    const row = document.createElement('div');
+    row.className = `qr-row ${ans.ok ? 'ok' : 'err'}`;
+    row.innerHTML = `
+      <span class="qr-qnum">Q${i + 1}</span>
+      <span class="qr-correct">Correct: <strong>${ans.correctStr} ${u}</strong></span>
+      <span class="qr-given">Your answer: <strong>${ans.given} ${u}</strong></span>
+      <span class="qr-mark">${ans.ok ? '&#10003;' : '&#10007;'}</span>`;
+    rowsEl.appendChild(row);
+  });
+
+  $('readout-display').textContent   = fmtReading(state.mm);
+  $('readout-display').style.display = 'block';
+  $('reading-cells').classList.remove('cells-hidden');
+  $('tr-formula').classList.remove('formula-hidden');
+  $('dr-label').textContent = 'Measurement';
+}
+
+// ── Parts & Components explorer ───────────────────────────────────
+// A labelled, hoverable anatomy diagram drawn as inline SVG. Geometry is in a
+// single 20 20 900 380 viewBox; the instrument shares one linear scale so the
+// drawing is dimensionally honest: main-scale zero sits on the fixed jaw's
+// measuring face and the vernier zero lands exactly on 36 mm.
+const P = {
+  x0: 156.8,          // main-scale zero (= fixed outside-jaw measuring face)
+  ppm: 6.2,           // px per mm
+  beamT: 158, beamB: 212, beamL: 110, beamR: 810,
+  headL: 380, headR: 528, headT: 136, headB: 242,
+  tickEndX: 804
+};
+
+const PARTS_DATA = [
+  {
+    z: 2, name: 'Fixed Jaw (Main Frame)', sub: 'Reference body of the caliper',
+    hl: '<path {A} d="M110 158 H156 V322 H128 L110 292 Z"/>',
+    b: [56, 262], lead: ['M56 262 L112 262'], dots: [[112, 262]],
+    info: '<span class="pi-tag">Structure</span><h3>Fixed Jaw (Main Frame)</h3>' +
+      '<p>The fixed jaw is forged in one piece with the <strong>main scale beam</strong>. It never moves, so its measuring face defines the <strong>zero reference</strong> for every reading you take.</p>' +
+      '<ul><li>Carries both the lower outside jaw and the upper inside jaw</li><li>Hardened and lapped measuring faces (58–62 HRC typical)</li><li>Because it is integral with the beam, a dropped caliper usually loses accuracy here first</li></ul>' +
+      '<div class="pi-tip"><strong>Workshop tip:</strong> Always seat the workpiece firmly against the <em>fixed</em> jaw and bring the sliding jaw up to it — never the other way round. This keeps the part square to the beam.</div>'
+  },
+  {
+    z: 3, name: 'Sliding Jaw (Vernier Head)', sub: 'Carries the vernier scale',
+    hl: '<rect {A} x="380" y="136" width="148" height="106" rx="7"/>',
+    b: [566, 46], lead: ['M566 46 L524 140'], dots: [[524, 140]],
+    info: '<span class="pi-tag">Structure</span><h3>Sliding Jaw (Vernier Head)</h3>' +
+      '<p>The movable assembly that slides along the beam. It carries the <strong>vernier scale</strong>, the outside and inside jaws, the depth rod, the thumb roller and the locking screw — everything that moves, moves together.</p>' +
+      '<ul><li>Slides in a precision-ground groove; a leaf spring inside keeps it from rocking</li><li>Its left face is exactly in line with the vernier zero line</li><li>Excess play here (jaw "rock") is the most common cause of scatter in readings</li></ul>' +
+      '<div class="pi-tip"><strong>Check it:</strong> Hold the caliper up to a light with the jaws closed. If light passes between the faces, the head is worn or the jaws are sprung.</div>'
+  },
+  {
+    z: 6, name: 'Outside (External) Jaws', sub: 'Shafts, rods, thicknesses',
+    hl: '<path {A} d="M146 212 H156 V322 H130 L146 300 Z M380 242 H396 V322 H380 Z"/>',
+    b: [268, 362], lead: ['M268 362 L154 314', 'M268 362 L386 320'], dots: [[154, 314], [386, 320]],
+    info: '<span class="pi-tag">Measuring</span><h3>Outside (External) Jaws</h3>' +
+      '<p>The large lower jaws. Their <strong>inner faces</strong> close onto the workpiece to measure external dimensions — shaft diameters, plate thickness, block widths.</p>' +
+      '<dl class="pi-spec"><dt>Faces used</dt><dd>Inner (facing each other)</dd><dt>Reads</dt><dd>Directly on the scale</dd><dt>Typical use</dt><dd>Shaft Ø, thickness, width</dd></dl>' +
+      '<div class="pi-tip"><strong>Watch out:</strong> Measure across the <em>full flat</em> of the jaw, close to the beam. Measuring on the jaw tips lets the jaws spring open and reads large.</div>'
+  },
+  {
+    z: 5, name: 'Inside (Internal) Jaws', sub: 'Bores, slots, grooves',
+    hl: '<path {A} d="M132 158 V106 L139 86 H149 L156 110 V158 Z M380 136 V106 L387 86 H397 L404 110 V136 Z"/>',
+    b: [176, 44], lead: ['M176 44 L146 92', 'M176 44 L392 92'], dots: [[146, 92], [392, 92]],
+    info: '<span class="pi-tag">Measuring</span><h3>Inside (Internal) Jaws</h3>' +
+      '<p>The small knife-edged jaws above the beam. Their <strong>outer faces</strong> press outwards against a bore or slot, so the caliper reads internal dimensions.</p>' +
+      '<dl class="pi-spec"><dt>Faces used</dt><dd>Outer (facing away)</dd><dt>Reads</dt><dd>Directly on modern calipers</dd><dt>Typical use</dt><dd>Hole Ø, slot width, groove</dd></dl>' +
+      '<div class="pi-tip"><strong>Older calipers:</strong> On some designs the jaw thickness (often stamped on the blade, e.g. 10 mm) must be <em>added</em> to the scale reading. Modern nib-style jaws read directly — check your instrument before assuming.</div>'
+  },
+  {
+    z: 1, name: 'Main Scale (Beam)', sub: 'The fixed graduated blade',
+    hl: '<rect {A} x="110" y="158" width="700" height="54" rx="4"/>',
+    b: [762, 104], lead: ['M762 104 L744 162'], dots: [[744, 162]],
+    info: '<span class="pi-tag">Scale</span><h3>Main Scale (Beam)</h3>' +
+      '<p>The long, rigid steel blade that everything else rides on. It carries the <strong>metric graduations on one edge</strong> and the <strong>inch graduations on the other</strong>, and its stiffness is what holds the two jaws parallel.</p>' +
+      '<ul><li>Common capacities: 0–150 mm, 0–200 mm, 0–300 mm</li><li>Hardened stainless steel, satin-chrome finished to kill glare</li><li>A groove machined along its underside houses the depth rod</li></ul>' +
+      '<div class="pi-tip"><strong>Remember:</strong> The beam is the <em>datum</em>. Any bend in it puts an error into every measurement, so never use a caliper as a scriber, pry bar or clamp.</div>'
+  },
+  {
+    z: 4, name: 'Metric Main Graduations', sub: '1 mm divisions (1 MSD)',
+    hl: '<path {A} d="M160 186 H378 V212 H160 Z M530 186 H806 V212 H530 Z"/>',
+    b: [240, 266], lead: ['M240 266 L240 214'], dots: [[240, 214]],
+    info: '<span class="pi-tag">Scale</span><h3>Metric Main Scale Graduations</h3>' +
+      '<p>The millimetre scale along the lower edge. One division = <strong>1 mm</strong>, and this is what the abbreviation <strong>1 MSD</strong> (Main Scale Division) means in every least-count formula.</p>' +
+      '<div class="formula-box">1 MSD = 1 mm &nbsp;&middot;&nbsp; numbered every 10 mm</div>' +
+      '<p>To read it, look at where the <strong>vernier zero line</strong> falls and take the <em>last main-scale line it has passed</em> — never the one ahead of it. In the diagram above the vernier zero sits on 36, so MSR = 36 mm.</p>' +
+      '<div class="pi-tip"><strong>Exam favourite:</strong> Rounding the MSR up because the vernier zero is "nearly" at the next line loses the mark. The MSR is always rounded <em>down</em>; the fraction comes from the vernier.</div>'
+  },
+  {
+    z: 4, name: 'Inch (Imperial) Scale', sub: '1/40" = 0.025" divisions',
+    hl: '<path {A} d="M160 158 H378 V184 H160 Z M530 158 H806 V184 H530 Z"/>',
+    b: [616, 104], lead: ['M616 104 L616 160'], dots: [[616, 160]],
+    info: '<span class="pi-tag">Scale</span><h3>Inch (Imperial) Main Scale</h3>' +
+      '<p>The upper edge of the beam is divided into <strong>fortieths of an inch</strong>. Each small division is 0.025&Prime;, with every fourth line (0.100&Prime;) taller and each whole inch numbered.</p>' +
+      '<div class="formula-box">1 MSD = 1/40&Prime; = <strong>0.025&Prime;</strong></div>' +
+      '<p>Paired with a 25-division vernier this gives the standard imperial least count of <strong>0.001&Prime;</strong>. The inch and metric sides are two independent instruments sharing one beam — read one or the other, never a mixture.</p>' +
+      '<div class="pi-tip"><strong>Conversion:</strong> 1&Prime; = 25.4 mm exactly. A 0.001&Prime; caliper resolves 0.0254 mm — slightly finer than a 0.02 mm metric vernier.</div>'
+  },
+  {
+    z: 7, name: 'Vernier Scale', sub: 'The fractional (sliding) scale',
+    hl: '<path {A} d="M380 212 H502 V240 H380 Z M380 138 H478 V158 H380 Z"/>',
+    b: [556, 302], lead: ['M556 302 L500 240'], dots: [[500, 240]],
+    info: '<span class="pi-tag">Scale</span><h3>Vernier Scale</h3>' +
+      '<p>The short auxiliary scale engraved on the sliding head — metric below the beam, inch above it. Its divisions are deliberately made <em>slightly smaller</em> than the main-scale divisions, and that tiny difference is the instrument’s <strong>least count</strong>.</p>' +
+      '<div class="formula-box">LC = 1 MSD − 1 VSD = 1 MSD / n</div>' +
+      '<dl class="pi-spec"><dt>10 divisions</dt><dd>LC = 0.1 mm</dd><dt>20 divisions</dt><dd>LC = 0.05 mm</dd><dt>50 divisions</dt><dd>LC = 0.02 mm</dd><dt>25 divisions (inch)</dt><dd>LC = 0.001&Prime;</dd></dl>' +
+      '<p>Only <strong>one</strong> vernier line can line up perfectly with a main-scale line. Its number, multiplied by the least count, is the fraction you add to the MSR.</p>'
+  },
+  {
+    z: 9, name: 'Vernier Zero Line', sub: 'The pointer / index line',
+    hl: '<rect {A} x="375" y="138" width="10" height="104" rx="2"/>',
+    b: [330, 306], lead: ['M330 306 L379 244'], dots: [[379, 244]],
+    info: '<span class="pi-tag">Reading</span><h3>Vernier Zero Line (Index)</h3>' +
+      '<p>The single most important line on the instrument. It is machined <strong>exactly in line with the sliding jaw’s measuring face</strong>, so it acts as the pointer that reads the main scale.</p>' +
+      '<ul><li>Its position gives the <strong>main scale reading (MSR)</strong></li><li>With the jaws closed it must sit on main-scale zero — if not, the caliper has a <strong>zero error</strong></li><li>Vernier division counting always starts from this line, counted as 0</li></ul>' +
+      '<div class="pi-tip"><strong>Zero check first, every time:</strong> Close the jaws gently and look at this line. Zero error found here is added to or subtracted from every reading in the batch.</div>'
+  },
+  {
+    z: 8, name: 'Depth Measuring Rod', sub: 'Holes, slots, step heights',
+    hl: '<rect {A} x="804" y="174" width="76" height="24" rx="4"/>',
+    b: [848, 286], lead: ['M848 286 L858 200'], dots: [[858, 200]],
+    info: '<span class="pi-tag">Measuring</span><h3>Depth Measuring Rod (Depth Bar)</h3>' +
+      '<p>A thin blade that runs in a groove under the beam and extends out of the far end as the head slides. Stand the <strong>end of the beam</strong> flat across the mouth of a hole and the rod drops to the bottom — the scale reads the depth directly.</p>' +
+      '<ul><li>Used for blind-hole depths, slot depths and counterbore depths</li><li>The beam end is the reference surface, so it must bridge the hole squarely</li><li>Slender and easily bent — never push the rod against the work</li></ul>' +
+      '<div class="pi-tip"><strong>Accuracy note:</strong> A caliper depth rod is the least accurate feature on the tool. For anything tighter than about ±0.05 mm, use a proper depth micrometer or depth gauge.</div>'
+  },
+  {
+    z: 8, name: 'Thumb Roller (Fine Adjustment)', sub: 'Controls jaw pressure',
+    hl: '<rect {A} x="436" y="240" width="70" height="26" rx="5"/>',
+    b: [630, 264], lead: ['M630 264 L508 258'], dots: [[508, 258]],
+    info: '<span class="pi-tag">Control</span><h3>Thumb Roller / Thumb Screw</h3>' +
+      '<p>The knurled wheel under the sliding head. Driving the head with your thumb here — instead of shoving the frame — gives you fine, <strong>repeatable contact pressure</strong> on the workpiece.</p>' +
+      '<ul><li>Close until the jaws just "kiss" the part and it can still be drawn out with light drag</li><li>Consistent feel matters more than force: it is what makes two readings agree</li><li>Over-tightening springs the jaws and compresses soft materials — both read wrong</li></ul>' +
+      '<div class="pi-tip"><strong>Why it matters:</strong> Jaw over-pressure is one of the largest error sources in caliper work, often several times the least count. The roller exists purely to control it.</div>'
+  },
+  {
+    z: 9, name: 'Locking Screw', sub: 'Freezes the reading',
+    hl: '<circle {A} cx="500" cy="147" r="13"/>',
+    b: [452, 44], lead: ['M452 44 L494 138'], dots: [[494, 138]],
+    info: '<span class="pi-tag">Control</span><h3>Locking Screw (Clamp Screw)</h3>' +
+      '<p>A small thumbscrew on top of the sliding head that clamps it to the beam so the setting cannot drift while you read it or lift the caliper away from the work.</p>' +
+      '<ul><li>Lock <em>after</em> setting, then withdraw the caliper and read it in good light</li><li>Also used to hold a set size for transferring or scribing</li><li>Tighten gently — a hard nip can distort the head and shift the reading</li></ul>' +
+      '<div class="pi-tip"><strong>Habit to build:</strong> Lock → remove → read at eye level, straight down onto the scale. This kills both jaw-pressure drift and parallax error in one move.</div>'
+  }
+];
+
+// Build the instrument artwork (static layer) as an SVG string.
+function partsInstrumentSvg() {
+  const x0 = P.x0, ppm = P.ppm;
+  let g = '';
+
+  // Jaws (integral with beam) — drawn first so ticks/head land on top.
+  g += '<path class="vc-metal" fill="url(#vcSteel)" d="M110 158 H156 V322 H128 L110 292 Z"/>';
+  g += '<path class="vc-metal" fill="url(#vcSteel)" d="M132 158 V106 L139 86 H149 L156 110 V158 Z"/>';
+  g += '<path class="vc-metal" fill="url(#vcSteel)" d="M380 242 H426 V292 L408 322 H380 Z"/>';
+  g += '<path class="vc-metal" fill="url(#vcSteel)" d="M380 136 V106 L387 86 H397 L404 110 V136 Z"/>';
+
+  // Depth rod out of the beam end.
+  g += '<rect class="vc-metal" fill="url(#vcSteel)" x="806" y="179" width="72" height="13" rx="2"/>';
+
+  // Beam.
+  g += '<rect class="vc-metal" fill="url(#vcSteel)" x="110" y="158" width="700" height="54" rx="3"/>';
+
+  // Metric graduations along the lower edge (ticks point up into the beam).
+  let mm = '';
+  for (let i = 0; ; i++) {
+    const x = +(x0 + i * ppm).toFixed(2);
+    if (x > P.tickEndX) break;
+    const h = (i % 10 === 0) ? 13 : (i % 5 === 0) ? 9 : 5;
+    mm += '<line class="' + (i % 10 === 0 ? 'vc-tick-b' : 'vc-tick') + '" x1="' + x + '" y1="212" x2="' + x + '" y2="' + (212 - h) + '"/>';
+    if (i % 10 === 0 && i > 0) {
+      mm += '<text class="vc-num" font-size="8.5" text-anchor="middle" x="' + x + '" y="195">' + i + '</text>';
+    }
+  }
+  g += mm;
+
+  // Imperial graduations along the upper edge (1/40" divisions).
+  const inPx = 25.4 * ppm;
+  let ins = '';
+  for (let i = 0; ; i++) {
+    const x = +(x0 + i * inPx / 40).toFixed(2);
+    if (x > P.tickEndX) break;
+    const h = (i % 40 === 0) ? 13 : (i % 4 === 0) ? 9 : 5;
+    ins += '<line class="' + (i % 40 === 0 ? 'vc-tick-b' : 'vc-tick') + '" x1="' + x + '" y1="158" x2="' + x + '" y2="' + (158 + h) + '"/>';
+    if (i % 40 === 0) {
+      ins += '<text class="vc-num" font-size="8.5" text-anchor="middle" x="' + x + '" y="181">' + (i / 40) + '</text>';
+    }
+  }
+  g += ins;
+
+  // Sliding head over the beam.
+  g += '<rect class="vc-metal" fill="url(#vcHead)" x="380" y="136" width="148" height="106" rx="7"/>';
+  g += '<line class="vc-etch" x1="380" y1="158" x2="528" y2="158"/>';
+  g += '<line class="vc-etch" x1="380" y1="212" x2="528" y2="212"/>';
+
+  // Metric vernier: 20 divisions spanning 19 mm (LC 0.05 mm).
+  const vStep = 19 * ppm / 20;
+  for (let i = 0; i <= 20; i++) {
+    const x = +(P.headL + i * vStep).toFixed(2);
+    const h = (i % 5 === 0) ? 13 : 8;
+    g += '<line class="' + (i % 5 === 0 ? 'vc-tick-b' : 'vc-tick') + '" x1="' + x + '" y1="212" x2="' + x + '" y2="' + (212 + h) + '"/>';
+    if (i % 5 === 0) g += '<text class="vc-num" font-size="8" text-anchor="middle" x="' + x + '" y="236">' + i + '</text>';
+  }
+
+  // Imperial vernier: 25 divisions spanning 0.600" (LC 0.001").
+  const viStep = 0.6 * inPx / 25;
+  for (let i = 0; i <= 25; i++) {
+    const x = +(P.headL + i * viStep).toFixed(2);
+    const h = (i % 5 === 0) ? 10 : 6;
+    g += '<line class="' + (i % 5 === 0 ? 'vc-tick-b' : 'vc-tick') + '" x1="' + x + '" y1="158" x2="' + x + '" y2="' + (158 - h) + '"/>';
+    if (i % 5 === 0) g += '<text class="vc-num" font-size="7" text-anchor="middle" x="' + x + '" y="145">' + i + '</text>';
+  }
+
+  // Thumb roller (knurled) + locking screw.
+  g += '<rect class="vc-metal" fill="url(#vcHead)" x="436" y="240" width="70" height="26" rx="5"/>';
+  for (let x = 442; x < 504; x += 5) {
+    g += '<line class="vc-etch" x1="' + x + '" y1="243" x2="' + x + '" y2="263"/>';
+  }
+  g += '<circle class="vc-metal" fill="url(#vcHead)" cx="500" cy="147" r="11"/>';
+  g += '<line class="vc-tick-b" x1="493" y1="147" x2="507" y2="147"/>';
+
+  return g;
+}
+
+function partOverlaySvg(p, num) {
+  let s = '<g class="vc-part" data-num="' + num + '" tabindex="0" role="button" aria-label="' + p.name + '">';
+  s += p.hl.replace(/\{A\}/g, 'class="vc-hl"');
+  s += p.hl.replace(/\{A\}/g, 'class="vc-out"');
+  p.lead.forEach(function (d) { s += '<path class="vc-lead" d="' + d + '"/>'; });
+  p.dots.forEach(function (pt) { s += '<circle class="vc-dot" cx="' + pt[0] + '" cy="' + pt[1] + '" r="3.2"/>'; });
+  s += '<circle class="vc-badge-bg" cx="' + p.b[0] + '" cy="' + p.b[1] + '" r="14"/>';
+  s += '<text class="vc-badge-tx" x="' + p.b[0] + '" y="' + p.b[1] + '">' + num + '</text>';
+  s += '</g>';
+  return s;
+}
+
+let partsBuilt = false;
+
+function buildPartsPanel() {
+  const svgHost = $('parts-svg');
+  const listEl  = $('parts-list');
+
+  if (!partsBuilt) {
+    // Overlay groups are painted largest-first (by z) so a small hotspot such as
+    // the vernier zero line always wins the pointer over the beam beneath it.
+    const order = PARTS_DATA.map(function (p, i) { return { p: p, i: i }; })
+      .sort(function (a, b) { return a.p.z - b.p.z || a.i - b.i; });
+
+    let svg = '<svg viewBox="20 20 900 380" role="img" ' +
+      'aria-label="Labelled diagram of a vernier caliper showing its twelve main parts" ' +
+      'xmlns="http://www.w3.org/2000/svg">';
+    svg += '<defs>' +
+      '<linearGradient id="vcSteel" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#8d95a3"/><stop offset="0.26" stop-color="#c3cbd6"/>' +
+        '<stop offset="0.36" stop-color="#eef2f6"/><stop offset="0.56" stop-color="#aeb7c3"/>' +
+        '<stop offset="0.80" stop-color="#cad2dc"/><stop offset="1" stop-color="#6d7583"/>' +
+      '</linearGradient>' +
+      '<linearGradient id="vcHead" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#7c8492"/><stop offset="0.3" stop-color="#c8d0da"/>' +
+        '<stop offset="0.55" stop-color="#9aa3b1"/><stop offset="1" stop-color="#626a77"/>' +
+      '</linearGradient>' +
+      '</defs>';
+    svg += '<g>' + partsInstrumentSvg() + '</g>';
+    svg += '<g>';
+    order.forEach(function (o) { svg += partOverlaySvg(o.p, o.i + 1); });
+    svg += '</g></svg>';
+    svgHost.innerHTML = svg;
+
+    listEl.innerHTML = '';
+    PARTS_DATA.forEach(function (p, i) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'part-row';
+      row.setAttribute('role', 'listitem');
+      row.innerHTML = '<span class="part-num">' + (i + 1) + '</span>' +
+        '<span class="part-txt"><span class="part-name">' + p.name + '</span>' +
+        '<span class="part-sub">' + p.sub + '</span></span>';
+      row.addEventListener('click', function () { selectPart(i, true); });
+      row.addEventListener('mouseenter', function () { selectPart(i, false); });
+      listEl.appendChild(row);
+    });
+    listEl.addEventListener('mouseleave', function () { selectPart(state.partPin, false); });
+
+    // Hover previews the part; click (and tap) pins it.
+    svgHost.addEventListener('mouseover', function (e) {
+      const g = e.target.closest ? e.target.closest('.vc-part') : null;
+      if (g) selectPart(+g.getAttribute('data-num') - 1, false);
+    });
+    svgHost.addEventListener('mouseleave', function () { selectPart(state.partPin, false); });
+    svgHost.addEventListener('click', function (e) {
+      const g = e.target.closest ? e.target.closest('.vc-part') : null;
+      if (g) { selectPart(+g.getAttribute('data-num') - 1, true); playClick(); }
+    });
+    svgHost.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const g = e.target.closest ? e.target.closest('.vc-part') : null;
+      if (g) { e.preventDefault(); selectPart(+g.getAttribute('data-num') - 1, true); }
+    });
+
+    partsBuilt = true;
+  }
+
+  selectPart(state.partPin, true);
+}
+
+function selectPart(idx, pin) {
+  if (idx == null || idx < 0 || idx >= PARTS_DATA.length) idx = 0;
+  if (pin) state.partPin = idx;
+  state.partIdx = idx;
+
+  const groups = $('parts-svg').querySelectorAll('.vc-part');
+  groups.forEach(function (g) {
+    g.classList.toggle('on', +g.getAttribute('data-num') - 1 === idx);
+  });
+  const rows = $('parts-list').querySelectorAll('.part-row');
+  rows.forEach(function (r, i) { r.classList.toggle('active', i === idx); });
+
+  $('parts-info').innerHTML = PARTS_DATA[idx].info;
+}
+
+// ── Explore mode ──────────────────────────────────────────────────
+const EXPLORE_DATA = [
+  {
+    cat: 'Parts & Components', parts: true, items: []
+  },
+  {
+    cat: 'Vernier Types',
+    items: [
+      { icon: '\uD83D\uDCCF', label: 'Standard Vernier', sub: '0\u2013100 mm range',
+        info: '<h3>Standard Vernier Caliper</h3><p>The most common type used in workshops and laboratories. Features <strong>outside jaws</strong> for external measurements, <strong>inside jaws</strong> for bores and slots, and a <strong>depth rod</strong> for step heights.</p><ul><li>Range: 0\u2013150 mm (typical) or 0\u2013300 mm</li><li>Least count: 0.02 mm (50 divisions) or 0.05 mm (20 divisions)</li><li>Made of hardened stainless steel</li><li>Used in general-purpose dimensional inspection</li></ul>' },
+      { icon: '\uD83D\uDD27', label: 'Dial Vernier', sub: 'Dial gauge readout',
+        info: '<h3>Dial Vernier Caliper</h3><p>Replaces the vernier scale with a <strong>dial indicator</strong> for easier reading. The dial displays the fractional millimetre directly, eliminating the need to find coincident lines.</p><ul><li>Resolution: 0.02 mm or 0.05 mm</li><li>Faster reading \u2014 reduces human error</li><li>More fragile due to internal gear mechanism</li><li>Popular in production inspection</li></ul>' },
+      { icon: '\uD83D\uDCDF', label: 'Digital Vernier', sub: 'LCD display',
+        info: '<h3>Digital Vernier Caliper</h3><p>Uses an electronic <strong>linear encoder</strong> and <strong>LCD display</strong> to show the measurement directly. Supports mm/inch switching and zero-set at any position.</p><ul><li>Resolution: 0.01 mm (higher than mechanical)</li><li>Features: mm/inch toggle, zero reset, data output port</li><li>Battery-powered (CR2032)</li><li>Most convenient but requires careful handling</li></ul>' },
+      { icon: '\u2195\uFE0F', label: 'Depth Vernier', sub: 'Depth measurement',
+        info: '<h3>Depth Vernier Caliper</h3><p>Specialised caliper designed primarily for measuring <strong>depths of holes, slots, and steps</strong>. The base sits flat on the reference surface while the rod extends into the cavity.</p><ul><li>Range: 0\u2013150 mm or 0\u2013200 mm</li><li>Base width: 100 mm (provides stable reference)</li><li>Interchangeable rods for different depth ranges</li><li>Critical in machining stepped features</li></ul>' }
+    ]
+  },
+  {
+    cat: 'Least Count',
+    items: [
+      { icon: '50', label: '0.02 mm LC', sub: '50-division scale',
+        info: '<h3>0.02 mm Least Count (50 Divisions)</h3><p>The most precise mechanical vernier caliper. The vernier scale has <strong>50 divisions</strong> spanning 49 mm on the main scale.</p><div class="formula-box">LC = 1 MSD \u2212 1 VSD = 1 mm \u2212 49/50 mm = 1/50 mm = <strong>0.02 mm</strong></div><p><strong>Example:</strong> MSR = 25 mm, VSR = 17th division coincides.<br>TR = 25 + (17 \u00D7 0.02) = 25 + 0.34 = <strong>25.34 mm</strong></p>' },
+      { icon: '20', label: '0.05 mm LC', sub: '20-division scale',
+        info: '<h3>0.05 mm Least Count (20 Divisions)</h3><p>A common precision level where 20 vernier divisions span 19 mm on the main scale.</p><div class="formula-box">LC = 1 MSD \u2212 1 VSD = 1 mm \u2212 19/20 mm = 1/20 mm = <strong>0.05 mm</strong></div><p><strong>Example:</strong> MSR = 32 mm, VSR = 9th division coincides.<br>TR = 32 + (9 \u00D7 0.05) = 32 + 0.45 = <strong>32.45 mm</strong></p>' },
+      { icon: '10', label: '0.1 mm LC', sub: '10-division scale',
+        info: '<h3>0.1 mm Least Count (10 Divisions)</h3><p>The simplest vernier scale where 10 divisions span 9 mm on the main scale.</p><div class="formula-box">LC = 1 MSD \u2212 1 VSD = 1 mm \u2212 9/10 mm = 1/10 mm = <strong>0.1 mm</strong></div><p><strong>Example:</strong> MSR = 18 mm, VSR = 7th division coincides.<br>TR = 18 + (7 \u00D7 0.1) = 18 + 0.7 = <strong>18.7 mm</strong></p>' },
+      { icon: '25', label: '0.001\u2033 LC', sub: 'Imperial 25-division',
+        info: '<h3>0.001\u2033 Least Count (Imperial, 25 Divisions)</h3><p>The standard imperial vernier caliper. The main scale is divided into <strong>40ths of an inch</strong> (0.025\u2033 per division). The vernier has <strong>25 divisions</strong> spanning 24 main divisions.</p><div class="formula-box">LC = 1 MSD \u2212 1 VSD = 0.025\u2033 \u2212 24/25 \u00D7 0.025\u2033 = 0.025\u2033/25 = <strong>0.001\u2033</strong></div><p><strong>Example:</strong> MSR = 1.350\u2033, VSR = 14th division coincides.<br>TR = 1.350 + (14 \u00D7 0.001) = <strong>1.364\u2033</strong></p>' }
+    ]
+  },
+  {
+    cat: 'Zero Error',
+    items: [
+      { icon: '\u2705', label: 'No Zero Error', sub: 'Zeros align perfectly',
+        info: '<h3>No Zero Error</h3><p>When the jaws are fully closed, the <strong>zero mark of the vernier scale aligns exactly</strong> with the zero mark of the main scale. This is the ideal condition.</p><ul><li>Close the jaws gently with no object</li><li>Check: vernier 0 should align with main scale 0</li><li>Also check: the last vernier division should align with a main scale mark</li></ul>' },
+      { icon: '\u2795', label: 'Positive Error', sub: 'Vernier zero to the right',
+        info: '<h3>Positive Zero Error</h3><p>When jaws are closed, the vernier zero is <strong>to the right</strong> of the main scale zero. The caliper reads <em>more</em> than the actual dimension.</p><div class="formula-box">Corrected Reading = Observed Reading \u2212 Zero Error</div><p><strong>Example:</strong> 3rd division coincides, LC = 0.02 mm.<br>Zero Error = +0.06 mm. If observed = 25.40 mm, corrected = <strong>25.34 mm</strong>.</p>' },
+      { icon: '\u2796', label: 'Negative Error', sub: 'Vernier zero to the left',
+        info: '<h3>Negative Zero Error</h3><p>When jaws are closed, the vernier zero is <strong>to the left</strong> of the main scale zero. The caliper reads <em>less</em> than the actual dimension.</p><div class="formula-box">Corrected Reading = Observed Reading + |Zero Error|</div><p><strong>Example:</strong> 47th division coincides (50-div scale), LC = 0.02 mm.<br>Zero Error = \u2212(50 \u2212 47) \u00D7 0.02 = \u22120.06 mm. If observed = 25.28 mm, corrected = <strong>25.34 mm</strong>.</p>' },
+      { icon: '\uD83D\uDD04', label: 'Zero Correction', sub: 'How to correct',
+        info: '<h3>Zero Error Correction</h3><ol><li>Close jaws gently without any object.</li><li>Check if vernier zero aligns with main scale zero.</li><li>If not, note which vernier division coincides with a main scale line.</li><li>Calculate:<ul><li>Vernier zero to the <em>right</em>: ZE = +(coincident div \u00D7 LC)</li><li>Vernier zero to the <em>left</em>: ZE = \u2212(n \u2212 coincident div) \u00D7 LC</li></ul></li><li>Corrected = Observed \u2212 Zero Error</li></ol>' }
+    ]
+  },
+  {
+    cat: 'Reading Method',
+    items: [
+      { icon: '1\uFE0F\u20E3', label: 'Step 1: MSR', sub: 'Main Scale Reading',
+        info: '<h3>Step 1 \u2014 Main Scale Reading (MSR)</h3><p>Look at the <strong>zero line</strong> of the vernier scale. Read the main scale graduation <strong>immediately to the left</strong> of this zero line. This gives the whole-millimetre (SI) or 0.025\u2033 (imperial) reading.</p><p><strong>SI:</strong> MSR is in whole mm.<br><strong>Imperial:</strong> MSR is in multiples of 0.025\u2033.</p>' },
+      { icon: '2\uFE0F\u20E3', label: 'Step 2: VSR', sub: 'Vernier Scale Reading',
+        info: '<h3>Step 2 \u2014 Vernier Scale Reading (VSR)</h3><p>Find the <strong>one division</strong> on the vernier scale that aligns perfectly with <em>any</em> main scale graduation. The golden-highlighted tick in this simulator shows it.</p><p><strong>Tip:</strong> Use the Zoom feature to magnify the scale. In a 50-division vernier, adjacent ticks are very close.</p>' },
+      { icon: '3\uFE0F\u20E3', label: 'Step 3: Calculate', sub: 'TR = MSR + VSR \u00D7 LC',
+        info: '<h3>Step 3 \u2014 Calculate Total Reading</h3><div class="formula-box">TR = MSR + (VSR \u00D7 LC)</div><p><strong>SI Example (0.02 mm LC):</strong><br>MSR = 25 mm, VSR = 17 \u2192 TR = 25 + 0.34 = <strong>25.34 mm</strong></p><p><strong>Imperial Example (0.001\u2033 LC):</strong><br>MSR = 1.350\u2033, VSR = 14 \u2192 TR = 1.350 + 0.014 = <strong>1.364\u2033</strong></p>' },
+      { icon: '\u26A0\uFE0F', label: 'Common Errors', sub: 'Mistakes to avoid',
+        info: '<h3>Common Reading Errors</h3><ul><li><strong>Parallax error:</strong> Reading at an angle instead of straight down.</li><li><strong>Wrong MSR:</strong> Reading the mark to the <em>right</em> of vernier zero instead of left.</li><li><strong>Forcing alignment:</strong> Squeezing jaws too hard, deforming soft materials.</li><li><strong>Ignoring zero error:</strong> Not checking zero alignment before measuring.</li><li><strong>Estimating between divisions:</strong> Never interpolate \u2014 the reading is determined only by the coincident line.</li></ul>' }
+    ]
+  }
+];
+
+function buildExplorePanel() {
+  const catEl  = $('explore-cats');
+  const gridEl = $('explore-grid');
+  const infoEl = $('explore-info');
+  catEl.innerHTML = '';
+
+  EXPLORE_DATA.forEach((cat, ci) => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (ci === state.exploreCat ? ' active' : '');
+    btn.textContent = cat.cat;
+    btn.addEventListener('click', () => {
+      state.exploreCat = ci;
+      state.exploreIdx = 0;
+      buildExplorePanel();
+    });
+    catEl.appendChild(btn);
+  });
+
+  // The "Parts & Components" category swaps the icon grid for the interactive
+  // anatomy diagram.
+  const cat = EXPLORE_DATA[state.exploreCat];
+  const wrap = $('parts-wrap');
+  if (cat.parts) {
+    gridEl.style.display = 'none';
+    infoEl.style.display = 'none';
+    wrap.style.display = '';
+    buildPartsPanel();
+    return;
+  }
+  wrap.style.display = 'none';
+  gridEl.style.display = '';
+  infoEl.style.display = '';
+
+  const items = cat.items;
+  gridEl.innerHTML = '';
+  items.forEach((item, ii) => {
+    const btn = document.createElement('button');
+    btn.className = 'is-btn' + (ii === state.exploreIdx ? ' active' : '');
+    btn.innerHTML = `<span class="is-btn-icon">${item.icon}</span>
+      <span class="is-btn-label">${item.label}</span>
+      <span class="is-btn-sub">${item.sub}</span>`;
+    btn.addEventListener('click', () => {
+      state.exploreIdx = ii;
+      buildExplorePanel();
+    });
+    gridEl.appendChild(btn);
+  });
+
+  infoEl.innerHTML = items[state.exploreIdx].info;
+}
+
+// ── Workpiece picker UI ───────────────────────────────────────────
+const WP_THUMBS = {
+  bar:   '<rect x="4" y="12" width="32" height="12" rx="2"/>',
+  cylV:  '<rect x="13" y="8" width="14" height="22" rx="1"/><ellipse cx="20" cy="8" rx="7" ry="2.6" opacity=".55"/>',
+  cylH:  '<rect x="5" y="13" width="30" height="12" rx="1"/><ellipse cx="35" cy="19" rx="2.6" ry="6" opacity=".55"/>',
+  ball:  '<circle cx="20" cy="19" r="10"/><circle cx="16" cy="15" r="2.6" fill="#0d1117" opacity=".45"/>',
+  cube:  '<rect x="9" y="8" width="22" height="22" rx="1.5"/><path d="M9 8h22l-4 4H13z" opacity=".45"/>',
+  nut:   '<path d="M20 6l10 6.5v13L20 32l-10-6.5v-13z"/><circle cx="20" cy="19" r="5" fill="#0d1117"/>',
+  drill: '<rect x="16" y="6" width="8" height="24" rx="1"/><path d="M16 30h8l-4 4z"/>',
+  plate: '<rect x="17" y="6" width="6" height="26" rx="1"/>',
+  ring:  '<path fill-rule="evenodd" d="M20 4a15 15 0 1 0 0 30 15 15 0 1 0 0-30zm0 8a7 7 0 1 1 0 14 7 7 0 1 1 0-14z"/>'
+};
+
+function buildPicker() {
+  const grid = $('obj-grid');
+  if (!grid || grid.childElementCount) return;
+  WORKPIECES.forEach(function (wp) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'obj-tile';
+    b.setAttribute('data-id', wp.id);
+    // The tile stays small enough to sit inside the canvas card (and shrinks to
+    // the icon alone on phones), so the full description lives on the tooltip
+    // and, once chosen, in the object bar underneath.
+    const full = wp.name + ' — measure ' + wp.what +
+      (wp.kind === 'internal' ? ' (inside jaws)' : '');
+    b.title = full;
+    b.setAttribute('aria-label', full);
+    b.innerHTML =
+      '<svg viewBox="0 0 40 38" aria-hidden="true" fill="#aab6c8">' + WP_THUMBS[wp.shape] + '</svg>' +
+      '<span class="obj-tile-name">' + wp.short + '</span>' +
+      (wp.kind === 'internal' ? '<span class="obj-tile-dot" aria-hidden="true"></span>' : '');
+    b.addEventListener('click', function () { loadWorkpiece(wp.id); });
+    grid.appendChild(b);
+  });
+}
+
+function togglePicker(open) {
+  const pop = $('obj-picker');
+  const fab = $('obj-fab');
+  if (!pop) return;
+  state.pickerOpen = (open === undefined) ? !state.pickerOpen : !!open;
+  if (state.pickerOpen) buildPicker();
+  pop.style.display = state.pickerOpen ? '' : 'none';
+  fab.classList.toggle('active', state.pickerOpen);
+  fab.setAttribute('aria-expanded', String(state.pickerOpen));
+  syncPickerSelection();
+}
+
+function syncPickerSelection() {
+  const grid = $('obj-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.obj-tile').forEach(function (t) {
+    t.classList.toggle('active', !!state.wp && t.getAttribute('data-id') === state.wp.id);
+  });
+}
+
+// Ease the head to a target opening. Used to throw the jaws wide open when a
+// part is dropped in, and to close them onto it from the object bar.
+// Any hands-on input wins over an in-flight glide — otherwise grabbing the jaws
+// while a part is still being loaded would fight the animation.
+function cancelGlide() {
+  if (state.wpRaf) { cancelAnimationFrame(state.wpRaf); state.wpRaf = null; }
+}
+
+function glideJawsTo(target, onDone) {
+  cancelGlide();
+  const from = state.mm;
+  const dist = Math.abs(target - from);
+  // A hidden tab suspends requestAnimationFrame, which would leave the head
+  // parked mid-glide; jump straight to the target instead.
+  if (dist < 1e-6 || document.hidden) {
+    setMm(target); render(); if (onDone) onDone(); return;
+  }
+  const dur = clamp(220 + dist * 9, 260, 900);
+  const t0 = performance.now();
+  (function step(t) {
+    const k = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - k, 3);          // ease-out cubic
+    state.mm = from + (target - from) * e;
+    render();
+    if (k < 1) state.wpRaf = requestAnimationFrame(step);
+    else { state.wpRaf = null; setMm(target); render(); if (onDone) onDone(); }
+  })(t0);
+}
+
+function loadWorkpieceObj(wp, silent) {
+  if (!wp) return;
+  state.wp = wp;
+  // Bring the head inside the new part's legal range at once. Without this a bore
+  // loaded while the jaws are wider than it would sit — and report contact —
+  // outside the range the clamp is meant to guarantee.
+  setMm(state.mm);
+  if (!silent) playClick();
+  $('drag-hint').classList.add('hidden');
+  state.hinted = true;
+  objBarSig = '';
+  updateObjBar();
+  syncPickerSelection();
+  // Start where the real sequence starts: an external part goes in with the jaws
+  // thrown fully open and you close onto it; a bore starts with the inside jaws
+  // shut and you open them until they touch the wall.
+  glideJawsTo(wp.kind === 'internal' ? wpMinMm() : getMaxMm(), updateObjBar);
+}
+
+function loadWorkpiece(id) {
+  const wp = findWp(id);
+  if (!wp) return;
+  togglePicker(false);
+  loadWorkpieceObj(wp);
+}
+
+// The jaws are draggable in Simulate, and in a graded mode whenever a part is
+// loaded — otherwise the student could not close onto it.
+function canDragJaws() { return state.mode === 'free' || !!state.wp; }
+
+// Called every frame: a graded answer may only be submitted once the jaws are
+// actually on the part, so the button follows the contact state.
+function syncExerciseUi() {
+  if (!state.wp) return;
+  const contact = wpInContact();
+  if (state.mode === 'practice' && !state.answered) {
+    const btn = $('btn-check');
+    if (btn && btn.disabled === contact) btn.disabled = !contact;
+  } else if (state.mode === 'quiz' && !state.quizAnswered) {
+    const btn = $('btn-quiz-submit');
+    if (btn && btn.disabled === contact) btn.disabled = !contact;
+  }
+}
+
+function clearWorkpiece() {
+  cancelGlide();
+  state.wp = null;
+  objBarSig = '';
+  // Taking the part out hands Practice back to the Play/Pause drill.
+  if (state.mode === 'practice') {
+    $('btn-play').disabled = false;
+    $('caliper-card').style.cursor = 'default';
+  }
+  updateObjBar();
+  syncPickerSelection();
+  render();
+}
+
+function snapToContact() {
+  if (!state.wp) return;
+  glideJawsTo(state.wp.mm, function () { playContact(); updateObjBar(); });
+}
+
+let objBarSig = '';
+function updateObjBar() {
+  const bar = $('obj-bar');
+  if (!bar) return;
+  const wp = state.wp;
+  const fab = $('obj-fab');
+  if (fab) fab.classList.toggle('loaded', !!wp);
+  if (!wp || state.mode === 'explore') { bar.style.display = 'none'; objBarSig = ''; return; }
+  bar.style.display = '';
+
+  const contact = wpInContact();
+  const reveal = wpRevealAllowed();
+  // The bar is rebuilt from innerHTML, so skip it unless something it shows has
+  // actually changed — otherwise a drag would re-render it at 60 fps.
+  const sig = [wp.id, contact, reveal, state.mode, state.prec, state.unit,
+               state.zeOn, state.zeLc, (contact && reveal) ? fmtTr() : ''].join('|');
+  if (sig === objBarSig) return;
+  objBarSig = sig;
+
+  const u = uLabel();
+  const trueDisp = isImperial() ? (wp.mm * MM_TO_IN).toFixed(3) : wp.mm.toFixed(2);
+  const readDisp = fmtTr();
+  // What the instrument can actually resolve: the true size rounded to the LC.
+  const resolvable = Math.round(wp.mm / getLcMm()) * getLcMm();
+  const resDisp = isImperial() ? (resolvable * MM_TO_IN).toFixed(3) : resolvable.toFixed(2);
+  const unresolved = Math.abs(resolvable - wp.mm) > 1e-9;
+
+  const internal = wpIsInternal();
+  let status;
+  if (!contact) {
+    status = '<span class="ob-state ob-open">' + (internal ? 'Jaws inside the bore' : 'Jaws open') + '</span>' +
+      '<span class="ob-msg">' + (internal
+        ? 'Drag the sliding jaw <strong>right</strong> to open the inside jaws until both nibs touch the bore wall.'
+        : 'Drag the sliding jaw left until it stops on the part.') + '</span>';
+  } else if (!reveal) {
+    // Graded attempt: confirm contact, but the reading itself is the answer.
+    status = '<span class="ob-state ob-contact">&#10003; Jaws in contact</span>' +
+      '<span class="ob-msg">Now read the scale and type your answer' +
+      (state.zeOn ? ', applying the zero-error correction.' : '.') + '</span>';
+  } else {
+    status = '<span class="ob-state ob-contact">&#10003; Jaws in contact</span>' +
+      '<span class="ob-msg">Read the scale: <strong>' + readDisp + ' ' + u + '</strong>' +
+      (state.zeOn ? ' &mdash; then apply the zero-error correction.' : '.') + '</span>';
+  }
+
+  let lesson = '';
+  if (!reveal) {
+    lesson = '';
+  } else if (contact && unresolved) {
+    lesson = '<div class="ob-lesson"><strong>Resolution limit:</strong> the part is truly ' +
+      trueDisp + ' ' + u + ', but a ' + fmtLc() + ' ' + u +
+      ' vernier can only resolve it to <strong>' + resDisp + ' ' + u +
+      '</strong>. Switch to a finer least count to close the gap.</div>';
+  } else if (contact && state.zeOn) {
+    lesson = '<div class="ob-lesson"><strong>Zero error is on:</strong> the scale shows ' + readDisp +
+      ' ' + u + '. Subtract the zero error and you are back to the true ' + trueDisp + ' ' + u + '.</div>';
+  }
+
+  bar.innerHTML =
+    '<div class="ob-head">' +
+      '<svg class="ob-thumb" viewBox="0 0 40 38" aria-hidden="true" fill="#aab6c8">' + WP_THUMBS[wp.shape] + '</svg>' +
+      '<div class="ob-id"><span class="ob-name">' + wp.name + '</span>' +
+      '<span class="ob-what">Measuring ' + wp.what + '</span></div>' +
+      '<div class="ob-status">' + status + '</div>' +
+      '<div class="ob-actions">' +
+        '<button type="button" class="ob-btn" id="ob-snap"' + (contact ? ' disabled' : '') + '>' +
+          (internal ? '&#8676;&#8677; Open onto bore' : '&#8677; Close onto part') + '</button>' +
+        // In Quiz the question owns the part, so it cannot be taken out.
+        (state.mode === 'quiz' ? '' :
+          '<button type="button" class="ob-btn ob-btn-x" id="ob-clear">Remove</button>') +
+      '</div>' +
+    '</div>' +
+    '<div class="ob-note">' + wp.note + '</div>' + lesson;
+
+  var s = $('ob-snap'); if (s) s.addEventListener('click', snapToContact);
+  var c = $('ob-clear'); if (c) c.addEventListener('click', clearWorkpiece);
+}
+
+// ── Mode / precision / unit ──────────────────────────────────────
+function setMode(mode) {
+  state.mode = mode;
+  $('practice-bar').style.display = 'none';
+  $('quiz-bar').style.display     = 'none';
+  $('quiz-result').style.display  = 'none';
+  $('sec-explore').style.display  = 'none';
+
+  const showCanvas = (mode !== 'explore');
+  $('caliper-card').style.display = showCanvas ? '' : 'none';
+  document.querySelector('.info-row').style.display = showCanvas ? '' : 'none';
+
+  // The picker FAB is Simulate-only: Practice loads parts from its own button
+  // and Quiz assigns them per question, so neither needs a free-choice picker.
+  togglePicker(false);
+  $('obj-fab').style.display = (mode === 'free') ? '' : 'none';
+  if (mode !== 'free' && state.wp) clearWorkpiece();
+  updateObjBar();
+
+  if (mode === 'explore') {
+    buildExplorePanel();
+    $('sec-explore').style.display = '';
+  } else if (mode === 'practice') {
+    $('practice-bar').style.display = '';
+    $('caliper-card').style.cursor  = 'default';
+    state.dragging = false;
+    newQuiz();
+  } else if (mode === 'quiz') {
+    $('caliper-card').style.cursor = 'default';
+    state.dragging = false;
+    startQuiz();
+  } else {
+    if (state.playing) stopAnim();
+    $('caliper-card').style.cursor     = 'grab';
+    $('readout-display').style.display = 'block';
+    $('practice-input').style.display  = 'none';
+    $('dr-label').textContent          = 'Measurement';
+    $('reading-cells').classList.remove('cells-hidden');
+    $('tr-formula').classList.remove('formula-hidden');
+    render();
+  }
+}
+
+function setPrecision(prec) {
+  state.prec = prec;
+  setMm(snapToLc(state.mm));
+  if      (state.mode === 'practice') newQuiz();
+  else if (state.mode === 'quiz')     startQuiz();
+  else                                render();
+}
+
+function setUnit(unit) {
+  state.unit = unit;
+  setMm(snapToLc(state.mm));
+  state.zeLc = clampZeLc(state.zeLc);
+  updatePrecisionUI();
+  if      (state.mode === 'practice') newQuiz();
+  else if (state.mode === 'quiz')     startQuiz();
+  else                                render();
+}
+
+function setZeroError(on) {
+  state.zeOn = !!on;
+  if (!state.zeOn) state.zeLc = 0;
+  document.querySelectorAll('#ze-toggle .pill').forEach(function(b){
+    b.classList.toggle('active', b.dataset.value === (state.zeOn ? 'on' : 'off'));
+  });
+  if      (state.mode === 'practice') newQuiz();
+  else if (state.mode === 'quiz')     startQuiz();
+  else                                render();
+}
+
+function bumpZe(delta) {
+  if (!state.zeOn) return;
+  state.zeLc = clampZeLc(state.zeLc + delta);
+  if      (state.mode === 'practice') newQuiz();
+  else if (state.mode === 'quiz')     startQuiz();
+  else                                render();
+}
+
+function updatePrecisionUI() {
+  const precGroup = document.querySelector('#precision-tabs').closest('.ctrl-group');
+  if (isImperial()) {
+    // Imperial: hide precision pills, show fixed 0.001" label
+    precGroup.style.display = 'none';
+  } else {
+    precGroup.style.display = '';
+  }
+}
+
+// ── Drag ──────────────────────────────────────────────────────────
+function getCanvasX(e) {
+  const rect    = cEl.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  // Map to LOGICAL canvas units (S.CW), not the DPR-scaled backing-store width —
+  // we draw in logical space via setTransform(DPR). (graphics-upgrade B1 lockstep)
+  return (clientX - rect.left) * (S.CW / rect.width);
+}
+
+function onDragStart(e) {
+  if (!canDragJaws()) return;
+  if (state.zoomOpen) return;
+  cancelGlide();
+  state.dragging = true; state.dragRefX = getCanvasX(e); state.dragRefMm = state.mm;
+  if (!state.hinted) { $('drag-hint').classList.add('hidden'); state.hinted = true; }
+  playClick();
+  e.preventDefault();
+}
+function onDragMove(e) {
+  if (!state.dragging) return;
+  const pxPerMm = getPxPerMm();
+  const oldMm = state.mm;
+  const wasContact = wpInContact();
+  // Snap to the least count first, THEN let the workpiece stop the jaws — so the
+  // part can hold them at a value that is not on the graduation grid.
+  setMm(snapToLc(state.dragRefMm + (getCanvasX(e) - state.dragRefX) / pxPerMm));
+  if (state.mm !== oldMm) playTick();
+  if (!wasContact && wpInContact()) playContact();
+  render(); e.preventDefault();
+}
+function onDragEnd() { state.dragging = false; }
+
+window.addEventListener('keydown', e => {
+  if (!canDragJaws()) return;
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  cancelGlide();
+  const lcMm = getLcMm();
+  const wasContact = wpInContact();
+  setMm(snapToLc(state.mm + (e.key === 'ArrowRight' ? lcMm : -lcMm)));
+  playTick();
+  if (!wasContact && wpInContact()) playContact();
+  render(); e.preventDefault();
+});
+
+// ── Workpiece picker wiring ───────────────────────────────────────
+var objFab = $('obj-fab');
+if (objFab) {
+  objFab.addEventListener('click', function (e) { e.stopPropagation(); togglePicker(); });
+}
+var objClose = $('obj-picker-close');
+if (objClose) objClose.addEventListener('click', function () { togglePicker(false); });
+var objNone = $('obj-none');
+if (objNone) objNone.addEventListener('click', function () { clearWorkpiece(); togglePicker(false); });
+var objPop = $('obj-picker');
+if (objPop) objPop.addEventListener('click', function (e) { e.stopPropagation(); });
+document.addEventListener('click', function () { if (state.pickerOpen) togglePicker(false); });
+window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.pickerOpen) togglePicker(false); });
+
+// ── Event wiring ──────────────────────────────────────────────────
+cEl.addEventListener('mousedown',  onDragStart);
+window.addEventListener('mousemove', onDragMove);
+window.addEventListener('mouseup',   onDragEnd);
+cEl.addEventListener('touchstart', onDragStart, { passive: false });
+window.addEventListener('touchmove',  onDragMove, { passive: false });
+window.addEventListener('touchend',   onDragEnd);
+
+document.querySelectorAll('#mode-tabs .pill').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    setMode(btn.dataset.value);
+  })
+);
+
+document.querySelectorAll('#precision-tabs .pill').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#precision-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    setPrecision(btn.dataset.value);
+  })
+);
+
+document.querySelectorAll('#unit-toggle .pill').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#unit-toggle .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    setUnit(btn.dataset.value);
+  })
+);
+
+$('btn-zoom').addEventListener('click', () => {
+  state.zoomOpen = !state.zoomOpen;
+  const btn = $('btn-zoom');
+  // Keep the label in its own span \u2014 phones hide it and show the glyph alone.
+  btn.innerHTML = state.zoomOpen
+    ? '\u2715<span class="zt-lbl">&nbsp;Close</span>'
+    : '\uD83D\uDD0D<span class="zt-lbl">&nbsp;Zoom</span>';
+  btn.setAttribute('aria-label', state.zoomOpen ? 'Close zoom' : 'Zoom');
+  btn.classList.toggle('active', state.zoomOpen);
+  render();
+});
+
+// Coincidence highlight toggle \u2014 let students find the coinciding line themselves.
+var btnAlign = $('btn-align');
+if (btnAlign) btnAlign.addEventListener('click', function () {
+  state.showAlign = !state.showAlign;
+  btnAlign.classList.toggle('active', state.showAlign);
+  btnAlign.setAttribute('aria-pressed', state.showAlign ? 'true' : 'false');
+  render();
+});
+
+$('btn-play').addEventListener('click', () => {
+  // Belt-and-braces: the button is disabled while a part is clamped, but if one
+  // is somehow loaded, take it out rather than animate against the stop.
+  if (state.wp) { clearWorkpiece(); newQuiz(); return; }
+  if (state.playing) stopAnim(); else startAnim();
+});
+$('btn-check').addEventListener('click', checkAnswer);
+$('btn-new').addEventListener('click', newQuiz);
+var btnObj = $('btn-obj');
+if (btnObj) btnObj.addEventListener('click', practiceMeasureObject);
+$('practice-input').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (state.mode === 'practice') checkAnswer();
+  else if (state.mode === 'quiz') submitQuizAnswer();
+});
+
+$('btn-quiz-submit').addEventListener('click', submitQuizAnswer);
+$('btn-quiz-next').addEventListener('click', nextQuizQuestion);
+$('btn-quiz-retry').addEventListener('click', () => {
+  $('quiz-result').style.display = 'none';
+  $('quiz-bar').style.display    = '';
+  startQuiz();
+});
+
+// ── Zero Error controls ───────────────────────────────────────────
+document.querySelectorAll('#ze-toggle .pill').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    setZeroError(btn.dataset.value === 'on');
+  });
+});
+var zeDec = $('ze-dec'); if (zeDec) zeDec.addEventListener('click', function(){ bumpZe(-1); });
+var zeInc = $('ze-inc'); if (zeInc) zeInc.addEventListener('click', function(){ bumpZe(+1); });
+
+// ── Boot ──────────────────────────────────────────────────────────
+render();
+})();

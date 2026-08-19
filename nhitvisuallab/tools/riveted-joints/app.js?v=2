@@ -1,0 +1,1200 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Riveted Joints Trainer — app.js  v1
+   MechSimulator · https://mechsimulator.com
+   ═══════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ────────────────────────────────────────────────────────────────
+     1. DATA — RIVET HEAD TYPES
+     ──────────────────────────────────────────────────────────────── */
+  var RIVET_TYPES = [
+    { id:'snap',       name:'Snap Head (Round)',     cat:'rivet', desc:'The most common structural rivet. The head is a semi-sphere (dome) with a diameter of approximately 1.6d and a height of 0.7d. Used extensively in structural steelwork and boiler construction.', apps:'Bridges, buildings, boilers, structural steelwork', dims:{ hd:1.6, hh:0.7 } },
+    { id:'pan',        name:'Pan Head',              cat:'rivet', desc:'A flat-topped head with tapered sides, providing a wider bearing surface than a snap head. Head diameter approximately 1.6d. Popular for general-purpose sheet metal and structural work.', apps:'General engineering, sheet metal, structural frames', dims:{ hd:1.6, hh:0.7 } },
+    { id:'flat',       name:'Flat Head',             cat:'rivet', desc:'A thin disc-shaped head that sits almost flush with the surface. Provides minimal protrusion — head diameter approximately 2d but very low height (0.25d). Used where a smooth surface is needed.', apps:'Aircraft skin panels, decorative work, thin sheet metal', dims:{ hd:2.0, hh:0.25 } },
+    { id:'csk',        name:'Countersunk 90°',       cat:'rivet', desc:'A conical head with a 90° included angle that sits flush inside a countersunk hole. Head diameter approximately 2d, head depth 0.5d. Creates a completely smooth surface after installation.', apps:'Aircraft fuselage, marine hulls, flush-surface assemblies', dims:{ hd:2.0, hh:0.5, angle:90 } },
+    { id:'csk-round',  name:'Countersunk Round',     cat:'rivet', desc:'Combines a countersunk conical base with a small rounded cap on top. The countersunk portion sits into the hole while the dome protrudes slightly. Good for semi-flush applications.', apps:'Shipbuilding, structural connections requiring some protrusion', dims:{ hd:1.5, hh:0.65 } },
+    { id:'mushroom',   name:'Mushroom Head',         cat:'rivet', desc:'A wide, low-profile dome head with diameter approximately 2.25d. Provides excellent bearing area and clamping force. The large head distributes load over a wider area than snap heads.', apps:'Heavy plate work, tanks, pressure vessels', dims:{ hd:2.25, hh:0.5 } },
+    { id:'truss',      name:'Truss Head',            cat:'rivet', desc:'An extra-wide, very low dome head — the widest standard head type. Provides maximum bearing surface for thin sheet connections. Resists pull-through in soft materials.', apps:'Sheet metal ductwork, thin gauge panels, HVAC', dims:{ hd:2.5, hh:0.3 } },
+    { id:'csk60',      name:'Countersunk 60°',       cat:'rivet', desc:'A sharper countersunk head with 60° included angle. Penetrates deeper into the plate than the 90° version, requiring a deeper countersink. Head diameter approximately 1.5d.', apps:'Thinner plates, tight clearance assemblies', dims:{ hd:1.5, hh:0.43, angle:60 } }
+  ];
+
+  /* ────────────────────────────────────────────────────────────────
+     2. DATA — JOINT TYPES
+     ──────────────────────────────────────────────────────────────── */
+  var JOINT_TYPES = [
+    { id:'single-lap',          name:'Single Riveted Lap Joint',     cat:'joint', subcat:'lap',  desc:'Two overlapping plates fastened by a single row of rivets. The simplest riveted joint. Plates overlap by a margin and rivets pass through both plates at equal spacing (pitch).', apps:'Light structures, tanks, ductwork, sheet metal enclosures' },
+    { id:'double-lap',          name:'Double Riveted Lap Joint',     cat:'joint', subcat:'lap',  desc:'Two overlapping plates fastened by two parallel rows of rivets in a chain pattern (rivets aligned in columns). Provides greater joint strength than a single riveted lap joint.', apps:'Boiler shells, storage tanks, pressure vessels (longitudinal seams)' },
+    { id:'zigzag-lap',          name:'Zigzag Riveted Lap Joint',     cat:'joint', subcat:'lap',  desc:'Two overlapping plates with two rows of rivets in a staggered (zigzag) pattern. The offset arrangement gives a more uniform stress distribution than a chain arrangement.', apps:'Boiler shells, high-pressure vessels, ship hulls' },
+    { id:'single-butt-single',  name:'Single Strap Butt Joint',      cat:'joint', subcat:'butt', desc:'Two plates placed end-to-end (butted) with a single cover plate (strap) on one side. One row of rivets passes through each main plate and the strap. Simpler but less symmetric than double strap.', apps:'Light structural connections, channel framing' },
+    { id:'single-butt-double',  name:'Double Strap Butt Joint',      cat:'joint', subcat:'butt', desc:'Two plates placed end-to-end with cover plates (straps) on both top and bottom. This symmetric arrangement eliminates bending stress that occurs in single strap joints.', apps:'Boiler longitudinal seams, pressure vessel shells, heavy structural joints' },
+    { id:'double-butt-chain',   name:'Double Riveted Butt (Chain)',   cat:'joint', subcat:'butt', desc:'Double strap butt joint with two rows of rivets on each side, arranged in a chain pattern (rivets in line). Provides higher efficiency than single riveted butt joints.', apps:'High-pressure boiler drums, large diameter pressure vessels' },
+    { id:'double-butt-zigzag',  name:'Double Riveted Butt (Zigzag)', cat:'joint', subcat:'butt', desc:'Double strap butt joint with two rows of rivets on each side arranged in a zigzag (staggered) pattern. Highest efficiency configuration among common riveted joint types.', apps:'Marine boilers, locomotive boilers, high-stress pressure vessels' }
+  ];
+
+  var ALL_ITEMS = RIVET_TYPES.concat(JOINT_TYPES);
+
+  var CATEGORIES = { rivet:'Rivet Head Types', joint:'Joint Types' };
+  var JOINT_SUBCATS = { lap:'Lap Joints', butt:'Butt Joints' };
+
+  /* Learn-mode anatomy parts */
+  var LEARN_PARTS = [
+    { name:'Manufactured Head',  color:'#ff7043',  desc:'The original head formed during rivet manufacturing. Typically a snap (dome) head. This head is held by a backing bar during riveting.' },
+    { name:'Shank (Body)',       color:'#4fc3f7',  desc:'The cylindrical stem of the rivet with nominal diameter d. Passes through the holes in the plates being joined. Standard sizes range from 12 mm to 48 mm.' },
+    { name:'Tail',               color:'#ffb74d',  desc:'The protruding portion of the shank beyond the plates. During riveting, the tail is deformed by the die to form the closing head. Tail length ≈ 1.5d to 1.7d.' },
+    { name:'Closing Head',       color:'#e91e63',  desc:'The second head formed by deforming (upsetting) the tail during hot or cold riveting. Also called the "point" or "shop head". Takes the shape of the riveting die.' },
+    { name:'Grip Length',        color:'#3ddc84',  desc:'The total thickness of all plates being held together by the rivet. The shank length must exceed the grip length to provide sufficient tail for forming the closing head.' },
+    { name:'Hole Clearance',     color:'#a78bfa',  desc:'The small annular gap between the rivet shank and the drilled or punched hole. Typical clearance is 1.5 mm. The rivet expands to fill this gap during hot riveting.' }
+  ];
+
+  /* ────────────────────────────────────────────────────────────────
+     3. DOM REFS
+     ──────────────────────────────────────────────────────────────── */
+  var canvas = document.getElementById('rivet-canvas');
+  var ctx    = canvas.getContext('2d');
+  var W = 900, H = 480;
+
+  /* Hi-DPI. This canvas carried fixed width/height attributes while the CSS
+     stretches it to the card, so on a 2x display it presented an upscaled
+     bitmap. Size the backing store to real device pixels and scale the context
+     so the existing 900x480 logical space is untouched — no drawing code changes.
+     There is no canvas pointer interaction in this tool, so no hit-test has to
+     move in lockstep. */
+  function fitCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var displayW = canvas.getBoundingClientRect().width;
+    if (!(displayW > 40)) displayW = 900;
+    var displayH = displayW * (480 / 900);
+    canvas.width  = Math.round(displayW * dpr);
+    canvas.height = Math.round(displayH * dpr);
+    var s = (displayW * dpr) / 900;
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+  }
+
+  /* Panels */
+  var elCategoryRow    = document.getElementById('category-row');
+  var elItemSelector   = document.getElementById('item-selector');
+  var elItemInfo       = document.getElementById('item-info');
+  var elLearnInfo      = document.getElementById('learn-info');
+  var elPracticePanel  = document.getElementById('practice-panel');
+  var elPracticeBar    = document.getElementById('practice-bar');
+  var elQuizPanel      = document.getElementById('quiz-panel');
+  var elQuizBar        = document.getElementById('quiz-bar');
+  var elQuizResult     = document.getElementById('quiz-result');
+
+  /* ────────────────────────────────────────────────────────────────
+     4. STATE
+     ──────────────────────────────────────────────────────────────── */
+  var mode      = 'explore';
+  var selCat    = 'rivet';       // 'rivet' | 'joint'
+  var selSubcat = 'lap';         // 'lap' | 'butt' (for joints)
+  var selItem   = RIVET_TYPES[0];
+  var learnPart = -1;            // highlighted learn part
+
+  /* Practice */
+  var pScore = 0, pTotal = 0, pCurrent = null, pLocked = false;
+
+  /* Quiz */
+  var QUIZ_SIZE = 5;
+  var quizSet = [], quizIdx = 0, quizScore = 0, quizLocked = false;
+  var quizAnswers = [];
+
+  /* ────────────────────────────────────────────────────────────────
+     5. DRAWING HELPERS
+     ──────────────────────────────────────────────────────────────── */
+  function clear() {
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawText(txt, x, y, opts) {
+    opts = opts || {};
+    ctx.font = (opts.weight || '600') + ' ' + (opts.size || 13) + 'px ' + (opts.family || "'Segoe UI', system-ui, sans-serif");
+    ctx.fillStyle = opts.color || '#dde3f0';
+    ctx.textAlign = opts.align || 'center';
+    ctx.textBaseline = opts.baseline || 'middle';
+    ctx.fillText(txt, x, y);
+  }
+
+  function drawSectionLabel(txt, x, y) {
+    drawText(txt, x, y, { size: 11, weight: '700', color: '#6b7a99' });
+  }
+
+  function drawPlateRect(x, y, w, h) {
+    ctx.fillStyle = '#546e7a';
+    ctx.strokeStyle = '#78909c';
+    ctx.lineWidth = 2;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    /* subtle hatch lines for metal texture */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(120,144,156,0.18)';
+    ctx.lineWidth = 1;
+    var step = 8;
+    for (var i = -h; i < w + h; i += step) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y);
+      ctx.lineTo(x + i - h, y + h);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = '#78909c';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     6. RIVET HEAD DRAWING (side-view profile)
+     ──────────────────────────────────────────────────────────────── */
+  function drawRivetProfile(cx, cy, id, scale) {
+    scale = scale || 1;
+    var d = 40 * scale;  // nominal shank diameter
+    var shankLen = 100 * scale;
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    /* Shank */
+    ctx.fillStyle = '#4fc3f7';
+    ctx.strokeStyle = '#0288d1';
+    ctx.lineWidth = 2;
+    var sx = cx - d/2, sy = cy - shankLen*0.3;
+    ctx.fillRect(sx, sy, d, shankLen);
+    ctx.strokeRect(sx, sy, d, shankLen);
+
+    /* Head on top */
+    var headTop = sy;
+    ctx.fillStyle = '#ff7043';
+    ctx.strokeStyle = '#e64a19';
+    ctx.lineWidth = 2;
+
+    switch (id) {
+      case 'snap':
+        ctx.beginPath();
+        ctx.arc(cx, headTop, d*0.8, Math.PI, 0);
+        ctx.lineTo(cx + d/2, headTop);
+        ctx.lineTo(cx - d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        break;
+
+      case 'pan':
+        ctx.beginPath();
+        var panW = d*0.8, panH = d*0.55;
+        ctx.moveTo(cx - d/2, headTop);
+        ctx.lineTo(cx - panW*0.6, headTop - panH);
+        ctx.lineTo(cx + panW*0.6, headTop - panH);
+        ctx.lineTo(cx + d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        break;
+
+      case 'flat':
+        ctx.beginPath();
+        var flatW = d*1.0, flatH = d*0.2;
+        ctx.rect(cx - flatW, headTop - flatH, flatW*2, flatH);
+        ctx.fill(); ctx.stroke();
+        break;
+
+      case 'csk':
+        ctx.beginPath();
+        var cskW = d*1.0, cskH = d*0.5;
+        ctx.moveTo(cx - d/2, headTop);
+        ctx.lineTo(cx - cskW, headTop + cskH);
+        ctx.lineTo(cx + cskW, headTop + cskH);
+        ctx.lineTo(cx + d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        /* redraw shank over countersunk part */
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillRect(sx, sy, d, shankLen);
+        ctx.strokeStyle = '#0288d1';
+        ctx.strokeRect(sx, sy, d, shankLen);
+        break;
+
+      case 'csk-round':
+        /* countersunk base */
+        ctx.beginPath();
+        var crW = d*0.75, crH = d*0.35;
+        ctx.moveTo(cx - d/2, headTop);
+        ctx.lineTo(cx - crW, headTop + crH);
+        ctx.lineTo(cx + crW, headTop + crH);
+        ctx.lineTo(cx + d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        /* dome on top */
+        ctx.beginPath();
+        ctx.arc(cx, headTop, d*0.5, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        /* redraw shank */
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillRect(sx, sy, d, shankLen);
+        ctx.strokeStyle = '#0288d1';
+        ctx.strokeRect(sx, sy, d, shankLen);
+        break;
+
+      case 'mushroom':
+        ctx.beginPath();
+        var mshW = d*1.1;
+        ctx.moveTo(cx - d/2, headTop);
+        ctx.quadraticCurveTo(cx - mshW, headTop - d*0.15, cx - mshW, headTop - d*0.35);
+        ctx.quadraticCurveTo(cx, headTop - d*0.7, cx + mshW, headTop - d*0.35);
+        ctx.quadraticCurveTo(cx + mshW, headTop - d*0.15, cx + d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        break;
+
+      case 'truss':
+        ctx.beginPath();
+        var trW = d*1.3;
+        ctx.moveTo(cx - d/2, headTop);
+        ctx.quadraticCurveTo(cx - trW*0.8, headTop - d*0.05, cx - trW, headTop - d*0.2);
+        ctx.quadraticCurveTo(cx, headTop - d*0.4, cx + trW, headTop - d*0.2);
+        ctx.quadraticCurveTo(cx + trW*0.8, headTop - d*0.05, cx + d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        break;
+
+      case 'csk60':
+        ctx.beginPath();
+        var c60W = d*0.75, c60H = d*0.65;
+        ctx.moveTo(cx - d/2, headTop);
+        ctx.lineTo(cx - c60W, headTop + c60H);
+        ctx.lineTo(cx + c60W, headTop + c60H);
+        ctx.lineTo(cx + d/2, headTop);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillRect(sx, sy, d, shankLen);
+        ctx.strokeStyle = '#0288d1';
+        ctx.strokeRect(sx, sy, d, shankLen);
+        break;
+    }
+  }
+
+  /* Dimension lines for rivet type */
+  function drawRivetDims(cx, cy, id, scale) {
+    scale = scale || 1;
+    var d = 40 * scale;
+    var shankLen = 100 * scale;
+    var sx = cx - d/2, sy = cy - shankLen*0.3;
+    var item = findItem(id);
+    if (!item || item.cat !== 'rivet') return;
+
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+
+    /* Shank diameter 'd' */
+    var dy = sy + shankLen*0.6;
+    ctx.beginPath();
+    ctx.moveTo(sx - 20, dy);
+    ctx.lineTo(sx + d + 20, dy);
+    ctx.stroke();
+    /* arrowheads */
+    drawDimArrow(sx, dy, 1);
+    drawDimArrow(sx + d, dy, -1);
+    drawText('d', cx, dy + 16, { size: 14, weight: '800', color: '#3ddc84', family: "'Courier New', monospace" });
+
+    /* Head diameter */
+    var hdRatio = item.dims.hd;
+    var headW = d * hdRatio / 2;
+    var hy = sy - d*0.5;
+    if (id === 'csk' || id === 'csk60' || id === 'csk-round') {
+      hy = sy + d*0.2;
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - headW - 15, hy);
+    ctx.lineTo(cx + headW + 15, hy);
+    ctx.stroke();
+    drawDimArrow(cx - headW, hy, 1);
+    drawDimArrow(cx + headW, hy, -1);
+    drawText(hdRatio + 'd', cx, hy - 14, { size: 12, weight: '700', color: '#3ddc84', family: "'Courier New', monospace" });
+
+    ctx.setLineDash([]);
+  }
+
+  function drawDimArrow(x, y, dir) {
+    ctx.fillStyle = '#3ddc84';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 6*dir, y - 4);
+    ctx.lineTo(x + 6*dir, y + 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     7. JOINT SECTION DRAWING (cross-section view)
+     ──────────────────────────────────────────────────────────────── */
+  function drawJointSection(cx, cy, id) {
+    var pw = 130, ph = 22; // plate width, plate half-height
+    var rivetD = 14;
+
+    switch (id) {
+      case 'single-lap':
+        /* Two overlapping plates */
+        drawPlateRect(cx - pw - 10, cy - ph, pw + 40, ph*2);
+        drawPlateRect(cx - 30, cy + 4, pw + 40, ph*2);
+        /* Single rivet through overlap */
+        drawRivetInJoint(cx, cy + 2, rivetD, ph*2 + 4);
+        break;
+
+      case 'double-lap':
+        drawPlateRect(cx - pw - 10, cy - ph, pw + 50, ph*2);
+        drawPlateRect(cx - 40, cy + 4, pw + 50, ph*2);
+        /* Two rivets */
+        drawRivetInJoint(cx - 22, cy + 2, rivetD, ph*2 + 4);
+        drawRivetInJoint(cx + 22, cy + 2, rivetD, ph*2 + 4);
+        break;
+
+      case 'zigzag-lap':
+        drawPlateRect(cx - pw - 10, cy - ph, pw + 50, ph*2);
+        drawPlateRect(cx - 40, cy + 4, pw + 50, ph*2);
+        /* Two rivets offset (shown side by side in section, staggered note) */
+        drawRivetInJoint(cx - 22, cy + 2, rivetD, ph*2 + 4);
+        drawRivetInJoint(cx + 22, cy + 2, rivetD, ph*2 + 4);
+        /* zigzag indicator */
+        drawText('(staggered)', cx, cy + ph*2 + 20, { size: 9, color: '#6b7a99', weight: '600' });
+        break;
+
+      case 'single-butt-single':
+        /* Two main plates butted */
+        drawPlateRect(cx - pw, cy - ph, pw - 3, ph*2);
+        drawPlateRect(cx + 3, cy - ph, pw - 3, ph*2);
+        /* Single strap on top */
+        drawPlateRect(cx - pw*0.55, cy - ph - ph*1.2, pw*1.1, ph);
+        /* Rivets */
+        drawRivetInJoint(cx - 35, cy - ph*0.6, rivetD, ph*2.2);
+        drawRivetInJoint(cx + 35, cy - ph*0.6, rivetD, ph*2.2);
+        /* Label strap */
+        drawText('Strap', cx, cy - ph*2 - 6, { size: 9, color: '#ffb74d', weight: '700' });
+        break;
+
+      case 'single-butt-double':
+        /* Two main plates butted */
+        drawPlateRect(cx - pw, cy - ph, pw - 3, ph*2);
+        drawPlateRect(cx + 3, cy - ph, pw - 3, ph*2);
+        /* Top strap */
+        drawPlateRect(cx - pw*0.55, cy - ph - ph*1.2, pw*1.1, ph);
+        /* Bottom strap */
+        drawPlateRect(cx - pw*0.55, cy + ph + ph*0.2, pw*1.1, ph);
+        /* Rivets */
+        drawRivetInJoint(cx - 35, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx + 35, cy, rivetD, ph*4.4);
+        drawText('Straps', cx, cy - ph*2 - 10, { size: 9, color: '#ffb74d', weight: '700' });
+        break;
+
+      case 'double-butt-chain':
+        drawPlateRect(cx - pw, cy - ph, pw - 3, ph*2);
+        drawPlateRect(cx + 3, cy - ph, pw - 3, ph*2);
+        drawPlateRect(cx - pw*0.65, cy - ph - ph*1.2, pw*1.3, ph);
+        drawPlateRect(cx - pw*0.65, cy + ph + ph*0.2, pw*1.3, ph);
+        /* Double rivets each side */
+        drawRivetInJoint(cx - 50, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx - 22, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx + 22, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx + 50, cy, rivetD, ph*4.4);
+        break;
+
+      case 'double-butt-zigzag':
+        drawPlateRect(cx - pw, cy - ph, pw - 3, ph*2);
+        drawPlateRect(cx + 3, cy - ph, pw - 3, ph*2);
+        drawPlateRect(cx - pw*0.65, cy - ph - ph*1.2, pw*1.3, ph);
+        drawPlateRect(cx - pw*0.65, cy + ph + ph*0.2, pw*1.3, ph);
+        drawRivetInJoint(cx - 50, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx - 22, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx + 22, cy, rivetD, ph*4.4);
+        drawRivetInJoint(cx + 50, cy, rivetD, ph*4.4);
+        drawText('(staggered)', cx, cy + ph*3 + 16, { size: 9, color: '#6b7a99', weight: '600' });
+        break;
+    }
+  }
+
+  /* Draw a single rivet in a joint cross-section */
+  function drawRivetInJoint(cx, cy, d, totalH) {
+    /* Shank */
+    ctx.fillStyle = '#4fc3f7';
+    ctx.strokeStyle = '#0288d1';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(cx - d/2, cy - totalH/2 + 4, d, totalH - 8);
+    ctx.strokeRect(cx - d/2, cy - totalH/2 + 4, d, totalH - 8);
+
+    /* Top head (snap) */
+    ctx.fillStyle = '#ff7043';
+    ctx.strokeStyle = '#e64a19';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy - totalH/2 + 4, d*0.7, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    /* Bottom closing head */
+    ctx.beginPath();
+    ctx.arc(cx, cy + totalH/2 - 4, d*0.7, 0, Math.PI);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     8. JOINT TOP VIEW (rivet pattern)
+     ──────────────────────────────────────────────────────────────── */
+  function drawJointTopView(cx, cy, id) {
+    var plateW = 180, plateH = 160;
+
+    switch (id) {
+      case 'single-lap':
+        /* Plate outline */
+        drawTopPlate(cx, cy, plateW, plateH);
+        /* Single row of 3 rivets */
+        drawTopRivet(cx - 50, cy);
+        drawTopRivet(cx, cy);
+        drawTopRivet(cx + 50, cy);
+        /* Pitch dimension */
+        drawPitchDim(cx - 50, cx, cy + 30, 'p');
+        /* Margin dimension */
+        drawMarginDim(cx - plateW/2, cx - 50, cy - 45, 'm');
+        break;
+
+      case 'double-lap':
+        drawTopPlate(cx, cy, plateW, plateH);
+        /* Two rows chain pattern */
+        drawTopRivet(cx - 50, cy - 18);
+        drawTopRivet(cx, cy - 18);
+        drawTopRivet(cx + 50, cy - 18);
+        drawTopRivet(cx - 50, cy + 18);
+        drawTopRivet(cx, cy + 18);
+        drawTopRivet(cx + 50, cy + 18);
+        drawPitchDim(cx - 50, cx, cy + 50, 'p');
+        drawBackPitchDim(cx + 70, cy - 18, cy + 18, 'p\u2082');
+        break;
+
+      case 'zigzag-lap':
+        drawTopPlate(cx, cy, plateW, plateH);
+        /* Two rows zigzag pattern */
+        drawTopRivet(cx - 50, cy - 18);
+        drawTopRivet(cx, cy - 18);
+        drawTopRivet(cx + 50, cy - 18);
+        drawTopRivet(cx - 25, cy + 18);
+        drawTopRivet(cx + 25, cy + 18);
+        drawPitchDim(cx - 50, cx, cy - 48, 'p');
+        drawBackPitchDim(cx + 70, cy - 18, cy + 18, 'p\u2082');
+        /* Zigzag lines */
+        ctx.strokeStyle = 'rgba(255,112,66,0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3,3]);
+        ctx.beginPath();
+        ctx.moveTo(cx - 50, cy - 18);
+        ctx.lineTo(cx - 25, cy + 18);
+        ctx.lineTo(cx, cy - 18);
+        ctx.lineTo(cx + 25, cy + 18);
+        ctx.lineTo(cx + 50, cy - 18);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        break;
+
+      case 'single-butt-single':
+      case 'single-butt-double':
+        drawTopPlate(cx - 5, cy, plateW, plateH);
+        /* Gap line */
+        ctx.strokeStyle = '#ff7043';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath();
+        ctx.moveTo(cx - 5, cy - plateH/2 + 5);
+        ctx.lineTo(cx - 5, cy + plateH/2 - 5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        /* Single row each side */
+        drawTopRivet(cx - 45, cy - 35);
+        drawTopRivet(cx - 45, cy);
+        drawTopRivet(cx - 45, cy + 35);
+        drawTopRivet(cx + 35, cy - 35);
+        drawTopRivet(cx + 35, cy);
+        drawTopRivet(cx + 35, cy + 35);
+        drawPitchDim(cx - 45, cx - 45, cy + 55, 'p');
+        drawText('gap', cx - 5, cy + plateH/2 + 14, { size: 9, color: '#ff7043', weight: '700' });
+        break;
+
+      case 'double-butt-chain':
+        drawTopPlate(cx - 5, cy, plateW + 20, plateH);
+        ctx.strokeStyle = '#ff7043';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath();
+        ctx.moveTo(cx - 5, cy - plateH/2 + 5);
+        ctx.lineTo(cx - 5, cy + plateH/2 - 5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        /* Double row each side — chain */
+        drawTopRivet(cx - 55, cy - 30); drawTopRivet(cx - 55, cy + 5); drawTopRivet(cx - 55, cy + 40);
+        drawTopRivet(cx - 28, cy - 30); drawTopRivet(cx - 28, cy + 5); drawTopRivet(cx - 28, cy + 40);
+        drawTopRivet(cx + 18, cy - 30); drawTopRivet(cx + 18, cy + 5); drawTopRivet(cx + 18, cy + 40);
+        drawTopRivet(cx + 45, cy - 30); drawTopRivet(cx + 45, cy + 5); drawTopRivet(cx + 45, cy + 40);
+        drawPitchDim(cx - 55, cx - 55, cy + 58, 'p');
+        break;
+
+      case 'double-butt-zigzag':
+        drawTopPlate(cx - 5, cy, plateW + 20, plateH);
+        ctx.strokeStyle = '#ff7043';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath();
+        ctx.moveTo(cx - 5, cy - plateH/2 + 5);
+        ctx.lineTo(cx - 5, cy + plateH/2 - 5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        /* Double row each side — zigzag */
+        drawTopRivet(cx - 55, cy - 30); drawTopRivet(cx - 55, cy + 5); drawTopRivet(cx - 55, cy + 40);
+        drawTopRivet(cx - 28, cy - 12); drawTopRivet(cx - 28, cy + 22);
+        drawTopRivet(cx + 18, cy - 30); drawTopRivet(cx + 18, cy + 5); drawTopRivet(cx + 18, cy + 40);
+        drawTopRivet(cx + 45, cy - 12); drawTopRivet(cx + 45, cy + 22);
+        drawPitchDim(cx - 55, cx - 55, cy + 58, 'p');
+        /* zigzag connector lines */
+        ctx.strokeStyle = 'rgba(255,112,66,0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3,3]);
+        ctx.beginPath();
+        ctx.moveTo(cx - 55, cy - 30); ctx.lineTo(cx - 28, cy - 12); ctx.lineTo(cx - 55, cy + 5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        break;
+    }
+  }
+
+  function drawTopPlate(cx, cy, w, h) {
+    ctx.strokeStyle = '#78909c';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(84,110,122,0.15)';
+    ctx.fillRect(cx - w/2, cy - h/2, w, h);
+    ctx.strokeRect(cx - w/2, cy - h/2, w, h);
+  }
+
+  function drawTopRivet(x, y) {
+    ctx.fillStyle = '#ff7043';
+    ctx.strokeStyle = '#e64a19';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    /* center dot */
+    ctx.fillStyle = '#bf360c';
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawPitchDim(x1, x2, y, label) {
+    if (x1 === x2) { x2 = x1 + 50; }
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawDimArrow(x1, y, 1);
+    drawDimArrow(x2, y, -1);
+    drawText(label, (x1+x2)/2, y + 13, { size: 11, weight: '700', color: '#3ddc84', family: "'Courier New', monospace" });
+  }
+
+  function drawBackPitchDim(x, y1, y2, label) {
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(x, y1);
+    ctx.lineTo(x, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    /* vertical arrows */
+    ctx.fillStyle = '#3ddc84';
+    ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x-4, y1+6); ctx.lineTo(x+4, y1+6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x, y2); ctx.lineTo(x-4, y2-6); ctx.lineTo(x+4, y2-6); ctx.closePath(); ctx.fill();
+    drawText(label, x + 18, (y1+y2)/2, { size: 11, weight: '700', color: '#3ddc84', family: "'Courier New', monospace" });
+  }
+
+  function drawMarginDim(x1, x2, y, label) {
+    ctx.strokeStyle = '#ffb74d';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffb74d';
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1+6, y-4); ctx.lineTo(x1+6, y+4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x2, y); ctx.lineTo(x2-6, y-4); ctx.lineTo(x2-6, y+4); ctx.closePath(); ctx.fill();
+    drawText(label, (x1+x2)/2, y - 13, { size: 11, weight: '700', color: '#ffb74d', family: "'Courier New', monospace" });
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     9. MAIN DRAW FUNCTION
+     ──────────────────────────────────────────────────────────────── */
+  function draw() {
+    clear();
+    if (mode === 'learn')    { drawLearnMode(); return; }
+    if (mode === 'practice' || mode === 'quiz') { drawQuestionMode(); return; }
+    drawExploreMode();
+  }
+
+  function drawExploreMode() {
+    if (selItem.cat === 'rivet') {
+      drawExploreRivet();
+    } else {
+      drawExploreJoint();
+    }
+  }
+
+  function drawExploreRivet() {
+    drawSectionLabel('RIVET PROFILE (SIDE VIEW)', 240, 22);
+    drawSectionLabel('RIVET HEAD DIMENSIONS', 680, 22);
+
+    /* Divider */
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = '#2a3050';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(465, 30);
+    ctx.lineTo(465, H - 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Left: profile */
+    drawRivetProfile(240, 220, selItem.id, 1.6);
+
+    /* Right: same profile with dimensions */
+    drawRivetProfile(680, 220, selItem.id, 1.6);
+    drawRivetDims(680, 220, selItem.id, 1.6);
+
+    /* Name label */
+    drawText(selItem.name, 240, H - 30, { size: 15, weight: '800', color: '#ff7043' });
+  }
+
+  function drawExploreJoint() {
+    drawSectionLabel('JOINT CROSS-SECTION', 230, 22);
+    drawSectionLabel('TOP VIEW (RIVET PATTERN)', 680, 22);
+
+    /* Divider */
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = '#2a3050';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(465, 30);
+    ctx.lineTo(465, H - 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Left: cross-section */
+    drawJointSection(230, 220, selItem.id);
+
+    /* Right: top view */
+    drawJointTopView(680, 230, selItem.id);
+
+    /* Name label */
+    drawText(selItem.name, W/2, H - 20, { size: 14, weight: '800', color: '#ff7043' });
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     10. LEARN MODE
+     ──────────────────────────────────────────────────────────────── */
+  function drawLearnMode() {
+    drawSectionLabel('ANATOMY OF A RIVET & RIVETED JOINT', W/2, 22);
+
+    var cx = W/2, plateCy = 240;
+    var plateW = 200, plateH = 28;
+    var rivetD = 30, shankLen = 120;
+
+    /* Top plate */
+    var topOp = (learnPart < 0 || learnPart === 4 || learnPart === 5) ? 1 : 0.3;
+    ctx.globalAlpha = topOp;
+    drawPlateRect(cx - plateW/2, plateCy - plateH - 2, plateW, plateH);
+    ctx.globalAlpha = 1;
+
+    /* Bottom plate */
+    ctx.globalAlpha = topOp;
+    drawPlateRect(cx - plateW/2, plateCy + 2, plateW, plateH);
+    ctx.globalAlpha = 1;
+
+    /* Shank */
+    var shankOp = (learnPart === 1 || learnPart < 0) ? 1 : 0.25;
+    ctx.globalAlpha = shankOp;
+    ctx.fillStyle = '#4fc3f7';
+    ctx.strokeStyle = '#0288d1';
+    ctx.lineWidth = 2;
+    var shankX = cx - rivetD/2;
+    var shankY = plateCy - plateH - 30;
+    var totalShank = plateH*2 + 4 + 60;
+    ctx.fillRect(shankX, shankY, rivetD, totalShank);
+    ctx.strokeRect(shankX, shankY, rivetD, totalShank);
+    if (learnPart <= 1) {
+      drawText('Shank (Body)', cx + 80, plateCy, { size: 11, color: '#4fc3f7', weight: '700' });
+      drawText('diameter = d', cx + 80, plateCy + 16, { size: 9, color: 'rgba(79,195,247,0.6)', weight: '600' });
+      /* leader line */
+      ctx.strokeStyle = '#4fc3f7';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + rivetD/2 + 4, plateCy);
+      ctx.lineTo(cx + 55, plateCy);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    /* Manufactured head (top) */
+    var headOp = (learnPart === 0 || learnPart < 0) ? 1 : 0.25;
+    ctx.globalAlpha = headOp;
+    ctx.fillStyle = '#ff7043';
+    ctx.strokeStyle = '#e64a19';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, shankY, rivetD*0.8, Math.PI, 0);
+    ctx.lineTo(cx + rivetD/2, shankY);
+    ctx.lineTo(cx - rivetD/2, shankY);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    if (learnPart <= 0) {
+      drawText('Manufactured Head', cx - 90, shankY - 22, { size: 11, color: '#ff7043', weight: '700' });
+      ctx.strokeStyle = '#ff7043';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - rivetD*0.6, shankY - 10);
+      ctx.lineTo(cx - 65, shankY - 18);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    /* Tail (before heading) */
+    var tailOp = (learnPart === 2 || learnPart < 0) ? 1 : 0.25;
+    ctx.globalAlpha = tailOp;
+    var tailTop = plateCy + plateH + 2;
+    var tailBot = shankY + totalShank;
+    ctx.fillStyle = '#ffb74d';
+    ctx.strokeStyle = '#f57c00';
+    ctx.lineWidth = 2;
+    ctx.fillRect(cx - rivetD/2, tailTop, rivetD, tailBot - tailTop);
+    ctx.strokeRect(cx - rivetD/2, tailTop, rivetD, tailBot - tailTop);
+    if (learnPart <= 2) {
+      drawText('Tail', cx + 75, (tailTop + tailBot)/2, { size: 11, color: '#ffb74d', weight: '700' });
+      drawText('(≈ 1.5d)', cx + 75, (tailTop + tailBot)/2 + 15, { size: 9, color: 'rgba(255,183,77,0.6)', weight: '600' });
+      ctx.strokeStyle = '#ffb74d';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + rivetD/2 + 4, (tailTop + tailBot)/2);
+      ctx.lineTo(cx + 52, (tailTop + tailBot)/2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    /* Closing head (bottom) */
+    var closeOp = (learnPart === 3 || learnPart < 0) ? 1 : 0.25;
+    ctx.globalAlpha = closeOp;
+    ctx.fillStyle = '#e91e63';
+    ctx.strokeStyle = '#c2185b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, tailBot, rivetD*0.8, 0, Math.PI);
+    ctx.lineTo(cx - rivetD/2, tailBot);
+    ctx.lineTo(cx + rivetD/2, tailBot);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    if (learnPart <= 3) {
+      drawText('Closing Head', cx - 90, tailBot + 18, { size: 11, color: '#e91e63', weight: '700' });
+      drawText('(formed during riveting)', cx - 90, tailBot + 33, { size: 9, color: 'rgba(233,30,99,0.6)', weight: '600' });
+      ctx.strokeStyle = '#e91e63';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - rivetD*0.6, tailBot + 8);
+      ctx.lineTo(cx - 60, tailBot + 14);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    /* Grip length */
+    var gripOp = (learnPart === 4 || learnPart < 0) ? 1 : 0.25;
+    ctx.globalAlpha = gripOp;
+    var gripTop = plateCy - plateH - 2;
+    var gripBot = plateCy + plateH + 2;
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    ctx.moveTo(cx + plateW/2 + 30, gripTop);
+    ctx.lineTo(cx + plateW/2 + 30, gripBot);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#3ddc84';
+    ctx.beginPath(); ctx.moveTo(cx + plateW/2 + 30, gripTop); ctx.lineTo(cx + plateW/2 + 26, gripTop + 6); ctx.lineTo(cx + plateW/2 + 34, gripTop + 6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + plateW/2 + 30, gripBot); ctx.lineTo(cx + plateW/2 + 26, gripBot - 6); ctx.lineTo(cx + plateW/2 + 34, gripBot - 6); ctx.closePath(); ctx.fill();
+    if (learnPart <= 4) {
+      drawText('Grip', cx + plateW/2 + 55, plateCy - 6, { size: 11, color: '#3ddc84', weight: '700' });
+      drawText('Length', cx + plateW/2 + 55, plateCy + 9, { size: 11, color: '#3ddc84', weight: '700' });
+    }
+    ctx.globalAlpha = 1;
+
+    /* Hole clearance */
+    var holeOp = (learnPart === 5 || learnPart < 0) ? 1 : 0.25;
+    ctx.globalAlpha = holeOp;
+    if (learnPart === 5 || learnPart < 0) {
+      /* Highlight the clearance gap */
+      ctx.strokeStyle = '#a78bfa';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([2,3]);
+      /* left gap */
+      ctx.beginPath();
+      ctx.moveTo(cx - rivetD/2 - 4, plateCy - plateH);
+      ctx.lineTo(cx - rivetD/2 - 4, plateCy + plateH + 2);
+      ctx.stroke();
+      /* right gap */
+      ctx.beginPath();
+      ctx.moveTo(cx + rivetD/2 + 4, plateCy - plateH);
+      ctx.lineTo(cx + rivetD/2 + 4, plateCy + plateH + 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (learnPart <= 5) {
+      drawText('Hole Clearance', cx - 110, plateCy + plateH + 25, { size: 11, color: '#a78bfa', weight: '700' });
+      drawText('(≈ 1.5 mm gap)', cx - 110, plateCy + plateH + 40, { size: 9, color: 'rgba(167,139,250,0.6)', weight: '600' });
+    }
+    ctx.globalAlpha = 1;
+
+    /* Bottom instruction */
+    drawText('Click the parts list below to highlight each element', W/2, H - 20, { size: 10, color: '#6b7a99', weight: '600' });
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     11. QUESTION MODE (Practice / Quiz)
+     ──────────────────────────────────────────────────────────────── */
+  function drawQuestionMode() {
+    var qItem = mode === 'quiz' ? (quizSet[quizIdx] || ALL_ITEMS[0]) : (pCurrent || ALL_ITEMS[0]);
+
+    if (qItem.cat === 'rivet') {
+      drawSectionLabel('IDENTIFY THIS RIVET HEAD TYPE', W/2, 22);
+      drawRivetProfile(W/2, 240, qItem.id, 2.2);
+      drawText('?', W/2, 400, { size: 42, weight: '900', color: 'rgba(255,112,66,0.25)' });
+    } else {
+      drawSectionLabel('IDENTIFY THIS RIVETED JOINT', W/2, 22);
+      /* Draw cross-section centered */
+      drawJointSection(W/2 - 120, 220, qItem.id);
+      /* Draw top view on right */
+      drawJointTopView(W/2 + 160, 230, qItem.id);
+      drawText('?', W/2, 420, { size: 42, weight: '900', color: 'rgba(255,112,66,0.25)' });
+    }
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     12. UI — ITEM SELECTOR GRID
+     ──────────────────────────────────────────────────────────────── */
+  function buildItemGrid() {
+    var grid = document.getElementById('is-grid');
+    grid.innerHTML = '';
+
+    var items;
+    if (selCat === 'rivet') {
+      items = RIVET_TYPES;
+    } else {
+      items = JOINT_TYPES.filter(function (j) { return j.subcat === selSubcat; });
+    }
+
+    items.forEach(function (item) {
+      var b = document.createElement('button');
+      b.className = 'is-btn' + (item.id === selItem.id ? ' active' : '');
+      b.dataset.id = item.id;
+      var sub = item.cat === 'joint' ? JOINT_SUBCATS[item.subcat] : '';
+      b.innerHTML = '<span class="is-btn-name">' + item.name + '</span>' + (sub ? '<span class="is-btn-sub">' + sub + '</span>' : '');
+      b.addEventListener('click', function () {
+        selItem = item;
+        buildItemGrid();
+        updateInfo();
+        draw();
+      });
+      grid.appendChild(b);
+    });
+  }
+
+  /* Sub-category tabs (Lap / Butt) for joints */
+  function buildSubcatTabs() {
+    var container = document.getElementById('subcat-tabs');
+    if (!container) return;
+    if (selCat === 'rivet') {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = '';
+    container.querySelectorAll('.pill').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.value === selSubcat);
+    });
+  }
+
+  /* Category tabs (Rivet Types / Joint Types) */
+  document.getElementById('cat-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    selCat = e.target.dataset.value;
+    document.querySelectorAll('#cat-tabs .pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    /* select first item in category */
+    if (selCat === 'rivet') {
+      selItem = RIVET_TYPES[0];
+    } else {
+      selItem = JOINT_TYPES.filter(function (j) { return j.subcat === selSubcat; })[0] || JOINT_TYPES[0];
+    }
+    buildSubcatTabs();
+    buildItemGrid();
+    updateInfo();
+    draw();
+  });
+
+  /* Joint subcat tabs */
+  var subcatEl = document.getElementById('subcat-tabs');
+  if (subcatEl) {
+    subcatEl.addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      selSubcat = e.target.dataset.value;
+      subcatEl.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+      selItem = JOINT_TYPES.filter(function (j) { return j.subcat === selSubcat; })[0] || JOINT_TYPES[0];
+      buildItemGrid();
+      updateInfo();
+      draw();
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     13. UI — INFO CARD
+     ──────────────────────────────────────────────────────────────── */
+  function updateInfo() {
+    document.getElementById('ii-name').textContent = selItem.name;
+    var catLabel = selItem.cat === 'rivet' ? 'Rivet Head Type' : JOINT_SUBCATS[selItem.subcat] || 'Joint Type';
+    document.getElementById('ii-cat').textContent = catLabel;
+    document.getElementById('ii-desc').textContent = selItem.desc;
+    document.getElementById('ii-apps').textContent = selItem.apps;
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     14. MODE SWITCHING
+     ──────────────────────────────────────────────────────────────── */
+  document.getElementById('mode-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    var m = e.target.dataset.value;
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    switchMode(m);
+  });
+
+  function switchMode(m) {
+    mode = m;
+
+    elCategoryRow.style.display    = (m === 'explore') ? '' : 'none';
+    elItemSelector.style.display   = (m === 'explore') ? '' : 'none';
+    elItemInfo.style.display       = (m === 'explore') ? '' : 'none';
+    elLearnInfo.style.display      = (m === 'learn')   ? '' : 'none';
+    elPracticePanel.style.display  = (m === 'practice') ? '' : 'none';
+    elPracticeBar.style.display    = (m === 'practice') ? '' : 'none';
+    elQuizPanel.style.display      = (m === 'quiz')    ? '' : 'none';
+    elQuizBar.style.display        = (m === 'quiz')    ? '' : 'none';
+    elQuizResult.style.display     = 'none';
+
+    if (m === 'learn') {
+      learnPart = -1;
+      buildLearnParts();
+    }
+    if (m === 'practice') { pScore = 0; pTotal = 0; pLocked = false; updatePracticeScore(); newPracticeQ(); }
+    if (m === 'quiz') { startQuiz(); }
+    draw();
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     15. LEARN MODE — parts list interaction
+     ──────────────────────────────────────────────────────────────── */
+  function buildLearnParts() {
+    var container = document.getElementById('learn-parts');
+    container.innerHTML = '';
+
+    var allBtn = document.createElement('div');
+    allBtn.className = 'learn-part' + (learnPart < 0 ? ' active' : '');
+    allBtn.innerHTML = '<div class="learn-dot" style="background:#dde3f0"></div><div><div class="learn-part-name">Show All Parts</div><div class="learn-part-desc">Display the complete rivet assembly with all elements visible</div></div>';
+    allBtn.addEventListener('click', function () { learnPart = -1; buildLearnParts(); draw(); });
+    container.appendChild(allBtn);
+
+    LEARN_PARTS.forEach(function (p, i) {
+      var el = document.createElement('div');
+      el.className = 'learn-part' + (learnPart === i ? ' active' : '');
+      el.innerHTML = '<div class="learn-dot" style="background:' + p.color + '"></div><div><div class="learn-part-name">' + p.name + '</div><div class="learn-part-desc">' + p.desc + '</div></div>';
+      el.addEventListener('click', function () { learnPart = i; buildLearnParts(); draw(); });
+      container.appendChild(el);
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     16. PRACTICE MODE
+     ──────────────────────────────────────────────────────────────── */
+  function newPracticeQ() {
+    pLocked = false;
+    pCurrent = ALL_ITEMS[Math.floor(Math.random() * ALL_ITEMS.length)];
+    buildAnswerBtns('practice-answers', pCurrent, function (chosen) {
+      if (pLocked) return;
+      pLocked = true;
+      pTotal++;
+      var correct = (chosen === pCurrent.id);
+      if (correct) pScore++;
+      markAnswers('practice-answers', pCurrent.id, chosen);
+      updatePracticeScore();
+      document.getElementById('p-feedback').textContent = correct ? 'Correct!' : 'Wrong — ' + pCurrent.name;
+      document.getElementById('p-feedback').className = 'feedback ' + (correct ? 'ok' : 'err');
+    });
+    document.getElementById('p-feedback').textContent = '';
+    draw();
+  }
+
+  function updatePracticeScore() {
+    document.getElementById('p-score').textContent = pScore;
+    document.getElementById('p-total').textContent = pTotal;
+  }
+
+  document.getElementById('btn-p-new').addEventListener('click', newPracticeQ);
+
+  /* ────────────────────────────────────────────────────────────────
+     17. QUIZ MODE
+     ──────────────────────────────────────────────────────────────── */
+  function startQuiz() {
+    quizScore = 0; quizIdx = 0; quizLocked = false; quizAnswers = [];
+    elQuizResult.style.display = 'none';
+    elQuizPanel.style.display = '';
+    elQuizBar.style.display = '';
+    var pool = ALL_ITEMS.slice();
+    shuffle(pool);
+    quizSet = pool.slice(0, QUIZ_SIZE);
+    showQuizQ();
+  }
+
+  function showQuizQ() {
+    quizLocked = false;
+    document.getElementById('quiz-q-num').textContent = quizIdx + 1;
+    document.getElementById('quiz-q-total').textContent = QUIZ_SIZE;
+    document.getElementById('quiz-feedback').textContent = '';
+    document.getElementById('btn-quiz-next').style.display = 'none';
+
+    buildAnswerBtns('quiz-answers', quizSet[quizIdx], function (chosen) {
+      if (quizLocked) return;
+      quizLocked = true;
+      var correct = (chosen === quizSet[quizIdx].id);
+      if (correct) quizScore++;
+      quizAnswers.push({ item: quizSet[quizIdx], given: chosen, ok: correct });
+      markAnswers('quiz-answers', quizSet[quizIdx].id, chosen);
+      var fb = document.getElementById('quiz-feedback');
+      fb.textContent = correct ? 'Correct!' : 'Incorrect — ' + quizSet[quizIdx].name;
+      fb.className = 'quiz-feedback ' + (correct ? 'ok' : 'err');
+      document.getElementById('btn-quiz-next').style.display = '';
+    });
+    draw();
+  }
+
+  document.getElementById('btn-quiz-next').addEventListener('click', function () {
+    quizIdx++;
+    if (quizIdx >= QUIZ_SIZE) { showQuizResult(); return; }
+    showQuizQ();
+    draw();
+  });
+
+  function showQuizResult() {
+    elQuizPanel.style.display = 'none';
+    elQuizBar.style.display = 'none';
+    elQuizResult.style.display = '';
+
+    var pct = quizScore / QUIZ_SIZE;
+    var stars = pct >= 1 ? '\u2605\u2605\u2605' : pct >= 0.6 ? '\u2605\u2605\u2606' : '\u2605\u2606\u2606';
+    var cls   = pct >= 1 ? 'perfect' : pct >= 0.6 ? 'good' : 'poor';
+    var verdict = pct >= 1 ? 'Perfect score!' : pct >= 0.6 ? 'Good job \u2014 keep practising!' : 'Keep learning \u2014 you\'ll get there!';
+
+    document.getElementById('qr-stars').textContent = stars;
+    var scoreEl = document.getElementById('qr-score');
+    scoreEl.textContent = quizScore + ' / ' + QUIZ_SIZE;
+    scoreEl.className = 'qr-score ' + cls;
+    document.getElementById('qr-verdict').textContent = verdict;
+
+    var rows = document.getElementById('qr-rows');
+    rows.innerHTML = '';
+    quizAnswers.forEach(function (a, i) {
+      var givenName = a.ok ? a.item.name : (findItem(a.given) || { name: a.given }).name;
+      var row = document.createElement('div');
+      row.className = 'qr-row ' + (a.ok ? 'ok' : 'err');
+      row.innerHTML = '<div class="qr-qnum">Q' + (i+1) + '</div>' +
+        '<div class="qr-correct">Correct: <strong>' + a.item.name + '</strong></div>' +
+        '<div class="qr-given">Given: <strong>' + givenName + '</strong></div>' +
+        '<div class="qr-mark">' + (a.ok ? '\u2713' : '\u2717') + '</div>';
+      rows.appendChild(row);
+    });
+  }
+
+  document.getElementById('btn-quiz-retry').addEventListener('click', function () {
+    startQuiz();
+    draw();
+  });
+
+  /* ────────────────────────────────────────────────────────────────
+     18. ANSWER BUTTON HELPERS
+     ──────────────────────────────────────────────────────────────── */
+  function buildAnswerBtns(containerId, correctItem, onPick) {
+    var container = document.getElementById(containerId);
+    container.innerHTML = '';
+    var options = [correctItem];
+    /* Pick 3 wrong from same category if possible, else from all */
+    var sameCat = ALL_ITEMS.filter(function (it) { return it.id !== correctItem.id && it.cat === correctItem.cat; });
+    var diffCat = ALL_ITEMS.filter(function (it) { return it.id !== correctItem.id && it.cat !== correctItem.cat; });
+    shuffle(sameCat);
+    shuffle(diffCat);
+    var pool = sameCat.concat(diffCat);
+    for (var i = 0; i < 3 && i < pool.length; i++) options.push(pool[i]);
+    shuffle(options);
+
+    options.forEach(function (it) {
+      var btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = it.name;
+      btn.dataset.id = it.id;
+      btn.addEventListener('click', function () { onPick(it.id); });
+      container.appendChild(btn);
+    });
+  }
+
+  function markAnswers(containerId, correctId, chosenId) {
+    var btns = document.getElementById(containerId).querySelectorAll('.answer-btn');
+    btns.forEach(function (b) {
+      b.classList.add('locked');
+      if (b.dataset.id === correctId) b.classList.add('correct');
+      else if (b.dataset.id === chosenId) b.classList.add('wrong');
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     19. UTILITIES
+     ──────────────────────────────────────────────────────────────── */
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function findItem(id) {
+    for (var i = 0; i < ALL_ITEMS.length; i++) { if (ALL_ITEMS[i].id === id) return ALL_ITEMS[i]; }
+    return null;
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     20. INIT
+     ──────────────────────────────────────────────────────────────── */
+  buildSubcatTabs();
+  buildItemGrid();
+  updateInfo();
+  fitCanvas();
+  draw();
+
+  /* Refit the backing store and repaint when the card width changes. */
+  window.addEventListener('resize', function () { fitCanvas(); draw(); });
+
+})();

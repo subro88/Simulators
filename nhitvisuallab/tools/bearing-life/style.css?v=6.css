@@ -1,0 +1,548 @@
+/* ── Bearing Life Simulator ──────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b27;
+  --surface2:  #1f2535;
+  --border:    #2a3050;
+  --accent:    #42a5f5;
+  --accent-lo: rgba(66,165,245,.22);
+  --green:     #3ddc84;
+  --red:       #ff5555;
+  --gold:      #f5c842;
+  --text:      #dde3f0;
+  --text-dim:  #8b9dc3;
+  --font:      'Segoe UI', system-ui, sans-serif;
+  --mono:      'Courier New', monospace;
+  --radius:    12px;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; padding: 0 16px; }
+#app { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Header ────────────────────────────────────────────────────── */
+header { text-align: center; padding: 4px 0; }
+header h1 {
+  font-size: 1.8rem; font-weight: 700;
+  background: linear-gradient(120deg, #42a5f5 0%, #90caf9 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { color: var(--text-dim); font-size: 0.85rem; margin-top: 3px; }
+
+/* ── Controls bar ──────────────────────────────────────────────── */
+.controls-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.ctrl-group { display: flex; align-items: center; gap: 8px; }
+.ctrl-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); white-space: nowrap; }
+
+/* ── Pill tabs ─────────────────────────────────────────────────── */
+.pill-tabs { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 2px; }
+.pill {
+  padding: 7px 13px; min-height: 36px; border: none; background: transparent; color: var(--text-dim);
+  border-radius: 6px; cursor: pointer; font-size: 0.81rem;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pill.active { background: var(--accent); color: #fff; box-shadow: 0 0 12px var(--accent-lo); }
+.pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+/* ── Canvas card ───────────────────────────────────────────────── */
+.canvas-card {
+  width: 100%; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px; position: relative; overflow-x: clip;
+}
+.canvas-card canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-action: pan-y; }
+
+/* ── Readout badges (inside canvas-card) ───────────────────────── */
+.readout-badges {
+  display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 4px 2px;
+}
+.readout-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 20px;
+  padding: 4px 12px;
+}
+.rb-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.rb-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.rb-val { font-family: var(--mono); font-size: 0.82rem; font-weight: 700; color: var(--text); }
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+.btn {
+  padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 0.84rem; font-weight: 600; transition: filter .18s, box-shadow .18s, opacity .18s;
+}
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:not(:disabled):hover { filter: brightness(1.12); box-shadow: 0 0 12px var(--accent-lo); }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--border); }
+
+/* ── Sim controls ─────────────────────────────────────────────── */
+.sim-controls {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 18px; display: flex; flex-direction: column; gap: 12px;
+}
+.sim-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.sim-slider-group { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 200px; }
+.sim-slider-label { font-size: 0.76rem; font-weight: 700; color: var(--text-dim); white-space: nowrap; min-width: 90px; }
+.sim-slider {
+  flex: 1; -webkit-appearance: none; appearance: none; height: 6px;
+  background: var(--surface2); border-radius: 3px; outline: none;
+}
+.sim-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+  box-shadow: 0 0 8px var(--accent-lo);
+}
+.sim-slider::-moz-range-thumb {
+  width: 22px; height: 22px; border: none;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+}
+.sim-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.sim-slider-val {
+  font-family: var(--mono); font-size: 0.9rem; font-weight: 700;
+  color: var(--accent); min-width: 75px; text-align: right;
+}
+
+/* ── Stepper inputs ────────────────────────────────────────────── */
+.stepper {
+  display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+}
+.stepper-btn {
+  width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: 1rem; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s; padding: 0; line-height: 1;
+}
+.stepper-btn:hover { background: var(--border); border-color: var(--accent); }
+.stepper-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stepper-input {
+  width: 58px; text-align: center;
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--accent); font-family: var(--mono);
+  font-size: 0.88rem; font-weight: 700; -moz-appearance: textfield;
+}
+.stepper-input::-webkit-inner-spin-button,
+.stepper-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper-input:focus { outline: none; border-color: var(--accent); }
+.stepper-unit {
+  font-size: 0.72rem; font-weight: 700; color: var(--text-dim);
+  margin-left: 4px; white-space: nowrap;
+}
+
+/* ── Disabled slider group (radial-only bearings) ──────────────── */
+.sim-slider-group.grp-disabled {
+  opacity: 0.35; pointer-events: none;
+}
+
+/* ── Preset buttons ────────────────────────────────────────────── */
+.preset-btns {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.preset-btn {
+  padding: 5px 11px; min-height: 30px; border: 1px solid var(--border); border-radius: 20px;
+  background: var(--surface2); color: var(--text-dim); font-size: 0.76rem;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: border-color .18s, color .18s, background .18s;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-lo); }
+.preset-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-lo); }
+.preset-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Results table ─────────────────────────────────────────────── */
+.results-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden;
+}
+.results-table thead tr {
+  background: var(--surface2);
+}
+.results-table th {
+  padding: 8px 14px; font-size: 0.65rem; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-dim); font-weight: 700;
+  text-align: left; border-bottom: 1px solid var(--border);
+}
+.results-table th:nth-child(2),
+.results-table th:nth-child(3) { text-align: right; }
+
+.results-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.results-table tbody tr:last-child { border-bottom: none; }
+.results-table tbody tr:hover { background: var(--surface2); }
+.results-table tbody td {
+  padding: 9px 14px; font-size: 0.84rem; color: var(--text-dim);
+}
+.results-table tbody td:nth-child(2),
+.results-table tbody td:nth-child(3) { text-align: right; }
+.rt-val {
+  font-family: var(--mono); font-size: 1rem; font-weight: 700; color: var(--text);
+}
+.rt-unit { font-size: 0.72rem; color: var(--text-dim); }
+.rt-accent { color: var(--accent); }
+.rt-green  { color: var(--green); }
+.rt-gold   { color: var(--gold); }
+
+/* Warn row for minimum load */
+.results-table tbody tr.rt-warn td { background: rgba(255,85,85,.08); }
+.results-table tbody tr.rt-warn .rt-val { color: var(--red); }
+
+.results-table tfoot td {
+  padding: 10px 14px; text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+/* Show Me Calculations button */
+.show-calc-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 22px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 0.85rem; font-weight: 700;
+  background: linear-gradient(120deg, var(--accent) 0%, #90caf9 100%);
+  color: #fff;
+  box-shadow: 0 0 16px var(--accent-lo);
+  transition: filter .18s, box-shadow .18s, transform .12s;
+}
+.show-calc-btn:hover  { filter: brightness(1.12); transform: translateY(-1px); }
+.show-calc-btn:active { transform: translateY(0); }
+.show-calc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ── Calculation modal ─────────────────────────────────────────── */
+.calc-modal {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
+  align-items: flex-start; justify-content: center;
+  padding: 24px 16px; overflow-y: auto;
+}
+.calc-modal.active { display: flex; }
+
+.calc-modal-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  width: 100%; max-width: 680px; display: flex; flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+  max-height: calc(100vh - 48px); overflow: hidden;
+}
+.calc-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--surface2); flex-shrink: 0;
+}
+.calc-modal-title {
+  font-size: 1rem; font-weight: 800; color: var(--text);
+}
+.calc-modal-close {
+  width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text-dim); font-size: 1.3rem; font-weight: 400;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  line-height: 1; padding: 0;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.calc-modal-close:hover { border-color: var(--accent); color: var(--text); background: var(--surface2); }
+.calc-modal-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.calc-modal-body {
+  padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ── Inputs summary ─────────────────────────────────────────────── */
+.cs-inputs {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.cs-badge-type {
+  display: inline-block; padding: 3px 12px; border-radius: 20px;
+  background: var(--accent-lo); color: var(--accent);
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+}
+.cs-given {
+  display: flex; flex-wrap: wrap; gap: 6px 16px;
+}
+.cs-given span {
+  font-family: var(--mono); font-size: 0.82rem; color: var(--text);
+}
+.cs-si-note {
+  font-size: 0.72rem; color: var(--text-dim); margin: 0;
+}
+
+/* ── Calculation step ────────────────────────────────────────────── */
+.cs-step {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.cs-step-hd {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.cs-num {
+  font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent); white-space: nowrap;
+  background: var(--accent-lo); padding: 2px 8px; border-radius: 20px;
+}
+.cs-title {
+  font-size: 0.88rem; font-weight: 700; color: var(--text);
+}
+.cs-formula {
+  font-family: var(--mono); font-size: 0.82rem; color: var(--text-dim);
+  background: var(--surface2); border-radius: 6px; padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+}
+.cs-calc {
+  font-family: var(--mono); font-size: 0.8rem; color: var(--text);
+  white-space: pre-wrap; line-height: 1.7;
+}
+.cs-result {
+  font-size: 0.88rem; color: var(--text-dim); margin-top: 2px;
+}
+.cs-result strong {
+  font-family: var(--mono); font-size: 0.95rem; color: var(--green);
+}
+
+/* ── Responsive (modal) ──────────────────────────────────────────── */
+@media (max-width: 500px) {
+  .calc-modal-box { max-height: calc(100vh - 24px); }
+  .calc-modal { padding: 12px 8px; }
+  .calc-modal-body { padding: 12px 12px; }
+  .cs-step { padding: 10px 10px; }
+}
+
+/* ── Explore mode ──────────────────────────────────────────────── */
+.item-selector {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.is-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 8px; margin-top: 10px; }
+.is-btn {
+  padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+  background: var(--surface2); color: var(--text-dim); font-size: 0.82rem;
+  font-weight: 600; cursor: pointer; text-align: left;
+  transition: border-color .18s, color .18s, background .18s, box-shadow .18s;
+}
+.is-btn:hover { border-color: rgba(66,165,245,.45); color: var(--text); }
+.is-btn.active { border-color: var(--accent); color: #fff; background: rgba(66,165,245,.15); box-shadow: 0 0 14px var(--accent-lo); }
+.is-btn-name { display: block; font-size: 0.82rem; font-weight: 700; }
+.is-btn-sym  { display: block; font-size: 0.68rem; color: var(--accent); margin-top: 2px; font-family: var(--mono); }
+
+.item-info {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
+}
+.ii-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ii-name { font-size: 1.15rem; font-weight: 800; color: var(--text); }
+.ii-cat-badge {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; padding: 3px 10px; border-radius: 20px;
+  background: var(--accent-lo); color: var(--accent);
+}
+.ii-desc { font-size: 0.85rem; color: var(--text-dim); line-height: 1.65; }
+
+/* Formula box */
+.formula-box {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.fb-formula { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.fb-unit { font-size: 0.78rem; color: var(--text-dim); }
+
+/* Example calculation */
+.example-box {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px;
+}
+.example-box h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 8px; }
+.example-box .ex-problem { font-size: 0.84rem; color: var(--text); margin-bottom: 8px; line-height: 1.6; }
+.example-box .ex-step { font-size: 0.8rem; color: var(--text-dim); line-height: 1.6; padding: 2px 0; }
+.example-box .ex-step strong { color: var(--green); font-family: var(--mono); }
+
+/* ── Practice mode ─────────────────────────────────────────────── */
+.practice-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.pp-prompt { font-size: 0.92rem; font-weight: 600; color: var(--text); margin-bottom: 14px; line-height: 1.6; }
+.pp-input-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pp-input {
+  flex: 1; min-width: 120px; max-width: 220px;
+  padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-family: var(--mono);
+  font-size: 1rem; font-weight: 700; transition: border-color .18s;
+}
+.pp-input:focus { outline: none; border-color: var(--accent); }
+.pp-unit { font-size: 0.88rem; color: var(--text-dim); font-weight: 600; }
+.pp-bottom { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.feedback { font-size: 0.88rem; font-weight: 600; }
+.feedback.ok  { color: var(--green); }
+.feedback.err { color: var(--red); }
+
+.solution-panel {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; margin-top: 12px;
+}
+.solution-panel h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 8px; }
+.sol-step { font-size: 0.82rem; color: var(--text-dim); line-height: 1.7; padding: 2px 0; }
+.sol-step strong { color: var(--green); font-family: var(--mono); }
+
+.practice-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.pbar-score { font-size: 0.84rem; color: var(--text-dim); margin-left: auto; white-space: nowrap; }
+.pbar-score span { color: var(--text); font-weight: 700; }
+
+/* ── Quiz panels ───────────────────────────────────────────────── */
+.question-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.qp-prompt { font-size: 0.88rem; font-weight: 600; color: var(--text); margin-bottom: 12px; line-height: 1.6; }
+.answer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.answer-btn {
+  padding: 14px 16px; border: 2px solid var(--border); border-radius: 10px;
+  background: var(--surface2); color: var(--text); font-size: 0.88rem;
+  font-weight: 600; cursor: pointer; text-align: center;
+  transition: border-color .18s, background .18s, color .18s, transform .12s;
+}
+.answer-btn:hover:not(.locked) { border-color: var(--accent); background: rgba(66,165,245,.06); }
+.answer-btn.correct { border-color: var(--green); background: rgba(61,220,132,.12); color: var(--green); }
+.answer-btn.wrong { border-color: var(--red); background: rgba(255,85,85,.08); color: var(--red); }
+.answer-btn.locked { cursor: default; opacity: 0.6; }
+.answer-btn.correct.locked { opacity: 1; }
+.answer-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.quiz-input-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.qi-input {
+  flex: 1; min-width: 120px; max-width: 200px;
+  padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-family: var(--mono);
+  font-size: 1rem; font-weight: 700; transition: border-color .18s;
+}
+.qi-input:focus { outline: none; border-color: var(--accent); }
+.qi-unit { font-size: 0.84rem; color: var(--text-dim); font-weight: 600; }
+
+.quiz-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.qbar-counter { display: flex; align-items: baseline; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
+.qbar-q-label { font-size: 0.7rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.qbar-q-num { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--text); line-height: 1; }
+.qbar-q-sep { font-size: 0.82rem; color: var(--text-dim); }
+.qbar-q-total { font-family: var(--mono); font-size: 0.88rem; color: var(--text-dim); }
+.quiz-feedback { font-size: 0.88rem; font-weight: 600; }
+.quiz-feedback.ok  { color: var(--green); }
+.quiz-feedback.err { color: var(--red); }
+
+/* Quiz result */
+.quiz-result {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.qr-header { display: flex; align-items: flex-start; justify-content: space-between; }
+.qr-title-wrap { display: flex; flex-direction: column; gap: 5px; }
+.qr-title  { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.qr-stars  { font-size: 1.2rem; letter-spacing: 3px; }
+.qr-score-wrap { text-align: right; }
+.qr-score { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; line-height: 1; text-shadow: 0 0 14px currentColor; }
+.qr-score.perfect { color: var(--gold); }
+.qr-score.good { color: var(--green); }
+.qr-score.poor { color: var(--red); }
+.qr-verdict { font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; }
+.qr-rows { display: flex; flex-direction: column; gap: 7px; }
+.qr-row {
+  display: grid; grid-template-columns: 30px 1fr 26px; align-items: center; gap: 10px;
+  background: var(--surface2); border: 1px solid var(--border); border-left-width: 3px;
+  border-radius: 8px; padding: 9px 12px;
+}
+.qr-row.ok  { border-left-color: var(--green); }
+.qr-row.err { border-left-color: var(--red); }
+.qr-qnum { font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+.qr-detail { font-size: 0.78rem; color: var(--text-dim); }
+.qr-detail strong { color: var(--text); }
+.qr-mark { text-align: right; font-size: 1rem; font-weight: 700; }
+.qr-row.ok .qr-mark { color: var(--green); }
+.qr-row.err .qr-mark { color: var(--red); }
+
+/* ── SEO article ───────────────────────────────────────────────── */
+.seo-article { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; line-height: 1.75; }
+.seo-article h2 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+.seo-article h3 { font-size: 1rem; font-weight: 700; color: var(--accent); margin: 16px 0 6px; }
+.seo-article p { font-size: 0.88rem; color: var(--text-dim); margin-bottom: 10px; }
+.seo-article a { color: var(--accent); }
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .answer-grid { grid-template-columns: 1fr 1fr; }
+  .is-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .controls-bar { gap: 10px; }
+  .sim-slider-group { min-width: 160px; }
+}
+@media (max-width: 500px) {
+  header h1 { font-size: 1.4rem; }
+  .subtitle  { font-size: 0.78rem; }
+  .controls-bar { padding: 10px 12px; gap: 8px; }
+  .pill { padding: 5px 10px; font-size: 0.76rem; }
+  .answer-grid { grid-template-columns: 1fr; }
+  .is-grid { grid-template-columns: 1fr 1fr; }
+  .sim-slider-group { min-width: 100%; }
+  .results-table th, .results-table tbody td { padding: 7px 10px; font-size: 0.78rem; }
+  .rt-val { font-size: 0.9rem; }
+}
+
+/* INTERLINK-START  header quick-links */
+.head-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;}
+.btn-link{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;cursor:pointer;background:var(--surface2,#1f2535);color:var(--text,#dde3f0);border:1.5px solid var(--border,#2a3050);white-space:nowrap;transition:border-color .18s,background .18s,color .18s;}
+.btn-link:hover{border-color:var(--accent,#4fc3f7);background:var(--accent-lo,rgba(79,195,247,.18));color:#fff;}
+.btn-link img{width:20px;height:20px;border-radius:4px;flex:none;}
+.btn-link .lbl{line-height:1;}
+@media(max-width:560px){.btn-link .lbl{display:none;}.btn-link{padding:5px 9px;}}
+/* INTERLINK-END */
+
+
+/* ── Mobile overflow guard (Phase 1) ───────────────────────────────
+   At phone width these pages scrolled sideways. Two flexbox defaults cause
+   nearly all of it: a control row set to nowrap, and a flex item's
+   min-width:auto, which refuses to shrink below its content (in a column
+   container the item also sizes to content on the cross axis, hence the
+   max-width). Nothing is hidden — rows wrap and children shrink. */
+@media (max-width: 560px) {
+  .ctrl-group, .pill-tabs, .preset-row, .ctrl-top-row, .sim-slider-group,
+  .sim-row, .btn-row, .head-actions, .sim-controls,
+  .sim-left, .sim-right, .sim-row-combo .preset-row { flex-wrap: wrap; }
+
+  .ctrl-group, .preset-row, .ctrl-top-row, .sim-slider-group, .sim-row,
+  .btn-row, .sim-left, .sim-right, .pill-tabs, .preset-chips
+    { min-width: 0; max-width: 100%; }
+
+  .sim-select, select, .stepper, .sim-slider-val, .sim-stepper-unit,
+  input[type="number"], input[type="text"] { max-width: 100%; min-width: 0; }
+  .stepper { flex-shrink: 1; }
+}
+
+
+/* Mobile: enlarge the slider touch target without moving the visuals.
+   The visible track is the input's own background, so transparent vertical
+   padding plus background-clip:content-box keeps the bar exactly where it was
+   while growing the hit box. Measured on beam-bending: the effective touch
+   band goes from 18px to 30px, clearing the WCAG 2.5.8 minimum of 24px.
+   box-sizing must be content-box because the global reset sets border-box. */
+@media (max-width: 720px) {
+  .sim-slider {
+    box-sizing: content-box;
+    padding: 12px 0;
+    background-clip: content-box;
+  }
+}

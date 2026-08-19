@@ -1,0 +1,770 @@
+/* Stefan-Boltzmann Radiation Simulator — MechSimulator
+   P = ε · σ · A · T⁴   (W)         σ = 5.67×10⁻⁸ W/(m²·K⁴)
+   P_net = ε·σ·A·(T⁴ − T_amb⁴)
+   Wien:   λ_peak (μm) = 2898 / T(K)
+*/
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var SIGMA = 5.670374419e-8;
+
+  var PRESETS = [
+    { key: 'human',  name: 'Human Body',           T: 310,  eps: 0.98, A: 18000, tamb: 295 },   /* ~1.8 m² */
+    { key: 'iron',   name: 'Hot Iron Rod',         T: 1000, eps: 0.85, A: 100,   tamb: 295 },
+    { key: 'lava',   name: 'Lava',                 T: 1500, eps: 0.95, A: 200,   tamb: 295 },
+    { key: 'bulb',   name: 'Bulb Filament',        T: 3000, eps: 0.40, A: 1,     tamb: 295 },
+    { key: 'sun',    name: 'Sun Surface',          T: 5800, eps: 1.00, A: 100,   tamb: 0 },
+    { key: 'red',    name: 'Red Giant Star',       T: 3500, eps: 1.00, A: 100,   tamb: 0 }
+  ];
+
+  var state = {
+    mode: 'simulate',
+    unit: 'si',
+    T: 1500, eps: 0.90, A_cm2: 100, Tamb: 300,
+    showGlow: true, showRays: true, showEquation: true, showSpectrum: true, showGrid: false,
+    pp: { problem: null, score: 0, total: 0 },
+    qz: { idx: 0, q: null, answers: [], started: false },
+    history: [], redoStack: [],
+    audioCtx: null, raf: 0,
+    rayPhase: 0
+  };
+
+  var canvas = $('sim-canvas'); var ctx = canvas.getContext('2d');
+
+  /* KaTeX renderer — render LaTeX delimiters \( \) and \[ \] inside an
+     element. Safe to call before KaTeX loads (no-ops then) and re-callable
+     (KaTeX won't double-render already-rendered nodes). */
+  function renderMath(el) {
+    if (!el || !window.renderMathInElement) return;
+    try {
+      window.renderMathInElement(el, {
+        delimiters: [
+          { left: '\\[', right: '\\]', display: true },
+          { left: '\\(', right: '\\)', display: false }
+        ],
+        throwOnError: false,
+        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      });
+    } catch (e) { /* silent */ }
+  }
+  /* If KaTeX loads after first render, sweep panels once it arrives */
+  function deferredKatexSweep() {
+    if (window.renderMathInElement) {
+      renderMath($('lp-eq-body'));
+      renderMath($('calc-modal-body'));
+      return;
+    }
+    setTimeout(deferredKatexSweep, 200);
+  }
+
+  function isImp() { return state.unit === 'imp'; }
+  function uLabel(k) {
+    var imp = isImp();
+    switch (k) {
+      case 'pow':  return imp ? 'BTU/hr' : 'W';
+      case 'flux': return imp ? 'BTU/(hr·ft²)' : 'W/m²';
+      case 'area': return imp ? 'in²' : 'cm²';
+      case 'tempK': return 'K';
+      case 'tempC': return imp ? '°F' : '°C';
+    }
+    return '';
+  }
+  function toD(v, k) {
+    if (!isImp()) return v;
+    switch (k) {
+      case 'pow':  return v * 3.41214;
+      case 'flux': return v * 0.317;
+      case 'area': return v / 6.4516;
+    }
+    return v;
+  }
+  function fmt(v, dp) {
+    if (!isFinite(v)) return '—';
+    if (v === 0) return '0';
+    var a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+    if (a >= 1e4 || (a > 0 && a < 0.001)) return v.toExponential(2);
+    if (dp == null) dp = a >= 1000 ? 0 : a >= 100 ? 1 : a >= 10 ? 2 : 3;
+    return v.toFixed(dp);
+  }
+  function colorRegion(T) {
+    if (T < 600) return 'Invisible (far-IR)';
+    if (T < 800) return 'Invisible (near-IR)';
+    if (T < 1100) return 'Dim red glow';
+    if (T < 1500) return 'Cherry red';
+    if (T < 2000) return 'Bright orange';
+    if (T < 2700) return 'Yellow';
+    if (T < 3500) return 'Yellow-white';
+    if (T < 5000) return 'White';
+    if (T < 7000) return 'White (sun-like)';
+    if (T < 12000) return 'Blue-white';
+    return 'Blue (very hot)';
+  }
+
+  function compute() {
+    var A = state.A_cm2 / 1e4;       // cm² → m²
+    var T4 = Math.pow(state.T, 4);
+    var Ta4 = Math.pow(state.Tamb, 4);
+    var P = state.eps * SIGMA * A * T4;
+    var Pnet = state.eps * SIGMA * A * (T4 - Ta4);
+    var flux = state.eps * SIGMA * T4;
+    var lpeak = 2898 / state.T;       // μm
+    var Tc = state.T - 273.15;
+    var Tf = Tc * 1.8 + 32;
+    var Pamb = state.eps * SIGMA * A * Ta4;
+    var ratio = Pamb > 0 ? P / Pamb : Infinity;
+    return { A_m2: A, P: P, Pnet: Pnet, flux: flux, lpeak: lpeak, Tc: Tc, Tf: Tf, ratio: ratio };
+  }
+
+  /* Audio */
+  function getAudio() { if (!state.audioCtx) try { state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } return state.audioCtx; }
+  function playTone(f, d, t, v) { var ac = getAudio(); if (!ac) return; var o = ac.createOscillator(), g = ac.createGain(); o.type = t || 'sine'; o.frequency.value = f; g.gain.value = v || 0.05; o.connect(g); g.connect(ac.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + d); o.stop(ac.currentTime + d + 0.02); }
+  function playClick() { playTone(700, 0.04, 'square', 0.04); }
+  function playSuccess() { playTone(880, 0.12, 'sine', 0.08); setTimeout(function(){ playTone(1320, 0.16, 'sine', 0.08); }, 110); }
+  function playError() { playTone(220, 0.22, 'sawtooth', 0.05); }
+
+  /* ── Black-body color ───────────────────────────────────── */
+  function bbColor(T) {
+    /* Approximate sRGB color from temperature in Kelvin (Tanner Helland approximation) */
+    var t = T / 100;
+    var r, g, b;
+    if (t <= 66) {
+      r = 255;
+      g = 99.4708 * Math.log(t) - 161.1196;
+      if (t <= 19) b = 0;
+      else b = 138.5177 * Math.log(t - 10) - 305.0448;
+    } else {
+      r = 329.6987 * Math.pow(t - 60, -0.1332);
+      g = 288.1222 * Math.pow(t - 60, -0.0755);
+      b = 255;
+    }
+    /* Below 600 K → very dim red barely visible; we tint towards dark */
+    var dim = T < 800 ? Math.max(0.05, (T - 200) / 600) : 1;
+    r = Math.max(0, Math.min(255, r)) * dim;
+    g = Math.max(0, Math.min(255, g)) * dim;
+    b = Math.max(0, Math.min(255, b)) * dim;
+    return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+  }
+
+  function rgbStr(c, a) { if (a == null) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')'; return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
+
+  /* Canvas drawing */
+  function sizeCanvas() {
+    var W = canvas.parentElement.clientWidth - 16;
+    var H = Math.max(380, Math.min(W * 0.62, 480));
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { W: W, H: H };
+  }
+
+  function draw() {
+    var dim = sizeCanvas(); var W = dim.W, H = dim.H;
+    var c = compute();
+    /* Background: ambient color hint */
+    ctx.fillStyle = '#0a0e18';
+    ctx.fillRect(0, 0, W, H);
+    if (state.showGrid) drawGrid(W, H);
+
+    /* Body in centre */
+    var cx = W / 2, cy = H / 2;
+    var bodyR = 60;
+    var col = bbColor(state.T);
+
+    /* Glow halo */
+    if (state.showGlow) {
+      var glowR = bodyR + 80 + Math.min(60, state.T / 60);
+      var grad = ctx.createRadialGradient(cx, cy, bodyR * 0.6, cx, cy, glowR);
+      grad.addColorStop(0, rgbStr(col, 0.9));
+      grad.addColorStop(0.4, rgbStr(col, 0.35));
+      grad.addColorStop(1, rgbStr(col, 0));
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    /* Body */
+    var bodyGrad = ctx.createRadialGradient(cx - bodyR * 0.3, cy - bodyR * 0.3, bodyR * 0.1, cx, cy, bodyR);
+    var lighter = { r: Math.min(255, col.r + 40), g: Math.min(255, col.g + 40), b: Math.min(255, col.b + 40) };
+    bodyGrad.addColorStop(0, rgbStr(lighter));
+    bodyGrad.addColorStop(1, rgbStr(col));
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, bodyR, 0, Math.PI * 2);
+    ctx.fill();
+    /* Outline */
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    /* Rays */
+    if (state.showRays) {
+      state.rayPhase += 0.04;
+      var nRays = Math.min(48, Math.max(8, Math.floor(Math.log10(c.P + 1) * 8)));
+      var rayLen = bodyR + 30 + Math.min(80, Math.log10(c.P + 1) * 22);
+      ctx.strokeStyle = rgbStr(col, 0.7);
+      ctx.lineWidth = 1.6;
+      for (var i = 0; i < nRays; i++) {
+        var ang = (i / nRays) * Math.PI * 2 + state.rayPhase * 0.5;
+        var phase = (state.rayPhase + i * 0.5) % 1;
+        var inner = bodyR + 5 + phase * (rayLen - bodyR - 10);
+        var outer = inner + 18;
+        if (outer > rayLen + bodyR) continue;
+        ctx.globalAlpha = 0.6 - phase * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+        ctx.lineTo(cx + Math.cos(ang) * outer, cy + Math.sin(ang) * outer);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    /* Body label */
+    drawHaloText('T = ' + fmt(state.T, 0) + ' K', cx, cy - 4, '#fff', 14, 'center');
+    drawHaloText('ε = ' + state.eps.toFixed(2), cx, cy + 14, '#dde3f0', 11, 'center');
+
+    /* Spectrum strip at bottom */
+    if (state.showSpectrum) drawSpectrum(W, H, c);
+
+    /* Equation overlay */
+    if (state.showEquation) drawEquation(W, H, c);
+
+    /* Power readout big */
+    drawHaloText('P = ' + fmt(toD(c.P, 'pow')) + ' ' + uLabel('pow'), cx, cy + bodyR + 50, rgbStr(col), 16, 'center');
+
+    /* Ambient label */
+    drawHaloText('T_amb = ' + state.Tamb + ' K', 12, H - 14, '#7fdbff', 10, 'left');
+
+    /* Animate rays */
+    state.raf = requestAnimationFrame(function () { state.raf = 0; if (state.showRays) draw(); });
+  }
+
+  function drawGrid(W, H) {
+    ctx.strokeStyle = 'rgba(139,157,195,0.08)';
+    ctx.lineWidth = 1;
+    for (var x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (var y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  }
+
+  function drawHaloText(txt, x, y, color, size, anchor) {
+    ctx.save();
+    ctx.font = '700 ' + size + 'px ' + (size <= 11 ? 'Courier New, monospace' : 'Segoe UI, sans-serif');
+    ctx.textAlign = anchor || 'left';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(8,12,22,0.92)';
+    ctx.strokeText(txt, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(txt, x, y);
+    ctx.restore();
+  }
+
+  function drawSpectrum(W, H, c) {
+    /* Bottom strip showing visible-wavelength spectrum + λ_peak marker */
+    var sx = 30, sw = W - 60, sy = H - 50, sh = 14;
+    /* Visible band 380-780 nm — map to the strip; extend a bit on either side */
+    var minNm = 200, maxNm = 1500;
+    /* Draw colored bands */
+    for (var px = 0; px < sw; px++) {
+      var nm = minNm + (px / sw) * (maxNm - minNm);
+      var col = wavelengthColor(nm);
+      ctx.fillStyle = rgbStr(col);
+      ctx.fillRect(sx + px, sy, 1, sh);
+    }
+    /* Outline */
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx, sy, sw, sh);
+    /* λ_peak marker */
+    var peakNm = c.lpeak * 1000;
+    if (peakNm >= minNm && peakNm <= maxNm) {
+      var lx = sx + (peakNm - minNm) / (maxNm - minNm) * sw;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(lx, sy - 4); ctx.lineTo(lx, sy + sh + 4);
+      ctx.stroke();
+      drawHaloText('λ_peak = ' + c.lpeak.toFixed(2) + ' μm', lx, sy - 12, '#fff', 10, 'center');
+    } else if (peakNm < minNm) {
+      drawHaloText('λ_peak = ' + c.lpeak.toFixed(2) + ' μm (UV)', sx + 4, sy - 12, '#bb88ff', 10, 'left');
+    } else {
+      drawHaloText('λ_peak = ' + c.lpeak.toFixed(2) + ' μm (IR)', sx + sw - 4, sy - 12, '#ff8866', 10, 'right');
+    }
+    /* Tick marks */
+    drawHaloText('200 nm', sx, sy + sh + 14, '#8b9dc3', 9, 'left');
+    drawHaloText('400', sx + ((400 - minNm) / (maxNm - minNm)) * sw, sy + sh + 14, '#8b9dc3', 9, 'center');
+    drawHaloText('700', sx + ((700 - minNm) / (maxNm - minNm)) * sw, sy + sh + 14, '#8b9dc3', 9, 'center');
+    drawHaloText('1500', sx + sw, sy + sh + 14, '#8b9dc3', 9, 'right');
+  }
+
+  function wavelengthColor(nm) {
+    /* Approximate sRGB for 380-780 nm */
+    var r = 0, g = 0, b = 0, alpha = 1;
+    if (nm < 380) { r = 80; g = 0; b = 100; }
+    else if (nm < 440) { r = (440 - nm) / (440 - 380) * 0.9 + 0.1; g = 0; b = 1; r *= 255; b *= 255; }
+    else if (nm < 490) { r = 0; g = (nm - 440) / (490 - 440); b = 1; g *= 255; b *= 255; }
+    else if (nm < 510) { r = 0; g = 1; b = (510 - nm) / (510 - 490); g *= 255; b *= 255; }
+    else if (nm < 580) { r = (nm - 510) / (580 - 510); g = 1; b = 0; r *= 255; g *= 255; }
+    else if (nm < 645) { r = 1; g = (645 - nm) / (645 - 580); b = 0; r *= 255; g *= 255; }
+    else if (nm < 780) { r = 1; g = 0; b = 0; r *= 255; }
+    else { r = 80; }
+    return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+  }
+
+  /* Equation overlay (bottom-left to avoid canvas toggles & spectrum strip) */
+  function drawEquation(W, H, c) {
+    var bw = 230, bh = 50;
+    /* Spectrum strip lives at H-50 with 14 px height + ticks → reserve y < H-90 */
+    var by = H - bh - (state.showSpectrum ? 80 : 8);
+    var bx = 8;
+    ctx.fillStyle = 'rgba(13,17,30,0.78)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = 'rgba(230,74,25,0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    drawHaloText('P = ε·σ·A·T⁴', bx + 10, by + 18, '#ff8a65', 12, 'left');
+    drawHaloText('= ' + fmt(toD(c.P, 'pow')) + ' ' + uLabel('pow'), bx + 10, by + 38, '#fff', 11, 'left');
+  }
+
+  function requestDraw() {
+    if (state.raf) return;
+    state.raf = requestAnimationFrame(function () { state.raf = 0; draw(); updateReadouts(); });
+  }
+
+  /* Readouts */
+  function updateReadouts() {
+    var c = compute();
+    $('r-p').textContent = fmt(toD(c.P, 'pow'));
+    $('r-pnet').textContent = fmt(toD(c.Pnet, 'pow'));
+    $('r-flux').textContent = fmt(toD(c.flux, 'flux'));
+    $('r-lpeak').textContent = c.lpeak.toFixed(2);
+    $('r-color').textContent = colorRegion(state.T);
+    $('r-tc').textContent = (isImp() ? c.Tf : c.Tc).toFixed(0);
+    $('r-tf').textContent = c.Tf.toFixed(0);
+    $('r-ratio').textContent = (isFinite(c.ratio) ? c.ratio.toFixed(0) : '∞') + '×';
+
+    $('r-unit-p').textContent = ' ' + uLabel('pow');
+    $('r-unit-pnet').textContent = ' ' + uLabel('pow');
+    $('r-unit-flux').textContent = ' ' + uLabel('flux');
+    $('r-unit-tc').textContent = ' ' + (isImp() ? '°F' : '°C');
+    $('badge-a').textContent = uLabel('area');
+
+    var badges = $('readout-badges');
+    if (badges) badges.style.display = state.mode === 'simulate' ? '' : 'none';
+    var col = bbColor(state.T);
+    $('rb-cdot').style.background = rgbStr(col);
+    $('rb-p').textContent = fmt(toD(c.P, 'pow'));
+    $('rb-p-u').textContent = uLabel('pow');
+    $('rb-t').textContent = state.T;
+    $('rb-lpeak').textContent = c.lpeak.toFixed(2);
+    $('rb-eps').textContent = state.eps.toFixed(2);
+
+    updateLearnPanels(c);
+  }
+
+  function updateLearnPanels(c) {
+    var eq = $('lp-eq-body'); if (!eq) return;
+    var sigStr = '5.67 \\times 10^{-8}';
+    var Tstr = state.T;
+    var html = '';
+    html += '<div class="eq-line">\\(\\sigma = ' + sigStr + ' \\; \\mathrm{W/(m^2 \\cdot K^4)}\\) — Stefan–Boltzmann constant</div>';
+    html += '<div class="eq-line">\\[ P = \\varepsilon \\cdot \\sigma \\cdot A \\cdot T^4 = ' + state.eps + ' \\cdot ' + sigStr + ' \\cdot ' + (c.A_m2).toExponential(2).replace('e', ' \\times 10^{') + '} \\cdot ' + Tstr + '^4 \\]</div>';
+    html += '<div class="eq-line">\\(P = \\mathbf{' + fmt(toD(c.P, 'pow')) + '\\;' + (isImp() ? '\\mathrm{BTU/hr}' : '\\mathrm{W}') + '}\\)</div>';
+    html += '<div class="eq-line">\\[ P_{\\text{net}} = \\varepsilon \\sigma A \\,(T^4 - T_{\\text{amb}}^4) = \\mathbf{' + fmt(toD(c.Pnet, 'pow')) + '\\;' + (isImp() ? '\\mathrm{BTU/hr}' : '\\mathrm{W}') + '} \\]</div>';
+    html += '<div class="eq-line">\\(M = \\varepsilon \\sigma T^4 = ' + fmt(toD(c.flux, 'flux')) + '\\;' + (isImp() ? '\\mathrm{BTU/(hr\\,ft^2)}' : '\\mathrm{W/m^2}') + '\\) (radiant flux)</div>';
+    html += '<div class="eq-line">Wien: \\(\\lambda_{\\text{peak}} = \\dfrac{2898}{T} = \\mathbf{' + c.lpeak.toFixed(2) + '\\;\\mu m}\\) — ' + colorRegion(state.T) + '</div>';
+    eq.innerHTML = html;
+    renderMath(eq);
+
+    var cmp = $('lp-cmp-body');
+    if (cmp) {
+      var refT = [300, 500, 1000, 1500, 2000, 3000, 4000, 5800];
+      var rows = '<table class="cmp-table"><thead><tr><th>T (K)</th><th>Flux (W/m²)</th><th>P at A=' + state.A_cm2 + ' cm²</th><th>Color</th></tr></thead><tbody>';
+      for (var i = 0; i < refT.length; i++) {
+        var T = refT[i];
+        var flux = state.eps * SIGMA * Math.pow(T, 4);
+        var P = flux * c.A_m2;
+        rows += '<tr><td>' + T + '</td><td>' + fmt(flux) + '</td><td>' + fmt(toD(P, 'pow')) + ' ' + uLabel('pow') + '</td><td>' + colorRegion(T) + '</td></tr>';
+      }
+      rows += '</tbody></table>';
+      cmp.innerHTML = rows;
+    }
+
+    var co = $('lp-coach-body');
+    if (co) {
+      var tips = [];
+      tips.push('Power scales with T⁴. Doubling T multiplies P by 16×. Tripling T multiplies P by 81×.');
+      tips.push('Current peak wavelength is ' + c.lpeak.toFixed(2) + ' μm — ' + (c.lpeak > 0.78 ? 'infrared (invisible)' : c.lpeak < 0.38 ? 'ultraviolet' : 'visible (' + colorRegion(state.T) + ')') + '.');
+      if (state.T > state.Tamb) {
+        tips.push('Net radiation = ' + fmt(toD(c.Pnet, 'pow')) + ' ' + uLabel('pow') + ' (positive — body cooling).');
+      } else {
+        tips.push('Net radiation is negative — body is colder than ambient and absorbing more than it emits.');
+      }
+      tips.push('Lower emissivity (e.g. 0.05 polished silver) drastically reduces P. Try setting ε = 0.05.');
+      var html2 = '<ul class="coach-list">';
+      for (var k = 0; k < tips.length; k++) html2 += '<li>' + tips[k] + '</li>';
+      html2 += '</ul>';
+      co.innerHTML = html2;
+    }
+  }
+
+  function rebuildPresets() {
+    var box = $('preset-chips'); box.innerHTML = '';
+    PRESETS.forEach(function (p) {
+      var b = document.createElement('button');
+      b.className = 'preset-chip'; b.type = 'button'; b.textContent = p.name;
+      b.addEventListener('click', function () { applyPreset(p); playClick(); });
+      box.appendChild(b);
+    });
+  }
+  function applyPreset(p) {
+    pushHistory();
+    state.T = p.T; state.eps = p.eps; state.A_cm2 = p.A; state.Tamb = p.tamb;
+    syncControls(); updateReadouts(); requestDraw();
+    document.querySelectorAll('.preset-chip').forEach(function (c) { c.classList.toggle('active', c.textContent === p.name); });
+  }
+  function syncControls() {
+    $('sl-t').value = state.T; $('in-t').value = state.T;
+    $('sl-eps').value = state.eps; $('in-eps').value = state.eps.toFixed(2);
+    $('sl-a').value = state.A_cm2;
+    $('in-a').value = isImp() ? (state.A_cm2 / 6.4516).toFixed(2) : state.A_cm2.toFixed(0);
+    $('sl-tamb').value = state.Tamb; $('in-tamb').value = state.Tamb;
+  }
+
+  function snapshot() { return { T: state.T, eps: state.eps, A_cm2: state.A_cm2, Tamb: state.Tamb, unit: state.unit }; }
+  function pushHistory() { state.history.push(snapshot()); if (state.history.length > 30) state.history.shift(); state.redoStack = []; }
+  function applySnap(s) { state.T = s.T; state.eps = s.eps; state.A_cm2 = s.A_cm2; state.Tamb = s.Tamb; state.unit = s.unit; syncUnitTabs(); syncControls(); updateReadouts(); requestDraw(); }
+  function doUndo() { if (state.history.length === 0) return; state.redoStack.push(snapshot()); applySnap(state.history.pop()); }
+  function doRedo() { if (state.redoStack.length === 0) return; state.history.push(snapshot()); applySnap(state.redoStack.pop()); }
+  function syncUnitTabs() { document.querySelectorAll('#unit-tabs .pill').forEach(function (p) { p.classList.toggle('active', p.dataset.unit === state.unit); }); }
+
+  function setMode(m) {
+    state.mode = m;
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) { p.classList.toggle('active', p.dataset.mode === m); });
+    $('sim-panel').style.display = (m === 'simulate') ? '' : 'none';
+    $('learn-panels').style.display = (m === 'simulate') ? '' : 'none';
+    $('cat-row').style.display = (m === 'explore') ? '' : 'none';
+    $('item-selector').style.display = (m === 'explore') ? '' : 'none';
+    $('item-info').style.display = (m === 'explore') ? '' : 'none';
+    $('practice-panel').style.display = (m === 'practice') ? '' : 'none';
+    $('practice-bar').style.display = (m === 'practice') ? '' : 'none';
+    $('quiz-panel').style.display = (m === 'quiz') ? '' : 'none';
+    $('quiz-bar').style.display = (m === 'quiz') ? '' : 'none';
+    $('quiz-result').style.display = 'none';
+    if (m === 'explore') buildExplore();
+    if (m === 'practice') startPractice();
+    if (m === 'quiz') startQuiz();
+    updateReadouts(); requestDraw();
+  }
+
+  /* Explore */
+  var EXPLORE = {
+    basics: [
+      { title: 'Why Hot Things Glow', body: 'Every body above absolute zero radiates electromagnetic energy. As temperature rises, both the total power AND the dominant wavelength change. Cool things radiate in invisible infrared; hot things in visible light.', formula: 'P ∝ T⁴', note: 'You "feel" infrared radiation from a fire even from a distance.' },
+      { title: 'Black Body Concept', body: 'A perfect black body absorbs all radiation falling on it (no reflection, no transmission). It also emits the maximum possible radiation at any given T. Real objects are characterised by emissivity ε relative to the black body.', formula: '0 ≤ ε ≤ 1', note: 'Soot, oxidised metals, dark fabrics: ε ≈ 0.95. Polished silver: ε ≈ 0.02.' },
+      { title: 'Wien\'s Displacement', body: 'Peak emission wavelength is inversely proportional to T. Hot stars peak in UV, cool ones in red. The Sun peaks in green-yellow visible light — perfect for our eyes.', formula: 'λ_peak (μm) = 2898 / T(K)', note: '6000 K → 0.48 μm (cyan-green). 300 K (room T) → 9.7 μm (mid-IR).' },
+      { title: 'Net vs Total Radiation', body: 'A body at temperature T in surroundings at T_amb both emits and absorbs radiation. Net heat loss = P − P_absorbed = εσA(T⁴ − T_amb⁴).', formula: 'P_net = εσA(T⁴ − T_amb⁴)', note: 'In thermal equilibrium with surroundings: net = 0. Body still radiates, but absorbs equal power back.' }
+    ],
+    formulas: [
+      { title: 'Stefan-Boltzmann Law', body: 'The fundamental equation. Total radiated power scales as the FOURTH power of absolute temperature.', formula: 'P = ε · σ · A · T⁴', note: 'σ = 5.67×10⁻⁸ W/(m²·K⁴). T MUST be in Kelvin.' },
+      { title: 'Wien\'s Displacement Law', body: 'Tells you the wavelength at which the spectrum peaks. Higher T → shorter wavelength (blue shift).', formula: 'λ_peak · T = 2.898×10⁻³ m·K', note: 'Both the Sun (6000 K) and a halogen lamp (3500 K) peak in the visible — but at very different colors.' },
+      { title: 'Emissivity Definition', body: 'A surface property. ε = (radiation emitted) / (black-body radiation at same T). 0 = perfect mirror, 1 = perfect absorber/emitter.', formula: 'ε ≡ P_actual / P_blackbody', note: 'Kirchhoff\'s law: emissivity = absorptivity at the same wavelength.' },
+      { title: 'Power Scaling', body: 'P ∝ T⁴ leads to dramatic behaviour. A small increase in temperature gives a large increase in radiated power, which is why incandescent bulbs run their filaments at ~3000 K.', formula: '(T₂/T₁)⁴', note: 'Doubling T multiplies P by 16. Going from 300 K to 600 K → 16× more power.' }
+    ],
+    applications: [
+      { title: 'Incandescent Light Bulbs', body: 'Tungsten filament heated to ~2800 K — bright enough that ~5% falls in the visible band as yellow-white light. The other ~95% is wasted as IR heat.', formula: '', note: 'LEDs convert electricity to visible light at ~50% efficiency, no Stefan-Boltzmann waste.' },
+      { title: 'Infrared Thermography', body: 'IR cameras measure radiated power and convert to temperature using assumed ε. They reveal heat leaks in buildings, electronic hotspots, fevered foreheads, missing insulation.', formula: '', note: 'Resolution down to 0.05 K is achievable with modern cooled detectors.' },
+      { title: 'Earth\'s Energy Balance', body: 'Earth absorbs ~340 W/m² from the Sun and must radiate the same amount back to space at infrared wavelengths to maintain temperature. Greenhouse gases delay this outgoing IR — that\'s the greenhouse effect.', formula: '', note: 'Without the atmosphere, Earth would average about −18°C; with it, +15°C.' },
+      { title: 'Stellar Classification', body: 'Stars are nearly perfect black bodies. Their colour gives temperature: red (~3000 K, M-class), yellow (~5800 K, G-class like the Sun), blue (~25000 K, O-class).', formula: '', note: 'A blue star radiates ~600× more total power per square metre than a red one.' }
+    ],
+    errors: [
+      { title: 'Use Kelvin, Not Celsius!', body: 'T must be in Kelvin. T(K) = T(°C) + 273.15. Plugging Celsius gives a hugely wrong answer.', formula: 'T(K) = T(°C) + 273.15', note: '20°C = 293 K, not 20. T⁴ for 20: gives 160000; for 293: gives 7.4×10⁹ — vast difference.' },
+      { title: 'T⁴ is Steep', body: 'A 10% rise in T gives a 46% rise in P. Don\'t expect small T changes to give small P changes.', formula: '', note: 'From 300 K to 330 K → 1.46× P. From 1000 K to 1100 K → 1.46× P. Always proportional.' },
+      { title: 'Surface Area, not Volume', body: 'P depends on the EMITTING SURFACE area, not the volume or mass. A sphere radiates from its outer 4πr² area.', formula: 'A = surface area only', note: 'A solid metal sphere and a thin spherical shell at the same T radiate the same.' },
+      { title: 'Emissivity Wavelength Dependence', body: 'In reality ε varies with wavelength. Glass is opaque to IR but transparent to visible — different ε for each. The simple formula uses an average ε.', formula: '', note: 'This is why a glass-walled greenhouse traps heat — visible light enters, but IR is reflected back.' }
+    ]
+  };
+  function buildExplore() {
+    var cat = document.querySelector('#cat-tabs .pill.active');
+    var key = cat ? cat.dataset.cat : 'basics';
+    var grid = $('concept-grid'); grid.innerHTML = '';
+    EXPLORE[key].forEach(function (item, idx) {
+      var b = document.createElement('button');
+      b.className = 'is-btn' + (idx === 0 ? ' active' : ''); b.type = 'button';
+      b.innerHTML = '<span class="is-btn-name">' + item.title + '</span>' + (item.formula ? '<span class="is-btn-sym">' + item.formula + '</span>' : '');
+      b.addEventListener('click', function () {
+        document.querySelectorAll('#concept-grid .is-btn').forEach(function (x) { x.classList.remove('active'); });
+        b.classList.add('active');
+        showConcept(item, key);
+      });
+      grid.appendChild(b);
+    });
+    showConcept(EXPLORE[key][0], key);
+  }
+  function showConcept(item, cat) {
+    var box = $('item-info');
+    var html = '<div class="ii-top"><span class="ii-name">' + item.title + '</span><span class="ii-cat-badge">' + cat + '</span></div><p class="ii-desc">' + item.body + '</p>';
+    if (item.formula) html += '<div class="formula-box"><span class="fb-formula">' + item.formula + '</span></div>';
+    if (item.note) html += '<div class="example-box"><h4>Key Insight</h4><p class="ex-step">' + item.note + '</p></div>';
+    box.innerHTML = html;
+  }
+
+  /* Practice */
+  function startPractice() { state.pp.score = 0; state.pp.total = 0; $('pbar-score-val').textContent = '0 / 0'; newPractice(); }
+  function newPractice() {
+    var t = ['power', 'flux', 'lpeak', 'doubleT'][Math.floor(Math.random() * 4)];
+    var T = 300 + Math.floor(Math.random() * 4500);
+    var eps = +(0.5 + Math.random() * 0.5).toFixed(2);
+    var A_cm2 = 50 + Math.floor(Math.random() * 200);
+    var A = A_cm2 / 1e4;
+    var ans, prompt, unit;
+    if (t === 'power') {
+      ans = eps * SIGMA * A * Math.pow(T, 4);
+      prompt = 'Find the radiated power of a body at T = ' + T + ' K, ε = ' + eps + ', A = ' + A_cm2 + ' cm².';
+      unit = 'W';
+    } else if (t === 'flux') {
+      ans = eps * SIGMA * Math.pow(T, 4);
+      prompt = 'Find the radiation flux M = εσT⁴ for ε = ' + eps + ', T = ' + T + ' K.';
+      unit = 'W/m²';
+    } else if (t === 'lpeak') {
+      ans = 2898 / T;
+      prompt = 'Find Wien\'s peak wavelength λ_peak for a body at T = ' + T + ' K.';
+      unit = 'μm';
+    } else {
+      var T2 = T * 2;
+      ans = 16;
+      prompt = 'A body at T = ' + T + ' K has its temperature doubled to ' + T2 + ' K. By what factor does the radiated power increase?';
+      unit = '×';
+    }
+    state.pp.problem = { type: t, ans: ans, unit: unit };
+    $('pp-prompt').textContent = prompt;
+    $('pp-input').value = ''; $('pp-unit').textContent = unit;
+    $('pp-feedback').textContent = ''; $('pp-feedback').className = 'feedback';
+    $('pp-solution').style.display = 'none'; $('pp-next').style.display = 'none';
+    $('pp-check').disabled = false; $('pp-input').focus();
+  }
+  function checkPractice() {
+    var p = state.pp.problem; if (!p) return;
+    var v = parseFloat($('pp-input').value);
+    if (!isFinite(v)) { $('pp-feedback').textContent = 'Enter a number'; $('pp-feedback').className = 'feedback err'; return; }
+    var tol = Math.abs(p.ans) * 0.05 + 0.001;
+    state.pp.total++;
+    if (Math.abs(v - p.ans) <= tol) { state.pp.score++; $('pp-feedback').textContent = '✓ Correct! ' + fmt(p.ans) + ' ' + p.unit; $('pp-feedback').className = 'feedback ok'; playSuccess(); }
+    else { $('pp-feedback').textContent = '✗ Correct: ' + fmt(p.ans) + ' ' + p.unit; $('pp-feedback').className = 'feedback err'; playError(); }
+    $('pbar-score-val').textContent = state.pp.score + ' / ' + state.pp.total;
+    $('pp-next').style.display = ''; $('pp-check').disabled = true;
+  }
+  function showSolution() {
+    var p = state.pp.problem; if (!p) return;
+    var html = '<h4>Step-by-step</h4>';
+    html += '<div class="sol-step">Apply the appropriate formula. P = εσAT⁴ for power. Use Kelvin throughout. σ = 5.67×10⁻⁸ W/(m²·K⁴).</div>';
+    html += '<div class="sol-step">Final: <strong>' + fmt(p.ans) + ' ' + p.unit + '</strong></div>';
+    $('pp-solution').innerHTML = html; $('pp-solution').style.display = '';
+  }
+
+  /* Quiz */
+  function buildQuizQs() {
+    return [
+      { q: 'What does the Stefan-Boltzmann law state?', opts: ['P ∝ T', 'P ∝ T²', 'P ∝ T⁴', 'P ∝ T¹⁰'], ans: 2, ex: 'P = εσAT⁴ — the famous T⁴ law.' },
+      { q: 'If you double a body\'s absolute temperature, how does its radiated power change?', opts: ['×2', '×4', '×8', '×16'], ans: 3, ex: 'P ∝ T⁴, so doubling T → 2⁴ = 16× more power.' },
+      { q: 'What is the Stefan-Boltzmann constant σ?', opts: ['9.81', '5.67×10⁻⁸', '6.022×10²³', '2898'], ans: 1, ex: 'σ = 5.67×10⁻⁸ W/(m²·K⁴).' },
+      { q: 'A perfect black body has emissivity:', opts: ['ε = 0', 'ε = 1', 'ε = ∞', 'ε = 0.5'], ans: 1, ex: 'ε = 1 means perfect absorber AND perfect emitter.' },
+      { q: 'Wien\'s law λ_peak = 2898/T tells you that hotter objects:', opts: ['Radiate longer wavelengths', 'Radiate shorter wavelengths', 'Have flat spectrum', 'Don\'t radiate'], ans: 1, ex: 'Higher T → shorter λ_peak (blue shift). Cool objects glow red, hot ones blue.' }
+    ];
+  }
+  function startQuiz() { state.qz.idx = 0; state.qz.answers = []; state.qz.q = buildQuizQs(); state.qz.started = true; $('quiz-result').style.display = 'none'; showQuizQ(); }
+  function showQuizQ() {
+    var q = state.qz.q[state.qz.idx];
+    $('qbar-num').textContent = (state.qz.idx + 1);
+    var html = '<p class="qp-prompt">' + q.q + '</p><div class="answer-grid">';
+    q.opts.forEach(function (o, i) { html += '<button class="answer-btn" data-i="' + i + '" type="button">' + o + '</button>'; });
+    html += '</div><div class="quiz-feedback" id="qz-fb" style="margin-top:10px;"></div>';
+    $('quiz-panel').innerHTML = html;
+    document.querySelectorAll('#quiz-panel .answer-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b.classList.contains('locked')) return;
+        var i = parseInt(b.dataset.i, 10);
+        document.querySelectorAll('#quiz-panel .answer-btn').forEach(function (x) { x.classList.add('locked'); });
+        if (i === q.ans) { b.classList.add('correct'); playSuccess(); }
+        else { b.classList.add('wrong'); var corr = document.querySelector('#quiz-panel .answer-btn[data-i="' + q.ans + '"]'); if (corr) corr.classList.add('correct'); playError(); }
+        $('qz-fb').textContent = q.ex; $('qz-fb').className = 'quiz-feedback ' + (i === q.ans ? 'ok' : 'err');
+        state.qz.answers.push({ i: i, correct: i === q.ans, q: q });
+        setTimeout(function () { if (state.qz.idx < state.qz.q.length - 1) { state.qz.idx++; showQuizQ(); } else { showQuizResult(); } }, 1700);
+      });
+    });
+  }
+  function showQuizResult() {
+    var ok = state.qz.answers.filter(function (a) { return a.correct; }).length;
+    var stars = '★'.repeat(ok) + '☆'.repeat(5 - ok);
+    var verdict = ok === 5 ? 'Perfect!' : ok >= 4 ? 'Great' : ok >= 3 ? 'Solid' : ok >= 2 ? 'Keep practising' : 'Review the basics';
+    var cls = ok === 5 ? 'perfect' : ok >= 3 ? 'good' : 'poor';
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><span class="qr-title">Quiz Results</span><span class="qr-stars">' + stars + '</span></div><div class="qr-score-wrap"><div class="qr-score ' + cls + '">' + ok + ' / 5</div><div class="qr-verdict">' + verdict + '</div></div></div><div class="qr-rows">';
+    state.qz.answers.forEach(function (a, i) { html += '<div class="qr-row ' + (a.correct ? 'ok' : 'err') + '"><span class="qr-qnum">Q' + (i + 1) + '</span><span class="qr-detail">' + a.q.q + '<br><strong>' + (a.correct ? 'Correct.' : 'Correct: ' + a.q.opts[a.q.ans]) + '</strong></span><span class="qr-mark">' + (a.correct ? '✓' : '✗') + '</span></div>'; });
+    html += '</div><div style="text-align:center"><button class="btn btn-primary" id="qz-retry" type="button">Try Again</button></div>';
+    $('quiz-result').innerHTML = html; $('quiz-result').style.display = '';
+    $('quiz-panel').style.display = 'none';
+    $('qz-retry').addEventListener('click', function () { $('quiz-panel').style.display = ''; startQuiz(); });
+  }
+
+  /* Calc modal — LaTeX-rendered via KaTeX for clean classical math format */
+  function openCalc() {
+    var c = compute();
+    var T4 = Math.pow(state.T, 4);
+    var Ta4 = Math.pow(state.Tamb, 4);
+    var unitP = isImp() ? '\\mathrm{BTU/hr}' : '\\mathrm{W}';
+    var P_disp = fmt(toD(c.P, 'pow'));
+    var Pnet_disp = fmt(toD(c.Pnet, 'pow'));
+
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Inputs</span><div class="cs-given">';
+    html += '<span>\\(T = ' + state.T + '\\;\\mathrm{K}\\;(' + c.Tc.toFixed(0) + '\\;°\\mathrm{C})\\)</span>';
+    html += '<span>\\(\\varepsilon = ' + state.eps + '\\)</span>';
+    html += '<span>\\(A = ' + state.A_cm2 + '\\;\\mathrm{cm^2} = ' + c.A_m2.toExponential(2).replace('e', ' \\times 10^{') + '}\\;\\mathrm{m^2}\\)</span>';
+    html += '<span>\\(T_{\\text{amb}} = ' + state.Tamb + '\\;\\mathrm{K}\\)</span>';
+    html += '</div><p class="cs-si-note">All values in SI base units. \\(\\sigma = 5.67 \\times 10^{-8}\\;\\mathrm{W/(m^2 \\cdot K^4)}\\)</p></div>';
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 1</span><span class="cs-title">Compute \\(T^4\\)</span></div>';
+    html += '<div class="cs-formula">\\[ T^4 = ' + state.T + '^4 \\]</div>';
+    html += '<div class="cs-result">\\(= \\mathbf{' + T4.toExponential(3).replace('e', ' \\times 10^{') + '}\\;\\mathrm{K^4}}\\)</div></div>';
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 2</span><span class="cs-title">Apply Stefan–Boltzmann</span></div>';
+    html += '<div class="cs-formula">\\[ P = \\varepsilon \\cdot \\sigma \\cdot A \\cdot T^4 \\]</div>';
+    html += '<div class="cs-calc">\\[ P = ' + state.eps + ' \\cdot ' + SIGMA.toExponential(2).replace('e', ' \\times 10^{') + '} \\cdot ' + c.A_m2.toExponential(2).replace('e', ' \\times 10^{') + '} \\cdot ' + T4.toExponential(2).replace('e', ' \\times 10^{') + '} \\]</div>';
+    html += '<div class="cs-result">\\(= \\mathbf{' + P_disp + '\\;' + unitP + '}\\)</div></div>';
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 3</span><span class="cs-title">Net radiation (vs ambient)</span></div>';
+    html += '<div class="cs-formula">\\[ P_{\\text{net}} = \\varepsilon \\sigma A \\bigl(T^4 - T_{\\text{amb}}^4\\bigr) \\]</div>';
+    html += '<div class="cs-calc">\\(T_{\\text{amb}}^4 = ' + Ta4.toExponential(2).replace('e', ' \\times 10^{') + '}\\;\\mathrm{K^4}\\)</div>';
+    html += '<div class="cs-result">\\(P_{\\text{net}} = \\mathbf{' + Pnet_disp + '\\;' + unitP + '}\\)</div></div>';
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 4</span><span class="cs-title">Wien\'s peak wavelength</span></div>';
+    html += '<div class="cs-formula">\\[ \\lambda_{\\text{peak}} = \\dfrac{2898\\;\\mu m \\cdot K}{T} \\]</div>';
+    html += '<div class="cs-calc">\\(= \\dfrac{2898}{' + state.T + '}\\)</div>';
+    html += '<div class="cs-result">\\(= \\mathbf{' + c.lpeak.toFixed(3) + '\\;\\mu m}\\) — ' + colorRegion(state.T) + '</div></div>';
+
+    $('calc-modal-body').innerHTML = html;
+    $('calc-modal').classList.add('active');
+    renderMath($('calc-modal-body'));
+  }
+
+  function exportCSV() {
+    var c = compute();
+    var rows = [
+      ['Field','Value','Unit'],
+      ['T', state.T, 'K'],
+      ['T (°C)', c.Tc.toFixed(2), '°C'],
+      ['Emissivity ε', state.eps, ''],
+      ['Area A', state.A_cm2, 'cm²'],
+      ['T_amb', state.Tamb, 'K'],
+      ['P emitted', c.P.toFixed(4), 'W'],
+      ['P net', c.Pnet.toFixed(4), 'W'],
+      ['Flux M', c.flux.toFixed(2), 'W/m²'],
+      ['λ_peak', c.lpeak.toFixed(4), 'μm'],
+      ['Color region', colorRegion(state.T), '']
+    ];
+    var csv = rows.map(function (r) { return r.map(function (s) { return '"' + String(s).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stefan_boltzmann_T' + state.T + '.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function exportPNG() {
+    var src = canvas; var tmp = document.createElement('canvas');
+    tmp.width = src.width; tmp.height = src.height;
+    var tc = tmp.getContext('2d'); tc.drawImage(src, 0, 0);
+    var fs = Math.max(10, Math.round(tmp.width * 0.022));
+    tc.font = '600 ' + fs + 'px Segoe UI'; tc.textAlign = 'right'; tc.textBaseline = 'bottom';
+    tc.fillStyle = 'rgba(255,255,255,0.25)';
+    tc.fillText('mechsimulator.com', tmp.width - 12, tmp.height - 8);
+    var a = document.createElement('a'); a.href = tmp.toDataURL('image/png'); a.download = 'stefan_boltzmann.png'; a.click();
+  }
+  function copyResult() {
+    var c = compute();
+    if (navigator.clipboard) navigator.clipboard.writeText('T=' + state.T + ' K, ε=' + state.eps + ' → P=' + fmt(c.P) + ' W, λ_peak=' + c.lpeak.toFixed(2) + ' μm');
+  }
+
+  function wireEvents() {
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) { p.addEventListener('click', function () { setMode(p.dataset.mode); playClick(); }); });
+    document.querySelectorAll('#unit-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        if (state.unit === p.dataset.unit) return;
+        pushHistory(); state.unit = p.dataset.unit; syncUnitTabs(); syncControls(); updateReadouts(); requestDraw(); playClick();
+      });
+    });
+    $('sl-t').addEventListener('input', function () { state.T = parseFloat($('sl-t').value); $('in-t').value = Math.round(state.T); updateReadouts(); requestDraw(); });
+    $('sl-eps').addEventListener('input', function () { state.eps = parseFloat($('sl-eps').value); $('in-eps').value = state.eps.toFixed(2); updateReadouts(); requestDraw(); });
+    $('sl-a').addEventListener('input', function () { state.A_cm2 = parseFloat($('sl-a').value); $('in-a').value = isImp() ? (state.A_cm2 / 6.4516).toFixed(2) : state.A_cm2.toFixed(0); updateReadouts(); requestDraw(); });
+    $('sl-tamb').addEventListener('input', function () { state.Tamb = parseFloat($('sl-tamb').value); $('in-tamb').value = state.Tamb; updateReadouts(); requestDraw(); });
+    $('in-t').addEventListener('change', function () { var v = parseFloat($('in-t').value); if (!isFinite(v)) return; state.T = Math.max(200, Math.min(6000, v)); syncControls(); updateReadouts(); requestDraw(); });
+    $('in-eps').addEventListener('change', function () { var v = parseFloat($('in-eps').value); if (!isFinite(v)) return; state.eps = Math.max(0.01, Math.min(1, v)); syncControls(); updateReadouts(); requestDraw(); });
+    $('in-a').addEventListener('change', function () { var v = parseFloat($('in-a').value); if (!isFinite(v)) return; state.A_cm2 = Math.max(1, Math.min(10000, isImp() ? v * 6.4516 : v)); syncControls(); updateReadouts(); requestDraw(); });
+    $('in-tamb').addEventListener('change', function () { var v = parseFloat($('in-tamb').value); if (!isFinite(v)) return; state.Tamb = Math.max(0, Math.min(500, v)); syncControls(); updateReadouts(); requestDraw(); });
+
+    document.querySelectorAll('.step-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var dir = parseInt(b.dataset.dir, 10); var k = b.dataset.step;
+        if (k === 't')    state.T    = Math.max(200, Math.min(6000, state.T + dir * 50));
+        if (k === 'eps')  state.eps  = Math.max(0.01, Math.min(1, state.eps + dir * 0.05));
+        if (k === 'a')    state.A_cm2 = Math.max(1, Math.min(10000, state.A_cm2 + dir * 10));
+        if (k === 'tamb') state.Tamb = Math.max(0, Math.min(500, state.Tamb + dir * 10));
+        syncControls(); updateReadouts(); requestDraw(); playClick();
+      });
+    });
+
+    $('chk-glow').addEventListener('change', function () { state.showGlow = $('chk-glow').checked; requestDraw(); });
+    $('chk-rays').addEventListener('change', function () { state.showRays = $('chk-rays').checked; requestDraw(); });
+    $('chk-equation').addEventListener('change', function () { state.showEquation = $('chk-equation').checked; requestDraw(); });
+    $('chk-spectrum').addEventListener('change', function () { state.showSpectrum = $('chk-spectrum').checked; requestDraw(); });
+    $('chk-grid').addEventListener('change', function () { state.showGrid = $('chk-grid').checked; requestDraw(); });
+
+    $('btn-reset').addEventListener('click', function () { state.T = 1500; state.eps = 0.90; state.A_cm2 = 100; state.Tamb = 300; syncControls(); updateReadouts(); requestDraw(); playClick(); });
+    $('btn-undo').addEventListener('click', function () { doUndo(); playClick(); });
+    $('btn-redo').addEventListener('click', function () { doRedo(); playClick(); });
+    $('btn-csv').addEventListener('click', function () { exportCSV(); playClick(); });
+    $('btn-png').addEventListener('click', function () { exportPNG(); playClick(); });
+    $('btn-calc').addEventListener('click', function () { openCalc(); playClick(); });
+    $('calc-modal-close').addEventListener('click', function () { $('calc-modal').classList.remove('active'); });
+    $('calc-modal').addEventListener('click', function (e) { if (e.target === $('calc-modal')) $('calc-modal').classList.remove('active'); });
+
+    $('learn-expand-all').addEventListener('click', function () { document.querySelectorAll('.learn-card').forEach(function (c) { c.open = true; }); playClick(); });
+    $('learn-collapse-all').addEventListener('click', function () { document.querySelectorAll('.learn-card').forEach(function (c) { c.open = false; }); playClick(); });
+    document.querySelectorAll('#cat-tabs .pill').forEach(function (p) { p.addEventListener('click', function () { document.querySelectorAll('#cat-tabs .pill').forEach(function (x) { x.classList.toggle('active', x === p); }); buildExplore(); playClick(); }); });
+
+    $('pp-check').addEventListener('click', checkPractice);
+    $('pp-show').addEventListener('click', showSolution);
+    $('pp-next').addEventListener('click', newPractice);
+    $('pp-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        if (!$('pp-check').disabled) checkPractice();
+        else if ($('pp-next').style.display !== 'none') newPractice();
+      }
+    });
+
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); var menu = $('ctx-menu'); menu.style.display = 'block'; menu.style.left = e.clientX + 'px'; menu.style.top = e.clientY + 'px'; });
+    document.addEventListener('click', function () { $('ctx-menu').style.display = 'none'; });
+    document.querySelectorAll('#ctx-menu .ctx-item').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var act = b.dataset.ctx;
+        if (act === 'copy-result') copyResult();
+        else if (act === 'csv') exportCSV();
+        else if (act === 'png') exportPNG();
+        else if (act === 'reset') { state.T = 1500; syncControls(); updateReadouts(); requestDraw(); }
+        $('ctx-menu').style.display = 'none';
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); }
+    });
+    window.addEventListener('resize', requestDraw);
+  }
+
+  function init() {
+    rebuildPresets(); syncControls(); syncUnitTabs(); wireEvents();
+    setMode('simulate');
+    requestDraw();
+    /* KaTeX is loaded with `defer` from index.html — sweep panels once it arrives */
+    deferredKatexSweep();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();

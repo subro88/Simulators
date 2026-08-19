@@ -1,0 +1,3644 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     ENGINEERING DATA — METRIC BOLT TABLES
+     ================================================================ */
+
+  /* ================================================================
+     FASTENER CATALOG — two standards, one SI core
+
+     Every dimension below is stored in SI (mm, mm^2) no matter which standard
+     it came from, because the whole engine computes in SI. The `label` is what
+     the user sees, so an inch bolt still reads as 1/2"-13 UNC.
+
+     Sources, all cross-checked rather than transcribed:
+       metric As,nom  ISO 898-1:2013 Tables 4 and 7 (coarse and fine pitch)
+       metric s/k/m   ISO 4014 (hex bolt) and ISO 4032 (hex nut) — drawing only
+       inch   As      ASME B1.1, As = 0.7854 (D - 0.9743/n)^2
+       inch   F/H/m   ASME B18.2.1 / B18.2.2 — drawing only
+     Both stress-area formulas were run against the published tables for all
+     64 sizes before these numbers were written down; see the header note on
+     gradeFor() for the property-class sources.
+     ================================================================ */
+
+  var BOLT_DATA = {
+    'M3':{d:3,p:0.5,At:5.03,dw:5.5,head_h:2,nut_h:2.4,std:'metric',series:'coarse',label:'M3'},
+    'M4':{d:4,p:0.7,At:8.78,dw:7,head_h:2.8,nut_h:3.2,std:'metric',series:'coarse',label:'M4'},
+    'M5':{d:5,p:0.8,At:14.2,dw:8,head_h:3.5,nut_h:4.7,std:'metric',series:'coarse',label:'M5'},
+    'M6':{d:6,p:1,At:20.1,dw:10,head_h:4,nut_h:5.2,std:'metric',series:'coarse',label:'M6'},
+    'M8':{d:8,p:1.25,At:36.6,dw:13,head_h:5.3,nut_h:6.8,std:'metric',series:'coarse',label:'M8'},
+    'M10':{d:10,p:1.5,At:58,dw:16,head_h:6.4,nut_h:8.4,std:'metric',series:'coarse',label:'M10'},
+    'M12':{d:12,p:1.75,At:84.3,dw:18,head_h:7.5,nut_h:10.8,std:'metric',series:'coarse',label:'M12'},
+    'M14':{d:14,p:2,At:115,dw:21,head_h:8.8,nut_h:12.8,std:'metric',series:'coarse',label:'M14'},
+    'M16':{d:16,p:2,At:157,dw:24,head_h:10,nut_h:14.8,std:'metric',series:'coarse',label:'M16'},
+    'M18':{d:18,p:2.5,At:192,dw:27,head_h:11.5,nut_h:15.8,std:'metric',series:'coarse',label:'M18'},
+    'M20':{d:20,p:2.5,At:245,dw:30,head_h:12.5,nut_h:18,std:'metric',series:'coarse',label:'M20'},
+    'M22':{d:22,p:2.5,At:303,dw:34,head_h:14,nut_h:19.4,std:'metric',series:'coarse',label:'M22'},
+    'M24':{d:24,p:3,At:353,dw:36,head_h:15,nut_h:21.5,std:'metric',series:'coarse',label:'M24'},
+    'M27':{d:27,p:3,At:459,dw:41,head_h:17,nut_h:23.8,std:'metric',series:'coarse',label:'M27'},
+    'M30':{d:30,p:3.5,At:561,dw:46,head_h:18.7,nut_h:25.6,std:'metric',series:'coarse',label:'M30'},
+    'M33':{d:33,p:3.5,At:694,dw:50,head_h:21,nut_h:28.7,std:'metric',series:'coarse',label:'M33'},
+    'M36':{d:36,p:4,At:817,dw:55,head_h:22.5,nut_h:31,std:'metric',series:'coarse',label:'M36'},
+
+    'M8x1':{d:8,p:1,At:39.2,dw:13,head_h:5.3,nut_h:6.8,std:'metric',series:'fine',label:'M8\u00D71'},
+    'M10x1.25':{d:10,p:1.25,At:61.2,dw:16,head_h:6.4,nut_h:8.4,std:'metric',series:'fine',label:'M10\u00D71.25'},
+    'M12x1.25':{d:12,p:1.25,At:92.1,dw:18,head_h:7.5,nut_h:10.8,std:'metric',series:'fine',label:'M12\u00D71.25'},
+    'M14x1.5':{d:14,p:1.5,At:125,dw:21,head_h:8.8,nut_h:12.8,std:'metric',series:'fine',label:'M14\u00D71.5'},
+    'M16x1.5':{d:16,p:1.5,At:167,dw:24,head_h:10,nut_h:14.8,std:'metric',series:'fine',label:'M16\u00D71.5'},
+    'M18x1.5':{d:18,p:1.5,At:216,dw:27,head_h:11.5,nut_h:15.8,std:'metric',series:'fine',label:'M18\u00D71.5'},
+    'M20x1.5':{d:20,p:1.5,At:272,dw:30,head_h:12.5,nut_h:18,std:'metric',series:'fine',label:'M20\u00D71.5'},
+    'M22x1.5':{d:22,p:1.5,At:333,dw:34,head_h:14,nut_h:19.4,std:'metric',series:'fine',label:'M22\u00D71.5'},
+    'M24x2':{d:24,p:2,At:384,dw:36,head_h:15,nut_h:21.5,std:'metric',series:'fine',label:'M24\u00D72'},
+    'M27x2':{d:27,p:2,At:496,dw:41,head_h:17,nut_h:23.8,std:'metric',series:'fine',label:'M27\u00D72'},
+    'M30x2':{d:30,p:2,At:621,dw:46,head_h:18.7,nut_h:25.6,std:'metric',series:'fine',label:'M30\u00D72'},
+    'M33x2':{d:33,p:2,At:761,dw:50,head_h:21,nut_h:28.7,std:'metric',series:'fine',label:'M33\u00D72'},
+    'M36x3':{d:36,p:3,At:865,dw:55,head_h:22.5,nut_h:31,std:'metric',series:'fine',label:'M36\u00D73'},
+
+    '1/4-20':{d:6.3500,p:1.270000,At:20.53,dw:11.112,head_h:3.969,nut_h:5.556,std:'inch',series:'UNC',tpi:20,label:'1/4\u2033\u201320 UNC',At_in:0.0318},
+    '1/4-28':{d:6.3500,p:0.907143,At:23.47,dw:11.112,head_h:3.969,nut_h:5.556,std:'inch',series:'UNF',tpi:28,label:'1/4\u2033\u201328 UNF',At_in:0.0364},
+    '5/16-18':{d:7.9375,p:1.411111,At:33.83,dw:12.700,head_h:5.160,nut_h:6.747,std:'inch',series:'UNC',tpi:18,label:'5/16\u2033\u201318 UNC',At_in:0.0524},
+    '5/16-24':{d:7.9375,p:1.058333,At:37.46,dw:12.700,head_h:5.160,nut_h:6.747,std:'inch',series:'UNF',tpi:24,label:'5/16\u2033\u201324 UNF',At_in:0.0581},
+    '3/8-16':{d:9.5250,p:1.587500,At:49.99,dw:14.287,head_h:5.953,nut_h:8.335,std:'inch',series:'UNC',tpi:16,label:'3/8\u2033\u201316 UNC',At_in:0.0775},
+    '3/8-24':{d:9.5250,p:1.058333,At:56.66,dw:14.287,head_h:5.953,nut_h:8.335,std:'inch',series:'UNF',tpi:24,label:'3/8\u2033\u201324 UNF',At_in:0.0878},
+    '7/16-14':{d:11.1125,p:1.814286,At:68.59,dw:15.875,head_h:7.144,nut_h:9.525,std:'inch',series:'UNC',tpi:14,label:'7/16\u2033\u201314 UNC',At_in:0.1063},
+    '7/16-20':{d:11.1125,p:1.270000,At:76.59,dw:15.875,head_h:7.144,nut_h:9.525,std:'inch',series:'UNF',tpi:20,label:'7/16\u2033\u201320 UNF',At_in:0.1187},
+    '1/2-13':{d:12.7000,p:1.953846,At:91.55,dw:19.050,head_h:7.938,nut_h:11.112,std:'inch',series:'UNC',tpi:13,label:'1/2\u2033\u201313 UNC',At_in:0.1419},
+    '1/2-20':{d:12.7000,p:1.270000,At:103.20,dw:19.050,head_h:7.938,nut_h:11.112,std:'inch',series:'UNF',tpi:20,label:'1/2\u2033\u201320 UNF',At_in:0.1600},
+    '9/16-12':{d:14.2875,p:2.116667,At:117.38,dw:20.637,head_h:9.128,nut_h:12.303,std:'inch',series:'UNC',tpi:12,label:'9/16\u2033\u201312 UNC',At_in:0.1819},
+    '9/16-18':{d:14.2875,p:1.411111,At:130.95,dw:20.637,head_h:9.128,nut_h:12.303,std:'inch',series:'UNF',tpi:18,label:'9/16\u2033\u201318 UNF',At_in:0.2030},
+    '5/8-11':{d:15.8750,p:2.309091,At:145.81,dw:23.812,head_h:9.922,nut_h:13.891,std:'inch',series:'UNC',tpi:11,label:'5/8\u2033\u201311 UNC',At_in:0.2260},
+    '5/8-18':{d:15.8750,p:1.411111,At:165.13,dw:23.812,head_h:9.922,nut_h:13.891,std:'inch',series:'UNF',tpi:18,label:'5/8\u2033\u201318 UNF',At_in:0.2560},
+    '3/4-10':{d:19.0500,p:2.540000,At:215.78,dw:28.575,head_h:11.906,nut_h:16.272,std:'inch',series:'UNC',tpi:10,label:'3/4\u2033\u201310 UNC',At_in:0.3345},
+    '3/4-16':{d:19.0500,p:1.587500,At:240.62,dw:28.575,head_h:11.906,nut_h:16.272,std:'inch',series:'UNF',tpi:16,label:'3/4\u2033\u201316 UNF',At_in:0.3730},
+    '7/8-9':{d:22.2250,p:2.822222,At:297.89,dw:33.337,head_h:14.685,nut_h:19.050,std:'inch',series:'UNC',tpi:9,label:'7/8\u2033\u20139 UNC',At_in:0.4617},
+    '7/8-14':{d:22.2250,p:1.814286,At:328.69,dw:33.337,head_h:14.685,nut_h:19.050,std:'inch',series:'UNF',tpi:14,label:'7/8\u2033\u201314 UNF',At_in:0.5095},
+    '1-8':{d:25.4000,p:3.175000,At:390.80,dw:38.100,head_h:15.478,nut_h:21.828,std:'inch',series:'UNC',tpi:8,label:'1\u2033\u20138 UNC',At_in:0.6057},
+    '1-12':{d:25.4000,p:2.116667,At:427.77,dw:38.100,head_h:15.478,nut_h:21.828,std:'inch',series:'UNF',tpi:12,label:'1\u2033\u201312 UNF',At_in:0.6630},
+    '1-1/8-7':{d:28.5750,p:3.628571,At:492.43,dw:42.862,head_h:17.462,nut_h:24.606,std:'inch',series:'UNC',tpi:7,label:'1-1/8\u2033\u20137 UNC',At_in:0.7633},
+    '1-1/8-12':{d:28.5750,p:2.116667,At:552.08,dw:42.862,head_h:17.462,nut_h:24.606,std:'inch',series:'UNF',tpi:12,label:'1-1/8\u2033\u201312 UNF',At_in:0.8557},
+    '1-1/4-7':{d:31.7500,p:3.628571,At:625.23,dw:47.625,head_h:21.431,nut_h:26.987,std:'inch',series:'UNC',tpi:7,label:'1-1/4\u2033\u20137 UNC',At_in:0.9691},
+    '1-1/4-12':{d:31.7500,p:2.116667,At:692.22,dw:47.625,head_h:21.431,nut_h:26.987,std:'inch',series:'UNF',tpi:12,label:'1-1/4\u2033\u201312 UNF',At_in:1.0729},
+    '1-3/8-6':{d:34.9250,p:4.233333,At:745.08,dw:52.387,head_h:23.019,nut_h:29.766,std:'inch',series:'UNC',tpi:6,label:'1-3/8\u2033\u20136 UNC',At_in:1.1549},
+    '1-3/8-12':{d:34.9250,p:2.116667,At:848.20,dw:52.387,head_h:23.019,nut_h:29.766,std:'inch',series:'UNF',tpi:12,label:'1-3/8\u2033\u201312 UNF',At_in:1.3147},
+    '1-1/2-6':{d:38.1000,p:4.233333,At:906.61,dw:57.150,head_h:23.812,nut_h:32.544,std:'inch',series:'UNC',tpi:6,label:'1-1/2\u2033\u20136 UNC',At_in:1.4053},
+    '1-1/2-12':{d:38.1000,p:2.116667,At:1020.01,dw:57.150,head_h:23.812,nut_h:32.544,std:'inch',series:'UNF',tpi:12,label:'1-1/2\u2033\u201312 UNF',At_in:1.5810},
+  };
+
+  /* Property classes and grades.
+
+     ISO 898-1:2013 Table 3 for the metric classes: Sp is the nominal stress
+     under proof load, Sy the lower yield ReL (4.6, 5.6), the full-size Rpf
+     (4.8, 5.8, 6.8) or Rp0,2 min (8.8 and above), Su the minimum tensile Rm.
+     SAE J429 Table 1 and ASTM F3125 for the inch grades, converted from ksi.
+
+     `rows` carries the diameter dependence: the first row whose `to` the bolt
+     diameter does not exceed wins. Three grades in this set genuinely change
+     strength with size and are wrong if you use a single row —
+       ISO 8.8   splits at 16 mm  (800/640/580 below, 830/660/600 above)
+       SAE 2     splits at 3/4 in (55 ksi proof below, 33 ksi above)
+       SAE 5     splits at 1 in   (85 ksi proof below, 74 ksi above)
+     A325 does NOT split: F3125 raised the 1-1/8 to 1-1/2 in sizes to match the
+     smaller ones, so the old 105 ksi row for large A325 no longer applies.
+
+     Se is the fully corrected endurance strength for a ROLLED thread. The
+     tabulated values are Shigley Table 8-17 (metric 8.8/9.8/10.9/12.9 and SAE
+     grade 5/8); classes with no table entry use the 0.156*Su fit that
+     reproduces every tabulated value to within 3%. Cut threads are roughly
+     30% worse and none of these figures apply to them. */
+  var GRADE_DATA = {
+    '4.6':{std:'metric',label:'4.6',rows:[{to:Infinity,Sp:225,Sy:240,Su:400,Se:62}]},
+    '4.8':{std:'metric',label:'4.8',rows:[{to:Infinity,Sp:310,Sy:340,Su:420,Se:66}]},
+    '5.6':{std:'metric',label:'5.6',rows:[{to:Infinity,Sp:280,Sy:300,Su:500,Se:78}]},
+    '5.8':{std:'metric',label:'5.8',rows:[{to:Infinity,Sp:380,Sy:420,Su:520,Se:81}]},
+    '6.8':{std:'metric',label:'6.8',rows:[{to:Infinity,Sp:440,Sy:480,Su:600,Se:94}]},
+    '8.8':{std:'metric',label:'8.8',rows:[{to:16,Sp:580,Sy:640,Su:800,Se:129},{to:Infinity,Sp:600,Sy:660,Su:830,Se:129}]},
+    '9.8':{std:'metric',label:'9.8',dMax:16,rows:[{to:Infinity,Sp:650,Sy:720,Su:900,Se:140}]},
+    '10.9':{std:'metric',label:'10.9',rows:[{to:Infinity,Sp:830,Sy:940,Su:1040,Se:162}]},
+    '12.9':{std:'metric',label:'12.9',rows:[{to:Infinity,Sp:970,Sy:1100,Su:1220,Se:190}]},
+    'SAE1':{std:'inch',label:'SAE Grade 1',rows:[{to:Infinity,Sp:227.5,Sy:248.2,Su:413.7,Se:65}]},
+    'SAE2':{std:'inch',label:'SAE Grade 2',rows:[{to:19.05,Sp:379.2,Sy:393,Su:510.2,Se:80},{to:Infinity,Sp:227.5,Sy:248.2,Su:413.7,Se:65}]},
+    'SAE5':{std:'inch',label:'SAE Grade 5',rows:[{to:25.4,Sp:586.1,Sy:634.3,Su:827.4,Se:128},{to:Infinity,Sp:510.2,Sy:558.5,Su:723.9,Se:113}]},
+    'SAE8':{std:'inch',label:'SAE Grade 8',rows:[{to:Infinity,Sp:827.4,Sy:896.3,Su:1034.2,Se:160}]},
+    'A325':{std:'inch',label:'ASTM F3125 A325',dMin:12.7,rows:[{to:Infinity,Sp:586.1,Sy:634.3,Su:827.4,Se:128}]},
+    'A490':{std:'inch',label:'ASTM F3125 A490',dMin:12.7,rows:[{to:Infinity,Sp:827.4,Sy:896.3,Su:1034.2,Se:160}]},
+  };
+
+  /* Resolve the property-class row that actually applies at diameter d (mm). */
+  function gradeFor(cls, d) {
+    var g = GRADE_DATA[cls];
+    if (!g) return null;
+    for (var i = 0; i < g.rows.length; i++) if (d <= g.rows[i].to + 1e-9) return g.rows[i];
+    return g.rows[g.rows.length - 1];
+  }
+  /* Is this class offered at all at diameter d? (9.8 stops at M16; the
+     structural grades start at 1/2 in.) */
+  function gradeApplies(cls, d) {
+    var g = GRADE_DATA[cls];
+    if (!g) return false;
+    return d >= (g.dMin || 0) - 1e-9 && d <= (g.dMax || 1e9) + 1e-9;
+  }
+  function boltsOf(std, series) {
+    var out = [];
+    for (var k in BOLT_DATA) {
+      var b = BOLT_DATA[k];
+      if (b.std === std && b.series === series) out.push(k);
+    }
+    return out.sort(function (x, y) { return BOLT_DATA[x].d - BOLT_DATA[y].d; });
+  }
+  function gradesOf(std, d) {
+    var out = [];
+    for (var k in GRADE_DATA) if (GRADE_DATA[k].std === std && gradeApplies(k, d)) out.push(k);
+    return out;
+  }
+
+  /* ================================================================
+     DATA — CONCEPTS
+     ================================================================ */
+
+  var CONCEPTS = [
+    /* -- Basics --------------------------------------------------- */
+    {
+      id: 'bolt-anatomy', name: 'Bolt Anatomy', symbol: 'Head / Shank / Thread',
+      formula: 'Bolt = Head + Shank + Threaded portion', unit: '\u2014',
+      cat: 'basics',
+      desc: 'A bolt consists of three main parts: the head (hexagonal or socket), the shank (unthreaded cylindrical portion), and the threaded section. The head transmits tightening torque and provides a bearing surface. The shank provides the main body and resists shear in some joint configurations. The threads engage with a nut or tapped hole to develop clamping force (preload).',
+      diagram: 'boltAnatomy',
+      example: { problem: 'An M12 bolt has a shank diameter of 12 mm, pitch of 1.75 mm, and head width across flats of 18 mm. What is the thread root diameter (approximate)?', steps: ['Root diameter \u2248 d \u2212 1.2269p', 'd_r \u2248 12 \u2212 1.2269 \u00D7 1.75', 'd_r \u2248 12 \u2212 2.147', 'd_r \u2248 9.85 mm'], answer: 9.85, unit: 'mm' }
+    },
+    {
+      id: 'thread-types', name: 'Thread Types', symbol: 'M (Metric) / UNC',
+      formula: 'Metric: M + d (mm) | UNC: d-TPI', unit: '\u2014',
+      cat: 'basics',
+      desc: 'Thread types define the profile and dimensions of bolt threads. ISO Metric (M) threads use a 60\u00B0 profile with pitch in millimetres (e.g., M10 \u00D7 1.5). UNC (Unified National Coarse) and UNF (Fine) are imperial standards with threads per inch. Coarse threads are more common for general use (easier assembly, more tolerant of damage), while fine threads provide higher tensile strength and better vibration resistance.',
+      diagram: 'threadTypes',
+      example: { problem: 'An M16 \u00D7 2.0 bolt has a 2.0 mm pitch. How many threads are there in a 20 mm engagement length?', steps: ['Number of threads = length / pitch', 'n = 20 / 2.0', 'n = 10 threads', 'This provides adequate engagement (\u22651.5d = 24 mm recommended)'], answer: 10, unit: 'threads' }
+    },
+    {
+      id: 'bolt-grades', name: 'Bolt Grades', symbol: 'Class 4.6 \u2013 12.9',
+      formula: 'First digit \u00D7 100 = Su (MPa), Product \u00D7 10 = Sy (MPa)', unit: 'MPa',
+      cat: 'basics',
+      desc: 'Metric bolt grades (property classes) use a two-number system. For grade 8.8: the first number (8) \u00D7 100 gives ultimate tensile strength (800 MPa), and the product (8 \u00D7 8 = 64) \u00D7 10 gives yield strength (640 MPa). Common grades: 4.6 (mild steel, 400 MPa UTS), 8.8 (medium carbon, 800 MPa), 10.9 (alloy steel, 1040 MPa), 12.9 (alloy steel, 1220 MPa). Higher grades carry more load but are more brittle.',
+      diagram: 'boltGrades',
+      example: { problem: 'A bolt is marked 10.9. What are its ultimate tensile strength and yield strength?', steps: ['First digit = 10, second = 9', 'Su = 10 \u00D7 100 = 1000 MPa (actual: 1040)', 'Sy = 10 \u00D7 9 \u00D7 10 = 900 MPa (actual: 940)', 'Grade 10.9 is high-strength alloy steel'], answer: 1040, unit: 'MPa' }
+    },
+    {
+      id: 'stress-area', name: 'Tensile Stress Area', symbol: 'At',
+      formula: 'At = (\u03C0/4)(d \u2212 0.9382p)\u00B2', unit: 'mm\u00B2',
+      cat: 'basics',
+      desc: 'The tensile stress area (At) is the effective cross-sectional area of a bolt at its weakest point (the thread root). It accounts for the helical thread geometry and is smaller than the nominal cross-sectional area. The standard formula is At = (\u03C0/4)(d \u2212 0.9382p)\u00B2, where d is the nominal diameter and p is the pitch. This area is used for all tensile stress calculations on the bolt.',
+      diagram: 'stressArea',
+      example: { problem: 'Calculate the tensile stress area for an M10 bolt (d = 10 mm, p = 1.5 mm).', steps: ['At = (\u03C0/4)(d \u2212 0.9382p)\u00B2', 'At = (\u03C0/4)(10 \u2212 0.9382\u00D71.5)\u00B2', 'At = (\u03C0/4)(10 \u2212 1.407)\u00B2 = (\u03C0/4)(8.593)\u00B2', 'At = (\u03C0/4)(73.84) = 58.0 mm\u00B2'], answer: 58.0, unit: 'mm\u00B2' }
+    },
+
+    /* -- Stresses ------------------------------------------------- */
+    {
+      id: 'tensile-stress', name: 'Tensile Stress', symbol: '\u03C3',
+      formula: '\u03C3 = F / At', unit: 'MPa',
+      cat: 'stresses',
+      desc: 'Tensile stress is the axial stress in a bolt caused by the preload (tightening force) and any external tensile load. It is calculated as \u03C3 = F / At, where F is the total axial force on the bolt and At is the tensile stress area. For a preloaded bolt under external tension, the bolt force increases while the joint compression decreases. The bolt stress must not exceed the proof strength for reliable operation.',
+      diagram: 'tensileStress',
+      example: { problem: 'An M10 bolt (At = 58.0 mm\u00B2) carries a tensile load of 20 kN. Find the tensile stress.', steps: ['\u03C3 = F / At', '\u03C3 = 20000 / 58.0', '\u03C3 = 344.8 MPa', 'Compare with proof strength (580 MPa for grade 8.8 at d \u2264 16 mm)'], answer: 344.8, unit: 'MPa' }
+    },
+    {
+      id: 'shear-stress', name: 'Shear Stress', symbol: '\u03C4',
+      formula: '\u03C4 = F / (n \u00D7 A)', unit: 'MPa',
+      cat: 'stresses',
+      desc: 'Shear stress occurs when the bolt resists forces perpendicular to its axis (transverse loads). In a lap joint, the bolt acts as a pin and resists sliding between the plates. The shear stress is \u03C4 = F / (n \u00D7 A), where F is the total transverse load, n is the number of bolts, and A is the cross-sectional area of the bolt shank (or root area for threads in shear plane). Shear strength is approximately 0.577 \u00D7 tensile yield strength.',
+      diagram: 'shearStress',
+      example: { problem: 'A lap joint with 4 M12 bolts (d = 12 mm) carries a 60 kN shear load. Find the shear stress per bolt.', steps: ['A = \u03C0d\u00B2/4 = \u03C0(12)\u00B2/4 = 113.1 mm\u00B2', '\u03C4 = F / (n \u00D7 A)', '\u03C4 = 60000 / (4 \u00D7 113.1)', '\u03C4 = 132.6 MPa'], answer: 132.6, unit: 'MPa' }
+    },
+    {
+      id: 'bearing-stress', name: 'Bearing Stress', symbol: '\u03C3b',
+      formula: '\u03C3b = F / (n \u00D7 d \u00D7 t)', unit: 'MPa',
+      cat: 'stresses',
+      desc: 'Bearing stress is the compressive stress between the bolt and the hole wall in the plate. It prevents the bolt from elongating or tearing the hole. Bearing stress is calculated as \u03C3b = F / (n \u00D7 d \u00D7 t), where d is the bolt diameter and t is the thickness of the thinner plate. The bearing area is the projected area of the bolt on the plate (d \u00D7 t). Allowable bearing stress depends on the plate material.',
+      diagram: 'bearingStress',
+      example: { problem: 'A 50 kN load on 2 M10 bolts through a 10 mm plate. Find bearing stress.', steps: ['\u03C3b = F / (n \u00D7 d \u00D7 t)', '\u03C3b = 50000 / (2 \u00D7 10 \u00D7 10)', '\u03C3b = 50000 / 200', '\u03C3b = 250 MPa'], answer: 250, unit: 'MPa' }
+    },
+    {
+      id: 'preload', name: 'Preload (Fi)', symbol: 'Fi',
+      formula: 'Fi = 0.9 \u00D7 At \u00D7 Sp', unit: 'kN',
+      cat: 'stresses',
+      desc: 'Preload is the initial clamping force in a bolt created by tightening. The target is set as a fraction of the proof load Fp = At \u00D7 Sp: Fi = 0.90 \u00D7 At \u00D7 Sp for a permanent connection, and Fi = 0.75 \u00D7 At \u00D7 Sp where the joint will be dismantled and re-tightened, which leaves margin for the extra scatter of a second tightening. Preload keeps the joint clamped under service loads and prevents fatigue failure. Insufficient preload leads to joint separation; excessive preload risks bolt yield.',
+      diagram: 'preload',
+      example: { problem: 'Find the preload for a permanent M12 grade 8.8 connection (At = 84.3 mm\u00B2, Sp = 580 MPa for d \u2264 16 mm).', steps: ['Fi = 0.90 \u00D7 At \u00D7 Sp', 'Fi = 0.90 \u00D7 84.3 \u00D7 580', 'Fi = 44004 N', 'Fi = 44.0 kN'], answer: 44.0, unit: 'kN' }
+    },
+
+    /* -- Design --------------------------------------------------- */
+    {
+      id: 'factor-of-safety', name: 'Factor of Safety', symbol: 'FoS',
+      formula: 'FoS = Sp / \u03C3_actual', unit: '\u2014',
+      cat: 'design',
+      desc: 'The factor of safety (FoS) is the ratio of the bolt proof strength to the actual working stress. A minimum FoS of 2.0 is common for static loads, and 3.0\u20134.0 for dynamic or fatigue loading. FoS = Sp / \u03C3_actual. If FoS < 1.0, the bolt is overstressed and will yield. Values between 1.0 and 1.5 indicate marginal design. Proper FoS accounts for load uncertainty, material variability, and installation quality.',
+      diagram: 'factorOfSafety',
+      example: { problem: 'An M10 grade 8.8 bolt (At = 58 mm\u00B2, Sp = 580 MPa) carries 15 kN. Find FoS.', steps: ['\u03C3 = F/At = 15000/58 = 258.6 MPa', 'FoS = Sp / \u03C3', 'FoS = 580 / 258.6', 'FoS = 2.24 (adequate for static loading)'], answer: 2.24, unit: '\u2014' }
+    },
+    {
+      id: 'joint-stiffness', name: 'Joint Stiffness', symbol: 'kb, km',
+      formula: 'C = kb / (kb + km)', unit: 'N/mm',
+      cat: 'design',
+      desc: 'Joint stiffness determines how an external load is shared between the bolt and the clamped members. The bolt stiffness is kb = At \u00D7 E / Lg (where Lg is grip length and E is Young\'s modulus). The member stiffness km is typically 3\u201310 times larger. The stiffness ratio C = kb/(kb+km) determines the fraction of external load carried by the bolt. Lower C means less bolt load variation, improving fatigue life.',
+      diagram: 'jointStiffness',
+      example: { problem: 'A bolt has kb = 400 kN/mm and member stiffness km = 1200 kN/mm. Find the load ratio C.', steps: ['C = kb / (kb + km)', 'C = 400 / (400 + 1200)', 'C = 400 / 1600', 'C = 0.25 (bolt carries 25% of external load change)'], answer: 0.25, unit: '\u2014' }
+    },
+    {
+      id: 'tightening-torque', name: 'Tightening Torque', symbol: 'T',
+      formula: 'T = K \u00D7 d \u00D7 Fi', unit: 'N\u00B7m',
+      cat: 'design',
+      desc: 'Torque is how preload is usually applied, and it is a poor way to control it. Only about 10\u201315% of the torque you apply actually stretches the bolt \u2014 the rest is spent overcoming friction under the turning face and in the threads. The nut factor K bundles both frictions into one number: about 0.15 lubricated, 0.20 for plain steel as received, 0.25 zinc plated. Because K varies with surface finish, lubrication and reuse, the torque method controls preload to only about \u00B125%. Lubricating a thread while keeping the same torque setting roughly doubles the preload \u2014 a classic cause of bolts that snap during assembly.',
+      diagram: 'torque',
+      example: { problem: 'Find the tightening torque for an M16 grade 8.8 bolt preloaded to 81.9 kN with K = 0.20.', steps: ['T = K \u00D7 d \u00D7 Fi', 'T = 0.20 \u00D7 16 \u00D7 81.9', 'T = 262 N\u00B7m', '(d in mm with Fi in kN gives N\u00B7m directly)'], answer: 262, unit: 'N\u00B7m' }
+    },
+    {
+      id: 'bolt-stretch', name: 'Bolt Stretch', symbol: '\u03B4',
+      formula: '\u03B4 = Fi \u00D7 Lg / (At \u00D7 E)', unit: 'mm',
+      cat: 'design',
+      desc: 'A tightened bolt is a stiff spring, and its extension is the one measurement of preload that friction cannot corrupt. Since kb = At\u00B7E/Lg, the stretch at preload is \u03B4 = Fi/kb = Fi\u00B7Lg/(At\u00B7E). The numbers are small \u2014 typically 0.05 to 0.20 mm \u2014 which is why it is measured with a depth micrometer over a ground bolt end, an ultrasonic gauge, or a bolt with a gauge pin. Wherever preload genuinely matters (cylinder heads, turbine casings, wind-turbine foundations) the specification is written in stretch or in turn-of-nut angle, not in torque.',
+      diagram: 'stretch',
+      example: { problem: 'An M16 bolt (At = 157 mm\u00B2) with a 40 mm grip is preloaded to 81.9 kN. Find the stretch. E = 207 GPa.', steps: ['kb = At\u00B7E/Lg = 157 \u00D7 207000 / 40', 'kb = 812,475 N/mm', '\u03B4 = Fi / kb = 81900 / 812475', '\u03B4 = 0.101 mm'], answer: 0.101, unit: 'mm' }
+    },
+    {
+      id: 'bolt-fatigue', name: 'Bolt Fatigue', symbol: 'nf',
+      formula: 'nf = Se(Su \u2212 \u03C3i) / [\u03C3a(Su + Se)]', unit: '\u2014',
+      cat: 'design',
+      desc: 'Bolts almost never fail from a single overload \u2014 they fail from cycling, and the crack starts at the first engaged thread beside the nut face. Preload is the defence. Because the bolt only picks up the fraction C of each load increment, an external load cycling 0 \u2192 P produces an alternating stress of only \u03C3a = C\u00B7P/(2At). Raising the preload does not increase \u03C3a at all; it just raises the mean stress and, far more importantly, keeps the joint closed so that C stays small. Se is the fully corrected endurance strength for a rolled thread \u2014 129 MPa for class 8.8, 162 for 10.9, 190 for 12.9. Cut threads are roughly 30% worse.',
+      diagram: 'fatigue',
+      example: { problem: 'A joint has C = 0.25, At = 157 mm\u00B2, Fi = 81.9 kN, and an external load cycling 0 \u2192 30 kN per bolt. Grade 8.8: Su = 800, Se = 129 MPa. Find nf.', steps: ['\u03C3i = Fi/At = 81900/157 = 521.7 MPa', '\u03C3a = C\u00B7P/(2At) = 0.25\u00D730000/(2\u00D7157) = 23.9 MPa', 'nf = Se(Su \u2212 \u03C3i) / [\u03C3a(Su + Se)]', 'nf = 129(800 \u2212 521.7) / [23.9(800 + 129)] = 1.62'], answer: 1.62, unit: '\u2014' }
+    }
+  ];
+
+  /* ================================================================
+     DATA — PROBLEM GENERATORS
+     ================================================================ */
+
+  var PROBLEM_GEN = [
+    /* 0 — Tensile stress area calculation */
+    function () {
+      var sizes = ['M6','M8','M10','M12','M16','M20','M24'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var At = +(Math.PI / 4 * Math.pow(b.d - 0.9382 * b.p, 2)).toFixed(1);
+      return { prompt: 'Calculate the tensile stress area for an ' + s + ' bolt (d = ' + b.d + ' mm, p = ' + b.p + ' mm). Round to 1 decimal.', steps: ['At = (\u03C0/4)(d \u2212 0.9382p)\u00B2', 'At = (\u03C0/4)(' + b.d + ' \u2212 0.9382\u00D7' + b.p + ')\u00B2', 'At = (\u03C0/4)(' + (b.d - 0.9382 * b.p).toFixed(3) + ')\u00B2', 'At = ' + At + ' mm\u00B2'], answer: At, unit: 'mm\u00B2' };
+    },
+    /* 1 — Tensile stress from load */
+    function () {
+      var sizes = ['M8','M10','M12','M16','M20'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var F = randInt(10, 80);
+      var sigma = +(F * 1000 / b.At).toFixed(1);
+      return { prompt: 'An ' + s + ' bolt (At = ' + b.At + ' mm\u00B2) carries ' + F + ' kN tensile load. Find the tensile stress (MPa).', steps: ['\u03C3 = F / At', '\u03C3 = ' + (F * 1000) + ' / ' + b.At, '\u03C3 = ' + sigma + ' MPa', 'Compare to proof strength of chosen grade'], answer: sigma, unit: 'MPa' };
+    },
+    /* 2 — Preload calculation */
+    function () {
+      var sizes = ['M8','M10','M12','M16','M20'];
+      var grades = ['4.6','8.8','10.9','12.9'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var g = grades[randInt(0, grades.length - 1)];
+      var b = BOLT_DATA[s];
+      var gr = gradeFor(g, b.d);
+      var Fi = +(0.9 * b.At * gr.Sp / 1000).toFixed(1);
+      return { prompt: 'Find the preload (kN) for a permanent ' + s + ' grade ' + g + ' connection at 90% of proof load (At = ' + b.At + ' mm\u00B2, Sp = ' + gr.Sp + ' MPa).', steps: ['Fi = 0.9 \u00D7 At \u00D7 Sp', 'Fi = 0.9 \u00D7 ' + b.At + ' \u00D7 ' + gr.Sp, 'Fi = ' + (0.9 * b.At * gr.Sp).toFixed(0) + ' N', 'Fi = ' + Fi + ' kN'], answer: Fi, unit: 'kN' };
+    },
+    /* 3 — Factor of safety */
+    function () {
+      var sizes = ['M10','M12','M16','M20'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var g = '8.8';
+      var gr = gradeFor(g, b.d);
+      var F = randInt(10, 50);
+      var sigma = F * 1000 / b.At;
+      var fos = +(gr.Sp / sigma).toFixed(2);
+      return { prompt: 'An ' + s + ' grade 8.8 bolt (At = ' + b.At + ' mm\u00B2, Sp = ' + gr.Sp + ' MPa) carries ' + F + ' kN. Find the factor of safety.', steps: ['\u03C3 = F/At = ' + (F * 1000) + '/' + b.At + ' = ' + sigma.toFixed(1) + ' MPa', 'FoS = Sp / \u03C3', 'FoS = ' + gr.Sp + ' / ' + sigma.toFixed(1), 'FoS = ' + fos], answer: fos, unit: '\u2014' };
+    },
+    /* 4 — Shear stress in a bolted joint */
+    function () {
+      var n = randInt(2, 8);
+      var d = [8, 10, 12, 16, 20][randInt(0, 4)];
+      var F = randInt(20, 120);
+      var A = +(Math.PI * d * d / 4).toFixed(1);
+      var tau = +(F * 1000 / (n * A)).toFixed(1);
+      return { prompt: 'A joint with ' + n + ' bolts of ' + d + ' mm diameter carries ' + F + ' kN shear load. Find the shear stress per bolt (MPa).', steps: ['A = \u03C0d\u00B2/4 = \u03C0(' + d + ')\u00B2/4 = ' + A + ' mm\u00B2', '\u03C4 = F / (n \u00D7 A)', '\u03C4 = ' + (F * 1000) + ' / (' + n + ' \u00D7 ' + A + ')', '\u03C4 = ' + tau + ' MPa'], answer: tau, unit: 'MPa' };
+    },
+    /* 5 — Bearing stress */
+    function () {
+      var n = randInt(2, 6);
+      var d = [10, 12, 16, 20][randInt(0, 3)];
+      var t = randInt(6, 20);
+      var F = randInt(30, 100);
+      var sigma_b = +(F * 1000 / (n * d * t)).toFixed(1);
+      return { prompt: F + ' kN load on ' + n + ' bolts (\u00F8' + d + ' mm) through a ' + t + ' mm plate. Find bearing stress (MPa).', steps: ['\u03C3b = F / (n \u00D7 d \u00D7 t)', '\u03C3b = ' + (F * 1000) + ' / (' + n + ' \u00D7 ' + d + ' \u00D7 ' + t + ')', '\u03C3b = ' + (F * 1000) + ' / ' + (n * d * t), '\u03C3b = ' + sigma_b + ' MPa'], answer: sigma_b, unit: 'MPa' };
+    },
+    /* 6 — Proof load */
+    function () {
+      var sizes = ['M8','M10','M12','M16','M20'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var grades = ['8.8','10.9','12.9'];
+      var g = grades[randInt(0, grades.length - 1)];
+      var gr = gradeFor(g, b.d);
+      var Fp = +(b.At * gr.Sp / 1000).toFixed(1);
+      return { prompt: 'What is the proof load (kN) for an ' + s + ' grade ' + g + ' bolt (At = ' + b.At + ' mm\u00B2, Sp = ' + gr.Sp + ' MPa)?', steps: ['Proof load Fp = At \u00D7 Sp', 'Fp = ' + b.At + ' \u00D7 ' + gr.Sp, 'Fp = ' + (b.At * gr.Sp).toFixed(0) + ' N', 'Fp = ' + Fp + ' kN'], answer: Fp, unit: 'kN' };
+    },
+    /* 7 — Stiffness ratio */
+    function () {
+      var kb = randInt(200, 600);
+      var km = randInt(800, 2000);
+      var C = +(kb / (kb + km)).toFixed(3);
+      return { prompt: 'A bolted joint has bolt stiffness kb = ' + kb + ' kN/mm and member stiffness km = ' + km + ' kN/mm. Find the stiffness ratio C.', steps: ['C = kb / (kb + km)', 'C = ' + kb + ' / (' + kb + ' + ' + km + ')', 'C = ' + kb + ' / ' + (kb + km), 'C = ' + C], answer: C, unit: '\u2014' };
+    },
+    /* 8 — Ultimate tensile strength from grade */
+    function () {
+      var grades = ['4.6','5.8','8.8','10.9','12.9'];
+      var g = grades[randInt(0, grades.length - 1)];
+      var gr = gradeFor(g, 12);   /* an M12 — inside the single-row part of every class here */
+      return { prompt: 'A bolt is marked grade ' + g + '. What is its ultimate tensile strength (MPa)?', steps: ['Grade ' + g + ': first number = ' + g.split('.')[0], 'Su = first number \u00D7 100 (approximate)', 'Actual Su = ' + gr.Su + ' MPa (from standards)', 'Su = ' + gr.Su + ' MPa'], answer: gr.Su, unit: 'MPa' };
+    },
+    /* 9 — Tightening torque from preload */
+    function () {
+      var sizes = ['M8','M10','M12','M16','M20','M24'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var K = [0.15, 0.18, 0.20, 0.25][randInt(0, 3)];
+      var Fi = randInt(15, 180);
+      var T = +(K * b.d * Fi).toFixed(1);
+      return { prompt: 'An ' + s + ' bolt (d = ' + b.d + ' mm) is to be preloaded to ' + Fi + ' kN with a nut factor K = ' + K + '. Find the tightening torque (N\u00B7m).', steps: ['T = K \u00D7 d \u00D7 Fi', 'T = ' + K + ' \u00D7 ' + b.d + ' \u00D7 ' + Fi, 'T = ' + T + ' N\u00B7m', '(d in mm with Fi in kN gives N\u00B7m directly)'], answer: T, unit: 'N\u00B7m' };
+    },
+    /* 10 — Preload back-calculated from an applied torque */
+    function () {
+      var sizes = ['M8','M10','M12','M16','M20'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var K = [0.15, 0.20, 0.25][randInt(0, 2)];
+      var T = randInt(20, 600);
+      var Fi = +(T / (K * b.d)).toFixed(1);
+      return { prompt: 'A torque wrench set to ' + T + ' N\u00B7m tightens an ' + s + ' bolt (d = ' + b.d + ' mm, K = ' + K + '). What preload (kN) does it produce?', steps: ['T = K \u00D7 d \u00D7 Fi, so Fi = T / (K \u00D7 d)', 'Fi = ' + T + ' / (' + K + ' \u00D7 ' + b.d + ')', 'Fi = ' + T + ' / ' + (K * b.d).toFixed(2), 'Fi = ' + Fi + ' kN'], answer: Fi, unit: 'kN' };
+    },
+    /* 11 — Bolt stretch (elongation) at preload */
+    function () {
+      var sizes = ['M8','M10','M12','M16','M20'];
+      var s = sizes[randInt(0, sizes.length - 1)];
+      var b = BOLT_DATA[s];
+      var Lg = randInt(15, 60);
+      var Fi = randInt(20, 120);
+      var kb = b.At * 207000 / Lg;
+      var dl = +(Fi * 1000 / kb).toFixed(3);
+      return { prompt: 'An ' + s + ' bolt (At = ' + b.At + ' mm\u00B2) with a ' + Lg + ' mm grip is preloaded to ' + Fi + ' kN. Find the bolt stretch (mm, 3 dp). Take E = 207 GPa.', steps: ['kb = At\u00B7E / Lg = ' + b.At + '\u00D7207000/' + Lg, 'kb = ' + kb.toFixed(0) + ' N/mm', '\u03B4 = Fi / kb = ' + (Fi * 1000) + ' / ' + kb.toFixed(0), '\u03B4 = ' + dl + ' mm'], answer: dl, unit: 'mm', tol: Math.max(dl * 0.04, 0.002) };
+    },
+    /* 12 — Slip resistance of a friction-grip joint */
+    function () {
+      var n = randInt(2, 8);
+      var mu = [0.20, 0.30, 0.40, 0.50][randInt(0, 3)];
+      var Fi = randInt(30, 150);
+      var Fs = +(n * mu * Fi).toFixed(1);
+      return { prompt: 'A friction-grip lap joint has ' + n + ' bolts each preloaded to ' + Fi + ' kN, with a slip factor \u03BC = ' + mu + ' on one faying surface. Find the slip resistance (kN).', steps: ['F_slip = n \u00D7 n_planes \u00D7 \u03BC \u00D7 Fi', 'F_slip = ' + n + ' \u00D7 1 \u00D7 ' + mu + ' \u00D7 ' + Fi, 'F_slip = ' + Fs + ' kN', 'Below this load the plates never move and the bolt sees no shear'], answer: Fs, unit: 'kN' };
+    },
+    /* 13 — Load factor (yielding) */
+    function () {
+      var Fp = randInt(60, 200);
+      var pct = [0.75, 0.90][randInt(0, 1)];
+      var Fi = +(Fp * pct).toFixed(1);
+      var C = +(0.15 + randInt(0, 4) * 0.05).toFixed(2);
+      var P = randInt(10, 40);
+      var nL = +((Fp - Fi) / (C * P)).toFixed(2);
+      return { prompt: 'A bolt with proof load Fp = ' + Fp + ' kN is preloaded to ' + Fi + ' kN. With C = ' + C + ' and ' + P + ' kN external load per bolt, find the load factor n_L.', steps: ['n_L = (Fp \u2212 Fi) / (C\u00B7P)', 'n_L = (' + Fp + ' \u2212 ' + Fi + ') / (' + C + ' \u00D7 ' + P + ')', 'n_L = ' + (Fp - Fi).toFixed(1) + ' / ' + (C * P).toFixed(2), 'n_L = ' + nL], answer: nL, unit: '\u2014', tol: Math.max(nL * 0.04, 0.05) };
+    }
+  ];
+
+  /* ================================================================
+     DATA — QUIZ POOL
+     ================================================================ */
+
+  var QUIZ_POOL = [
+    /* MCQ 0-9 */
+    { type: 'mcq', prompt: 'The tensile stress area of a bolt is:', options: ['Smaller than the nominal cross-sectional area due to threads', 'Equal to the nominal cross-sectional area', 'Larger than the nominal area due to thread helixes', 'Only relevant for shear calculations'], correct: 0 },
+    { type: 'mcq', prompt: 'For a grade 8.8 bolt, the first digit indicates:', options: ['Ultimate tensile strength \u00F7 100 (i.e., 800 MPa)', 'Yield strength \u00F7 100', 'Proof strength \u00F7 100', 'Hardness rating'], correct: 0 },
+    { type: 'mcq', prompt: 'Bolt preload (Fi) is important because it:', options: ['Keeps the joint clamped and prevents fatigue failure', 'Reduces the bolt diameter', 'Increases the thread pitch', 'Makes the bolt easier to remove'], correct: 0 },
+    { type: 'mcq', prompt: 'Bearing stress in a bolted joint is calculated using:', options: ['The projected area (bolt diameter \u00D7 plate thickness)', 'The tensile stress area', 'The bolt head area', 'The nut contact area'], correct: 0 },
+    { type: 'mcq', prompt: 'A higher stiffness ratio C = kb/(kb+km) means:', options: ['The bolt carries a larger fraction of the external load', 'The members carry more load', 'The bolt is less likely to fatigue', 'The preload is higher'], correct: 0 },
+    { type: 'mcq', prompt: 'The recommended preload for a permanent connection is:', options: ['Fi = 0.90 \u00D7 At \u00D7 Sp', 'Fi = 0.50 \u00D7 At \u00D7 Su', 'Fi = At \u00D7 Sy', 'Fi = 0.25 \u00D7 At \u00D7 Sp'], correct: 0 },
+    { type: 'mcq', prompt: 'A connection that will be dismantled and re-tightened is normally preloaded to:', options: ['75% of proof load', '90% of proof load', '100% of proof load', '25% of proof load'], correct: 0 },
+    { type: 'mcq', prompt: 'You lubricate a thread but keep the torque wrench setting unchanged. The preload:', options: ['Rises sharply, because a lower K puts more of the torque into stretching the bolt', 'Falls, because the thread slips', 'Is unchanged, because torque sets preload directly', 'Falls to zero'], correct: 0 },
+    { type: 'mcq', prompt: 'In a preloaded friction-grip shear joint, the design condition is:', options: ['Slip resistance \u03BC\u00B7Fi across the faying surfaces', 'Shear stress in the bolt shank', 'Bearing stress at the hole', 'Thread stripping'], correct: 0 },
+    { type: 'mcq', prompt: 'In a shear-loaded joint, the bolt resists load by:', options: ['Acting as a pin preventing relative sliding of plates', 'Stretching along its axis', 'Compressing the nut against the plate', 'Thread friction only'], correct: 0 },
+    { type: 'mcq', prompt: 'An adequate factor of safety for static bolt loading is typically:', options: ['2.0 or higher', 'Exactly 1.0', 'Less than 1.0', '10.0 or higher'], correct: 0 },
+    { type: 'mcq', prompt: 'Metric thread pitch refers to:', options: ['The axial distance between adjacent threads (mm)', 'The thread angle in degrees', 'The number of threads per inch', 'The bolt head thickness'], correct: 0 },
+    { type: 'mcq', prompt: 'Grade 12.9 bolts compared to grade 4.6:', options: ['Have approximately 3\u00D7 higher strength but are more brittle', 'Have identical strength properties', 'Are weaker but more ductile', 'Can only be used in shear'], correct: 0 },
+    /* Numeric 10-14 */
+    { type: 'numeric', prompt: 'An M10 bolt (At = 58 mm\u00B2) carries 25 kN. Find tensile stress (MPa).', answer: 431.0, unit: 'MPa', steps: ['\u03C3 = F/At = 25000/58', '\u03C3 = 431.0 MPa'] },
+    { type: 'numeric', prompt: 'Find preload (kN) for M12 grade 10.9 bolt (At = 84.3 mm\u00B2, Sp = 830 MPa).', answer: 62.9, unit: 'kN', steps: ['Fi = 0.9 \u00D7 84.3 \u00D7 830 = 62,956 N', 'Fi = 62.9 kN'] },
+    { type: 'numeric', prompt: '4 M16 bolts (d = 16 mm) carry 100 kN in shear. Find shear stress per bolt (MPa).', answer: 124.3, unit: 'MPa', steps: ['A = \u03C0(16)\u00B2/4 = 201.1 mm\u00B2', '\u03C4 = 100000/(4\u00D7201.1) = 124.3 MPa'] },
+    { type: 'numeric', prompt: 'M16 grade 8.8 bolt (At = 157 mm\u00B2, Sp = 580 MPa \u2014 ISO 898-1 for d \u2264 16 mm). Find proof load (kN).', answer: 91.1, unit: 'kN', steps: ['Fp = At \u00D7 Sp = 157 \u00D7 580 = 91,060 N', 'Fp = 91.1 kN'] },
+    { type: 'numeric', prompt: 'An M12 bolt (At = 84.3 mm\u00B2, Lg = 24 mm, E = 207 GPa) is preloaded to 40 kN. Find the bolt stretch (mm, 3 dp).', answer: 0.055, unit: 'mm', tol: 0.003, steps: ['kb = At\u00B7E/Lg = 84.3\u00D7207000/24 = 727,088 N/mm', '\u03B4 = Fi/kb = 40000/727088', '\u03B4 = 0.055 mm'] },
+    { type: 'numeric', prompt: 'A joint has C = 0.25, Fi = 40 kN and an external load of 30 kN per bolt. Find the separation factor n\u2080.', answer: 1.78, unit: '\u2014', tol: 0.06, steps: ['n\u2080 = Fi / [P(1 \u2212 C)]', 'n\u2080 = 40 / [30 \u00D7 0.75] = 40 / 22.5', 'n\u2080 = 1.78'] },
+    { type: 'numeric', prompt: '80 kN on 4 M12 bolts through 8 mm plate. Find bearing stress (MPa).', answer: 208.3, unit: 'MPa', steps: ['\u03C3b = 80000/(4\u00D712\u00D78) = 80000/384', '\u03C3b = 208.3 MPa'] }
+  ];
+
+  /* ================================================================
+     HELPERS
+     ================================================================ */
+  function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function shuffleArr(arr) { var a = arr.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function $(s) { return document.querySelector(s); }
+  function $$(s) { return document.querySelectorAll(s); }
+  function show(el) { if (el) el.style.display = ''; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+
+  /* ================================================================
+     CANVAS SETUP
+     ================================================================ */
+  var cvs = document.getElementById('sim-canvas');
+  var ctx = cvs.getContext('2d');
+  var W = 900, DESIGN_H = 520;
+  /* Everything is drawn inside a 900 x DESIGN_H design space. The tool dock is
+     an HTML overlay of fixed CSS height, so instead of letting it sit on top of
+     the drawing we grow the LOGICAL canvas height by exactly that band. Because
+     the band is expressed in CSS pixels and converted through the current scale,
+     the clear strip is DOCK_BAND css px at every viewport width — it does not
+     shrink away on a phone the way a fixed logical margin would. */
+  /* Measured, not assumed: the dock reserves exactly its own rendered height.
+     If it wraps to two rows on a narrow phone, or gains a button later, the
+     clear strip follows automatically. Safe against a feedback loop because the
+     dock's height depends on the CARD width, never on the canvas height. */
+  var DOCK_FALLBACK = 78;
+  function dockBand() {
+    var el = document.getElementById('canvas-tools');
+    if (!el) return DOCK_FALLBACK;
+    var h = el.offsetHeight;
+    return h ? h + 24 : DOCK_FALLBACK;   /* 12px sits below it, 12px clear above */
+  }
+  var H = DESIGN_H;
+  var ready = false;
+  var _lastCssW = -1, _lastDpr = -1;
+  function resizeCanvas() {
+    var dprL = window.devicePixelRatio || 1;
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width || W;
+    if (cssW === _lastCssW && dprL === _lastDpr) { if (ready) render(); return; }
+    _lastCssW = cssW; _lastDpr = dprL;
+    H = DESIGN_H + dockBand() * W / cssW;
+    var cssH = cssW * H / W;
+    cvs.style.height = cssH + 'px';
+    cvs.width  = Math.round(cssW * dprL);
+    cvs.height = Math.round(cssH * dprL);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(cvs.width / W, cvs.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    if (ready) render();
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeCanvas).observe(cvs);
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var mode = 'simulate';
+  var boltStd = 'metric';      /* follows the SI / Imperial toggle */
+  var threadSeries = 'coarse'; /* metric: coarse | fine ;  inch: UNC | UNF */
+  var boltSize = 'M10';
+  var boltGrade = '8.8';
+  var extLoad = 30;       /* kN */
+  var nBolts = 4;
+  var plate1 = 12;        /* mm */
+  var plate2 = 12;        /* mm */
+  var jointType = 'tension';
+  var nutFactor = 0.20;   /* K - torque coefficient (thread + collar friction) */
+
+  /* Tightening: drive the joint from a preload target, or from a torque spec. */
+  var driveMode  = 'preload';  /* 'preload' | 'torque' */
+  var preloadPct = 90;         /* % of proof load (90 permanent, 75 reusable) */
+  var torqueIn   = 63;         /* N.m — target torque when driveMode === 'torque' */
+
+  /* Shear-joint detail */
+  var shearPlane = 'shank';    /* 'shank' | 'thread' — what the shear plane cuts */
+  var nPlanes    = 1;          /* 1 = single (lap), 2 = double (butt) */
+  var slipMu     = 0.30;       /* slip factor of the faying surfaces */
+
+  /* Calculated results */
+  var results = {
+    At: 0, sigma: 0, tau: 0, sigma_b: 0, sigma_vm: 0,
+    Fi: 0, Fp: 0, fos: 0, grip: 0, torque: 0,
+    kb: 0, km: 0, C: 0, Fb: 0, Psep: 0,
+    pct: 0, stretch: 0, stretchTot: 0, Ashear: 0,
+    Fslip: 0, nSlip: 0, n0: 0, nL: 0, sigma_a: 0, nf: 0
+  };
+
+  /* Display / canvas-feature state */
+  var imperial  = false;
+  var showZones = true;
+  var showDims  = true;
+  var showEq    = true;
+
+  /* Undo / redo */
+  var undoStack = [], redoStack = [];
+
+  /* Live-panel HTML cache (prevents KaTeX re-render flicker) */
+  var _lcache = { eq: '', coach: '' };
+
+  /* ================================================================
+     STANDARD SWITCHING
+
+     SI shows ISO metric bolts against ISO 898-1 property classes; Imperial
+     shows Unified inch bolts against SAE J429 and ASTM F3125 grades. That is
+     the real difference between the two systems — an inch joint is not a metric
+     joint with converted numbers, it is a different catalogue with different
+     strength steps. The engine underneath stays in SI either way.
+     ================================================================ */
+
+  function seriesOptions(std) {
+    return std === 'inch'
+      ? [{ v: 'UNC', t: 'UNC \u2014 coarse' }, { v: 'UNF', t: 'UNF \u2014 fine' }]
+      : [{ v: 'coarse', t: 'Coarse pitch' }, { v: 'fine', t: 'Fine pitch' }];
+  }
+  function defaultSeries(std) { return std === 'inch' ? 'UNC' : 'coarse'; }
+
+  /* Nearest size in the target standard/series, by nominal diameter. */
+  function nearestSize(std, series, d) {
+    var list = boltsOf(std, series), best = list[0], bd = Infinity;
+    for (var i = 0; i < list.length; i++) {
+      var diff = Math.abs(BOLT_DATA[list[i]].d - d);
+      if (diff < bd) { bd = diff; best = list[i]; }
+    }
+    return best;
+  }
+  /* Nearest grade in the target standard, matched on ultimate strength so an
+     8.8 lands on SAE Grade 5 rather than on whatever happens to be first. */
+  function nearestGrade(std, cls, d) {
+    var cur = gradeFor(cls, d), want = cur ? cur.Su : 800;
+    var list = gradesOf(std, d), best = list[0], bd = Infinity;
+    for (var i = 0; i < list.length; i++) {
+      var diff = Math.abs(gradeFor(list[i], d).Su - want);
+      if (diff < bd) { bd = diff; best = list[i]; }
+    }
+    return best;
+  }
+
+  function fillSelect(sel, values, textOf, current) {
+    if (!sel) return current;
+    var keep = values.indexOf(current) >= 0 ? current : values[0];
+    var html = '';
+    for (var i = 0; i < values.length; i++) {
+      html += '<option value="' + values[i] + '"' + (values[i] === keep ? ' selected' : '') + '>' +
+              textOf(values[i]) + '</option>';
+    }
+    sel.innerHTML = html;
+    sel.value = keep;
+    return keep;
+  }
+
+  /* Rebuild the size, series and grade menus for the active standard. Grades
+     are filtered by what the standard actually offers at this diameter, so
+     class 9.8 disappears above M16 and A325/A490 below 1/2 in. */
+  function populateSelects() {
+    var ss = $('#thread-series');
+    if (ss) {
+      var opts = seriesOptions(boltStd);
+      if (opts.map(function (o) { return o.v; }).indexOf(threadSeries) < 0) threadSeries = defaultSeries(boltStd);
+      ss.innerHTML = opts.map(function (o) {
+        return '<option value="' + o.v + '"' + (o.v === threadSeries ? ' selected' : '') + '>' + o.t + '</option>';
+      }).join('');
+      ss.value = threadSeries;
+    }
+    var sizes = boltsOf(boltStd, threadSeries);
+    if (!sizes.length) { threadSeries = defaultSeries(boltStd); sizes = boltsOf(boltStd, threadSeries); }
+    boltSize = fillSelect($('#bolt-size'), sizes, function (k) { return BOLT_DATA[k].label; }, boltSize);
+
+    var d = BOLT_DATA[boltSize].d;
+    var grades = gradesOf(boltStd, d);
+    if (grades.indexOf(boltGrade) < 0) boltGrade = nearestGrade(boltStd, boltGrade, d);
+    boltGrade = fillSelect($('#bolt-grade'), grades, function (k) { return GRADE_DATA[k].label; }, boltGrade);
+  }
+
+  /* Move the whole joint to the other standard, keeping the physical size and
+     strength class as close as the target catalogue allows. */
+  function setStandard(std) {
+    if (std === boltStd) return;
+    var d = BOLT_DATA[boltSize].d;
+    var wasFine = (threadSeries === 'fine' || threadSeries === 'UNF');
+    boltStd = std;
+    threadSeries = wasFine ? (std === 'inch' ? 'UNF' : 'fine') : defaultSeries(std);
+    boltSize = nearestSize(boltStd, threadSeries, d);
+    boltGrade = nearestGrade(boltStd, boltGrade, BOLT_DATA[boltSize].d);
+    populateSelects();
+  }
+
+  /* ----- Unit system (internal SI; display-only Imperial) ----- */
+  function U() {
+    if (imperial) return {
+      force:  { f: 0.2248089, d: 2, u: 'kip' },
+      stress: { f: 0.1450377, d: 2, u: 'ksi' },
+      len:    { f: 0.0393701, d: 2, u: 'in' },
+      len3:   { f: 0.0393701, d: 4, u: 'in' }   /* bolt stretch — needs the extra digits */,
+      area:   { f: 0.00155000, d: 4, u: 'in²' },
+      stiff:  { f: 5.710147, d: 1, u: 'kip/in' }   /* kN/mm -> kip/in */,
+      torque: { f: 0.7375621, d: 1, u: 'lb\u00B7ft' }  /* N.m -> lbf.ft */
+    };
+    return {
+      force:  { f: 1, d: 1, u: 'kN' },
+      stress: { f: 1, d: 1, u: 'MPa' },
+      len:    { f: 1, d: 0, u: 'mm' },
+      len3:   { f: 1, d: 3, u: 'mm' },
+      area:   { f: 1, d: 1, u: 'mm²' },
+      stiff:  { f: 1, d: 2, u: 'kN/mm' },
+      torque: { f: 1, d: 1, u: 'N\u00B7m' }
+    };
+  }
+  function cv(val, spec) { return (val * spec.f).toFixed(spec.d); }
+  /* Human-readable designations. The catalogue key is an internal id
+     ('1/2-13'); the label is what appears on a drawing ('1/2\u2033\u201313 UNC'). */
+  function boltLabel()  { return BOLT_DATA[boltSize].label; }
+  function gradeLabel() { return GRADE_DATA[boltGrade].label; }
+  function stdLabel()   { return boltStd === 'inch' ? 'SAE J429 / ASTM F3125' : 'ISO 898-1'; }
+  function setText(sel, txt) { var el = $(sel); if (el) el.textContent = txt; }
+  function setUnit(sel, txt) { var el = $(sel); if (el) el.textContent = ' ' + txt; }
+
+  /* Explore */
+  var selCat = 'basics';
+  var selConcept = 0;
+
+  /* Practice */
+  var pProblem = null, pScore = 0, pTotal = 0, pAnswered = false;
+
+  /* Quiz */
+  var quizQs = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+
+  /* ================================================================
+     PHYSICS ENGINE
+     ================================================================ */
+
+  var E_STEEL = 207000; /* MPa — Young's modulus of steel */
+
+  function calculateAll() {
+    var bolt = BOLT_DATA[boltSize];
+    var grade = gradeFor(boltGrade, bolt.d);
+    var d = bolt.d;
+
+    /* Tensile stress area, grip, proof load */
+    results.At = bolt.At;
+    results.grip = plate1 + plate2;                       /* Lg, mm */
+    results.Fp = results.At * grade.Sp / 1000;            /* kN */
+
+    /* ---- Tightening: preload <-> torque ----------------------------------
+       T = K * d * Fi is the short-form relation (Shigley Eq. 8-27). With d in mm
+       and Fi in kN the units land directly on N.m, since
+       (d/1000 m) * (Fi*1000 N) = d * Fi. K bundles thread and collar friction and
+       is the dominant uncertainty in any torque method.
+       Either end can be the input: specify a preload target as a percentage of
+       proof load, or specify the torque you will actually apply and read off the
+       preload it produces. */
+    if (driveMode === 'torque') {
+      results.torque = torqueIn;
+      results.Fi  = torqueIn / (nutFactor * d);           /* kN */
+      results.pct = results.Fp > 0 ? 100 * results.Fi / results.Fp : 0;
+    } else {
+      results.pct = preloadPct;
+      results.Fi  = (preloadPct / 100) * results.Fp;      /* kN */
+      results.torque = nutFactor * d * results.Fi;        /* N.m */
+    }
+
+    /* Joint stiffness (SI: N/mm). kb = At*E/Lg ;
+       km via Wileman/Shigley empirical fit for steel members. */
+    var Lg = Math.max(results.grip, 1);
+    var kb = results.At * E_STEEL / Lg;                                 /* N/mm */
+    var km = E_STEEL * d * 0.78715 * Math.exp(0.62873 * d / Lg);        /* N/mm */
+    results.kb = kb / 1000;                               /* kN/mm */
+    results.km = km / 1000;
+    var C = kb / (kb + km);
+    results.C = C;
+
+    var P = extLoad / nBolts;                             /* external load per bolt, kN */
+    var sepPer = results.Fi / Math.max(1 - C, 1e-6);     /* per-bolt separation load */
+    results.Psep = nBolts * sepPer;                       /* total separation load, kN */
+
+    /* Bolt axial force & stress (preload-aware). */
+    if (jointType === 'tension' || jointType === 'combined') {
+      /* Bolt sees Fi + C·P until the joint separates, then the full load. */
+      results.Fb = (P <= sepPer) ? (results.Fi + C * P) : P;
+    } else {
+      /* Pure shear: the bolt still carries its preload tension. */
+      results.Fb = results.Fi;
+    }
+    results.sigma = results.Fb * 1000 / results.At;       /* MPa — total bolt axial stress */
+
+    /* Bolt elongation. The bolt is a spring of rate kb, so the stretch you would
+       measure with a micrometer or an ultrasonic gauge is simply Fi/kb. This is
+       the check used whenever preload actually matters, because it bypasses K. */
+    results.stretch    = results.kb > 0 ? results.Fi / results.kb : 0;   /* mm at preload */
+    results.stretchTot = results.kb > 0 ? results.Fb / results.kb : 0;   /* mm under load  */
+
+    /* ---- Shear -----------------------------------------------------------
+       Which area resists shear depends on where the shear plane falls. Through
+       the plain shank it is the full circle; if the threads run into the joint
+       the plane cuts the thread and the standards fall back on At. Double shear
+       (a butt joint with two cover plates) halves the stress by giving the load
+       two planes to cross. */
+    var Ashear = (shearPlane === 'thread') ? results.At : (Math.PI * d * d / 4);
+    results.Ashear = Ashear;
+    var isShear = (jointType === 'shear' || jointType === 'combined');
+    results.tau = isShear
+      ? extLoad * 1000 / (nBolts * nPlanes * Ashear) : 0;
+
+    /* Bearing stress on the thinner plate. Unchanged by the number of shear
+       planes: in a double-shear butt joint the centre plate still carries the
+       whole per-bolt load against its own thickness. */
+    var tMin = Math.min(plate1, plate2);
+    results.sigma_b = isShear ? extLoad * 1000 / (nBolts * d * tMin) : 0;
+
+    /* ---- Slip resistance (friction-grip / preloaded shear connection) -----
+       A preloaded shear joint is not meant to reach the bolt at all: the clamping
+       force generates friction across the faying surfaces and the plates never
+       move. Slip resistance is mu * Fi per surface, per bolt. Bolt shear is the
+       reserve after slip, not the design condition. */
+    results.Fslip = nBolts * nPlanes * slipMu * results.Fi;      /* kN, joint total */
+    results.nSlip = (isShear && extLoad > 0) ? results.Fslip / extLoad : 99.9;
+
+    /* ---- Separation and load factors (Shigley Eqs. 8-29, 8-30) -----------
+       n0: how many times the applied load the joint can take before the members
+           lift apart. nL: how many times it can take before the bolt reaches proof.
+       These answer different questions from the stress-based FoS, and a joint can
+       easily pass one and fail the other. */
+    if (jointType !== 'shear' && P > 0) {
+      results.n0 = results.Fi / (P * Math.max(1 - C, 1e-6));
+      results.nL = C > 0 ? (results.Fp - results.Fi) / (C * P) : 99.9;
+      if (results.nL < 0) results.nL = 0;
+    } else {
+      results.n0 = 99.9; results.nL = 99.9;
+    }
+
+    /* ---- Fatigue (Goodman, repeated external load 0 -> P) -----------------
+       The textbook case: the external load cycles between zero and P, so
+       sigma_a = C*P/(2*At) and sigma_m = sigma_a + sigma_i. Substituting into
+       Shigley Eq. 8-38 and cancelling (sigma_m - sigma_i = sigma_a) leaves
+         nf = Se(Sut - sigma_i) / [sigma_a (Sut + Se)].
+       Se is the fully corrected endurance strength of a ROLLED thread — cut
+       threads are roughly 30% worse and this figure would not apply. */
+    var sigma_i = results.Fi * 1000 / results.At;         /* MPa — preload stress */
+    if (jointType !== 'shear' && P > 0) {
+      results.sigma_a = C * P * 1000 / (2 * results.At);
+      var denom = results.sigma_a * (grade.Su + grade.Se);
+      results.nf = denom > 0 ? grade.Se * (grade.Su - sigma_i) / denom : 99.9;
+      if (results.nf < 0) results.nf = 0;
+    } else {
+      results.sigma_a = 0; results.nf = 99.9;
+    }
+
+    /* Shear stress on the shank area (kept for the von Mises combination) */
+    /* Factor of safety against proof strength */
+    if (jointType === 'combined') {
+      results.sigma_vm = Math.sqrt(results.sigma * results.sigma + 3 * results.tau * results.tau);
+      results.fos = results.sigma_vm > 0 ? grade.Sp / results.sigma_vm : 99.9;
+    } else if (jointType === 'shear') {
+      results.sigma_vm = 0;
+      results.fos = results.tau > 0 ? (0.577 * grade.Sp) / results.tau : 99.9;
+    } else {
+      results.sigma_vm = 0;
+      results.fos = results.sigma > 0 ? grade.Sp / results.sigma : 99.9;
+    }
+    if (results.fos > 99.9) results.fos = 99.9;
+    if (results.n0  > 99.9) results.n0  = 99.9;
+    if (results.nL  > 99.9) results.nL  = 99.9;
+    if (results.nf  > 99.9) results.nf  = 99.9;
+    if (results.nSlip > 99.9) results.nSlip = 99.9;
+  }
+
+  /* ================================================================
+     DRAWING — SIMULATE MODE
+     ================================================================ */
+
+  var JOINT_X0 = 80, JOINT_X1 = 520;
+  var STRESS_X0 = 570, STRESS_X1 = 880;
+
+  function drawSimulate() {
+    var bolt = BOLT_DATA[boltSize];
+    var grade = gradeFor(boltGrade, bolt.d);
+
+    /* ── Section labels ── */
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('JOINT CROSS-SECTION', JOINT_X0, 12);
+    ctx.fillStyle = '#78909c';
+    ctx.fillText('STRESS ANALYSIS', STRESS_X0, 12);
+
+    drawJointCrossSection(bolt, grade);
+    drawStressBarChart(bolt, grade);
+    if (showEq) drawCanvasEquation();
+  }
+
+  /* On-canvas classical equation overlay (Unicode — canvas can't do KaTeX). */
+  function drawCanvasEquation() {
+    var u = U();
+    var x0 = JOINT_X0, y0 = 424, boxW = JOINT_X1 - JOINT_X0, boxH = 84;
+
+    /* Panel */
+    ctx.fillStyle = 'rgba(20,26,46,0.85)';
+    roundRect(ctx, x0, y0, boxW, boxH, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(84,110,122,0.5)'; ctx.lineWidth = 1;
+    roundRect(ctx, x0, y0, boxW, boxH, 8); ctx.stroke();
+
+    var cxp = x0 + 14, yA = y0 + 22, yB = y0 + 44, yC = y0 + 64;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+    /* Line 1: Fb = Fi + C·P */
+    var serif = 'italic 700 15px "Cambria Math","Times New Roman",serif';
+    var mono  = '700 13px "JetBrains Mono","Courier New",monospace';
+    var Ptxt  = (jointType === 'shear') ? '0' : cv(extLoad / nBolts, u.force);
+    var FbStr = cv(results.Fb, u.force) + ' ' + u.force.u;
+    drawTok(cxp, yA, [
+      ['F', '#ff8a65', serif], ['b', '#ff8a65', 'italic 700 10px "Cambria Math",serif', 4],
+      [' = ', '#ffd54f', serif],
+      ['F', '#ff8a65', serif], ['i', '#ff8a65', 'italic 700 10px "Cambria Math",serif', 4],
+      [' + ', '#ffd54f', serif],
+      ['C', '#42a5f5', serif], ['·P', '#3ddc84', serif],
+      ['  =  ' + FbStr, '#e6edf6', mono]
+    ]);
+
+    /* Line 2: σ = Fb / At = X */
+    var sStr = cv(results.sigma, u.stress) + ' ' + u.stress.u;
+    drawTok(cxp, yB, [
+      ['σ', '#ff8a65', serif],
+      [' = ', '#ffd54f', serif],
+      ['F', '#ff8a65', serif], ['b', '#ff8a65', 'italic 700 10px "Cambria Math",serif', 4],
+      [' / ', '#ffd54f', serif],
+      ['A', '#42a5f5', serif], ['t', '#42a5f5', 'italic 700 10px "Cambria Math",serif', 4],
+      ['  =  ' + sStr, '#e6edf6', mono]
+    ]);
+
+    /* Line 3: the tightening relation — whichever way round it is being used */
+    var Tstr = cv(results.torque, u.torque) + ' ' + u.torque.u;
+    if (driveMode === 'torque') {
+      drawTok(cxp, yC, [
+        ['F', '#ff8a65', serif], ['i', '#ff8a65', 'italic 700 10px "Cambria Math",serif', 4],
+        [' = ', '#ffd54f', serif],
+        ['T', '#ffd54f', serif],
+        [' / (', '#ffd54f', serif], ['K', '#42a5f5', serif], ['·d', '#42a5f5', serif], [')', '#ffd54f', serif],
+        ['  =  ' + cv(results.Fi, u.force) + ' ' + u.force.u + '  (' + results.pct.toFixed(0) + '% Fp)', '#e6edf6', mono]
+      ]);
+    } else {
+      drawTok(cxp, yC, [
+        ['T', '#ffd54f', serif],
+        [' = ', '#ffd54f', serif],
+        ['K', '#42a5f5', serif], ['·d·', '#42a5f5', serif],
+        ['F', '#ff8a65', serif], ['i', '#ff8a65', 'italic 700 10px "Cambria Math",serif', 4],
+        ['  =  ' + Tstr + '   δ = ' + cv(results.stretch, u.len3) + ' ' + u.len3.u, '#e6edf6', mono]
+      ]);
+    }
+
+    /* FoS chip on the right */
+    var fosCol = results.fos >= 2 ? '#3ddc84' : results.fos >= 1 ? '#f5c842' : '#ff5555';
+    ctx.font = '700 12px "JetBrains Mono","Courier New",monospace';
+    ctx.textAlign = 'right'; ctx.fillStyle = fosCol;
+    ctx.fillText('FoS = ' + results.fos.toFixed(2), x0 + boxW - 14, y0 + 22);
+    var secondary = (jointType === 'shear' || jointType === 'combined')
+      ? 'slip ' + fmtFactor(results.nSlip)
+      : 'sep ' + fmtFactor(results.n0) + '   fatigue ' + fmtFactor(results.nf);
+    ctx.font = '700 10px "JetBrains Mono","Courier New",monospace';
+    ctx.fillStyle = '#8fa3b0';
+    ctx.fillText(secondary, x0 + boxW - 14, y0 + 42);
+  }
+
+  /* Token renderer: each tok = [text, color, font, dySub?] drawn left-to-right. */
+  function drawTok(x, y, toks) {
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      ctx.font = t[2]; ctx.fillStyle = t[1];
+      var dy = t[3] || 0;
+      ctx.fillText(t[0], x, y + dy);
+      x += ctx.measureText(t[0]).width;
+    }
+  }
+
+  function drawJointCrossSection(bolt, grade) {
+    var cx = (JOINT_X0 + JOINT_X1) / 2;
+    var cy = 220;
+
+    /* Scale factors */
+    var pScale = 2.8; /* pixels per mm for plates */
+    var bScale = 3.5; /* pixels per mm for bolt diameter */
+
+    var p1h = plate1 * pScale;
+    var p2h = plate2 * pScale;
+    var totalH = p1h + p2h;
+    var boltDia = bolt.d * bScale;
+    var headW = bolt.dw * bScale;
+    var headH = bolt.head_h * bScale;
+    var nutH = bolt.nut_h * bScale;
+    var shankW = bolt.d * bScale * 0.85;
+
+    var topPlateY = cy - totalH / 2;
+    var midY = cy - totalH / 2 + p1h;
+    var botPlateY = cy + totalH / 2;
+
+    /* Plate widths */
+    var plateW = 340;
+    var plateX = cx - plateW / 2;
+
+    /* ── Top plate ── */
+    ctx.fillStyle = 'rgba(84,110,122,0.35)';
+    ctx.fillRect(plateX, topPlateY, plateW, p1h);
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.strokeRect(plateX, topPlateY, plateW, p1h);
+
+    /* Hatching on top plate */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plateX, topPlateY, plateW, p1h);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(84,110,122,0.15)'; ctx.lineWidth = 1;
+    for (var i = -plateW; i < plateW + p1h; i += 10) {
+      ctx.beginPath();
+      ctx.moveTo(plateX + i, topPlateY);
+      ctx.lineTo(plateX + i + p1h, topPlateY + p1h);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    /* ── Bottom plate ── */
+    ctx.fillStyle = 'rgba(84,110,122,0.25)';
+    ctx.fillRect(plateX, midY, plateW, p2h);
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.strokeRect(plateX, midY, plateW, p2h);
+
+    /* Hatching on bottom plate (opposite direction) */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plateX, midY, plateW, p2h);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(84,110,122,0.12)'; ctx.lineWidth = 1;
+    for (var j = -plateW; j < plateW + p2h; j += 10) {
+      ctx.beginPath();
+      ctx.moveTo(plateX + j, midY + p2h);
+      ctx.lineTo(plateX + j + p2h, midY);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    /* Plate labels */
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#78909c'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('Plate 1: ' + plate1 + ' mm', plateX + 8, topPlateY + p1h / 2);
+    ctx.fillText('Plate 2: ' + plate2 + ' mm', plateX + 8, midY + p2h / 2);
+
+    /* ── Joint interface line ── */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(plateX, midY); ctx.lineTo(plateX + plateW, midY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* ── Bolt hole ── */
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(cx - shankW / 2 - 2, topPlateY - 2, shankW + 4, totalH + 4);
+
+    /* ── Bolt head ── */
+    var headY = topPlateY - headH - 4;
+    ctx.fillStyle = '#546e7a';
+    roundRect(ctx, cx - headW / 2, headY, headW, headH, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.5;
+    roundRect(ctx, cx - headW / 2, headY, headW, headH, 3);
+    ctx.stroke();
+
+    /* Head detail lines */
+    ctx.strokeStyle = '#90a4ae'; ctx.lineWidth = 0.8;
+    for (var hd = 0; hd < 3; hd++) {
+      var hx = cx - headW / 4 + hd * headW / 4;
+      ctx.beginPath();
+      ctx.moveTo(hx, headY + 3);
+      ctx.lineTo(hx, headY + headH - 3);
+      ctx.stroke();
+    }
+
+    /* ── Bolt shank ── */
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(cx - shankW / 2, topPlateY - 4, shankW, totalH + 8);
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1;
+    ctx.strokeRect(cx - shankW / 2, topPlateY - 4, shankW, totalH + 8);
+
+    /* Thread marks on lower portion */
+    ctx.strokeStyle = '#90a4ae'; ctx.lineWidth = 0.7;
+    var threadStart = midY - 4;
+    var threadEnd = botPlateY + 6;
+    for (var tm = threadStart; tm < threadEnd; tm += 3) {
+      ctx.beginPath();
+      ctx.moveTo(cx - shankW / 2, tm);
+      ctx.lineTo(cx + shankW / 2, tm);
+      ctx.stroke();
+    }
+
+    /* ── Nut ── */
+    var nutY = botPlateY + 4;
+    /* Hex nut as polygon */
+    ctx.fillStyle = '#455a64';
+    ctx.beginPath();
+    var nutW2 = headW * 0.5;
+    ctx.moveTo(cx - nutW2, nutY + 2);
+    ctx.lineTo(cx - nutW2 * 0.85, nutY);
+    ctx.lineTo(cx + nutW2 * 0.85, nutY);
+    ctx.lineTo(cx + nutW2, nutY + 2);
+    ctx.lineTo(cx + nutW2, nutY + nutH - 2);
+    ctx.lineTo(cx + nutW2 * 0.85, nutY + nutH);
+    ctx.lineTo(cx - nutW2 * 0.85, nutY + nutH);
+    ctx.lineTo(cx - nutW2, nutY + nutH - 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    /* ── Stress zones ── */
+    if (showZones && (jointType === 'tension' || jointType === 'combined')) {
+      /* Tensile stress zone along bolt */
+      ctx.fillStyle = 'rgba(255,85,85,0.12)';
+      ctx.fillRect(cx - shankW / 2 - 6, topPlateY, shankW + 12, totalH);
+    }
+    if (showZones && (jointType === 'shear' || jointType === 'combined')) {
+      /* Shear plane at interface */
+      ctx.fillStyle = 'rgba(61,220,132,0.2)';
+      ctx.fillRect(cx - shankW / 2 - 10, midY - 4, shankW + 20, 8);
+
+      /* Bearing stress zones */
+      ctx.fillStyle = 'rgba(245,200,66,0.15)';
+      ctx.fillRect(cx - shankW / 2 - 3, topPlateY, 6, p1h);
+      ctx.fillRect(cx + shankW / 2 - 3, topPlateY, 6, p1h);
+      ctx.fillRect(cx - shankW / 2 - 3, midY, 6, p2h);
+      ctx.fillRect(cx + shankW / 2 - 3, midY, 6, p2h);
+    }
+
+    /* ── Force arrows ── */
+    /* Preload arrows (bolt tension) */
+    var arrowOffset = headW / 2 + 25;
+
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2.5;
+    /* Top preload arrow (pointing down into plate) */
+    ctx.beginPath();
+    ctx.moveTo(cx - arrowOffset, headY + headH / 2);
+    ctx.lineTo(cx - arrowOffset, topPlateY + p1h / 2);
+    ctx.stroke();
+    ctx.fillStyle = '#42a5f5';
+    ctx.beginPath();
+    ctx.moveTo(cx - arrowOffset, topPlateY + p1h / 2 + 2);
+    ctx.lineTo(cx - arrowOffset - 5, topPlateY + p1h / 2 - 8);
+    ctx.lineTo(cx - arrowOffset + 5, topPlateY + p1h / 2 - 8);
+    ctx.closePath(); ctx.fill();
+
+    /* Bottom preload arrow (pointing up into plate) */
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - arrowOffset, nutY + nutH / 2);
+    ctx.lineTo(cx - arrowOffset, midY + p2h / 2);
+    ctx.stroke();
+    ctx.fillStyle = '#42a5f5';
+    ctx.beginPath();
+    ctx.moveTo(cx - arrowOffset, midY + p2h / 2 - 2);
+    ctx.lineTo(cx - arrowOffset - 5, midY + p2h / 2 + 8);
+    ctx.lineTo(cx - arrowOffset + 5, midY + p2h / 2 + 8);
+    ctx.closePath(); ctx.fill();
+
+    /* Preload label */
+    var uF = U().force;
+    ctx.font = '700 10px "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Fi=' + cv(results.Fi, uF) + uF.u, cx - arrowOffset, cy);
+
+    /* External load arrows */
+    if (jointType === 'tension' || jointType === 'combined') {
+      var extArrowX = cx + arrowOffset + 15;
+      /* Downward tension arrow */
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(extArrowX, headY - 20);
+      ctx.lineTo(extArrowX, headY + 5);
+      ctx.stroke();
+      ctx.fillStyle = '#ff5555';
+      ctx.beginPath();
+      ctx.moveTo(extArrowX, headY + 7);
+      ctx.lineTo(extArrowX - 5, headY - 3);
+      ctx.lineTo(extArrowX + 5, headY - 3);
+      ctx.closePath(); ctx.fill();
+
+      /* Upward tension arrow */
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(extArrowX, nutY + nutH + 20);
+      ctx.lineTo(extArrowX, nutY + nutH - 5);
+      ctx.stroke();
+      ctx.fillStyle = '#ff5555';
+      ctx.beginPath();
+      ctx.moveTo(extArrowX, nutY + nutH - 7);
+      ctx.lineTo(extArrowX - 5, nutY + nutH + 3);
+      ctx.lineTo(extArrowX + 5, nutY + nutH + 3);
+      ctx.closePath(); ctx.fill();
+
+      ctx.font = '700 10px "Courier New", monospace';
+      ctx.fillStyle = '#ff5555';
+      ctx.textAlign = 'left';
+      ctx.fillText('F=' + cv(extLoad, uF) + uF.u, extArrowX + 8, cy);
+    }
+
+    if (jointType === 'shear' || jointType === 'combined') {
+      /* Horizontal shear arrows at interface */
+      var shearY1 = topPlateY + p1h / 2;
+      var shearY2 = midY + p2h / 2;
+      var shearArrowX1 = plateX + plateW + 10;
+      var shearArrowX2 = plateX - 10;
+
+      /* Right arrow on top plate */
+      ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(shearArrowX1, shearY1);
+      ctx.lineTo(shearArrowX1 + 35, shearY1);
+      ctx.stroke();
+      ctx.fillStyle = '#3ddc84';
+      ctx.beginPath();
+      ctx.moveTo(shearArrowX1 + 37, shearY1);
+      ctx.lineTo(shearArrowX1 + 27, shearY1 - 5);
+      ctx.lineTo(shearArrowX1 + 27, shearY1 + 5);
+      ctx.closePath(); ctx.fill();
+
+      /* Left arrow on bottom plate */
+      ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(shearArrowX2, shearY2);
+      ctx.lineTo(shearArrowX2 - 35, shearY2);
+      ctx.stroke();
+      ctx.fillStyle = '#3ddc84';
+      ctx.beginPath();
+      ctx.moveTo(shearArrowX2 - 37, shearY2);
+      ctx.lineTo(shearArrowX2 - 27, shearY2 - 5);
+      ctx.lineTo(shearArrowX2 - 27, shearY2 + 5);
+      ctx.closePath(); ctx.fill();
+
+      ctx.font = '700 9px "Courier New", monospace';
+      ctx.fillStyle = '#3ddc84';
+      ctx.textAlign = 'center';
+      ctx.fillText('Shear', shearArrowX1 + 20, shearY1 - 10);
+    }
+
+    /* ── Dimension lines ── */
+    if (showDims) {
+    var dimX = plateX + plateW + 55;
+
+    /* Grip length */
+    ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(dimX, topPlateY); ctx.lineTo(dimX, botPlateY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    /* Ticks */
+    ctx.beginPath();
+    ctx.moveTo(dimX - 4, topPlateY); ctx.lineTo(dimX + 4, topPlateY);
+    ctx.moveTo(dimX - 4, botPlateY); ctx.lineTo(dimX + 4, botPlateY);
+    ctx.stroke();
+    ctx.font = '600 9px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('Lg=' + cv(results.grip, U().len) + U().len.u, dimX + 6, cy);
+
+    /* Bolt diameter */
+    ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    var dimBY = botPlateY + nutH + 30;
+    ctx.beginPath();
+    ctx.moveTo(cx - shankW / 2, dimBY);
+    ctx.lineTo(cx + shankW / 2, dimBY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(cx - shankW / 2, dimBY - 4);
+    ctx.lineTo(cx - shankW / 2, dimBY + 4);
+    ctx.moveTo(cx + shankW / 2, dimBY - 4);
+    ctx.lineTo(cx + shankW / 2, dimBY + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#6b7a99';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('\u00F8' + bolt.d + 'mm', cx, dimBY + 5);
+    } /* end showDims */
+
+    /* ── Info box ── */
+    var infoX = JOINT_X0;
+    var infoY = botPlateY + nutH + 55;
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(boltLabel() + '  |  ' + gradeLabel() + '  |  ' + nBolts + ' bolt' + (nBolts > 1 ? 's' : '') + '  |  ' + jointType.charAt(0).toUpperCase() + jointType.slice(1) + ' joint', infoX, infoY);
+
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    var _gi = gradeFor(boltGrade, BOLT_DATA[boltSize].d), _ui = U();
+    ctx.fillText('At = ' + cv(results.At, _ui.area) + ' ' + _ui.area.u +
+                 '  |  Sp = ' + cv(_gi.Sp, _ui.stress) + ' ' + _ui.stress.u +
+                 '  |  Su = ' + cv(_gi.Su, _ui.stress) + ' ' + _ui.stress.u, infoX, infoY + 18);
+  }
+
+  function drawStressBarChart(bolt, grade) {
+    var grd = gradeFor(boltGrade, BOLT_DATA[boltSize].d);
+    var barX = STRESS_X0 + 20;
+    var barW = 50;
+    var chartTop = 50;
+    var chartBot = 390;
+    var chartH = chartBot - chartTop;
+    var gap = 65;
+
+    /* Find max value for scale */
+    var maxVal = grd.Sp;
+    var values = [
+      { label: 'Tensile', val: results.sigma, color: '#ff5555', limit: grd.Sp },
+      { label: 'Shear', val: results.tau, color: '#3ddc84', limit: 0.577 * grd.Sp },
+      { label: 'Bearing', val: results.sigma_b, color: '#f5c842', limit: grd.Sy },
+      { label: 'FoS', val: Math.min(results.fos, 5), color: '#42a5f5', limit: 5, isFoS: true }
+    ];
+
+    /* Scale to proof strength for stress, 5 for FoS */
+    values.forEach(function (v, i) {
+      var bx = barX + i * gap;
+      var scaleMax = v.isFoS ? 5 : maxVal;
+      var barH = (v.val / scaleMax) * chartH;
+      barH = Math.min(barH, chartH);
+      barH = Math.max(barH, 2);
+
+      /* Background bar */
+      ctx.fillStyle = 'rgba(42,48,80,0.5)';
+      roundRect(ctx, bx, chartTop, barW, chartH, 4);
+      ctx.fill();
+
+      /* Value bar */
+      ctx.fillStyle = v.color;
+      var barY = chartBot - barH;
+      roundRect(ctx, bx, barY, barW, barH, 4);
+      ctx.fill();
+
+      /* Danger / safe indicator */
+      if (!v.isFoS) {
+        var limitH = (v.limit / scaleMax) * chartH;
+        var limitY = chartBot - limitH;
+        ctx.strokeStyle = 'rgba(221,227,240,0.4)'; ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(bx - 5, limitY); ctx.lineTo(bx + barW + 5, limitY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '600 7px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#6b7a99';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText('Limit', bx + barW / 2, limitY - 2);
+      } else {
+        /* FoS safe line at 2.0 */
+        var safeH = (2.0 / 5) * chartH;
+        var safeY = chartBot - safeH;
+        ctx.strokeStyle = 'rgba(61,220,132,0.5)'; ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(bx - 5, safeY); ctx.lineTo(bx + barW + 5, safeY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '600 7px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#3ddc84';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText('Safe', bx + barW / 2, safeY - 2);
+      }
+
+      /* Value text */
+      ctx.font = '700 11px "Courier New", monospace';
+      ctx.fillStyle = v.color;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      if (v.isFoS) {
+        ctx.fillText(results.fos.toFixed(2), bx + barW / 2, barY - 4);
+      } else {
+        ctx.fillText(cv(v.val, U().stress), bx + barW / 2, barY - 4);
+      }
+
+      /* Label */
+      ctx.font = '600 9px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#dde3f0';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(v.label, bx + barW / 2, chartBot + 8);
+
+      /* Unit */
+      ctx.font = '600 8px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#6b7a99';
+      ctx.fillText(v.isFoS ? '' : U().stress.u, bx + barW / 2, chartBot + 22);
+    });
+
+    /* FoS status badge */
+    var fosX = STRESS_X0 + 20;
+    var fosY = chartBot + 48;
+    var fosOk = results.fos >= 2.0;
+    var fosWarn = results.fos >= 1.0 && results.fos < 2.0;
+
+    ctx.fillStyle = fosOk ? 'rgba(61,220,132,0.15)' : fosWarn ? 'rgba(245,200,66,0.15)' : 'rgba(255,85,85,0.15)';
+    roundRect(ctx, fosX, fosY, 280, 30, 8);
+    ctx.fill();
+    ctx.strokeStyle = fosOk ? '#3ddc84' : fosWarn ? '#f5c842' : '#ff5555';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, fosX, fosY, 280, 30, 8);
+    ctx.stroke();
+
+    ctx.font = '700 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = fosOk ? '#3ddc84' : fosWarn ? '#f5c842' : '#ff5555';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var statusText = fosOk ? 'SAFE — FoS = ' + results.fos.toFixed(2) : fosWarn ? 'MARGINAL — FoS = ' + results.fos.toFixed(2) : 'UNSAFE — FoS = ' + results.fos.toFixed(2);
+    ctx.fillText(statusText, fosX + 140, fosY + 15);
+  }
+
+  /* Utility: rounded rect */
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  /* ================================================================
+     DRAWING — EXPLORE MINI-DIAGRAMS
+     ================================================================ */
+
+  function drawConceptDiagram(concept) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    var fn = {
+      'boltAnatomy': drawBoltAnatomyDiag,
+      'threadTypes': drawThreadTypesDiag,
+      'boltGrades': drawBoltGradesDiag,
+      'stressArea': drawStressAreaDiag,
+      'tensileStress': drawTensileStressDiag,
+      'shearStress': drawShearStressDiag,
+      'bearingStress': drawBearingStressDiag,
+      'preload': drawPreloadDiag,
+      'factorOfSafety': drawFoSDiag,
+      'jointStiffness': drawStiffnessDiag,
+      'torque': drawTorqueDiag,
+      'stretch': drawStretchDiag,
+      'fatigue': drawFatigueDiag
+    };
+
+    if (fn[concept.diagram]) fn[concept.diagram]();
+
+    /* Formula at bottom */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(concept.formula, W / 2, DESIGN_H - 16);
+  }
+
+  function drawBoltAnatomyDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Bolt Anatomy — Cross Section', W / 2, 35);
+
+    var cx = 350, topY = 70;
+
+    /* Bolt head */
+    ctx.fillStyle = '#546e7a';
+    roundRect(ctx, cx - 50, topY, 100, 35, 5);
+    ctx.fill();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 2;
+    roundRect(ctx, cx - 50, topY, 100, 35, 5);
+    ctx.stroke();
+
+    /* Label: Head */
+    ctx.strokeStyle = '#dde3f0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx + 55, topY + 17); ctx.lineTo(cx + 120, topY + 17); ctx.stroke();
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'left';
+    ctx.fillText('Head (hex)', cx + 125, topY + 21);
+
+    /* Shank (unthreaded) */
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(cx - 20, topY + 35, 40, 100);
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - 20, topY + 35, 40, 100);
+
+    ctx.beginPath(); ctx.moveTo(cx + 25, topY + 80); ctx.lineTo(cx + 120, topY + 80); ctx.stroke();
+    ctx.fillStyle = '#42a5f5';
+    ctx.fillText('Shank (unthreaded)', cx + 125, topY + 84);
+
+    /* Threaded portion */
+    ctx.fillStyle = '#455a64';
+    ctx.fillRect(cx - 20, topY + 135, 40, 120);
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1;
+    ctx.strokeRect(cx - 20, topY + 135, 40, 120);
+    /* Thread marks */
+    ctx.strokeStyle = '#90a4ae'; ctx.lineWidth = 0.8;
+    for (var i = topY + 140; i < topY + 250; i += 5) {
+      ctx.beginPath();
+      ctx.moveTo(cx - 20, i); ctx.lineTo(cx + 20, i);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#dde3f0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx + 25, topY + 190); ctx.lineTo(cx + 120, topY + 190); ctx.stroke();
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillText('Threaded portion', cx + 125, topY + 194);
+
+    /* Nut */
+    ctx.fillStyle = '#455a64';
+    ctx.fillRect(cx - 40, topY + 260, 80, 40);
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 40, topY + 260, 80, 40);
+
+    ctx.beginPath(); ctx.moveTo(cx + 45, topY + 280); ctx.lineTo(cx + 120, topY + 280); ctx.stroke();
+    ctx.fillStyle = '#f5c842';
+    ctx.fillText('Nut', cx + 125, topY + 284);
+
+    /* Dimension arrow for d */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx - 20, topY + 330); ctx.lineTo(cx + 20, topY + 330); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 20, topY + 326); ctx.lineTo(cx - 20, topY + 334); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 20, topY + 326); ctx.lineTo(cx + 20, topY + 334); ctx.stroke();
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center';
+    ctx.fillText('d', cx, topY + 348);
+  }
+
+  function drawThreadTypesDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Thread Types — Metric vs Imperial', W / 2, 35);
+
+    /* Metric thread profile */
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('ISO Metric (M)', 250, 75);
+
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var bx = 100 + i * 50;
+      ctx.moveTo(bx, 150);
+      ctx.lineTo(bx + 25, 100);
+      ctx.lineTo(bx + 50, 150);
+    }
+    ctx.stroke();
+
+    /* Pitch label */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(150, 160); ctx.lineTo(200, 160); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(150, 156); ctx.lineTo(150, 164); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(200, 156); ctx.lineTo(200, 164); ctx.stroke();
+    ctx.font = '700 10px "Courier New", monospace';
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('Pitch (p)', 175, 178);
+
+    /* 60 degree angle */
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillText('60\u00B0', 175, 130);
+
+    /* UNC thread */
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('UNC (Imperial)', 650, 75);
+
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var j = 0; j < 5; j++) {
+      var bx2 = 500 + j * 60;
+      ctx.moveTo(bx2, 150);
+      ctx.lineTo(bx2 + 30, 100);
+      ctx.lineTo(bx2 + 60, 150);
+    }
+    ctx.stroke();
+
+    /* TPI label */
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#42a5f5';
+    ctx.fillText('Threads Per Inch (TPI)', 650, 178);
+
+    /* Comparison table */
+    var tableY = 220;
+    var data = [
+      ['Size', 'Pitch', 'At (mm\u00B2)'],
+      ['M6', '1.00 mm', '20.1'],
+      ['M10', '1.50 mm', '58.0'],
+      ['M16', '2.00 mm', '157'],
+      ['M24', '3.00 mm', '353']
+    ];
+    data.forEach(function (row, ri) {
+      ctx.font = ri === 0 ? '700 10px "Segoe UI", sans-serif' : '600 10px "Courier New", monospace';
+      ctx.fillStyle = ri === 0 ? '#546e7a' : '#dde3f0';
+      ctx.textAlign = 'center';
+      ctx.fillText(row[0], 300, tableY + ri * 22);
+      ctx.fillText(row[1], 450, tableY + ri * 22);
+      ctx.fillStyle = ri === 0 ? '#546e7a' : '#3ddc84';
+      ctx.fillText(row[2], 600, tableY + ri * 22);
+    });
+  }
+
+  function drawBoltGradesDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Bolt Property Classes (Grades)', W / 2, 35);
+
+    var grades = ['4.6', '5.8', '8.8', '10.9', '12.9'];
+    var barW = 80;
+    var gap = 20;
+    var startX = (W - grades.length * (barW + gap) + gap) / 2;
+    var chartTop = 80;
+    var chartBot = 360;
+    var chartH = chartBot - chartTop;
+    var maxSu = 1220;
+
+    grades.forEach(function (g, i) {
+      var gd = gradeFor(g, 12);
+      var bx = startX + i * (barW + gap);
+
+      /* Su bar */
+      var suH = (gd.Su / maxSu) * chartH;
+      ctx.fillStyle = 'rgba(84,110,122,0.4)';
+      roundRect(ctx, bx, chartBot - suH, barW, suH, 4);
+      ctx.fill();
+
+      /* Sy bar overlay */
+      var syH = (gd.Sy / maxSu) * chartH;
+      ctx.fillStyle = 'rgba(66,165,245,0.4)';
+      roundRect(ctx, bx + 5, chartBot - syH, barW - 10, syH, 3);
+      ctx.fill();
+
+      /* Sp bar overlay */
+      var spH = (gd.Sp / maxSu) * chartH;
+      ctx.fillStyle = 'rgba(84,110,122,0.7)';
+      roundRect(ctx, bx + 10, chartBot - spH, barW - 20, spH, 3);
+      ctx.fill();
+
+      /* Grade label */
+      ctx.font = '700 12px "Courier New", monospace';
+      ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+      ctx.fillText(g, bx + barW / 2, chartBot + 20);
+
+      /* Su value */
+      ctx.font = '600 9px "Courier New", monospace';
+      ctx.fillStyle = '#78909c';
+      ctx.fillText(gd.Su + '', bx + barW / 2, chartBot - suH - 6);
+    });
+
+    /* Legend */
+    var ly = chartBot + 45;
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+
+    ctx.fillStyle = 'rgba(84,110,122,0.4)';
+    ctx.fillRect(200, ly, 14, 14);
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'left';
+    ctx.fillText('Su (Ultimate)', 220, ly + 11);
+
+    ctx.fillStyle = 'rgba(66,165,245,0.4)';
+    ctx.fillRect(360, ly, 14, 14);
+    ctx.fillStyle = '#dde3f0';
+    ctx.fillText('Sy (Yield)', 380, ly + 11);
+
+    ctx.fillStyle = 'rgba(84,110,122,0.7)';
+    ctx.fillRect(510, ly, 14, 14);
+    ctx.fillStyle = '#dde3f0';
+    ctx.fillText('Sp (Proof)', 530, ly + 11);
+  }
+
+  function drawStressAreaDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Tensile Stress Area (At)', W / 2, 35);
+
+    var cx = W / 2, cy = 200;
+
+    /* Nominal diameter circle */
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.stroke();
+
+    /* Stress area circle (smaller) */
+    ctx.fillStyle = 'rgba(84,110,122,0.3)';
+    ctx.beginPath(); ctx.arc(cx, cy, 60, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 60, 0, Math.PI * 2); ctx.stroke();
+
+    /* Thread profile around the outer edge */
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1;
+    for (var a = 0; a < Math.PI * 2; a += Math.PI / 12) {
+      ctx.beginPath();
+      ctx.moveTo(cx + 65 * Math.cos(a), cy + 65 * Math.sin(a));
+      ctx.lineTo(cx + 80 * Math.cos(a), cy + 80 * Math.sin(a));
+      ctx.stroke();
+    }
+
+    /* Labels */
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a'; ctx.textAlign = 'center';
+    ctx.fillText('d (nominal)', cx, cy - 90);
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('At (stress area)', cx, cy + 5);
+
+    /* Dimension arrows */
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 80, cy + 100); ctx.lineTo(cx + 80, cy + 100); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 80, cy + 96); ctx.lineTo(cx - 80, cy + 104); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 80, cy + 96); ctx.lineTo(cx + 80, cy + 104); ctx.stroke();
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('d', cx, cy + 118);
+
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 60, cy + 130); ctx.lineTo(cx + 60, cy + 130); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 60, cy + 126); ctx.lineTo(cx - 60, cy + 134); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 60, cy + 126); ctx.lineTo(cx + 60, cy + 134); ctx.stroke();
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('d - 0.9382p', cx, cy + 148);
+  }
+
+  function drawTensileStressDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Tensile Stress in a Bolt', W / 2, 35);
+
+    var cx = 300, topY = 80;
+
+    /* Bolt representation */
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(cx - 15, topY, 30, 250);
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - 15, topY, 30, 250);
+
+    /* Axial stress distribution (uniform color across section) */
+    ctx.fillStyle = 'rgba(255,85,85,0.3)';
+    ctx.fillRect(cx - 15, topY + 50, 30, 150);
+
+    /* Force arrows */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cx, topY - 30); ctx.lineTo(cx, topY + 5); ctx.stroke();
+    ctx.fillStyle = '#ff5555';
+    ctx.beginPath(); ctx.moveTo(cx, topY + 7); ctx.lineTo(cx - 5, topY - 3); ctx.lineTo(cx + 5, topY - 3); ctx.closePath(); ctx.fill();
+
+    ctx.beginPath(); ctx.moveTo(cx, topY + 280); ctx.lineTo(cx, topY + 245); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, topY + 243); ctx.lineTo(cx - 5, topY + 253); ctx.lineTo(cx + 5, topY + 253); ctx.closePath(); ctx.fill();
+
+    ctx.font = '700 12px "Courier New", monospace';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center';
+    ctx.fillText('F', cx, topY - 38);
+    ctx.fillText('F', cx, topY + 296);
+
+    /* Formula box */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('\u03C3 = F / At', 650, 200);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('F = axial force (N)', 650, 240);
+    ctx.fillText('At = tensile stress area (mm\u00B2)', 650, 260);
+    ctx.fillText('\u03C3 = tensile stress (MPa)', 650, 280);
+  }
+
+  function drawShearStressDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Shear Stress in a Bolted Joint', W / 2, 35);
+
+    var cx = 300, cy = 200;
+
+    /* Two plates */
+    ctx.fillStyle = 'rgba(84,110,122,0.35)';
+    ctx.fillRect(cx - 120, cy - 30, 240, 25);
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 120, cy - 30, 240, 25);
+
+    ctx.fillStyle = 'rgba(84,110,122,0.25)';
+    ctx.fillRect(cx - 120, cy - 5, 240, 25);
+    ctx.strokeStyle = '#546e7a';
+    ctx.strokeRect(cx - 120, cy - 5, 240, 25);
+
+    /* Bolt through plates */
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(cx - 8, cy - 40, 16, 70);
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1;
+    ctx.strokeRect(cx - 8, cy - 40, 16, 70);
+
+    /* Shear plane */
+    ctx.fillStyle = 'rgba(61,220,132,0.3)';
+    ctx.fillRect(cx - 15, cy - 7, 30, 4);
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 15, cy - 5); ctx.lineTo(cx + 15, cy - 5); ctx.stroke();
+
+    /* Horizontal force arrows */
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cx + 130, cy - 18); ctx.lineTo(cx + 180, cy - 18); ctx.stroke();
+    ctx.fillStyle = '#3ddc84';
+    ctx.beginPath(); ctx.moveTo(cx + 182, cy - 18); ctx.lineTo(cx + 172, cy - 23); ctx.lineTo(cx + 172, cy - 13); ctx.closePath(); ctx.fill();
+
+    ctx.beginPath(); ctx.moveTo(cx - 130, cy + 8); ctx.lineTo(cx - 180, cy + 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 182, cy + 8); ctx.lineTo(cx - 172, cy + 3); ctx.lineTo(cx - 172, cy + 13); ctx.closePath(); ctx.fill();
+
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center';
+    ctx.fillText('F', cx + 160, cy - 32);
+    ctx.fillText('F', cx - 160, cy + 26);
+
+    /* Formula */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('\u03C4 = F / (n \u00D7 A)', W / 2, 320);
+
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Shear strength \u2248 0.577 \u00D7 Sy', W / 2, 350);
+  }
+
+  function drawBearingStressDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Bearing Stress — Bolt on Plate', W / 2, 35);
+
+    var cx = 350, cy = 180;
+
+    /* Plate (side view) */
+    ctx.fillStyle = 'rgba(84,110,122,0.35)';
+    ctx.fillRect(cx - 100, cy - 40, 200, 80);
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 100, cy - 40, 200, 80);
+
+    /* Bolt in hole */
+    ctx.fillStyle = '#546e7a';
+    ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.stroke();
+
+    /* Bearing contact area (highlighted) */
+    ctx.fillStyle = 'rgba(245,200,66,0.4)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(cx, cy - 18);
+    ctx.fill();
+
+    /* Force arrow */
+    ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cx + 120, cy); ctx.lineTo(cx + 25, cy); ctx.stroke();
+    ctx.fillStyle = '#f5c842';
+    ctx.beginPath(); ctx.moveTo(cx + 23, cy); ctx.lineTo(cx + 33, cy - 5); ctx.lineTo(cx + 33, cy + 5); ctx.closePath(); ctx.fill();
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#f5c842'; ctx.textAlign = 'left';
+    ctx.fillText('F', cx + 125, cy + 4);
+
+    /* Projected area label */
+    ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath(); ctx.moveTo(cx + 18, cy - 40); ctx.lineTo(cx + 18, cy + 40); ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Labels */
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99'; ctx.textAlign = 'center';
+    ctx.fillText('Bearing area = d \u00D7 t', cx, cy + 60);
+
+    /* Formula */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('\u03C3b = F / (n \u00D7 d \u00D7 t)', W / 2, 320);
+  }
+
+  function drawPreloadDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Bolt Preload (Clamping Force)', W / 2, 35);
+
+    var cx = 300, topY = 80;
+
+    /* Plates being clamped */
+    ctx.fillStyle = 'rgba(84,110,122,0.3)';
+    ctx.fillRect(cx - 80, topY + 60, 160, 40);
+    ctx.fillRect(cx - 80, topY + 100, 160, 40);
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 80, topY + 60, 160, 40);
+    ctx.strokeRect(cx - 80, topY + 100, 160, 40);
+
+    /* Bolt */
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(cx - 10, topY + 30, 20, 120);
+
+    /* Bolt head */
+    ctx.fillStyle = '#546e7a';
+    roundRect(ctx, cx - 25, topY + 25, 50, 18, 3);
+    ctx.fill();
+
+    /* Nut */
+    ctx.fillStyle = '#455a64';
+    roundRect(ctx, cx - 22, topY + 145, 44, 16, 3);
+    ctx.fill();
+
+    /* Preload arrows (compression) */
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx, topY + 10); ctx.lineTo(cx, topY + 30); ctx.stroke();
+    ctx.fillStyle = '#42a5f5';
+    ctx.beginPath(); ctx.moveTo(cx, topY + 32); ctx.lineTo(cx - 6, topY + 22); ctx.lineTo(cx + 6, topY + 22); ctx.closePath(); ctx.fill();
+
+    ctx.beginPath(); ctx.moveTo(cx, topY + 178); ctx.lineTo(cx, topY + 158); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, topY + 156); ctx.lineTo(cx - 6, topY + 166); ctx.lineTo(cx + 6, topY + 166); ctx.closePath(); ctx.fill();
+
+    ctx.font = '700 12px "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center';
+    ctx.fillText('Fi', cx, topY + 5);
+    ctx.fillText('Fi', cx, topY + 194);
+
+    /* Formula */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('Fi = 0.90 \u00D7 At \u00D7 Sp', 650, 150);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('(permanent connection)', 650, 175);
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('Fi = 0.75 \u00D7 At \u00D7 Sp', 650, 210);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('(reusable connection)', 650, 235);
+  }
+
+  function drawFoSDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Factor of Safety (FoS)', W / 2, 35);
+
+    /* Visual gauge */
+    var cx = W / 2, cy = 230;
+    var radius = 130;
+
+    /* Arc background */
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI, 0);
+    ctx.stroke();
+
+    /* Danger zone (red) 0 - 1.0 */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI, Math.PI + Math.PI * 0.2);
+    ctx.stroke();
+
+    /* Warning zone (yellow) 1.0 - 2.0 */
+    ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI + Math.PI * 0.2, Math.PI + Math.PI * 0.4);
+    ctx.stroke();
+
+    /* Safe zone (green) 2.0+ */
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI + Math.PI * 0.4, Math.PI * 2);
+    ctx.stroke();
+
+    /* Labels */
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center';
+    ctx.fillText('<1.0', cx - radius - 10, cy + 25);
+    ctx.fillStyle = '#f5c842';
+    ctx.fillText('1.0-2.0', cx - 50, cy - radius + 10);
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillText('>2.0', cx + radius + 10, cy + 25);
+
+    /* Formula */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('FoS = Sp / \u03C3', cx, cy + 60);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Static: FoS \u2265 2.0  |  Dynamic: FoS \u2265 3.0', cx, cy + 90);
+  }
+
+  /* Where the applied torque actually goes, and how little of it reaches the bolt. */
+  function drawTorqueDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Tightening Torque — T = K × d × Fi', W / 2, 35);
+
+    /* Hex head seen on-axis, with a wrench arm and a rotation arrow. */
+    var cx = 220, cy = 175, r = 46;
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var a = Math.PI / 6 + i * Math.PI / 3;
+      var px = cx + r * Math.cos(a), py = cy + r * Math.sin(a);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(84,110,122,0.45)'; ctx.fill();
+    ctx.strokeStyle = '#8fa3b0'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = 'rgba(84,110,122,0.30)';
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    /* Wrench arm */
+    ctx.fillStyle = 'rgba(120,144,156,0.55)';
+    roundRect(ctx, cx + r - 6, cy - 11, 150, 22, 6); ctx.fill();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.5;
+    roundRect(ctx, cx + r - 6, cy - 11, 150, 22, 6); ctx.stroke();
+
+    /* Rotation arrow */
+    ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 26, -Math.PI * 0.86, -Math.PI * 0.12); ctx.stroke();
+    var ax = cx + (r + 26) * Math.cos(-Math.PI * 0.12), ay = cy + (r + 26) * Math.sin(-Math.PI * 0.12);
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath(); ctx.moveTo(ax + 8, ay + 4); ctx.lineTo(ax - 6, ay - 6); ctx.lineTo(ax - 1, ay + 9); ctx.closePath(); ctx.fill();
+    ctx.font = '700 13px "Courier New", monospace';
+    ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'center';
+    ctx.fillText('T', cx, cy - r - 36);
+
+    /* Where the torque goes — a stacked bar, drawn to the real proportions. */
+    var bx = 500, by = 96, bw = 300, bh = 34;
+    var split = [
+      { f: 0.50, c: '#ff8a65', t: 'under the head / nut face' },
+      { f: 0.38, c: '#f5c842', t: 'thread friction' },
+      { f: 0.12, c: '#3ddc84', t: 'stretching the bolt' }
+    ];
+    var x = bx;
+    split.forEach(function (seg) {
+      ctx.fillStyle = seg.c;
+      ctx.fillRect(x, by, bw * seg.f, bh);
+      x += bw * seg.f;
+    });
+    ctx.strokeStyle = 'rgba(221,227,240,0.4)'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    split.forEach(function (seg, i) {
+      var ly = by + bh + 24 + i * 19;
+      ctx.fillStyle = seg.c;
+      ctx.fillRect(bx, ly - 5, 10, 10);
+      ctx.fillStyle = '#dde3f0';
+      ctx.fillText(Math.round(seg.f * 100) + '%  ' + seg.t, bx + 18, ly);
+    });
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Only the green slice becomes clamping force.', bx, by - 14);
+
+    /* Nut-factor table */
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    var rows = [['K = 0.15', 'lubricated'], ['K = 0.18', 'cadmium plated'],
+                ['K = 0.20', 'plain steel, as received'], ['K = 0.25', 'zinc plated']];
+    ctx.fillStyle = '#8fa3b0';
+    ctx.fillText('Nut factor K', bx, 250);
+    rows.forEach(function (r2, i) {
+      ctx.fillStyle = '#dde3f0'; ctx.fillText(r2[0], bx, 272 + i * 18);
+      ctx.fillStyle = '#6b7a99'; ctx.fillText(r2[1], bx + 68, 272 + i * 18);
+    });
+    ctx.fillStyle = '#ff8a65';
+    ctx.fillText('Preload scatter with the torque method: ±25%', bx, 352);
+  }
+
+  /* The bolt as a spring: preload is what you can measure as extension. */
+  function drawStretchDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Bolt Stretch — the measurement friction cannot corrupt', W / 2, 35);
+
+    var baseY = 90, len = 200, stretchPx = 26;
+
+    [{ x: 250, ext: 0, lbl: 'Finger tight', sub: 'Fi = 0' },
+     { x: 480, ext: stretchPx, lbl: 'Tightened', sub: 'δ = Fi / kb' }].forEach(function (st) {
+      var cx = st.x;
+
+      /* Grip (the clamped plates) — fixed height in both states */
+      ctx.fillStyle = 'rgba(84,110,122,0.25)';
+      ctx.fillRect(cx - 70, baseY + 30, 140, len - 60);
+      ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+      ctx.strokeRect(cx - 70, baseY + 30, 140, len - 60);
+
+      /* Bolt shank — the tightened one is drawn longer by the stretch */
+      ctx.fillStyle = '#78909c';
+      ctx.fillRect(cx - 9, baseY + 18, 18, len - 36 + st.ext);
+      ctx.fillStyle = '#546e7a';
+      roundRect(ctx, cx - 26, baseY, 52, 20, 3); ctx.fill();
+      roundRect(ctx, cx - 23, baseY + len - 18 + st.ext, 46, 18, 3); ctx.fill();
+
+      ctx.font = '700 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+      ctx.fillText(st.lbl, cx, baseY + len + 42 + st.ext);
+      ctx.font = '600 11px "Courier New", monospace';
+      ctx.fillStyle = '#6b7a99';
+      ctx.fillText(st.sub, cx, baseY + len + 60 + st.ext);
+    });
+
+    /* Call out the extension between the two nut faces */
+    var y0 = baseY + len, y1 = baseY + len + stretchPx;
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(276, y0); ctx.lineTo(560, y0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(506, y1); ctx.lineTo(560, y1); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(556, y0); ctx.lineTo(556, y1); ctx.stroke();
+    ctx.font = '700 13px "Courier New", monospace';
+    ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'left';
+    ctx.fillText('δ', 566, (y0 + y1) / 2 + 4);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#8fa3b0';
+    ctx.fillText('Typical values', 640, 110);
+    ctx.fillStyle = '#dde3f0';
+    ['M10, 24 mm grip, 90% proof → 0.061 mm',
+     'M16, 40 mm grip, 90% proof → 0.101 mm',
+     'M24, 50 mm grip, 90% proof → 0.130 mm'].forEach(function (t, i) {
+      ctx.fillText(t, 640, 134 + i * 18);
+    });
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Measured with a depth micrometer,', 640, 200);
+    ctx.fillText('an ultrasonic gauge, or a gauge pin.', 640, 218);
+  }
+
+  /* Why a preloaded bolt survives cycling: the load line is nearly flat. */
+  function drawFatigueDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Bolt Fatigue — preload flattens the load line', W / 2, 35);
+
+    var ox = 130, oy = 340, pw = 420, ph = 250;
+
+    /* Axes */
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ox, oy - ph); ctx.lineTo(ox, oy); ctx.lineTo(ox + pw, oy); ctx.stroke();
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8fa3b0'; ctx.textAlign = 'center';
+    ctx.fillText('External load per bolt, P', ox + pw / 2, oy + 26);
+    ctx.save();
+    ctx.translate(ox - 48, oy - ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Bolt force, Fb', 0, 0);
+    ctx.restore();
+
+    /* Preload floor */
+    var yFi = oy - ph * 0.52;
+    ctx.strokeStyle = 'rgba(66,165,245,0.75)'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(ox, yFi); ctx.lineTo(ox + pw, yFi); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '700 11px "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'left';
+    ctx.fillText('Fi', ox + 6, yFi - 8);
+
+    /* Preloaded bolt: shallow line of slope C, starting at Fi */
+    var xSep = ox + pw * 0.66;
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ox, yFi); ctx.lineTo(xSep, yFi - ph * 0.17); ctx.stroke();
+    /* past separation it snaps onto the 45-degree "bolt carries everything" line */
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(xSep, yFi - ph * 0.17); ctx.lineTo(ox + pw, oy - ph * 0.93); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#3ddc84'; ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillText('slope C — preloaded', ox + 14, yFi - ph * 0.13);
+    ctx.fillStyle = '#ff8a65';
+    ctx.beginPath(); ctx.arc(xSep, yFi - ph * 0.17, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,138,101,0.6)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(xSep, yFi - ph * 0.17 - 5); ctx.lineTo(xSep, yFi - ph * 0.30); ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillText('joint separates', xSep, yFi - ph * 0.34);
+    ctx.textAlign = 'left';
+
+    /* Un-preloaded bolt: 45-degree line from the origin */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + pw * 0.80, oy - ph * 0.92); ctx.stroke();
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('slope 1 — no preload', ox + pw * 0.30, oy - ph * 0.22);
+
+    /* The stress amplitude each one has to survive */
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#8fa3b0';
+    ctx.fillText('For the same 0 → P cycle', 610, 110);
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillText('preloaded:   σa = C·P / 2At', 610, 134);
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('no preload:  σa = P / 2At', 610, 156);
+    ctx.fillStyle = '#dde3f0';
+    ctx.fillText('At C = 0.25 the preloaded bolt', 610, 190);
+    ctx.fillText('sees a quarter of the alternating', 610, 208);
+    ctx.fillText('stress — and fatigue life scales', 610, 226);
+    ctx.fillText('on σa, not on mean stress.', 610, 244);
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Se (rolled thread): 129 MPa for 8.8,', 610, 280);
+    ctx.fillText('162 for 10.9, 190 for 12.9.', 610, 298);
+    ctx.fillText('Cracks start at the first engaged', 610, 322);
+    ctx.fillText('thread, beside the nut face.', 610, 340);
+  }
+
+  function drawStiffnessDiag() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center';
+    ctx.fillText('Joint Stiffness Model', W / 2, 35);
+
+    /* Spring model diagram */
+    var cx = W / 2, topY = 90;
+
+    /* Bolt spring (left) */
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center';
+    ctx.fillText('Bolt (kb)', cx - 100, topY);
+
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    var springY = topY + 20;
+    ctx.beginPath(); ctx.moveTo(cx - 100, springY); ctx.lineTo(cx - 100, springY + 15); ctx.stroke();
+    for (var s = 0; s < 5; s++) {
+      var sy = springY + 15 + s * 25;
+      ctx.beginPath();
+      ctx.moveTo(cx - 100, sy);
+      ctx.lineTo(cx - 115, sy + 8);
+      ctx.lineTo(cx - 85, sy + 17);
+      ctx.lineTo(cx - 100, sy + 25);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(cx - 100, springY + 140); ctx.lineTo(cx - 100, springY + 160); ctx.stroke();
+
+    /* Member spring (right) */
+    ctx.fillStyle = '#f5c842';
+    ctx.fillText('Members (km)', cx + 100, topY);
+
+    ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx + 100, springY); ctx.lineTo(cx + 100, springY + 15); ctx.stroke();
+    for (var s2 = 0; s2 < 5; s2++) {
+      var sy2 = springY + 15 + s2 * 25;
+      ctx.beginPath();
+      ctx.moveTo(cx + 100, sy2);
+      ctx.lineTo(cx + 85, sy2 + 8);
+      ctx.lineTo(cx + 115, sy2 + 17);
+      ctx.lineTo(cx + 100, sy2 + 25);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(cx + 100, springY + 140); ctx.lineTo(cx + 100, springY + 160); ctx.stroke();
+
+    /* Connecting bars */
+    ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx - 110, springY); ctx.lineTo(cx + 110, springY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 110, springY + 160); ctx.lineTo(cx + 110, springY + 160); ctx.stroke();
+
+    /* Formula */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('C = kb / (kb + km)', cx, springY + 200);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99';
+    ctx.fillText('Bolt load increase = C \u00D7 F_ext', cx, springY + 230);
+    ctx.fillText('Lower C = better fatigue life', cx, springY + 255);
+  }
+
+  /* ================================================================
+     RENDER
+     ================================================================ */
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    if (mode === 'simulate') {
+      calculateAll();
+      drawSimulate();
+      updateReadouts();
+      updateLearnPanels();
+      updateCoach();
+    } else if (mode === 'explore') {
+      var c = CONCEPTS.filter(function (cc) { return cc.cat === selCat; });
+      if (c[selConcept]) drawConceptDiagram(c[selConcept]);
+    } else if (mode === 'practice') {
+      drawPracticeCanvas();
+    } else if (mode === 'quiz') {
+      drawQuizCanvas();
+    }
+  }
+
+  function drawPracticeCanvas() {
+    ctx.font = '700 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Practice Mode', W / 2, 40);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('Solve the bolt design problem below', W / 2, 65);
+
+    /* Draw a sample bolted joint */
+    var cx = W / 2, cy = 220;
+    ctx.fillStyle = 'rgba(84,110,122,0.3)';
+    ctx.fillRect(cx - 120, cy - 25, 240, 22);
+    ctx.fillRect(cx - 120, cy - 3, 240, 22);
+    ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 120, cy - 25, 240, 22);
+    ctx.strokeRect(cx - 120, cy - 3, 240, 22);
+
+    /* Bolt */
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(cx - 8, cy - 40, 16, 60);
+    roundRect(ctx, cx - 18, cy - 48, 36, 12, 3);
+    ctx.fill();
+    roundRect(ctx, cx - 16, cy + 20, 32, 10, 3);
+    ctx.fillStyle = '#455a64';
+    ctx.fill();
+
+    /* Force arrows */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy - 65); ctx.lineTo(cx, cy - 50); ctx.stroke();
+    ctx.fillStyle = '#ff5555';
+    ctx.beginPath(); ctx.moveTo(cx, cy - 48); ctx.lineTo(cx - 4, cy - 56); ctx.lineTo(cx + 4, cy - 56); ctx.closePath(); ctx.fill();
+    ctx.font = '700 10px "Courier New", monospace';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('F', cx, cy - 68);
+
+    ctx.font = '700 13px "Courier New", monospace';
+    ctx.fillStyle = '#3ddc84'; ctx.textBaseline = 'middle';
+    ctx.fillText('\u03C3 = F / At  |  \u03C4 = F / (n\u00D7A)  |  FoS = Sp / \u03C3', W / 2, 340);
+  }
+
+  function drawQuizCanvas() {
+    ctx.font = '700 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Quiz Mode', W / 2, 40);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#546e7a';
+    ctx.fillText('Answer the question below', W / 2, 65);
+
+    /* Draw bolt icon */
+    var cx = W / 2, cy = 200;
+    ctx.fillStyle = '#546e7a';
+    roundRect(ctx, cx - 25, cy - 50, 50, 20, 4);
+    ctx.fill();
+    ctx.fillRect(cx - 10, cy - 30, 20, 80);
+    ctx.fillStyle = '#455a64';
+    roundRect(ctx, cx - 20, cy + 50, 40, 18, 3);
+    ctx.fill();
+
+    /* Thread marks */
+    ctx.strokeStyle = '#90a4ae'; ctx.lineWidth = 0.8;
+    for (var i = cy; i < cy + 48; i += 4) {
+      ctx.beginPath(); ctx.moveTo(cx - 10, i); ctx.lineTo(cx + 10, i); ctx.stroke();
+    }
+
+    /* Bolt grades arc */
+    var grades = ['4.6', '5.8', '8.8', '10.9', '12.9'];
+    ctx.font = '700 10px "Courier New", monospace';
+    grades.forEach(function (g, i) {
+      var angle = -Math.PI / 2 + (i - 2) * 0.35;
+      var rx = 140, ry = 140;
+      var gx = cx + rx * Math.cos(angle);
+      var gy = cy + ry * Math.sin(angle);
+      ctx.fillStyle = i === 2 ? '#546e7a' : '#2a3050';
+      ctx.fillText(g, gx, gy);
+    });
+
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6b7a99'; ctx.textBaseline = 'top';
+    ctx.fillText('Tensile \u2022 Shear \u2022 Bearing \u2022 Preload \u2022 FoS', cx, cy + 110);
+  }
+
+  /* ================================================================
+     UPDATE READOUTS
+     ================================================================ */
+  function updateReadouts() {
+    var u = U();
+    setText('#r-stress',  cv(results.sigma, u.stress));  setUnit('#u-stress',  u.stress.u);
+    setText('#r-preload', cv(results.Fi, u.force));       setUnit('#u-preload', u.force.u);
+    setText('#r-torque', cv(results.torque, u.torque));   setUnit('#u-torque', u.torque.u);
+    setText('#r-fos',     results.fos.toFixed(2));
+    setText('#r-bforce',  cv(results.Fb, u.force));       setUnit('#u-bforce',  u.force.u);
+    setText('#r-cratio',  results.C.toFixed(3));
+    setText('#r-sep',     cv(results.Psep, u.force));     setUnit('#u-sep',     u.force.u);
+    setText('#r-proof',   cv(results.Fp, u.force));       setUnit('#u-proof',   u.force.u);
+    setText('#r-area',    cv(results.At, u.area));        setUnit('#u-area',    u.area.u);
+    setText('#r-shear',   cv(results.tau, u.stress));     setUnit('#u-shear',   u.stress.u);
+    setText('#r-bearing', cv(results.sigma_b, u.stress)); setUnit('#u-bearing', u.stress.u);
+    setText('#r-grip',    cv(results.grip, u.len));       setUnit('#u-grip',    u.len.u);
+    /* the same figure, shown beside the two plate inputs that produce it */
+    setText('#grip-inline', cv(results.grip, u.len));
+    var gu = $('#grip-inline-unit'); if (gu) gu.textContent = u.len.u;
+    setText('#r-pct',     results.pct.toFixed(0));
+    setText('#r-stretch', cv(results.stretch, u.len3));    setUnit('#u-stretch', u.len3.u);
+    setText('#r-kb',      cv(results.kb, u.stiff));        setUnit('#u-kb',      u.stiff.u);
+    setText('#r-km',      cv(results.km, u.stiff));        setUnit('#u-km',      u.stiff.u);
+    setText('#r-n0',      fmtFactor(results.n0));
+    setText('#r-nl',      fmtFactor(results.nL));
+    setText('#r-nf',      fmtFactor(results.nf));
+    setText('#r-slip',    cv(results.Fslip, u.force));     setUnit('#u-slip',    u.force.u);
+    setText('#r-nslip',   fmtFactor(results.nSlip));
+
+    /* Hide cards that do not apply to the current joint type — a card showing a
+       number the joint cannot produce is worse than no card at all. */
+    var showSB = (jointType === 'shear' || jointType === 'combined');
+    var showAx = (jointType !== 'shear');
+    [['#card-shear', showSB], ['#card-bearing', showSB],
+     ['#card-slip', showSB], ['#card-nslip', showSB],
+     ['#card-n0', showAx], ['#card-nl', showAx], ['#card-nf', showAx]
+    ].forEach(function (pair) {
+      var el = $(pair[0]); if (el) el.style.display = pair[1] ? '' : 'none';
+    });
+
+    /* Colour-code every safety factor on the same scale. */
+    colourFactor('#r-fos',   results.fos,   2.0, 1.0);
+    colourFactor('#r-n0',    results.n0,    1.5, 1.0);
+    colourFactor('#r-nl',    results.nL,    1.5, 1.0);
+    colourFactor('#r-nf',    results.nf,    1.5, 1.0);
+    colourFactor('#r-nslip', results.nSlip, 1.25, 1.0);
+
+    /* Over-tightening warning: the preload itself is at or past proof. */
+    var pctEl = $('#r-pct');
+    if (pctEl) pctEl.style.color = results.pct > 100 ? '#ff5555' : results.pct > 95 ? '#f5c842' : '';
+  }
+
+  /* A factor pinned at the 99.9 clamp means "no demand at all", not "99.9 safe". */
+  function fmtFactor(v) { return v >= 99.9 ? '\u221E' : v.toFixed(2); }
+  function colourFactor(sel, val, good, warn) {
+    var el = $(sel); if (!el) return;
+    el.style.color = val >= good ? '#3ddc84' : val >= warn ? '#f5c842' : '#ff5555';
+  }
+
+  /* ================================================================
+     UI — MODE SWITCHING
+     ================================================================ */
+  function setMode(m) {
+    mode = m;
+    $$('#mode-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.mode === m);
+    });
+    var simPanels = ['#sim-panel', '#canvas-tools', '#learn-panels'];
+    var explorePanels = ['#cat-row', '#item-selector', '#item-info'];
+    var practicePanels = ['#practice-panel', '#practice-bar'];
+    var quizPanels = ['#quiz-panel', '#quiz-bar', '#quiz-result'];
+
+    simPanels.concat(explorePanels, practicePanels, quizPanels).forEach(function (s) { hide($(s)); });
+
+
+    if (m === 'simulate') {
+      simPanels.forEach(function (s) { show($(s)); });
+    }
+    if (m === 'explore') {
+      explorePanels.forEach(function (s) { show($(s)); });
+      buildConceptGrid();
+    }
+    if (m === 'practice') {
+      practicePanels.forEach(function (s) { show($(s)); });
+      newPractice();
+    }
+    if (m === 'quiz') {
+      show($('#quiz-panel')); show($('#quiz-bar'));
+      startQuiz();
+    }
+    render();
+  }
+
+  $('#mode-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    setMode(e.target.dataset.mode);
+  });
+
+  /* ================================================================
+     UI — SIMULATE CONTROLS (state-driven, stepper + undo aware)
+     ================================================================ */
+
+  /* Every field stores SI. `dsp` names the unit spec it is shown in, and the
+     Imperial column gives the step and decimals to use once converted — an
+     inch joint wants 1/16 in plate steps, not 1 mm converted to 0.039 in.
+     Without this the tool would ask for a 3/4" bolt through a "12 mm" plate. */
+  var FIELD = {
+    load:  { get: function () { return extLoad; }, set: function (v) { extLoad = v; }, min: 1, max: 500, step: 5,  slider: 'load-slider',  input: 'load-input',
+             dsp: 'force',  istep: 1,      idec: 1, unitEl: 'load-unit' },
+    nbolt: { get: function () { return nBolts; },  set: function (v) { nBolts = v; },  min: 1, max: 12,  step: 1,  slider: 'nbolt-slider', input: 'nbolt-input' },
+    t1:    { get: function () { return plate1; },  set: function (v) { plate1 = v; },  min: 3, max: 50,  step: 1,  slider: 't1-slider',    input: 't1-input',
+             dsp: 'len',    istep: 0.0625, idec: 4, unitEl: 't1-unit' },
+    t2:    { get: function () { return plate2; },  set: function (v) { plate2 = v; },  min: 3, max: 50,  step: 1,  slider: 't2-slider',    input: 't2-input',
+             dsp: 'len',    istep: 0.0625, idec: 4, unitEl: 't2-unit' },
+    preload: { get: function () { return preloadPct; }, set: function (v) { preloadPct = v; }, min: 40, max: 95,   step: 5, slider: 'preload-slider', input: 'preload-input' },
+    torqin:  { get: function () { return torqueIn; },   set: function (v) { torqueIn = v; },   min: 1,  max: 2000, step: 5, slider: 'torque-slider',  input: 'torque-input',
+             dsp: 'torque', istep: 5,      idec: 0, unitEl: 'torque-unit' }
+  };
+  /* A field's min/max/step/decimals in whatever units are on screen. */
+  function fieldView(f) {
+    if (!f.dsp || !imperial) return { k: 1, min: f.min, max: f.max, step: f.step, dec: 0, u: f.dsp ? U()[f.dsp].u : '' };
+    var spec = U()[f.dsp], k = spec.f;
+    return { k: k, min: f.min * k, max: f.max * k, step: f.istep, dec: f.idec, u: spec.u };
+  }
+  function toSI(f, dv)  { var v = fieldView(f); return dv / v.k; }
+  function toDisp(f, si) { var v = fieldView(f); return si * v.k; }
+  /* Clamp in SI but round on the display grid, so a typed value survives the
+     round trip exactly in whichever units it was typed. */
+  function clampF(f, siVal) {
+    var v = fieldView(f);
+    var dv = Math.max(v.min, Math.min(v.max, siVal * v.k));
+    var pow = Math.pow(10, v.dec);
+    return (Math.round(dv * pow) / pow) / v.k;
+  }
+
+  /* Push a SI value into a slider + stepper pair, converting to display units
+     and re-stating the control's own min/max/step so the widget matches. */
+  function mirror(name, si, force) {
+    var f = FIELD[name]; if (!f) return;
+    var v = fieldView(f), dv = si * v.k;
+    var txt = dv.toFixed(v.dec);
+    if (txt.indexOf('.') >= 0) txt = txt.replace(/0+$/, '').replace(/\.$/, '');
+    var inp = $('#' + f.input);
+    if (inp) {
+      inp.min = v.min; inp.max = v.max; inp.step = v.step;
+      /* Never fight the user mid-type — except when the step came FROM the
+         focused input itself (arrow keys), where the display must follow. */
+      if (force || document.activeElement !== inp) inp.value = txt;
+    }
+    if (f.unitEl) { var ue = $('#' + f.unitEl); if (ue) ue.textContent = v.u; }
+    /* Fill the value cell in proportion to where the value sits in its own
+       range — the visual feedback the slider used to provide. */
+    if (inp) {
+      var span = v.max - v.min;
+      var pct = span > 0 ? (dv - v.min) / span * 100 : 0;
+      inp.style.setProperty('--pct', Math.max(0, Math.min(100, pct)).toFixed(2) + '%');
+    }
+    /* Grey the button that can no longer do anything. */
+    var e2 = v.step * 1e-6;
+    var dec = $('.step-btn[data-step="' + name + '"][data-dir="-1"]');
+    var inc = $('.step-btn[data-step="' + name + '"][data-dir="1"]');
+    if (dec) dec.disabled = dv <= v.min + e2;
+    if (inc) inc.disabled = dv >= v.max - e2;
+  }
+  function syncInputs() {
+    populateSelects();
+    var nf = $('#nut-factor'); if (nf) nf.value = String(nutFactor.toFixed(2));
+    var sp = $('#shear-plane'); if (sp) sp.value = shearPlane;
+    var np = $('#n-planes');    if (np) np.value = String(nPlanes);
+    var sm = $('#slip-mu');     if (sm) sm.value = slipMu.toFixed(2);
+    $$('#joint-tabs .pill').forEach(function (p) { p.classList.toggle('active', p.dataset.joint === jointType); });
+    $$('#drive-tabs .pill').forEach(function (p) { p.classList.toggle('active', p.dataset.drive === driveMode); });
+
+    /* Only the control that is actually driving the joint is shown — the other
+       would be an input whose value the tool silently ignores. */
+    var gP = $('#grp-preload'), gT = $('#grp-torque');
+    if (gP) gP.style.display = (driveMode === 'preload') ? '' : 'none';
+    if (gT) gT.style.display = (driveMode === 'torque')  ? '' : 'none';
+    var sr = $('#shear-row');
+    if (sr) sr.style.display = (jointType === 'shear' || jointType === 'combined') ? '' : 'none';
+
+    mirror('preload', preloadPct);
+    mirror('torqin',  torqueIn);
+    mirror('load',    extLoad);
+    mirror('nbolt',   nBolts);
+    mirror('t1',      plate1);
+    mirror('t2',      plate2);
+    $$('#unit-tabs .pill').forEach(function (p) { p.classList.toggle('active', (p.dataset.unit === 'imp') === imperial); });
+    updatePresetActive();
+  }
+  function syncToggleDOM() {
+    var z = $('#chk-zones'); if (z) z.checked = showZones;
+    var d = $('#chk-dims');  if (d) d.checked = showDims;
+    var e = $('#chk-equation'); if (e) e.checked = showEq;
+  }
+
+  /* ---- Undo / redo (settled-snapshot model) ---- */
+  function snap() {
+    return { bs: boltSize, bg: boltGrade, el: extLoad, nb: nBolts, p1: plate1, p2: plate2,
+             jt: jointType, im: imperial, sz: showZones, sd: showDims, se: showEq,
+             nf: nutFactor, dm: driveMode, pp: preloadPct, tq: torqueIn,
+             sp: shearPlane, np: nPlanes, mu: slipMu, pr: activePreset,
+             st: boltStd, ts: threadSeries };
+  }
+  function restore(s) {
+    if (!s) return;
+    boltSize = s.bs; boltGrade = s.bg; extLoad = s.el; nBolts = s.nb; plate1 = s.p1; plate2 = s.p2; jointType = s.jt;
+    nutFactor  = (s.nf === undefined) ? 0.20      : s.nf;
+    driveMode  = (s.dm === undefined) ? 'preload' : s.dm;
+    preloadPct = (s.pp === undefined) ? 90        : s.pp;
+    torqueIn   = (s.tq === undefined) ? 63        : s.tq;
+    shearPlane = (s.sp === undefined) ? 'shank'   : s.sp;
+    nPlanes    = (s.np === undefined) ? 1         : s.np;
+    slipMu     = (s.mu === undefined) ? 0.30      : s.mu;
+    activePreset = (s.pr === undefined) ? null : s.pr;
+    boltStd      = (s.st === undefined) ? 'metric' : s.st;
+    threadSeries = (s.ts === undefined) ? defaultSeries(boltStd) : s.ts;
+    imperial  = (s.im === undefined) ? false : !!s.im;
+    showZones = (s.sz === undefined) ? true  : !!s.sz;
+    showDims  = (s.sd === undefined) ? true  : !!s.sd;
+    showEq    = (s.se === undefined) ? true  : !!s.se;
+    syncToggleDOM(); syncInputs(); render();
+  }
+  var settled = null;
+  function commit() {
+    var cur = JSON.stringify(snap());
+    if (settled === null) { settled = cur; return; }
+    if (cur === settled) return;
+    undoStack.push(settled); settled = cur; redoStack = []; updateUndoBtns();
+  }
+  function performUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(settled); settled = undoStack.pop();
+    restore(JSON.parse(settled)); updateUndoBtns();
+  }
+  function performRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(settled); settled = redoStack.pop();
+    restore(JSON.parse(settled)); updateUndoBtns();
+  }
+  function updateUndoBtns() {
+    var ub = $('#btn-undo'), rb = $('#btn-redo');
+    if (ub) ub.disabled = !undoStack.length;
+    if (rb) rb.disabled = !redoStack.length;
+  }
+
+  /* ---- Field change (no commit — for live slider drag) ---- */
+  function applyField(name, val, doCommit) {
+    var f = FIELD[name]; if (!f) return;
+    f.set(clampF(f, val));
+    clearPreset();
+    syncInputs(); render();
+    if (doCommit) commit();
+  }
+
+  /* Bolt size / grade selects */
+  $('#bolt-size').addEventListener('change', function () {
+    boltSize = this.value; clearPreset(); syncInputs(); render(); commit();
+  });
+  var tsSel = $('#thread-series');
+  if (tsSel) tsSel.addEventListener('change', function () {
+    var d = BOLT_DATA[boltSize].d;
+    threadSeries = this.value;
+    boltSize = nearestSize(boltStd, threadSeries, d);
+    clearPreset(); syncInputs(); render(); commit();
+  });
+  $('#bolt-grade').addEventListener('change', function () { boltGrade = this.value; clearPreset(); syncInputs(); render(); commit(); });
+  $('#nut-factor').addEventListener('change', function () { nutFactor = parseFloat(this.value); clearPreset(); syncInputs(); render(); commit(); });
+
+  $('#shear-plane').addEventListener('change', function () { shearPlane = this.value; clearPreset(); syncInputs(); render(); commit(); });
+  $('#n-planes').addEventListener('change',    function () { nPlanes = parseInt(this.value, 10) || 1; clearPreset(); syncInputs(); render(); commit(); });
+  $('#slip-mu').addEventListener('change',     function () { slipMu = parseFloat(this.value); clearPreset(); syncInputs(); render(); commit(); });
+
+  /* Tighten-by tabs. Seed the target you are switching TO from the value the
+     tool is currently showing, so flipping the mode does not jump the joint. */
+  $('#drive-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    var next = e.target.dataset.drive;
+    if (next === driveMode) return;
+    var f;
+    if (next === 'torque') {
+      f = FIELD.torqin; torqueIn = clampF(f, results.torque);
+    } else {
+      f = FIELD.preload; preloadPct = clampF(f, Math.round(results.pct / 5) * 5);
+    }
+    driveMode = next;
+    clearPreset(); syncInputs(); render(); commit();
+  });
+
+  /* Joint type tabs */
+  $('#joint-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    jointType = e.target.dataset.joint; clearPreset(); syncInputs(); render(); commit();
+  });
+
+  /* Sliders: live on input, commit on change(release) */
+  ['load', 'nbolt', 't1', 't2', 'preload', 'torqin'].forEach(function (name) {
+    var f = FIELD[name], inp = $('#' + f.input);
+    if (!inp) return;
+    inp.addEventListener('change', function () {
+      var v = parseFloat(this.value);
+      if (isNaN(v)) { mirror(name, f.get()); return; }
+      applyField(name, toSI(f, v), true);
+    });
+    /* With the slider gone, the arrow keys are the fast way to sweep a value. */
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { this.blur(); return; }
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      stepField(name, e.key === 'ArrowUp' ? 1 : -1);
+      mirror(name, f.get(), true);
+    });
+  });
+
+  /* Step ONTO the grid, not just along it. Arriving in Imperial from a metric
+     plate leaves 0.4724 in on screen; one press should give a real 1/16 in size
+     (0.5) rather than 0.5349. Values only ever change on a press, so nothing
+     drifts on its own. */
+  function stepField(name, dir, commitNow) {
+    var f = FIELD[name]; if (!f) return;
+    var v = fieldView(f), cur = f.get() * v.k, e = v.step * 1e-6;
+    var next = dir > 0 ? (Math.floor((cur + e) / v.step) + 1) * v.step
+                       : (Math.ceil((cur - e) / v.step) - 1) * v.step;
+    applyField(name, toSI(f, next), commitNow !== false);
+  }
+
+  /* Stepper +/- buttons, with press-and-hold repeat — the slider used to be the
+     way to cross a wide range quickly, so the buttons have to cover that now.
+     One undo entry per gesture, not per repeat tick. */
+  $$('.step-btn').forEach(function (btn) {
+    var name = btn.dataset.step, dir = +btn.dataset.dir;
+    if (!FIELD[name]) return;
+    var holdTimer = null, repeatTimer = null, held = false;
+
+    function stopHold() {
+      clearTimeout(holdTimer); clearInterval(repeatTimer);
+      holdTimer = repeatTimer = null;
+      if (held) { held = false; commit(); }
+    }
+    btn.addEventListener('pointerdown', function (ev) {
+      if (ev.button && ev.button !== 0) return;
+      if (btn.disabled) return;
+      stepField(name, dir, false);
+      holdTimer = setTimeout(function () {
+        held = true;
+        repeatTimer = setInterval(function () {
+          if (btn.disabled) { stopHold(); return; }
+          stepField(name, dir, false);
+        }, 70);
+      }, 420);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (t) {
+      btn.addEventListener(t, function () {
+        var wasHeld = held;
+        stopHold();
+        if (!wasHeld) commit();   /* a plain click still records one undo step */
+      });
+    });
+    btn.addEventListener('click', function (ev) { ev.preventDefault(); });
+  });
+
+  /* ---- Presets ---- */
+  var PRESETS = {
+    flange:     { bs: 'M16', bg: '8.8',  el: 80,  nb: 8,  p1: 20, p2: 20, jt: 'tension' },
+    bracket:    { bs: 'M10', bg: '8.8',  el: 25,  nb: 4,  p1: 10, p2: 8,  jt: 'shear' },
+    pressure:   { bs: 'M20', bg: '10.9', el: 150, nb: 12, p1: 30, p2: 25, jt: 'tension' },
+    structural: { bs: 'M24', bg: '10.9', el: 200, nb: 6,  p1: 25, p2: 20, jt: 'combined' }
+  };
+  var activePreset = null;
+  function clearPreset() { activePreset = null; updatePresetActive(); }
+  function updatePresetActive() {
+    var sel = $('#preset-select');
+    if (sel) sel.value = activePreset || '';
+  }
+  function applyPreset(name) {
+    var p = PRESETS[name]; if (!p) return;
+    if (boltStd !== 'metric') { imperial = false; setStandard('metric'); }
+    boltSize = p.bs; boltGrade = p.bg; extLoad = p.el; nBolts = p.nb; plate1 = p.p1; plate2 = p.p2; jointType = p.jt;
+    activePreset = name; syncInputs(); render(); commit();
+  }
+  var presetSel = $('#preset-select');
+  if (presetSel) presetSel.addEventListener('change', function () {
+    if (this.value) applyPreset(this.value); else clearPreset();
+  });
+
+  /* ---- Unit toggle ---- */
+  $('#unit-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    imperial = e.target.dataset.unit === 'imp';
+    setStandard(imperial ? 'inch' : 'metric');
+    clearPreset(); syncInputs(); render(); commit();
+  });
+
+  /* ---- Canvas feature toggles ---- */
+  var zChk = $('#chk-zones'), dChk = $('#chk-dims'), eChk = $('#chk-equation');
+  if (zChk) zChk.addEventListener('change', function () { showZones = this.checked; render(); commit(); });
+  if (dChk) dChk.addEventListener('change', function () { showDims = this.checked; render(); commit(); });
+  if (eChk) eChk.addEventListener('change', function () { showEq = this.checked; render(); commit(); });
+
+  /* ---- Action bar ---- */
+  var bU = $('#btn-undo'); if (bU) bU.addEventListener('click', performUndo);
+  var bR = $('#btn-redo'); if (bR) bR.addEventListener('click', performRedo);
+  var bC = $('#btn-csv');  if (bC) bC.addEventListener('click', exportCSV);
+  var bP = $('#btn-png');  if (bP) bP.addEventListener('click', exportPNG);
+  var bD = $('#btn-pdf'); if (bD) bD.addEventListener('click', exportPDF);
+  var bX = $('#btn-reset'); if (bX) bX.addEventListener('click', resetAll);
+
+  document.addEventListener('keydown', function (e) {
+    if (mode !== 'simulate') return;
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) performRedo(); else performUndo();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault(); performRedo();
+    }
+  });
+
+  function resetAll() {
+    boltStd = imperial ? 'inch' : 'metric';
+    threadSeries = defaultSeries(boltStd);
+    boltSize = imperial ? '1/2-13' : 'M10';
+    boltGrade = imperial ? 'SAE5' : '8.8';
+    extLoad = 30; nBolts = 4; plate1 = 12; plate2 = 12; jointType = 'tension';
+    nutFactor = 0.20; driveMode = 'preload'; preloadPct = 90; torqueIn = 63;
+    activePreset = null;
+    shearPlane = 'shank'; nPlanes = 1; slipMu = 0.30;
+    showZones = true; showDims = true; showEq = true;
+    activePreset = null;
+    syncToggleDOM(); syncInputs(); render(); commit();
+  }
+
+  /* ================================================================
+     EXPLORE MODE
+     ================================================================ */
+  function buildConceptGrid() {
+    var grid = $('#concept-grid');
+    grid.innerHTML = '';
+    var filtered = CONCEPTS.filter(function (c) { return c.cat === selCat; });
+    filtered.forEach(function (c, i) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn' + (i === selConcept ? ' active' : '');
+      btn.innerHTML = '<span class="is-btn-name">' + c.name + '</span><span class="is-btn-sym">' + c.symbol + '</span>';
+      btn.addEventListener('click', function () {
+        selConcept = i;
+        $$('.is-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        showConceptInfo(c);
+        render();
+      });
+      grid.appendChild(btn);
+    });
+    if (filtered[selConcept]) showConceptInfo(filtered[selConcept]);
+  }
+
+  function showConceptInfo(c) {
+    var el = $('#item-info');
+    el.innerHTML =
+      '<div class="ii-top"><span class="ii-name">' + c.name + '</span><span class="ii-cat-badge">' + c.cat + '</span></div>' +
+      '<p class="ii-desc">' + c.desc + '</p>' +
+      '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span><span class="fb-unit">Unit: ' + c.unit + '</span></div>' +
+      '<div class="example-box"><h4>Worked Example</h4><p class="ex-problem">' + c.example.problem + '</p>' +
+      c.example.steps.map(function (s) { return '<p class="ex-step">' + s + '</p>'; }).join('') +
+      '</div>';
+    show(el);
+  }
+
+  $('#cat-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    selCat = e.target.dataset.cat;
+    selConcept = 0;
+    $$('#cat-tabs .pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    buildConceptGrid();
+    render();
+  });
+
+  /* ================================================================
+     PRACTICE MODE
+     ================================================================ */
+  function newPractice() {
+    pAnswered = false;
+    var fn = PROBLEM_GEN[randInt(0, PROBLEM_GEN.length - 1)];
+    pProblem = fn();
+    $('#pp-prompt').textContent = pProblem.prompt;
+    $('#pp-unit').textContent = pProblem.unit;
+    $('#pp-input').value = '';
+    $('#pp-input').disabled = false;
+    $('#pp-feedback').textContent = '';
+    hide($('#pp-next'));
+    hide($('#pp-solution'));
+    render();
+  }
+
+  $('#pp-check').addEventListener('click', function () {
+    if (pAnswered || !pProblem) return;
+    pAnswered = true;
+    pTotal++;
+    var val = parseFloat($('#pp-input').value);
+    var tol = (pProblem.tol != null) ? pProblem.tol
+            : Math.max(Math.abs(pProblem.answer) * 0.03, Math.abs(pProblem.answer) < 10 ? 0.01 : 0.5);
+    var ok = !isNaN(val) && Math.abs(val - pProblem.answer) <= tol;
+    if (ok) pScore++;
+    $('#pp-feedback').textContent = ok ? '\u2714 Correct!' : '\u2718 Incorrect \u2014 answer: ' + pProblem.answer + ' ' + pProblem.unit;
+    $('#pp-feedback').className = 'feedback ' + (ok ? 'ok' : 'err');
+    $('#pp-input').disabled = true;
+    show($('#pp-next'));
+    /* Show solution */
+    var solEl = $('#pp-solution');
+    solEl.innerHTML = '<h4>Step-by-Step Solution</h4>' +
+      pProblem.steps.map(function (s) { return '<p class="sol-step">' + s.replace(/= ([0-9.]+)/, '= <strong>$1</strong>') + '</p>'; }).join('');
+    show(solEl);
+    $('#pbar-score-val').textContent = pScore + ' / ' + pTotal;
+  });
+
+  $('#pp-next').addEventListener('click', newPractice);
+
+  /* Enter key submits practice */
+  $('#pp-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('#pp-check').click();
+  });
+
+  /* ================================================================
+     QUIZ MODE
+     ================================================================ */
+  function startQuiz() {
+    quizScore = 0; quizIdx = 0; quizAnswered = false;
+    quizQs = shuffleArr(QUIZ_POOL).slice(0, 5);
+    hide($('#quiz-result'));
+    show($('#quiz-panel')); show($('#quiz-bar'));
+    showQuizQ();
+  }
+
+  function showQuizQ() {
+    quizAnswered = false;
+    var q = quizQs[quizIdx];
+    $('#qbar-num').textContent = quizIdx + 1;
+    var panel = $('#quiz-panel');
+
+    if (q.type === 'mcq') {
+      var opts = q.options.slice();
+      var correctText = opts[q.correct];
+      var shuffled = shuffleArr(opts);
+      q._correctIdx = shuffled.indexOf(correctText);
+      panel.innerHTML = '<p class="qp-prompt">Q' + (quizIdx + 1) + '. ' + q.prompt + '</p>' +
+        '<div class="answer-grid">' +
+        shuffled.map(function (o, i) {
+          return '<button class="answer-btn" data-idx="' + i + '">' + o + '</button>';
+        }).join('') + '</div>' +
+        '<p class="quiz-feedback" id="qfb"></p>' +
+        '<button class="btn btn-ghost" id="q-next" style="display:none;margin-top:10px;">Next \u2192</button>';
+      panel.querySelectorAll('.answer-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { submitMCQ(+btn.dataset.idx, q._correctIdx, panel); });
+      });
+    } else {
+      panel.innerHTML = '<p class="qp-prompt">Q' + (quizIdx + 1) + '. ' + q.prompt + '</p>' +
+        '<div class="quiz-input-row"><input class="qi-input" id="qi-val" type="number" step="any" placeholder="Your answer"><span class="qi-unit">' + q.unit + '</span>' +
+        '<button class="btn btn-primary" id="q-submit">Submit</button></div>' +
+        '<p class="quiz-feedback" id="qfb"></p>' +
+        '<button class="btn btn-ghost" id="q-next" style="display:none;margin-top:10px;">Next \u2192</button>';
+      panel.querySelector('#q-submit').addEventListener('click', function () { submitNumeric(q, panel); });
+      panel.querySelector('#qi-val').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') panel.querySelector('#q-submit').click();
+      });
+    }
+    var nextBtn = panel.querySelector('#q-next');
+    if (nextBtn) nextBtn.addEventListener('click', nextQuizQ);
+    render();
+  }
+
+  function submitMCQ(chosen, correct, panel) {
+    if (quizAnswered) return;
+    quizAnswered = true;
+    var btns = panel.querySelectorAll('.answer-btn');
+    btns.forEach(function (b, i) {
+      b.classList.add('locked');
+      if (i === correct) b.classList.add('correct');
+      if (i === chosen && i !== correct) b.classList.add('wrong');
+    });
+    var ok = chosen === correct;
+    if (ok) quizScore++;
+    quizQs[quizIdx]._given = btns[chosen].textContent;
+    quizQs[quizIdx]._ok = ok;
+    panel.querySelector('#qfb').textContent = ok ? '\u2714 Correct!' : '\u2718 Incorrect';
+    panel.querySelector('#qfb').className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    show(panel.querySelector('#q-next'));
+  }
+
+  function submitNumeric(q, panel) {
+    if (quizAnswered) return;
+    quizAnswered = true;
+    var val = parseFloat(panel.querySelector('#qi-val').value);
+    var tol = (q.tol != null) ? q.tol
+            : Math.max(Math.abs(q.answer) * 0.03, Math.abs(q.answer) < 10 ? 0.01 : 0.5);
+    var ok = !isNaN(val) && Math.abs(val - q.answer) <= tol;
+    if (ok) quizScore++;
+    q._given = isNaN(val) ? 'No answer' : val;
+    q._ok = ok;
+    panel.querySelector('#qfb').textContent = ok ? '\u2714 Correct!' : '\u2718 Answer: ' + q.answer + ' ' + q.unit;
+    panel.querySelector('#qfb').className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    panel.querySelector('#qi-val').disabled = true;
+    panel.querySelector('#q-submit').disabled = true;
+    show(panel.querySelector('#q-next'));
+  }
+
+  function nextQuizQ() {
+    quizIdx++;
+    if (quizIdx >= quizQs.length) { showQuizResult(); return; }
+    showQuizQ();
+  }
+
+  function showQuizResult() {
+    hide($('#quiz-panel')); hide($('#quiz-bar'));
+    var el = $('#quiz-result');
+    var pct = quizScore / quizQs.length;
+    var cls = pct === 1 ? 'perfect' : pct >= 0.6 ? 'good' : 'poor';
+    var stars = pct === 1 ? '\u2605\u2605\u2605' : pct >= 0.6 ? '\u2605\u2605' : '\u2605';
+    var verdict = pct === 1 ? 'Perfect Score!' : pct >= 0.6 ? 'Good Job!' : 'Keep Practising';
+
+    el.innerHTML =
+      '<div class="qr-header"><div class="qr-title-wrap"><span class="qr-title">Quiz Complete</span><span class="qr-stars">' + stars + '</span></div>' +
+      '<div class="qr-score-wrap"><span class="qr-score ' + cls + '">' + quizScore + '/' + quizQs.length + '</span><div class="qr-verdict">' + verdict + '</div></div></div>' +
+      '<div class="qr-rows">' +
+      quizQs.map(function (q, i) {
+        var rowCls = q._ok ? 'ok' : 'err';
+        var mark = q._ok ? '\u2714' : '\u2718';
+        var detail = q.type === 'mcq'
+          ? '<strong>Your answer:</strong> ' + q._given
+          : '<strong>Your answer:</strong> ' + q._given + ' &nbsp;|&nbsp; <strong>Correct:</strong> ' + q.answer + ' ' + q.unit;
+        return '<div class="qr-row ' + rowCls + '"><span class="qr-qnum">Q' + (i + 1) + '</span><span class="qr-detail">' + detail + '</span><span class="qr-mark">' + mark + '</span></div>';
+      }).join('') +
+      '</div>' +
+      '<button class="btn btn-primary" id="qr-retry" style="align-self:flex-start;">New Quiz</button>';
+    el.querySelector('#qr-retry').addEventListener('click', startQuiz);
+    show(el);
+  }
+
+  /* ================================================================
+     LEARNING PANELS — Live equations (KaTeX) + What-if coach
+     ================================================================ */
+  function renderMath(el) {
+    try {
+      if (window.renderMathInElement) {
+        window.renderMathInElement(el, {
+          delimiters: [
+            { left: '\\[', right: '\\]', display: true },
+            { left: '\\(', right: '\\)', display: false }
+          ], throwOnError: false
+        });
+      }
+    } catch (e) { /* latex-auto.js MutationObserver is the fallback */ }
+  }
+  function Lunit() { return imperial ? { F: '\\mathrm{kip}', S: '\\mathrm{ksi}' } : { F: '\\mathrm{kN}', S: '\\mathrm{MPa}' }; }
+  function fF(kN)  { return cv(kN, U().force); }
+  function fS(MPa) { return cv(MPa, U().stress); }
+
+  function updateLearnPanels() {
+    var eq = $('#lp-eq-body'); if (!eq) return;
+    var l = Lunit(), b = BOLT_DATA[boltSize], g = gradeFor(boltGrade, b.d);
+    var P = extLoad / nBolts;
+    var Tu = imperial ? '\\mathrm{lb\\!\\cdot\\!ft}' : '\\mathrm{N\\!\\cdot\\!m}';
+    var Lu = imperial ? '\\mathrm{in}' : '\\mathrm{mm}';
+    var html = '';
+    html += '<div class="eq-line">\\[ A_t = \\tfrac{\\pi}{4}(d - 0.9382\\,p)^2 = ' + b.At + '\\;\\mathrm{mm^2} \\]</div>';
+
+    if (driveMode === 'torque') {
+      html += '<div class="eq-line">\\[ F_i = \\dfrac{T}{K\\,d} = \\dfrac{' + torqueIn + '}{' + nutFactor + '\\times' + b.d + '} = \\mathbf{' + fF(results.Fi) + '\\;' + l.F + '}\\;\\;(' + results.pct.toFixed(0) + '\\%\\,F_p) \\]</div>';
+    } else {
+      html += '<div class="eq-line">\\[ F_i = ' + (preloadPct / 100).toFixed(2) + '\\,A_t\\,S_p = ' + fF(results.Fi) + '\\;' + l.F + ' \\]</div>';
+      html += '<div class="eq-line">\\[ T = K\\,d\\,F_i = ' + nutFactor + '\\times' + b.d + '\\times' + results.Fi.toFixed(1) + ' = \\mathbf{' + cv(results.torque, U().torque) + '\\;' + Tu + '} \\]</div>';
+    }
+    html += '<div class="eq-line">\\[ \\delta = \\dfrac{F_i}{k_b} = \\mathbf{' + cv(results.stretch, U().len3) + '\\;' + Lu + '}\\;\\;\\text{(bolt stretch)} \\]</div>';
+    html += '<div class="eq-line">\\[ C = \\dfrac{k_b}{k_b+k_m} = \\dfrac{' + results.kb.toFixed(0) + '}{' + results.kb.toFixed(0) + '+' + results.km.toFixed(0) + '} = ' + results.C.toFixed(3) + ' \\]</div>';
+
+    if (jointType !== 'shear') {
+      html += '<div class="eq-line">\\[ F_b = F_i + C\\,P = ' + fF(results.Fi) + ' + ' + results.C.toFixed(3) + '\\times' + fF(P) + ' = \\mathbf{' + fF(results.Fb) + '\\;' + l.F + '} \\]</div>';
+      html += '<div class="eq-line">\\[ \\sigma_b = \\dfrac{F_b}{A_t} = \\mathbf{' + fS(results.sigma) + '\\;' + l.S + '} \\]</div>';
+      html += '<div class="eq-line">\\[ n_0 = \\dfrac{F_i}{P(1-C)} = \\mathbf{' + fmtTex(results.n0) + '}\\;\\;\\text{(separation)} \\]</div>';
+      html += '<div class="eq-line">\\[ n_L = \\dfrac{F_p - F_i}{C\\,P} = \\mathbf{' + fmtTex(results.nL) + '}\\;\\;\\text{(yielding)} \\]</div>';
+      html += '<div class="eq-line">\\[ \\sigma_a = \\dfrac{C\\,P}{2A_t} = ' + fS(results.sigma_a) + '\\;' + l.S + ',\\quad n_f = \\dfrac{S_e(S_{ut}-\\sigma_i)}{\\sigma_a(S_{ut}+S_e)} = \\mathbf{' + fmtTex(results.nf) + '} \\]</div>';
+    }
+    if (jointType === 'shear' || jointType === 'combined') {
+      var aName = (shearPlane === 'thread') ? 'A_t' : '\\tfrac{\\pi d^2}{4}';
+      html += '<div class="eq-line">\\[ \\tau = \\dfrac{F}{n\\,n_s\\,' + aName + '} = \\dfrac{' + fF(extLoad) + '}{' + nBolts + '\\times' + nPlanes + '\\times' + results.Ashear.toFixed(1) + '} = \\mathbf{' + fS(results.tau) + '\\;' + l.S + '} \\]</div>';
+      html += '<div class="eq-line">\\[ \\sigma_{br} = \\dfrac{F}{n\\,d\\,t} = \\mathbf{' + fS(results.sigma_b) + '\\;' + l.S + '} \\]</div>';
+      html += '<div class="eq-line">\\[ F_{slip} = n\\,n_s\\,\\mu\\,F_i = ' + nBolts + '\\times' + nPlanes + '\\times' + slipMu.toFixed(2) + '\\times' + fF(results.Fi) + ' = \\mathbf{' + fF(results.Fslip) + '\\;' + l.F + '} \\]</div>';
+    }
+    if (jointType === 'combined') {
+      html += '<div class="eq-line">\\[ \\sigma_{vm} = \\sqrt{\\sigma_b^2 + 3\\tau^2} = \\mathbf{' + fS(results.sigma_vm) + '\\;' + l.S + '} \\]</div>';
+    }
+    var fosForm = jointType === 'shear' ? '\\dfrac{0.577\\,S_p}{\\tau}'
+                : jointType === 'combined' ? '\\dfrac{S_p}{\\sigma_{vm}}'
+                : '\\dfrac{S_p}{\\sigma_b}';
+    html += '<div class="eq-line">\\[ FoS = ' + fosForm + ' = \\mathbf{' + results.fos.toFixed(2) + '} \\]</div>';
+    html += '<p class="eq-note">S<sub>p</sub> = ' + g.Sp + ' MPa, S<sub>ut</sub> = ' + g.Su + ' MPa, S<sub>e</sub> = ' + g.Se +
+            ' MPa for class ' + boltGrade + ' at d = ' + b.d + ' mm (ISO 898-1' +
+            (GRADE_DATA[boltGrade].rows.length > 1 ? ', ' + (b.std === 'inch' ? 'inch' : 'd ' + (b.d > 16 ? '&gt;' : '&le;') + ' 16 mm') + ' row' : '') + ').</p>';
+    if (html !== _lcache.eq) { eq.innerHTML = html; _lcache.eq = html; renderMath(eq); }
+  }
+  function fmtTex(v) { return v >= 99.9 ? '\\infty' : v.toFixed(2); }
+
+  function updateCoach() {
+    var el = $('#lp-coach-body'); if (!el) return;
+    var u = U(), fu = u.force.u;
+    var items = [];
+    if (results.fos >= 2) items.push(['good', 'Factor of safety <strong>' + results.fos.toFixed(2) + '</strong> — safe for static loading (target &ge; 2.0).']);
+    else if (results.fos >= 1) items.push(['warn', 'Factor of safety <strong>' + results.fos.toFixed(2) + '</strong> is marginal (1.0&ndash;2.0). Use a larger size/grade or more bolts.']);
+    else items.push(['bad', 'Factor of safety <strong>' + results.fos.toFixed(2) + '</strong> &lt; 1.0 — the bolt is overstressed and will yield.']);
+
+    /* Tightening */
+    if (driveMode === 'torque') {
+      if (results.pct > 100) items.push(['bad', '<strong>' + cv(results.torque, u.torque) + ' ' + u.torque.u + '</strong> drives this bolt to <strong>' + results.pct.toFixed(0) + '% of proof load</strong> — past the proof point, so the bolt takes a permanent set. Reduce the torque or go up a grade.']);
+      else if (results.pct > 95) items.push(['warn', 'That torque reaches <strong>' + results.pct.toFixed(0) + '% of proof</strong>. There is almost no margin left for friction scatter.']);
+      else if (results.pct < 50) items.push(['warn', 'That torque only reaches <strong>' + results.pct.toFixed(0) + '% of proof</strong> — a slack joint that will loosen and fatigue.']);
+      else items.push([null, '<strong>' + cv(results.torque, u.torque) + ' ' + u.torque.u + '</strong> at K = ' + nutFactor.toFixed(2) + ' produces <strong>' + cv(results.Fi, u.force) + ' ' + fu + '</strong> of preload — ' + results.pct.toFixed(0) + '% of proof load.']);
+      items.push([null, 'Halve K (lubricate the thread) and the same torque produces roughly <strong>double</strong> the preload. K, not the wrench, is what actually sets the clamp force.']);
+    } else {
+      items.push([null, 'Tighten to <strong>' + cv(results.torque, u.torque) + ' ' + u.torque.u + '</strong> at K = ' + nutFactor.toFixed(2) + ' for ' + preloadPct + '% of proof. The torque method holds preload to only about &plusmn;25%, so the real clamp force lies between roughly <strong>' + cv(results.Fi * 0.75, u.force) + '</strong> and <strong>' + cv(results.Fi * 1.25, u.force) + ' ' + fu + '</strong>.']);
+      if (preloadPct >= 85) items.push([null, '90% of proof is the <em>permanent</em>-connection figure. If this joint will be dismantled and re-tightened, drop the target to <strong>75%</strong>.']);
+    }
+    items.push([null, 'Measured on the bolt, that preload is a stretch of <strong>' + cv(results.stretch, u.len3) + ' ' + u.len3.u + '</strong> over the ' + cv(results.grip, u.len) + ' ' + u.len.u + ' grip — the one check that bypasses friction entirely.']);
+
+    if (jointType !== 'shear') {
+      if (extLoad >= results.Psep) items.push(['bad', 'External load (' + fF(extLoad) + ' ' + fu + ') exceeds the separation load (' + fF(results.Psep) + ' ' + fu + ') — the joint opens and the bolt sees the full force.']);
+      else items.push([null, 'Joint stays clamped up to <strong>' + fF(results.Psep) + ' ' + fu + '</strong> (separation load), a factor of <strong>' + fmtFactor(results.n0) + '</strong> on the applied load.']);
+      items.push([null, 'The bolt absorbs only <strong>' + (results.C * 100).toFixed(0) + '%</strong> of each external-load increment (C = ' + results.C.toFixed(3) + '), so preload makes the joint highly fatigue-resistant.']);
+      if (results.nf < 1) items.push(['bad', 'Fatigue factor <strong>' + fmtFactor(results.nf) + '</strong> — under a load cycling 0 &rarr; ' + fF(extLoad / nBolts) + ' ' + fu + ' per bolt this joint fails in fatigue, whatever its static margin says.']);
+      else if (results.nf < 1.5) items.push(['warn', 'Fatigue factor <strong>' + fmtFactor(results.nf) + '</strong> is thin for a cyclic load. Raising preload actually <em>improves</em> it: it lifts &sigma;<sub>m</sub> but leaves &sigma;<sub>a</sub> untouched only until separation, and it keeps the joint closed.']);
+      else if (results.nf < 99.9) items.push(['good', 'Fatigue factor <strong>' + fmtFactor(results.nf) + '</strong> against a repeated 0 &rarr; P cycle (Goodman, rolled threads, S<sub>e</sub> = ' + gradeFor(boltGrade, BOLT_DATA[boltSize].d).Se + ' MPa).']);
+      if (results.nL < 1) items.push(['bad', 'Load factor n<sub>L</sub> = <strong>' + fmtFactor(results.nL) + '</strong> — the preload plus its share of the external load already passes proof.']);
+    }
+    if (jointType === 'shear' || jointType === 'combined') {
+      if (results.nSlip >= 1.25) items.push(['good', 'Friction alone resists <strong>' + fF(results.Fslip) + ' ' + fu + '</strong> (&mu; = ' + slipMu.toFixed(2) + ', ' + nPlanes + ' faying surface' + (nPlanes > 1 ? 's' : '') + ') — a factor of <strong>' + fmtFactor(results.nSlip) + '</strong>. The plates never move, so the bolt shear below is reserve capacity, not the design condition.']);
+      else if (results.nSlip >= 1) items.push(['warn', 'Slip resistance <strong>' + fF(results.Fslip) + ' ' + fu + '</strong> gives a factor of only <strong>' + fmtFactor(results.nSlip) + '</strong>. Any preload loss and the joint slips into bearing.']);
+      else items.push(['bad', 'The joint <strong>slips</strong>: ' + fF(extLoad) + ' ' + fu + ' exceeds the ' + fF(results.Fslip) + ' ' + fu + ' friction capacity. The plates move until the bolts bear on the hole, and the shear and bearing stresses below become the real check.']);
+      items.push([null, 'Shear plane through the <strong>' + (shearPlane === 'thread' ? 'threads — area A<sub>t</sub> = ' + results.Ashear.toFixed(1) : 'shank — area &pi;d&sup2;/4 = ' + results.Ashear.toFixed(1)) + ' mm&sup2;</strong>, ' + (nPlanes === 2 ? 'double shear (two planes halve the stress).' : 'single shear.') + (shearPlane === 'shank' ? ' If the thread runs into the joint, switch the plane — it costs about ' + (100 * (1 - results.At / (Math.PI * BOLT_DATA[boltSize].d * BOLT_DATA[boltSize].d / 4))).toFixed(0) + '% of the area on this bolt.' : '')]);
+    }
+    var html = items.map(function (it) {
+      return '<div class="coach-item' + (it[0] ? ' ' + it[0] : '') + '">' + it[1] + '</div>';
+    }).join('');
+    if (html !== _lcache.coach) { el.innerHTML = html; _lcache.coach = html; }
+  }
+
+  function wireLearnPanels() {
+    var expAll = $('#learn-expand-all'), colAll = $('#learn-collapse-all');
+    var cards = Array.prototype.slice.call($$('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+  }
+
+  /* ================================================================
+     SHOW-CALCULATIONS MODAL
+     ================================================================ */
+  function calcStep(num, title, formula, calc, result) {
+    var html = '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+    if (formula) html += '<div class="cs-formula">' + formula + '</div>';
+    if (calc)    html += '<div class="cs-calc">' + calc + '</div>';
+    if (result != null) html += '<div class="cs-result">&rarr; ' + result + '</div>';
+    return html + '</div>';
+  }
+  function buildCalcSteps() {
+    var b = BOLT_DATA[boltSize], g = gradeFor(boltGrade, BOLT_DATA[boltSize].d), l = Lunit();
+    var P = extLoad / nBolts;
+    var Tu = imperial ? '\\mathrm{lb\\!\\cdot\\!ft}' : '\\mathrm{N\\!\\cdot\\!m}';
+    var Lu = imperial ? '\\mathrm{in}' : '\\mathrm{mm}';
+    var n = 0, html = '';
+    function step(t, f, c, r) { n++; return calcStep(n, t, f, c, r); }
+
+    html += '<div class="cs-inputs"><span class="cs-badge">Given &mdash; Current State</span>';
+    html += '<div class="cs-given"><span>Bolt: ' + boltLabel() + '</span><span>' + gradeLabel() + '</span><span>d = ' + b.d.toFixed(b.std === 'inch' ? 2 : 0) + ' mm</span><span>p = ' + b.p.toFixed(b.std === 'inch' ? 3 : 2) + ' mm</span>' +
+            '<span>n = ' + nBolts + '</span><span>F = ' + extLoad + ' kN</span><span>L_g = ' + results.grip + ' mm</span>' +
+            '<span>S_p = ' + g.Sp + ' MPa</span><span>K = ' + nutFactor.toFixed(2) + '</span><span>Joint: ' + jointType + '</span></div>';
+    html += '<p class="cs-si-note">&#9432; Internal maths in SI; results follow the SI / Imperial toggle. Property class ' +
+            boltGrade + ' is read from the ISO 898-1 row for d ' + (b.d > 16 ? '&gt;' : '&le;') + ' 16 mm.</p></div>';
+
+    html += step('Tensile stress area',
+      '\\[ A_t = \\tfrac{\\pi}{4}(d - 0.9382\\,p)^2 \\]',
+      '\\(A_t = \\tfrac{\\pi}{4}(' + b.d + ' - 0.9382\\times' + b.p + ')^2\\)',
+      '\\(\\mathbf{' + b.At + '\\;\\mathrm{mm^2}}\\)');
+
+    html += step('Proof load',
+      '\\[ F_p = A_t\\,S_p \\]',
+      '\\(F_p = ' + b.At + '\\times' + g.Sp + '\\;\\mathrm{N}\\)',
+      '\\(\\mathbf{' + fF(results.Fp) + '\\;' + l.F + '}\\)');
+
+    if (driveMode === 'torque') {
+      html += step('Preload from the applied torque',
+        '\\[ T = K\\,d\\,F_i \\;\\Rightarrow\\; F_i = \\dfrac{T}{K\\,d} \\]',
+        '\\(F_i = \\dfrac{' + torqueIn + '}{' + nutFactor.toFixed(2) + '\\times' + b.d + '}\\)',
+        '\\(\\mathbf{' + fF(results.Fi) + '\\;' + l.F + '}\\) &mdash; ' + results.pct.toFixed(0) + '% of proof load');
+    } else {
+      html += step('Preload target (' + preloadPct + '% of proof)',
+        '\\[ F_i = ' + (preloadPct / 100).toFixed(2) + '\\,A_t\\,S_p \\]',
+        '\\(F_i = ' + (preloadPct / 100).toFixed(2) + '\\times' + b.At + '\\times' + g.Sp + '\\;\\mathrm{N}\\)',
+        '\\(\\mathbf{' + fF(results.Fi) + '\\;' + l.F + '}\\)');
+      html += step('Tightening torque',
+        '\\[ T = K\\,d\\,F_i \\]',
+        '\\(T = ' + nutFactor.toFixed(2) + '\\times' + b.d + '\\times' + results.Fi.toFixed(1) + '\\)',
+        '\\(\\mathbf{' + cv(results.torque, U().torque) + '\\;' + Tu + '}\\) &mdash; the torque method holds this to about &plusmn;25%');
+    }
+
+    html += step('Joint stiffness &amp; load ratio',
+      '\\[ k_b = \\dfrac{A_t E}{L_g},\\quad k_m = E\\,d\\,(0.78715)e^{0.62873\\,d/L_g},\\quad C = \\dfrac{k_b}{k_b+k_m} \\]',
+      '\\(k_b = ' + results.kb.toFixed(0) + '\\;\\mathrm{kN/mm},\\; k_m = ' + results.km.toFixed(0) + '\\;\\mathrm{kN/mm}\\)',
+      '\\(C = \\mathbf{' + results.C.toFixed(3) + '}\\)');
+
+    html += step('Bolt stretch at preload',
+      '\\[ \\delta = \\dfrac{F_i}{k_b} = \\dfrac{F_i L_g}{A_t E} \\]',
+      '\\(\\delta = \\dfrac{' + results.Fi.toFixed(1) + '}{' + results.kb.toFixed(0) + '}\\;\\mathrm{mm}\\)',
+      '\\(\\mathbf{' + cv(results.stretch, U().len3) + '\\;' + Lu + '}\\)');
+
+    if (jointType !== 'shear') {
+      html += step('Resultant bolt force &amp; stress',
+        '\\[ F_b = F_i + C\\,P,\\quad \\sigma_b = \\dfrac{F_b}{A_t} \\]',
+        '\\(F_b = ' + fF(results.Fi) + ' + ' + results.C.toFixed(3) + '\\times' + fF(P) + ' = ' + fF(results.Fb) + '\\;' + l.F + '\\)',
+        '\\(\\sigma_b = \\mathbf{' + fS(results.sigma) + '\\;' + l.S + '}\\)');
+
+      html += step('Separation and load factors',
+        '\\[ n_0 = \\dfrac{F_i}{P(1-C)},\\quad n_L = \\dfrac{F_p - F_i}{C\\,P} \\]',
+        '\\(n_0 = \\dfrac{' + fF(results.Fi) + '}{' + fF(P) + '(1-' + results.C.toFixed(3) + ')},\\quad n_L = \\dfrac{' + fF(results.Fp) + ' - ' + fF(results.Fi) + '}{' + results.C.toFixed(3) + '\\times' + fF(P) + '}\\)',
+        '\\(n_0 = \\mathbf{' + fmtTex(results.n0) + '}\\) (joint opens), \\(n_L = \\mathbf{' + fmtTex(results.nL) + '}\\) (bolt reaches proof)');
+
+      html += step('Fatigue &mdash; Goodman, load cycling 0 &rarr; P',
+        '\\[ \\sigma_a = \\dfrac{C\\,P}{2A_t},\\qquad n_f = \\dfrac{S_e\\,(S_{ut}-\\sigma_i)}{\\sigma_a\\,(S_{ut}+S_e)} \\]',
+        '\\(\\sigma_i = ' + (results.Fi * 1000 / results.At).toFixed(1) + ',\\; \\sigma_a = ' + results.sigma_a.toFixed(1) + '\\;\\mathrm{MPa};\\; S_{ut} = ' + g.Su + ',\\; S_e = ' + g.Se + '\\;\\mathrm{MPa}\\)',
+        '\\(n_f = \\mathbf{' + fmtTex(results.nf) + '}\\) &mdash; rolled threads');
+    }
+
+    if (jointType === 'shear' || jointType === 'combined') {
+      var aName = (shearPlane === 'thread') ? 'A_t' : '\\tfrac{\\pi d^2}{4}';
+      html += step('Shear &amp; bearing stress',
+        '\\[ \\tau = \\dfrac{F}{n\\,n_s\\,' + aName + '},\\quad \\sigma_{br} = \\dfrac{F}{n\\,d\\,t} \\]',
+        '\\(\\tau = \\dfrac{' + (extLoad * 1000) + '}{' + nBolts + '\\times' + nPlanes + '\\times' + results.Ashear.toFixed(1) + '}\\) &mdash; plane through the ' + (shearPlane === 'thread' ? 'threads' : 'shank') + ', ' + (nPlanes === 2 ? 'double' : 'single') + ' shear',
+        '\\(\\tau = \\mathbf{' + fS(results.tau) + '\\;' + l.S + '},\\; \\sigma_{br} = \\mathbf{' + fS(results.sigma_b) + '\\;' + l.S + '}\\)');
+
+      html += step('Slip resistance (friction grip)',
+        '\\[ F_{slip} = n\\,n_s\\,\\mu\\,F_i \\]',
+        '\\(F_{slip} = ' + nBolts + '\\times' + nPlanes + '\\times' + slipMu.toFixed(2) + '\\times' + fF(results.Fi) + '\\)',
+        '\\(\\mathbf{' + fF(results.Fslip) + '\\;' + l.F + '}\\) vs ' + fF(extLoad) + ' ' + (imperial ? 'kip' : 'kN') + ' applied &rarr; factor \\(\\mathbf{' + fmtTex(results.nSlip) + '}\\)');
+    }
+
+    var fosForm, fosCalc;
+    if (jointType === 'combined') {
+      fosForm = '\\[ \\sigma_{vm} = \\sqrt{\\sigma_b^2 + 3\\tau^2},\\quad FoS = \\dfrac{S_p}{\\sigma_{vm}} \\]';
+      fosCalc = '\\(\\sigma_{vm} = ' + fS(results.sigma_vm) + '\\;' + l.S + '\\)';
+    } else if (jointType === 'shear') {
+      fosForm = '\\[ FoS = \\dfrac{0.577\\,S_p}{\\tau} \\]';
+      fosCalc = '\\(FoS = \\dfrac{0.577\\times' + g.Sp + '}{' + results.tau.toFixed(1) + '}\\)';
+    } else {
+      fosForm = '\\[ FoS = \\dfrac{S_p}{\\sigma_b} \\]';
+      fosCalc = '\\(FoS = \\dfrac{' + g.Sp + '}{' + results.sigma.toFixed(1) + '}\\)';
+    }
+    html += step('Factor of safety', fosForm, fosCalc,
+      '\\(FoS = \\mathbf{' + results.fos.toFixed(2) + '}\\) &mdash; ' + (results.fos >= 2 ? 'safe' : results.fos >= 1 ? 'marginal' : 'unsafe'));
+
+    return html;
+  }
+  function openCalcModal() {
+    var modal = $('#calc-modal'), body = $('#calc-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildCalcSteps();
+    renderMath(body);
+    modal.classList.add('active');
+    var cb = $('#calc-modal-close'); if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    var modal = $('#calc-modal'); if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = $('#btn-calc'); if (b) b.focus();
+  }
+
+  /* ================================================================
+     EXPORT — CSV + PNG
+     ================================================================ */
+  function csvFactor(v) { return v >= 99.9 ? 'n/a' : v.toFixed(2); }
+  function safeName() { return (boltSize + '-' + boltGrade).replace(/[^A-Za-z0-9.-]+/g, '_'); }
+  function download(name, blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  }
+  function exportCSV() {
+    var u = U();
+    var rows = [
+      ['Parameter', 'Value', 'Unit'],
+      ['Standard', stdLabel(), ''],
+      ['Bolt size', boltLabel(), ''],
+      ['Thread series', threadSeries, ''],
+      ['Bolt grade', gradeLabel(), ''],
+      ['Number of bolts', nBolts, ''],
+      ['External load', cv(extLoad, u.force), u.force.u],
+      ['Plate 1 thickness', cv(plate1, u.len), u.len.u],
+      ['Plate 2 thickness', cv(plate2, u.len), u.len.u],
+      ['Joint type', jointType, ''],
+      ['Nut factor K', nutFactor.toFixed(2), ''],
+      ['Driven by', driveMode === 'torque' ? 'applied torque' : 'preload target', ''],
+      ['Tensile stress area At', cv(results.At, u.area), u.area.u],
+      ['Proof load Fp', cv(results.Fp, u.force), u.force.u],
+      ['Preload Fi', cv(results.Fi, u.force), u.force.u],
+      ['Preload as % of proof', results.pct.toFixed(1), '%'],
+      ['Tightening torque', cv(results.torque, u.torque), u.torque.u],
+      ['Bolt stretch at preload', cv(results.stretch, u.len3), u.len3.u],
+      ['Bolt stiffness kb', cv(results.kb, u.stiff), u.stiff.u],
+      ['Member stiffness km', cv(results.km, u.stiff), u.stiff.u],
+      ['Load ratio C', results.C.toFixed(3), ''],
+      ['Bolt force Fb', cv(results.Fb, u.force), u.force.u],
+      ['Bolt stress', cv(results.sigma, u.stress), u.stress.u],
+      ['Separation load', cv(results.Psep, u.force), u.force.u],
+      ['Separation factor n0', csvFactor(results.n0), ''],
+      ['Load factor nL', csvFactor(results.nL), ''],
+      ['Alternating stress (0->P)', cv(results.sigma_a, u.stress), u.stress.u],
+      ['Fatigue factor nf', csvFactor(results.nf), ''],
+      ['Shear plane', shearPlane === 'thread' ? 'through threads (At)' : 'through shank (pi*d^2/4)', ''],
+      ['Shear planes', nPlanes, ''],
+      ['Shear area', cv(results.Ashear, u.area), u.area.u],
+      ['Shear stress', cv(results.tau, u.stress), u.stress.u],
+      ['Bearing stress', cv(results.sigma_b, u.stress), u.stress.u],
+      ['Slip factor mu', slipMu.toFixed(2), ''],
+      ['Slip resistance', cv(results.Fslip, u.force), u.force.u],
+      ['Slip factor', csvFactor(results.nSlip), ''],
+      ['Factor of safety', results.fos.toFixed(2), '']
+    ];
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    download('bolted-joint-' + safeName() + '.csv', new Blob([csv], { type: 'text/csv' }));
+  }
+  function exportPNG() {
+    /* Crop the blank dock band so the exported image is just the diagram. */
+    var off = document.createElement('canvas');
+    var sc = cvs.width / W;
+    off.width = cvs.width; off.height = Math.round(DESIGN_H * sc);
+    var octx = off.getContext('2d');
+    octx.fillStyle = '#0d1117'; octx.fillRect(0, 0, off.width, off.height);
+    octx.drawImage(cvs, 0, 0, off.width, off.height, 0, 0, off.width, off.height);
+    octx.font = '600 ' + Math.round(off.width * 0.018) + 'px "Segoe UI", sans-serif';
+    octx.fillStyle = 'rgba(221,227,240,0.55)';
+    octx.textAlign = 'right'; octx.textBaseline = 'bottom';
+    octx.fillText('mechsimulator.com', off.width - 12, off.height - 10);
+    off.toBlob(function (blob) { if (blob) download('bolted-joint-' + safeName() + '.png', blob); });
+  }
+
+  /* ================================================================
+     PDF DESIGN REPORT
+     Opens a print-ready A4 document in a new window and calls print(),
+     which is where "Save as PDF" lives in every browser. Same approach as
+     the UTM simulator, so the two reports look like they came from one lab.
+     ================================================================ */
+
+  function esc(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* Verdict helper: returns [class, word] for a safety factor. */
+  function verdictOf(v, good, warn) {
+    if (v >= 99.9) return ['ok', 'Not governing'];
+    if (v >= good) return ['ok', 'Acceptable'];
+    if (v >= warn) return ['warn', 'Marginal'];
+    return ['bad', 'Inadequate'];
+  }
+
+  /* Light-theme figure for the printed page. The dark simulator canvas would
+     print as a solid black block, so the report gets its own drawing: the
+     classic joint diagram (bolt force against external load) for an axial
+     joint, or a capacity comparison for a pure-shear joint. */
+  function buildReportFigure() {
+    var FW = 1100, FH = 560;
+    var c = document.createElement('canvas');
+    c.width = FW; c.height = FH;
+    var x = c.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, FW, FH);
+
+    var pad = { l: 92, r: 240, t: 56, b: 62 };
+    var pw = FW - pad.l - pad.r, ph = FH - pad.t - pad.b;
+    var u = U();
+
+    x.fillStyle = '#0d47a1';
+    x.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+    x.textAlign = 'center';
+
+    if (jointType === 'shear') {
+      /* ---- Capacity comparison ------------------------------------ */
+      x.fillText('Shear Joint Capacity', FW / 2, 30);
+      x.fillStyle = '#37474f'; x.font = '13px "Segoe UI", system-ui, sans-serif';
+      x.fillText(boltLabel() + '  —  ' + gradeLabel() + ', ' + nBolts + ' bolts, ' +
+        (nPlanes === 2 ? 'double' : 'single') + ' shear, μ = ' + slipMu.toFixed(2), FW / 2, 48);
+
+      var g = gradeFor(boltGrade, BOLT_DATA[boltSize].d);
+      var shearCap = 0.577 * g.Sp * results.Ashear * nBolts * nPlanes / 1000;   /* kN */
+      var bearCap  = g.Sy * BOLT_DATA[boltSize].d * Math.min(plate1, plate2) * nBolts / 1000;
+      var bars = [
+        { l: 'Applied load',      v: extLoad,        c: '#c62828' },
+        { l: 'Slip resistance',   v: results.Fslip,  c: '#2e7d32' },
+        { l: 'Bolt shear capacity', v: shearCap,     c: '#1565c0' },
+        { l: 'Plate bearing capacity', v: bearCap,   c: '#6a1b9a' }
+      ];
+      var vmax = 0; bars.forEach(function (b) { if (b.v > vmax) vmax = b.v; });
+      vmax = Math.max(vmax * 1.12, 1);
+      var bh = 44, gap = 26, y = pad.t + 14;
+      bars.forEach(function (b) {
+        var wpx = (b.v / vmax) * (pw - 30);
+        x.fillStyle = '#eceff1'; x.fillRect(pad.l, y, pw - 30, bh);
+        x.fillStyle = b.c;       x.fillRect(pad.l, y, Math.max(wpx, 2), bh);
+        x.fillStyle = '#263238'; x.font = '600 13px "Segoe UI", sans-serif';
+        x.textAlign = 'right';   x.fillText(b.l, pad.l - 12, y + bh / 2 + 5);
+        x.textAlign = 'left';
+        x.font = 'bold 14px "Courier New", monospace';
+        x.fillText(cv(b.v, u.force) + ' ' + u.force.u, pad.l + (pw - 30) + 12, y + bh / 2 + 5);
+        y += bh + gap;
+      });
+      x.fillStyle = '#546e7a'; x.font = '12px "Segoe UI", sans-serif'; x.textAlign = 'left';
+      x.fillText('Friction is the design condition in a preloaded joint;', pad.l, FH - 30);
+      x.fillText('bolt shear and plate bearing are the reserve behind it.', pad.l, FH - 14);
+      return c.toDataURL('image/png');
+    }
+
+    /* ---- Joint diagram: bolt force vs external load per bolt ------- */
+    x.fillText('Joint Diagram — Bolt Force against External Load', FW / 2, 30);
+    x.fillStyle = '#37474f'; x.font = '13px "Segoe UI", system-ui, sans-serif';
+    x.fillText(boltLabel() + '  —  ' + gradeLabel() + ', C = ' + results.C.toFixed(3) +
+      ', preload ' + results.pct.toFixed(0) + '% of proof', FW / 2, 48);
+
+    var P = extLoad / nBolts;
+    var Psep = results.Fi / Math.max(1 - results.C, 1e-6);
+    var xmax = Math.max(Psep * 1.35, P * 1.3, 1);
+    var ymax = Math.max(results.Fp * 1.2, results.Fb * 1.25, 1);
+    var SX = function (v) { return pad.l + (v / xmax) * pw; };
+    var SY = function (v) { return pad.t + ph - (v / ymax) * ph; };
+
+    /* Grid + ticks */
+    x.strokeStyle = '#cfd8dc'; x.lineWidth = 0.6;
+    x.font = '11px "Courier New", monospace'; x.fillStyle = '#455a64';
+    var gi;
+    x.textAlign = 'right';
+    for (gi = 0; gi <= 5; gi++) {
+      var yy = pad.t + ph - (gi / 5) * ph;
+      x.beginPath(); x.moveTo(pad.l, yy); x.lineTo(pad.l + pw, yy); x.stroke();
+      x.fillText(cv((gi / 5) * ymax, u.force), pad.l - 8, yy + 4);
+    }
+    x.textAlign = 'center';
+    for (gi = 0; gi <= 5; gi++) {
+      var xx = pad.l + (gi / 5) * pw;
+      x.beginPath(); x.moveTo(xx, pad.t); x.lineTo(xx, pad.t + ph); x.stroke();
+      x.fillText(cv((gi / 5) * xmax, u.force), xx, pad.t + ph + 18);
+    }
+    x.strokeStyle = '#263238'; x.lineWidth = 1.5;
+    x.beginPath(); x.moveTo(pad.l, pad.t); x.lineTo(pad.l, pad.t + ph);
+    x.lineTo(pad.l + pw, pad.t + ph); x.stroke();
+    x.fillStyle = '#263238'; x.font = '600 13px "Segoe UI", sans-serif';
+    x.fillText('External load per bolt  P  (' + u.force.u + ')', pad.l + pw / 2, FH - 22);
+    x.save(); x.translate(26, pad.t + ph / 2); x.rotate(-Math.PI / 2);
+    x.textAlign = 'center';
+    x.fillText('Bolt force  Fᵦ  (' + u.force.u + ')', 0, 0);
+    x.restore();
+
+    /* Proof-load ceiling */
+    x.strokeStyle = '#c62828'; x.lineWidth = 1.4; x.setLineDash([7, 5]);
+    x.beginPath(); x.moveTo(pad.l, SY(results.Fp)); x.lineTo(pad.l + pw, SY(results.Fp)); x.stroke();
+    x.setLineDash([]);
+    x.fillStyle = '#c62828'; x.font = '600 12px "Segoe UI", sans-serif'; x.textAlign = 'left';
+    x.fillText('Proof load ' + cv(results.Fp, u.force) + ' ' + u.force.u, pad.l + 8, SY(results.Fp) - 7);
+
+    /* Preload floor */
+    x.strokeStyle = '#1565c0'; x.lineWidth = 1.2; x.setLineDash([4, 4]);
+    x.beginPath(); x.moveTo(pad.l, SY(results.Fi)); x.lineTo(pad.l + pw, SY(results.Fi)); x.stroke();
+    x.setLineDash([]);
+    x.fillStyle = '#1565c0';
+    x.fillText('Preload Fᵢ ' + cv(results.Fi, u.force) + ' ' + u.force.u, pad.l + 8, SY(results.Fi) - 7);
+
+    /* Clamped branch, then the separated branch at 45 degrees */
+    var xs = Math.min(Psep, xmax);
+    x.strokeStyle = '#2e7d32'; x.lineWidth = 3;
+    x.beginPath(); x.moveTo(SX(0), SY(results.Fi));
+    x.lineTo(SX(xs), SY(results.Fi + results.C * xs)); x.stroke();
+    if (Psep < xmax) {
+      x.strokeStyle = '#ef6c00'; x.lineWidth = 2.5; x.setLineDash([8, 5]);
+      x.beginPath(); x.moveTo(SX(Psep), SY(results.Fi + results.C * Psep));
+      x.lineTo(SX(xmax), SY(xmax)); x.stroke(); x.setLineDash([]);
+      x.fillStyle = '#ef6c00'; x.beginPath(); x.arc(SX(Psep), SY(results.Fi + results.C * Psep), 5, 0, Math.PI * 2); x.fill();
+      x.font = '600 11px "Segoe UI", sans-serif'; x.textAlign = 'center';
+      x.fillText('separation', SX(Psep), SY(results.Fi + results.C * Psep) - 12);
+    }
+
+    /* Operating point */
+    if (P > 0) {
+      x.strokeStyle = '#37474f'; x.lineWidth = 1; x.setLineDash([3, 3]);
+      x.beginPath(); x.moveTo(SX(P), pad.t + ph); x.lineTo(SX(P), SY(results.Fb));
+      x.lineTo(pad.l, SY(results.Fb)); x.stroke(); x.setLineDash([]);
+      x.fillStyle = '#263238';
+      x.beginPath(); x.arc(SX(P), SY(results.Fb), 6, 0, Math.PI * 2); x.fill();
+      x.font = 'bold 12px "Segoe UI", sans-serif'; x.textAlign = 'left';
+      x.fillText('operating point  ' + cv(results.Fb, u.force) + ' ' + u.force.u,
+                 Math.min(SX(P) + 12, pad.l + pw - 210), SY(results.Fb) - 10);
+    }
+
+    /* Legend */
+    var lx = pad.l + pw + 24, ly = pad.t + 10;
+    x.textAlign = 'left'; x.font = '600 12px "Segoe UI", sans-serif';
+    [['#2e7d32', 'slope C — clamped'],
+     ['#ef6c00', 'slope 1 — separated'],
+     ['#1565c0', 'preload Fᵢ'],
+     ['#c62828', 'proof load']].forEach(function (it, i) {
+      x.fillStyle = it[0]; x.fillRect(lx, ly + i * 24 - 8, 16, 4);
+      x.fillStyle = '#37474f'; x.fillText(it[1], lx + 24, ly + i * 24);
+    });
+    x.fillStyle = '#546e7a'; x.font = '11px "Segoe UI", sans-serif';
+    x.fillText('The shallow green slope is why', lx, ly + 118);
+    x.fillText('preload resists fatigue: the bolt', lx, ly + 134);
+    x.fillText('picks up only C of each load', lx, ly + 150);
+    x.fillText('increment while the joint stays', lx, ly + 166);
+    x.fillText('closed.', lx, ly + 182);
+    return c.toDataURL('image/png');
+  }
+
+  function exportPDF() {
+    var b = BOLT_DATA[boltSize], g = gradeFor(boltGrade, b.d), u = U();
+    var d = new Date();
+    var dateStr = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    var timeStr = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var reportNo = 'BJ-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' +
+                   pad2(d.getHours()) + pad2(d.getMinutes());
+    var fig = buildReportFigure();
+    var jointLabel = jointType === 'tension' ? 'Axial tension'
+                   : jointType === 'shear' ? 'Transverse shear' : 'Combined tension and shear';
+    var isoRow = GRADE_DATA[boltGrade].rows.length > 1
+      ? ' (' + (b.std === 'inch' ? 'size-dependent row' : 'ISO 898-1 row for d ' + (b.d > 16 ? '&gt;' : '&le;') + ' 16 mm') + ')' : '';
+
+    function row(k, v)  { return '<tr><th>' + k + '</th><td>' + v + '</td></tr>'; }
+    function kpi(l, v, un) {
+      return '<div class="kpi"><div class="lbl">' + l + '</div><div class="val">' + v +
+             '<span class="unit"> ' + un + '</span></div></div>';
+    }
+    function chk(name, formula, val, good, warn) {
+      var vd = verdictOf(val, good, warn);
+      return '<tr><th>' + name + '</th><td class="f">' + formula + '</td><td class="n">' +
+             fmtFactor(val) + '</td><td class="' + vd[0] + '">' + vd[1] + '</td></tr>';
+    }
+
+    var checks = '';
+    if (jointType !== 'shear') {
+      checks += chk('Static strength', 'FoS = S<sub>p</sub> / &sigma;' + (jointType === 'combined' ? '<sub>vm</sub>' : '<sub>b</sub>'), results.fos, 2.0, 1.0);
+      checks += chk('Joint separation', 'n<sub>0</sub> = F<sub>i</sub> / [P(1 &minus; C)]', results.n0, 1.5, 1.0);
+      checks += chk('Bolt yielding', 'n<sub>L</sub> = (F<sub>p</sub> &minus; F<sub>i</sub>) / (C&middot;P)', results.nL, 1.5, 1.0);
+      checks += chk('Fatigue (0 &rarr; P, Goodman)', 'n<sub>f</sub> = S<sub>e</sub>(S<sub>ut</sub> &minus; &sigma;<sub>i</sub>) / [&sigma;<sub>a</sub>(S<sub>ut</sub> + S<sub>e</sub>)]', results.nf, 1.5, 1.0);
+    } else {
+      checks += chk('Bolt shear', 'FoS = 0.577 S<sub>p</sub> / &tau;', results.fos, 2.0, 1.0);
+    }
+    if (jointType === 'shear' || jointType === 'combined') {
+      checks += chk('Slip resistance', 'n<sub>slip</sub> = n&middot;n<sub>s</sub>&middot;&mu;&middot;F<sub>i</sub> / F', results.nSlip, 1.25, 1.0);
+    }
+
+    var govern = [];
+    if (jointType !== 'shear') { govern.push(['static', results.fos]); govern.push(['separation', results.n0]); govern.push(['yielding', results.nL]); govern.push(['fatigue', results.nf]); }
+    else govern.push(['bolt shear', results.fos]);
+    if (jointType === 'shear' || jointType === 'combined') govern.push(['slip', results.nSlip]);
+    var worst = govern[0];
+    govern.forEach(function (x2) { if (x2[1] < worst[1]) worst = x2; });
+    var verdictCls = worst[1] >= 1.5 ? 'ok' : worst[1] >= 1.0 ? 'warn' : 'bad';
+    var verdictTxt = worst[1] >= 1.5
+      ? 'The joint is adequate. The governing check is <b>' + worst[0] + '</b> at ' + fmtFactor(worst[1]) + '.'
+      : worst[1] >= 1.0
+      ? 'The joint is <b>marginal</b>. The governing check is <b>' + worst[0] + '</b> at ' + fmtFactor(worst[1]) + ' &mdash; below the usual design target.'
+      : 'The joint <b>fails</b> its governing check: <b>' + worst[0] + '</b> at ' + fmtFactor(worst[1]) + '. Increase the bolt size, grade or count.';
+
+    var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
+      '<title>Bolted Joint Design Report — ' + reportNo + '</title><style>' +
+      '@page { size: A4; margin: 14mm 16mm; }' +
+      '* { box-sizing: border-box; }' +
+      'html,body { background:#fff; }' +
+      'body { font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; color:#111; margin:0; padding:0; font-size:10.5pt; line-height:1.45; -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
+      '.report { max-width:190mm; margin:0 auto; padding:10mm 6mm 6mm; }' +
+      '@media print { .report { padding:0; } }' +
+      '.hd { display:flex; align-items:flex-start; justify-content:space-between; border-bottom:3px solid #1565c0; padding-bottom:10px; margin-bottom:14px; }' +
+      '.hd-l h1 { margin:0; font-size:17pt; color:#0d47a1; letter-spacing:.3px; line-height:1.15; }' +
+      '.hd-l .sub { margin-top:2px; font-size:9.5pt; color:#444; }' +
+      '.hd-l { min-width:0; }' +
+      '.hd-r { text-align:right; font-size:9pt; color:#333; white-space:nowrap; padding-left:12px; }' +
+      '.hd-r .rno { font-weight:700; color:#0d47a1; font-size:11pt; }' +
+      'h2 { font-size:11pt; color:#0d47a1; margin:16px 0 6px; border-bottom:1px solid #b0bec5; padding-bottom:2px; letter-spacing:.4px; text-transform:uppercase; }' +
+      'table { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:10pt; }' +
+      'th,td { text-align:left; padding:5px 9px; border-bottom:1px solid #e0e6ed; }' +
+      'th { background:#eceff1; color:#37474f; font-weight:600; width:38%; }' +
+      'td { color:#111; font-variant-numeric:tabular-nums; }' +
+      '.two-col { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }' +
+      '.results-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:6px; }' +
+      '.kpi { border:1px solid #cfd8dc; padding:8px 10px; border-radius:4px; background:#f5f7fa; }' +
+      '.kpi .lbl { font-size:8pt; color:#546e7a; text-transform:uppercase; letter-spacing:.5px; font-weight:600; }' +
+      '.kpi .val { font-size:14pt; font-weight:700; color:#0d47a1; font-variant-numeric:tabular-nums; }' +
+      '.kpi .unit { font-size:9pt; color:#37474f; margin-left:2px; }' +
+      '.checks th { width:26%; }' +
+      '.checks td.f { font-size:9pt; color:#37474f; width:40%; }' +
+      '.checks td.n { font-weight:700; font-family:"Courier New",monospace; width:14%; }' +
+      '.checks td.ok { color:#2e7d32; font-weight:700; } .checks td.warn { color:#ef6c00; font-weight:700; } .checks td.bad { color:#c62828; font-weight:700; }' +
+      '.fig { margin-top:8px; border:1px solid #cfd8dc; padding:6px; background:#fafbfc; }' +
+      '.fig img { width:100%; height:auto; display:block; }' +
+      '.verdict { margin-top:10px; padding:10px 14px; border-left:4px solid #1565c0; background:#eaf2fb; font-size:10pt; }' +
+      '.verdict.warn { border-left-color:#ef6c00; background:#fff4e6; }' +
+      '.verdict.bad  { border-left-color:#c62828; background:#fdecec; }' +
+      '.note { font-size:8.5pt; color:#546e7a; margin-top:6px; }' +
+      '.sign-row { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:22px; }' +
+      '.sign-box { border-top:1px solid #455a64; padding-top:4px; font-size:9pt; color:#37474f; }' +
+      '.foot { margin-top:18px; padding-top:8px; border-top:1px solid #b0bec5; font-size:8.5pt; color:#546e7a; display:flex; justify-content:space-between; }' +
+      '.bar { background:#0d47a1; color:#fff; padding:14px 18px; text-align:center; font-size:11pt; }' +
+      '.bar button { background:#fff; color:#0d47a1; border:0; padding:7px 18px; font-weight:700; border-radius:4px; cursor:pointer; margin:0 6px; }' +
+      '@media screen and (max-width:700px) { .two-col, .sign-row { grid-template-columns:1fr; } .results-grid { grid-template-columns:repeat(2,1fr); } }' +
+      '@media print { .no-print { display:none !important; } body { font-size:10pt; } ' +
+        '.two-col { grid-template-columns:1fr 1fr; } .results-grid { grid-template-columns:repeat(4,1fr); } ' +
+        'h2 { break-after:avoid; } table, .fig { break-inside:avoid; } }' +
+      '</style></head><body>' +
+      '<div class="bar no-print">Use your browser’s print dialog (Ctrl/Cmd + P) and choose <b>Save as PDF</b>.' +
+      '<button onclick="window.print()">Print / Save as PDF</button>' +
+      '<button onclick="window.close()">Close</button></div>' +
+      '<div class="report">' +
+      '<div class="hd"><div class="hd-l"><h1>Bolted Joint — Design Report</h1>' +
+      '<div class="sub">' + esc(jointLabel) + ' joint — ' + esc(boltLabel()) + ', ' + esc(gradeLabel()) + '</div></div>' +
+      '<div class="hd-r"><div class="rno">Report No. ' + reportNo + '</div><div>Date: ' + dateStr + '</div>' +
+      '<div>Time: ' + timeStr + '</div><div>MechSimulator Bolted Joint Calculator</div></div></div>' +
+
+      '<h2>1. Joint Configuration</h2><div class="two-col"><table>' +
+      row('Standard', esc(stdLabel())) +
+      row('Bolt', esc(boltLabel()) + (b.std === 'inch' ? ' (' + b.tpi + ' TPI)' : ' &times; ' + b.p + ' mm pitch')) +
+      row('Property class / grade', esc(gradeLabel()) + isoRow) +
+      row('Proof stress S<sub>p</sub>', g.Sp + ' MPa') +
+      row('Yield / ultimate', g.Sy + ' / ' + g.Su + ' MPa') +
+      row('Tensile stress area A<sub>t</sub>', cv(results.At, u.area) + ' ' + u.area.u) +
+      '</table><table>' +
+      row('Number of bolts', nBolts) +
+      row('Plate thicknesses', cv(plate1, u.len) + ' + ' + cv(plate2, u.len) + ' ' + u.len.u) +
+      row('Grip length L<sub>g</sub>', cv(results.grip, u.len) + ' ' + u.len.u) +
+      row('Loading', esc(jointLabel)) +
+      row('External load', cv(extLoad, u.force) + ' ' + u.force.u + ' total, ' +
+          cv(extLoad / nBolts, u.force) + ' ' + u.force.u + ' per bolt') +
+      '</table></div>' +
+
+      '<h2>2. Tightening</h2><div class="two-col"><table>' +
+      row('Method', driveMode === 'torque' ? 'Torque specified; preload derived' : 'Preload target; torque derived') +
+      row('Nut factor K', nutFactor.toFixed(2)) +
+      row('Proof load F<sub>p</sub>', cv(results.Fp, u.force) + ' ' + u.force.u) +
+      '</table><table>' +
+      row('Preload F<sub>i</sub>', '<b>' + cv(results.Fi, u.force) + ' ' + u.force.u + '</b> (' + results.pct.toFixed(0) + '% of proof)') +
+      row('Tightening torque T', '<b>' + cv(results.torque, u.torque) + ' ' + u.torque.u + '</b>') +
+      row('Bolt stretch δ', cv(results.stretch, u.len3) + ' ' + u.len3.u) +
+      '</table></div>' +
+      '<p class="note">T = K&middot;d&middot;F<sub>i</sub>. The torque method controls preload to roughly &plusmn;25%, so the achieved clamp force lies between about ' +
+      cv(results.Fi * 0.75, u.force) + ' and ' + cv(results.Fi * 1.25, u.force) + ' ' + u.force.u +
+      '. Where preload is critical, verify by bolt elongation (δ above) or by turn-of-nut angle rather than by torque.</p>' +
+
+      '<h2>3. Stiffness and Load Sharing</h2><table>' +
+      row('Bolt stiffness k<sub>b</sub> = A<sub>t</sub>E/L<sub>g</sub>', cv(results.kb, u.stiff) + ' ' + u.stiff.u) +
+      row('Member stiffness k<sub>m</sub> (Wileman fit)', cv(results.km, u.stiff) + ' ' + u.stiff.u) +
+      row('Load ratio C = k<sub>b</sub>/(k<sub>b</sub>+k<sub>m</sub>)', '<b>' + results.C.toFixed(3) + '</b> — the bolt takes ' + (results.C * 100).toFixed(0) + '% of each load increment') +
+      row('Separation load', cv(results.Psep, u.force) + ' ' + u.force.u + ' total') +
+      '</table>' +
+
+      '<h2>4. Results</h2><div class="results-grid">' +
+      kpi('Bolt force F<sub>b</sub>', cv(results.Fb, u.force), u.force.u) +
+      kpi('Bolt stress', cv(results.sigma, u.stress), u.stress.u) +
+      kpi(jointType === 'shear' || jointType === 'combined' ? 'Shear stress' : 'Alternating stress',
+          cv(jointType === 'shear' || jointType === 'combined' ? results.tau : results.sigma_a, u.stress), u.stress.u) +
+      kpi(jointType === 'shear' || jointType === 'combined' ? 'Bearing stress' : 'Preload stress',
+          cv(jointType === 'shear' || jointType === 'combined' ? results.sigma_b : (results.Fi * 1000 / results.At), u.stress), u.stress.u) +
+      '</div>' +
+
+      '<h2>5. Design Checks</h2><table class="checks">' +
+      '<tr><th>Check</th><td class="f"><b>Expression</b></td><td class="n"><b>Value</b></td><td><b>Verdict</b></td></tr>' +
+      checks + '</table>' +
+      '<div class="verdict ' + verdictCls + '"><b>Conclusion:</b> ' + verdictTxt + '</div>' +
+
+      '<h2>6. ' + (jointType === 'shear' ? 'Capacity Comparison' : 'Joint Diagram') + '</h2>' +
+      '<div class="fig"><img src="' + fig + '" alt="' +
+      (jointType === 'shear' ? 'Shear joint capacity comparison' : 'Joint diagram of bolt force against external load') + '"></div>' +
+
+      '<div class="sign-row"><div class="sign-box">Designed by ___________________________</div>' +
+      '<div class="sign-box">Checked by ___________________________</div></div>' +
+
+      '<div class="foot"><div>Generated by MechSimulator &middot; mechsimulator.com</div>' +
+      '<div>ISO 898-1 &middot; VDI 2230 &middot; Shigley ch. 8</div></div>' +
+      '</div>' +
+      '<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},400);});</' + 'script>' +
+      '</body></html>';
+
+    var win = window.open('', '_blank', 'width=900,height=1100');
+    if (!win) { alert('Pop-up blocked. Allow pop-ups for this site to export the report.'); return; }
+    win.document.open(); win.document.write(html); win.document.close();
+  }
+
+  /* ================================================================
+     CANVAS CONTEXT MENU
+     ================================================================ */
+  function wireContextMenu() {
+    var menu = $('#ctx-menu'); if (!menu) return;
+    cvs.addEventListener('contextmenu', function (e) {
+      if (mode !== 'simulate') return;
+      e.preventDefault();
+      menu.classList.add('active'); menu.setAttribute('aria-hidden', 'false');
+      var mw = menu.offsetWidth || 170, mh = menu.offsetHeight || 160;
+      var x = Math.min(e.clientX, window.innerWidth - mw - 6);
+      var y = Math.min(e.clientY, window.innerHeight - mh - 6);
+      menu.style.left = x + 'px'; menu.style.top = y + 'px';
+    });
+    function closeMenu() { menu.classList.remove('active'); menu.setAttribute('aria-hidden', 'true'); }
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('scroll', closeMenu, true);
+    menu.addEventListener('click', function (e) {
+      var act = e.target && e.target.dataset ? e.target.dataset.act : null;
+      if (act === 'csv') exportCSV();
+      else if (act === 'png') exportPNG();
+      else if (act === 'reset') resetAll();
+      else if (act === 'copy') {
+        var u = U();
+        var txt = boltLabel() + ' ' + gradeLabel() + ' | Fb=' + cv(results.Fb, u.force) + ' ' + u.force.u +
+                  ' | σ=' + cv(results.sigma, u.stress) + ' ' + u.stress.u + ' | FoS=' + results.fos.toFixed(2);
+        if (navigator.clipboard) navigator.clipboard.writeText(txt);
+      }
+      closeMenu();
+    });
+  }
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  /* Calc modal wiring */
+  var calcBtn = $('#btn-calc'); if (calcBtn) calcBtn.addEventListener('click', openCalcModal);
+  var calcClose = $('#calc-modal-close'); if (calcClose) calcClose.addEventListener('click', closeCalcModal);
+  var calcModalEl = $('#calc-modal');
+  if (calcModalEl) calcModalEl.addEventListener('click', function (e) { if (e.target === calcModalEl) closeCalcModal(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && calcModalEl && calcModalEl.classList.contains('active')) closeCalcModal();
+  });
+
+  wireLearnPanels();
+  wireContextMenu();
+
+  ready = true;
+  resizeCanvas();
+  syncToggleDOM();
+  populateSelects();   /* the size/grade menus are built from the catalogue, not the HTML */
+  syncInputs();
+  setMode('simulate');
+  commit();           /* establish undo baseline */
+
+})();

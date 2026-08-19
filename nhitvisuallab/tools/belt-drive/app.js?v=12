@@ -1,0 +1,1577 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     HELPERS
+     ================================================================ */
+  function $(s) { return document.querySelector(s); }
+  function $$(s) { return document.querySelectorAll(s); }
+  function show(el) { if (el) el.style.display = ''; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function randFloat(a, b, dp) {
+    var v = a + Math.random() * (b - a);
+    return parseFloat(v.toFixed(dp || 0));
+  }
+  function roundN(v, n) { var f = Math.pow(10, n); return Math.round(v * f) / f; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function fmt(v, dp) { if (!isFinite(v)) return '—'; return Number(v).toFixed(dp == null ? 2 : dp); }
+
+  /* ================================================================
+     UNITS — internal SI throughout; display-only conversion
+     ================================================================ */
+  var units = 'si';                          /* 'si' | 'imp' */
+  function isImp() { return units === 'imp'; }
+  var MM_TO_IN = 0.0393700787;
+  var M_TO_FT  = 3.28083990;
+  var N_TO_LBF = 0.22480894;
+  var KW_TO_HP = 1.34102209;
+  function U() {
+    var imp = isImp();
+    return {
+      len:    { fromMM:  function (mm)  { return imp ? mm * MM_TO_IN : mm; },           label: imp ? 'in'  : 'mm',  dp: imp ? 2 : 0 },
+      spd:    { fromMS:  function (ms)  { return imp ? ms * M_TO_FT  : ms; },           label: imp ? 'ft/s': 'm/s', dp: 2 },
+      force:  { fromN:   function (n)   { return imp ? n * N_TO_LBF : n; },             label: imp ? 'lbf' : 'N',   dp: imp ? 1 : 0 },
+      power:  { fromKW:  function (kw)  { return imp ? kw * KW_TO_HP : kw; },           label: imp ? 'hp'  : 'kW',  dp: 2 }
+    };
+  }
+
+  /* ================================================================
+     DOM REFS
+     ================================================================ */
+  var canvas   = $('#sim-canvas');
+  var ctx      = canvas.getContext('2d');
+
+  var slD1     = $('#sl-d1');  var inD1   = $('#in-d1');  var valD1  = $('#val-d1');
+  var slD2     = $('#sl-d2');  var inD2   = $('#in-d2');  var valD2  = $('#val-d2');
+  var slN1     = $('#sl-n1');  var inN1   = $('#in-n1');  var valN1  = $('#val-n1');
+  var slC      = $('#sl-c');   var inC    = $('#in-c');   var valC   = $('#val-c');
+  var slMu     = $('#sl-mu');  var inMu   = $('#in-mu');  var valMu  = $('#val-mu');
+  var slT1     = $('#sl-t1');  var inT1   = $('#in-t1');  var valT1  = $('#val-t1');
+  var slSlip   = $('#sl-slip');var inSlip = $('#in-slip');var valSlip= $('#val-slip');
+
+  var rbVR     = $('#rb-vr');
+  var rbN2     = $('#rb-n2');
+  var rbV      = $('#rb-v');
+  var rbTheta  = $('#rb-theta');
+  var rbTR     = $('#rb-tr');
+  var rbPow    = $('#rb-pow');
+  var rbL      = $('#rb-l');
+
+  var simMode      = $('#sim-mode');
+  var exploreMode  = $('#explore-mode');
+  var practiceMode = $('#practice-mode');
+  var quizMode     = $('#quiz-mode');
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var state = {
+    mode:      'simulate',
+    driveType: 'open',
+    D1: 300, D2: 150, C: 600, N1: 600, mu: 0.30, T1: 2000, slip: 0,
+    offset:    0,
+    angle1:    0,
+    angle2:    0,
+    rafId:     null,
+    showEquation:   true,
+    showDimensions: true,
+    showGrid:       false,
+    showIdler:      false,
+    computed:  {}
+  };
+
+  /* ================================================================
+     COMPUTE
+     ================================================================ */
+  function compute() {
+    var D1 = state.D1, D2 = state.D2, N1 = state.N1, mu = state.mu, T1 = state.T1, C = state.C, slip = state.slip;
+    var PI = Math.PI;
+
+    var VR  = D1 / D2;
+    var N2id = N1 * D1 / D2;
+    /* Chain = positive engagement: slip cannot apply even if a stale
+       slider value remains in state from a previous belt configuration. */
+    var slipEff = (state.driveType === 'chain') ? 0 : slip;
+    var N2  = N2id * (1 - slipEff / 100);
+    var v   = PI * (D1 / 1000) * N1 / 60;                       // m/s (driver pitch line)
+
+    /* Per-pulley wrap angles. Signed α = asin((R1−R2)/C) gives
+       θ_driver = π + 2α and θ_driven = π − 2α for BOTH size orderings;
+       the capstan equation is governed by the smaller wrap of the two. */
+    var R1 = D1 / 2, R2 = D2 / 2;
+    var theta, theta1, theta2;
+    if (state.driveType === 'crossed') {
+      var sinB = clamp((R1 + R2) / C, -0.999, 0.999);
+      theta1 = theta2 = theta = PI + 2 * Math.asin(sinB);
+    } else {
+      var sinA = clamp((R1 - R2) / C, -0.999, 0.999);
+      var alphaS = Math.asin(sinA);
+      theta1 = PI + 2 * alphaS;
+      theta2 = PI - 2 * alphaS;
+      theta  = Math.min(theta1, theta2);              // governing (smaller pulley)
+    }
+
+    /* Tension ratio & power */
+    var tensionRatio, T2, P;
+    if (state.driveType === 'chain') {
+      // Chain — positive engagement. Slack ≈ 0; useful tension ≈ T1.
+      // Avoid using the capstan equation entirely.
+      tensionRatio = null;       // not applicable
+      T2 = 0;
+      P  = T1 * v / 1000;        // kW
+    } else {
+      tensionRatio = Math.exp(mu * theta);
+      T2  = T1 / tensionRatio;
+      P   = (T1 - T2) * v / 1000;
+    }
+
+    /* Belt length */
+    var L;
+    if (state.driveType === 'crossed') {
+      L = 2 * C + PI * (D1 + D2) / 2 + Math.pow(D1 + D2, 2) / (4 * C);
+    } else {
+      L = 2 * C + PI * (D1 + D2) / 2 + Math.pow(D1 - D2, 2) / (4 * C);
+    }
+
+    /* Geometric validity — pulleys must not overlap: C > R1 + R2
+       (the old |R1−R2| < C check wrongly accepted overlapping pulleys
+       for open/chain drives). */
+    var valid = (R1 + R2) < C;
+
+    state.computed = {
+      VR: VR, N2id: N2id, N2: N2, v: v,
+      theta: theta, theta1: theta1, theta2: theta2,
+      tensionRatio: tensionRatio, T1: T1, T2: T2, P: P,
+      L: L, valid: valid, R1: R1, R2: R2, C: C
+    };
+    return state.computed;
+  }
+
+  /* ================================================================
+     UPDATE READOUT BADGES
+     ================================================================ */
+  function updateReadouts() {
+    var c = state.computed;
+    var u = U();
+    rbVR.textContent    = c.VR.toFixed(2);
+    rbN2.textContent    = roundN(c.N2, 0) + ' rpm';
+    rbV.textContent     = fmt(u.spd.fromMS(c.v), 2) + ' ' + u.spd.label;
+    rbTheta.textContent = (c.theta * 180 / Math.PI).toFixed(1) + '°';
+    if (state.driveType === 'chain') {
+      rbTR.textContent = 'positive';
+    } else {
+      rbTR.textContent = c.tensionRatio.toFixed(2) + ':1';
+    }
+    rbPow.textContent   = fmt(u.power.fromKW(c.P), 2) + ' ' + u.power.label;
+    if (rbL) rbL.textContent = fmt(u.len.fromMM(c.L), u.len.dp) + ' ' + u.len.label;
+
+    updateLearnPanels(c);
+  }
+
+  /* ================================================================
+     RESPONSIVE CANVAS (DPR-aware)
+     ================================================================ */
+  var W = 800, H = 400;                /* logical coords */
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    var cssW = rect.width  || W;
+    var targetH = cssW * (H / W);
+    canvas.style.height = targetH + 'px';
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(targetH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(canvas.width / W, canvas.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    if (state.computed && state.computed.VR != null) draw();
+  }
+
+  /* ================================================================
+     DRAW — true-geometry layout (canvas matches real C/D1/D2)
+     ================================================================ */
+  function computeLayout() {
+    /* Fit (R1 + C + R2) horizontally and (max(D1,D2)) vertically. */
+    var margin = 60;
+    var availW = W - 2 * margin;
+    var availH = H - 110;            /* leave room for labels + header */
+    var totalMM_W = state.C + state.R1Or() + state.R2Or();
+    var maxD = Math.max(state.D1, state.D2);
+    var scale = Math.min(availW / totalMM_W, availH / maxD);
+    var totalPx = totalMM_W * scale;
+    var leftPx = (W - totalPx) / 2;
+    var R1px = (state.D1 / 2) * scale;
+    var R2px = (state.D2 / 2) * scale;
+    var Cpx  = state.C * scale;
+    var cx1 = leftPx + R1px;
+    var cx2 = cx1 + Cpx;
+    var cy  = H / 2 - 10;
+    return { scale: scale, R1px: R1px, R2px: R2px, Cpx: Cpx, cx1: cx1, cx2: cx2, cy: cy };
+  }
+  state.R1Or = function () { return state.D1 / 2; };
+  state.R2Or = function () { return state.D2 / 2; };
+
+  function drawSpokes(ctx, cx, cy, r, nSpokes, angle, color) {
+    if (r < 12) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    for (var i = 0; i < nSpokes; i++) {
+      var a = angle + (i / nSpokes) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * 4, cy + Math.sin(a) * 4);
+      ctx.lineTo(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4));
+      ctx.stroke();
+    }
+  }
+
+  function drawArrowHead(ctx, x, y, angle, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(-5, 5);
+    ctx.lineTo(-5, -5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawChain(ctx, x1, y1, x2, y2, offset) {
+    var dx   = x2 - x1, dy = y2 - y1;
+    var len  = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return;
+    var ux   = dx / len, uy = dy / len;
+    var linkLen = 18, gap = 5;
+    var period  = linkLen + gap;
+    /* Links advance from (x1,y1) toward (x2,y2) as offset grows, so a
+       span drawn in the belt-travel direction animates the right way. */
+    var start   = ((offset % period) + period) % period;
+    ctx.save();
+    ctx.strokeStyle = '#795548';
+    ctx.lineWidth   = 6;
+    ctx.lineCap     = 'butt';
+    var pos = start - period;
+    while (pos < len) {
+      var s = Math.max(0, pos);
+      var e = Math.min(len, pos + linkLen);
+      if (e > s) {
+        ctx.beginPath();
+        ctx.moveTo(x1 + ux * s, y1 + uy * s);
+        ctx.lineTo(x1 + ux * e, y1 + uy * e);
+        ctx.stroke();
+      }
+      pos += period;
+    }
+    ctx.restore();
+  }
+
+  function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(139,157,195,0.08)';
+    ctx.lineWidth = 1;
+    var step = 40;
+    for (var x = 0; x <= W; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (var y = 0; y <= H; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawDimensionLine(x1, x2, y, label, color) {
+    ctx.save();
+    ctx.strokeStyle = color || '#8b9dc3';
+    ctx.fillStyle   = color || '#8b9dc3';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+    ctx.setLineDash([]);
+    // ticks
+    ctx.beginPath();
+    ctx.moveTo(x1, y - 4); ctx.lineTo(x1, y + 4);
+    ctx.moveTo(x2, y - 4); ctx.lineTo(x2, y + 4);
+    ctx.stroke();
+    ctx.font = '10px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    var mid = (x1 + x2) / 2;
+    var pad = 3;
+    var tw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(mid - tw / 2, y - 14, tw, 12);
+    ctx.fillStyle = color || '#8b9dc3';
+    ctx.fillText(label, mid, y - pad);
+    ctx.restore();
+  }
+
+  function drawHaloText(text, x, y, font, fillColor, align) {
+    ctx.font = font;
+    ctx.textAlign = align || 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(13,17,30,0.85)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fillColor;
+    ctx.fillText(text, x, y);
+  }
+
+  function draw() {
+    var L    = computeLayout();
+    var PI   = Math.PI;
+    var c    = state.computed;
+    var dt   = state.driveType;
+    var R1px = L.R1px, R2px = L.R2px, cx1 = L.cx1, cx2 = L.cx2, cy = L.cy, Cpx = L.Cpx;
+
+    /* Clear */
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    if (state.showGrid) drawGrid();
+
+    /* Invalid configuration warning */
+    if (!c.valid) {
+      ctx.fillStyle = '#ff5555';
+      ctx.font = 'bold 14px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Invalid geometry: pulleys overlap. Increase centre distance C.', W / 2, H / 2);
+      return;
+    }
+
+    /* ── Belt / Chain ──────────────────────────────────────── */
+    var beltColor  = '#795548';
+    var beltWidth  = (dt === 'chain') ? 9 : 7;
+
+    ctx.save();
+    ctx.strokeStyle = beltColor;
+    ctx.lineWidth   = beltWidth;
+    ctx.lineCap     = 'round';
+
+    if (dt === 'open' || dt === 'chain') {
+      /* Geometry: external tangent. Contact normal n̂ satisfies
+         C·nx = R1 − R2, so nx = +sin α on BOTH spans (upper span
+         previously used −sin α, which drew a secant, not a tangent). */
+      var dR = R1px - R2px;
+      var alpha = Math.asin(clamp(dR / Cpx, -0.999, 0.999));
+      var sinA = Math.sin(alpha), cosA = Math.cos(alpha);
+
+      var ux1 = cx1 + R1px * sinA, uy1 = cy - R1px * cosA;
+      var ux2 = cx2 + R2px * sinA, uy2 = cy - R2px * cosA;
+      var lx1 = cx1 + R1px * sinA, ly1 = cy + R1px * cosA;
+      var lx2 = cx2 + R2px * sinA, ly2 = cy + R2px * cosA;
+
+      /* Optional idler pulley on slack (lower) side — open belt only.
+         The idler is mounted OUTSIDE the belt loop (below the slack belt)
+         and its TOP intrudes upward into the belt path, pushing the slack
+         belt INWARD (toward the tight belt). The slack belt deflects
+         UP and wraps the TOP of the idler. Visual only: no effect on
+         calculations. */
+      var idler = null;
+      if (state.showIdler && dt === 'open') {
+        var IDLER_R_MM = 40;                            /* idler radius (~80 mm dia) */
+        var IDLER_DEFLECT_MM = 35;                      /* how far belt is pushed UP */
+        var Ri = Math.max(12, IDLER_R_MM * L.scale);
+        var midLx = (lx1 + lx2) / 2;
+        var midLy = (ly1 + ly2) / 2;
+        /* Place idler so its upper-left contact (angle 240°) sits IDLER_DEFLECT_MM
+           above the natural slack line, while the centre stays BELOW the
+           slack line — so the body of the idler is outside the belt loop. */
+        var deflPx = IDLER_DEFLECT_MM * L.scale;
+        var xi = midLx;
+        var yi = midLy - deflPx + 0.866 * Ri;
+        idler = { x: xi, y: yi, r: Ri };
+      }
+
+      /* Belt travel convention: driver rotates clockwise (canvas),
+         top span moves driver→driven, bottom span driven→driver.
+         Every span is drawn in the travel direction with
+         lineDashOffset = −offset so dashes march WITH the belt. */
+      if (dt === 'chain') {
+        drawChain(ctx, ux1, uy1, ux2, uy2, state.offset);
+        drawChain(ctx, lx2, ly2, lx1, ly1, state.offset);
+      } else {
+        /* Upper belt — straight tangent (always) */
+        ctx.setLineDash([10, 6]);
+        ctx.lineDashOffset = -state.offset;
+        ctx.beginPath(); ctx.moveTo(ux1, uy1); ctx.lineTo(ux2, uy2); ctx.stroke();
+
+        if (idler) {
+          /* Slack belt deflected UP and wraps the TOP of the idler.
+             Idler body is BELOW the slack belt line (outside the loop);
+             only its top intrudes upward to push the belt inward.
+             Travel order (driven→driver): P2 → idler upper-right →
+             top arc → idler upper-left → P1. Purely visual. */
+          var leftAng  = 4 * Math.PI / 3;  /* 240° from idler centre = upper-left  */
+          var rightAng = 5 * Math.PI / 3;  /* 300° from idler centre = upper-right */
+          var ipL = { x: idler.x + idler.r * Math.cos(leftAng),  y: idler.y + idler.r * Math.sin(leftAng)  };
+          var ipR = { x: idler.x + idler.r * Math.cos(rightAng), y: idler.y + idler.r * Math.sin(rightAng) };
+
+          /* P2 -> idler upper-right (belt rises, travelling left) */
+          ctx.beginPath(); ctx.moveTo(lx2, ly2); ctx.lineTo(ipR.x, ipR.y); ctx.stroke();
+          /* idler upper-left -> P1 (belt drops back) */
+          ctx.beginPath(); ctx.moveTo(ipL.x, ipL.y); ctx.lineTo(lx1, ly1); ctx.stroke();
+          /* Short top arc on idler (through 270° = canvas-up) */
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(idler.x, idler.y, idler.r, leftAng, rightAng, false);
+          ctx.stroke();
+          ctx.setLineDash([10, 6]);
+        } else {
+          ctx.beginPath(); ctx.moveTo(lx2, ly2); ctx.lineTo(lx1, ly1); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+
+      /* Contact angles (canvas frame): upper tangent touches both pulleys
+         at α − π/2, lower at π/2 − α. Driver wraps its OUTER (left) arc,
+         measure π + 2α; driven wraps its outer (right) arc, π − 2α. */
+      ctx.beginPath();
+      ctx.arc(cx1, cy, R1px, PI / 2 - alpha, alpha - PI / 2, false);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx2, cy, R2px, alpha - PI / 2, PI / 2 - alpha, false);
+      ctx.stroke();
+
+      // Direction arrows
+      drawArrowHead(ctx, (ux1 + ux2) / 2, (uy1 + uy2) / 2,
+        Math.atan2(uy2 - uy1, ux2 - ux1), '#f5c842');
+      if (idler) {
+        drawArrowHead(ctx, (lx2 + idler.x) / 2, (ly2 + idler.y - idler.r) / 2,
+          Math.atan2(ly1 - ly2, lx1 - lx2), '#f5c842');
+      } else {
+        drawArrowHead(ctx, (lx1 + lx2) / 2, (ly1 + ly2) / 2,
+          Math.atan2(ly1 - ly2, lx1 - lx2), '#f5c842');
+      }
+
+      // Governing wrap-angle highlight — drawn on the SMALLER pulley over
+      // its true contact arc (was: fixed 180° arc on the driven pulley's
+      // non-contact side, regardless of geometry).
+      if (state.showDimensions) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(41,182,246,0.55)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        if (R1px <= R2px) {
+          ctx.arc(cx1, cy, R1px + 7, PI / 2 - alpha, alpha - PI / 2, false);
+        } else {
+          ctx.arc(cx2, cy, R2px + 7, alpha - PI / 2, PI / 2 - alpha, false);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      /* Draw the idler pulley on top of the belt path */
+      if (idler) {
+        ctx.beginPath(); ctx.arc(idler.x, idler.y, idler.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#1f2535'; ctx.fill();
+        ctx.strokeStyle = '#8d6e63'; ctx.lineWidth = 2.5; ctx.stroke();
+        /* Idler rolls on the return belt (moving left over its top),
+           so it spins CCW at exactly beltSpeed / r — offset IS belt
+           arc-length in px, giving true rolling contact. */
+        drawSpokes(ctx, idler.x, idler.y, idler.r, 3, -state.offset / idler.r, '#8d6e63');
+        ctx.beginPath(); ctx.arc(idler.x, idler.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#8d6e63'; ctx.fill();
+        ctx.font = 'bold 10px Segoe UI, sans-serif';
+        ctx.fillStyle = '#8d6e63';
+        ctx.textAlign = 'center';
+        ctx.fillText('Idler pulley', idler.x, idler.y + idler.r + 14);
+      }
+
+    } else {
+      /* Crossed */
+      var beta = Math.asin(clamp((R1px + R2px) / Cpx, -0.999, 0.999));
+      var sinB = Math.sin(beta), cosB = Math.cos(beta);
+
+      var ux1c = cx1 + R1px * sinB, uy1c = cy - R1px * cosB;
+      var ux2c = cx2 - R2px * sinB, uy2c = cy + R2px * cosB;
+      var lx1c = cx1 + R1px * sinB, ly1c = cy + R1px * cosB;
+      var lx2c = cx2 - R2px * sinB, ly2c = cy - R2px * cosB;
+
+      /* Both spans drawn in belt-travel direction; −offset marches the
+         dashes with the belt (the return span previously animated
+         backwards, toward the driven pulley). */
+      ctx.setLineDash([10, 6]);
+      ctx.lineDashOffset = -state.offset;
+      ctx.beginPath(); ctx.moveTo(ux1c, uy1c); ctx.lineTo(ux2c, uy2c); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lx2c, ly2c); ctx.lineTo(lx1c, ly1c); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Driver arc (left side, CCW)
+      ctx.beginPath();
+      ctx.arc(cx1, cy, R1px, beta - PI / 2, PI / 2 - beta, true);
+      ctx.stroke();
+      // Driven arc (right side, CW)
+      ctx.beginPath();
+      ctx.arc(cx2, cy, R2px, -(PI / 2 + beta), PI / 2 + beta, false);
+      ctx.stroke();
+
+      // Cross marker
+      var crossX = (ux1c + ux2c) / 2;
+      var crossY = (uy1c + uy2c) / 2;
+      drawHaloText('×', crossX, crossY, 'bold 14px Segoe UI', '#bcaaa4');
+
+      drawArrowHead(ctx, crossX, crossY,
+        Math.atan2(uy2c - uy1c, ux2c - ux1c), '#f5c842');
+      drawArrowHead(ctx, (lx1c + lx2c) / 2, (ly1c + ly2c) / 2,
+        Math.atan2(ly1c - ly2c, lx1c - lx2c), '#f5c842');
+    }
+    ctx.restore();
+
+    /* ── Driver pulley ───────────────────────────────────── */
+    ctx.beginPath(); ctx.arc(cx1, cy, R1px, 0, Math.PI * 2);
+    ctx.fillStyle = '#1f2535'; ctx.fill();
+    ctx.strokeStyle = '#795548'; ctx.lineWidth = 3; ctx.stroke();
+    drawSpokes(ctx, cx1, cy, R1px, 4, state.angle1, '#795548');
+    ctx.beginPath(); ctx.arc(cx1, cy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#795548'; ctx.fill();
+
+    /* ── Driven pulley ───────────────────────────────────── */
+    ctx.beginPath(); ctx.arc(cx2, cy, R2px, 0, Math.PI * 2);
+    ctx.fillStyle = '#1f2535'; ctx.fill();
+    ctx.strokeStyle = '#4fc3f7'; ctx.lineWidth = 3; ctx.stroke();
+    drawSpokes(ctx, cx2, cy, R2px, 4, state.angle2, '#4fc3f7');
+    ctx.beginPath(); ctx.arc(cx2, cy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#4fc3f7'; ctx.fill();
+
+    /* ── Labels ──────────────────────────────────────────── */
+    var u = U();
+    ctx.font = 'bold 12px Segoe UI, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = '#795548';
+    ctx.fillText('DRIVER', cx1, cy + R1px + 18);
+    ctx.fillStyle = '#dde3f0';
+    ctx.font = '10.5px Courier New, monospace';
+    ctx.fillText(roundN(state.N1, 0) + ' rpm', cx1, cy + R1px + 32);
+
+    ctx.font = 'bold 12px Segoe UI, system-ui, sans-serif';
+    ctx.fillStyle = '#4fc3f7';
+    ctx.fillText('DRIVEN', cx2, cy + R2px + 18);
+    ctx.fillStyle = '#dde3f0';
+    ctx.font = '10.5px Courier New, monospace';
+    ctx.fillText(roundN(c.N2, 0) + ' rpm', cx2, cy + R2px + 32);
+
+    // Header label
+    ctx.font = 'bold 12px Segoe UI, sans-serif';
+    ctx.fillStyle = '#bcaaa4';
+    var driveLabel = (dt === 'open') ? 'Open Belt' : (dt === 'crossed') ? 'Crossed Belt' : 'Chain Drive';
+    ctx.fillText(driveLabel + '   |   VR = ' + c.VR.toFixed(2), W / 2, 18);
+
+    // Diameter labels inside pulleys
+    if (R1px > 22) {
+      ctx.font = 'bold 10px Courier New, monospace';
+      ctx.fillStyle = '#6b7a99';
+      ctx.fillText(fmt(u.len.fromMM(state.D1), u.len.dp) + u.len.label, cx1, cy + 3);
+    }
+    if (R2px > 18) {
+      ctx.font = 'bold 10px Courier New, monospace';
+      ctx.fillStyle = '#6b7a99';
+      ctx.fillText(fmt(u.len.fromMM(state.D2), u.len.dp) + u.len.label, cx2, cy + 3);
+    }
+
+    /* ── Dimension lines ─────────────────────────────────── */
+    if (state.showDimensions) {
+      var dy = H - 20;
+      drawDimensionLine(cx1, cx2, dy,
+        'C = ' + fmt(u.len.fromMM(state.C), u.len.dp) + ' ' + u.len.label, '#8b9dc3');
+    }
+
+    /* ── On-canvas equation overlay ──────────────────────── */
+    if (state.showEquation) drawEquationOverlay();
+  }
+
+  function drawEquationOverlay() {
+    var c = state.computed;
+    var u = U();
+    var y = 38;
+    var x = W / 2;
+    /* Choose equation by drive type */
+    if (state.driveType === 'chain') {
+      drawHaloText('VR = T₁/T₂ = ' + c.VR.toFixed(2) + '   (positive engagement, no slip)',
+        x, y, 'italic 13px "Cambria Math", "Times New Roman", serif', '#3ddc84');
+    } else {
+      var trTxt = c.tensionRatio.toFixed(2);
+      drawHaloText('T₁/T₂ = e^(μθ) = e^(' + state.mu.toFixed(2) + ' × ' + (c.theta).toFixed(3) + ') = ' + trTxt,
+        x, y, 'italic 13px "Cambria Math", "Times New Roman", serif', '#ff8a65');
+    }
+    /* Power */
+    drawHaloText('P = (T₁ − T₂) · v = ' + fmt(u.power.fromKW(c.P), 2) + ' ' + u.power.label,
+      x, y + 18, 'italic 12px "Cambria Math", "Times New Roman", serif', '#f5c842');
+  }
+
+  /* ================================================================
+     ANIMATION LOOP
+     ================================================================ */
+  /* Slow-motion factor: display speed = TIME_SCALE × real speed, so
+     600 rpm spins at a followable ~15 rpm on screen. All display speeds
+     (driver, driven, belt offset) share it, so their RATIOS stay exact:
+     the belt matches the driver rim speed (v = πD₁N₁/60 at the pitch
+     line) and the driven pulley visibly lags by the slip percentage. */
+  var TIME_SCALE = 0.025;
+  var lastTs = null;
+  function loop(ts) {
+    compute();
+    var c = state.computed;
+
+    var dt = 0.016;                                   /* seconds */
+    if (ts != null && lastTs != null) dt = clamp((ts - lastTs) / 1000, 0.001, 0.05);
+    if (ts != null) lastTs = ts;
+
+    var omega1 = state.N1 * Math.PI / 30 * TIME_SCALE;   /* display rad/s */
+    var omega2 = c.N2   * Math.PI / 30 * TIME_SCALE;
+    var drivenDir = (state.driveType === 'crossed') ? -1 : 1;
+    var lay = computeLayout();
+
+    state.angle1 += omega1 * dt;
+    state.angle2 += drivenDir * omega2 * dt;
+    state.offset += omega1 * lay.R1px * dt;           /* belt arc-length, px */
+    if (state.offset > 1e6) state.offset -= 1e6;
+
+    draw();
+    updateReadouts();
+    state.rafId = requestAnimationFrame(loop);
+  }
+
+  function startAnim() {
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+    lastTs = null;
+    state.rafId = requestAnimationFrame(loop);
+  }
+  function stopAnim() {
+    if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
+  }
+
+  /* ================================================================
+     STEPPER + SLIDER PAIRS
+     ================================================================ */
+  /* Unit-aware bind. State is ALWAYS stored in SI internally.
+       opts: {
+         min, max, step             — SI range (slider attributes)
+         toDisp(si)  → display num  — convert SI→display (optional)
+         fromDisp(d) → si num       — convert display→SI (optional)
+         dispDp()   → digits        — decimals for display (optional, defaults dp)
+         dispStep() → step          — input step in display (optional)
+         unitLabel() → string       — unit suffix for val label (e.g. "mm"|"in"|"")
+         dp                         — fallback decimals (SI)
+         onChange(si)               — store SI value
+       }
+  */
+  function bindPair(slider, input, valEl, opts) {
+    function apply(si) {
+      si = clamp(si, opts.min, opts.max);
+      slider.value = si;
+      var dv = opts.toDisp ? opts.toDisp(si) : si;
+      var dp = opts.dispDp ? opts.dispDp() : (opts.dp != null ? opts.dp : 0);
+      if (input) {
+        input.value = (+dv).toFixed(dp);
+        if (opts.toDisp) {
+          input.min  = (+opts.toDisp(opts.min)).toFixed(dp);
+          input.max  = (+opts.toDisp(opts.max)).toFixed(dp);
+          input.step = opts.dispStep ? opts.dispStep() : opts.step;
+        }
+      }
+      if (valEl) {
+        var lbl = opts.unitLabel ? opts.unitLabel() : '';
+        valEl.textContent = (+dv).toFixed(dp) + (lbl ? ' ' + lbl : '');
+      }
+      opts.onChange(si);
+    }
+    slider.addEventListener('input', function () { apply(+slider.value); });
+    if (input) {
+      input.addEventListener('change', function () {
+        var dv = parseFloat(input.value);
+        if (isFinite(dv)) {
+          var si = opts.fromDisp ? opts.fromDisp(dv) : dv;
+          apply(si);
+        }
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { input.blur(); }
+      });
+    }
+    return apply;
+  }
+
+  var setD1, setD2, setN1, setC, setMu, setT1, setSlip;
+
+  function wireSim() {
+    /* Length sliders — convert mm ↔ in */
+    var lenOpts = function (storeKey) { return {
+      toDisp:  function (si) { return isImp() ? si * MM_TO_IN : si; },
+      fromDisp:function (d)  { return isImp() ? d  / MM_TO_IN : d;  },
+      dispDp:  function () { return isImp() ? 2 : 0; },
+      dispStep:function () { return isImp() ? 0.1 : 5; },
+      unitLabel:function () { return isImp() ? 'in' : 'mm'; },
+      onChange: function (si) { state[storeKey] = +si; }
+    }; };
+    setD1 = bindPair(slD1, inD1, valD1, Object.assign({ min:  80, max:  400, step: 5  }, lenOpts('D1')));
+    setD2 = bindPair(slD2, inD2, valD2, Object.assign({ min:  80, max:  400, step: 5  }, lenOpts('D2')));
+    setC  = bindPair(slC,  inC,  valC,  Object.assign({ min: 200, max: 1500, step: 10 }, lenOpts('C')));
+
+    setN1 = bindPair(slN1, inN1, valN1, {
+      min: 50, max: 3000, step: 10, dp: 0,
+      unitLabel: function () { return 'rpm'; },
+      onChange: function (v) { state.N1 = +v; }
+    });
+    setMu = bindPair(slMu, inMu, valMu, {
+      min: 0.10, max: 0.60, step: 0.01, dp: 2,
+      unitLabel: function () { return ''; },
+      onChange: function (v) { state.mu = +v; }
+    });
+    setT1 = bindPair(slT1, inT1, valT1, {
+      min: 200, max: 8000, step: 50,
+      toDisp:   function (si) { return isImp() ? si * N_TO_LBF : si; },
+      fromDisp: function (d)  { return isImp() ? d  / N_TO_LBF : d;  },
+      dispDp:   function () { return isImp() ? 1 : 0; },
+      dispStep: function () { return isImp() ? 10 : 50; },
+      unitLabel:function () { return isImp() ? 'lbf' : 'N'; },
+      onChange: function (v) { state.T1 = +v; }
+    });
+    setSlip = bindPair(slSlip, inSlip, valSlip, {
+      min: 0, max: 10, step: 0.1, dp: 1,
+      unitLabel: function () { return '%'; },
+      onChange: function (v) { state.slip = +v; }
+    });
+
+    /* Drive type buttons */
+    $$('#drive-type-btns .preset-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        $$('#drive-type-btns .preset-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        state.driveType = btn.dataset.drive;
+        applyDriveTypeUI();
+      });
+    });
+
+    /* Toggle checkboxes */
+    var ce = $('#chk-equation');
+    if (ce) ce.addEventListener('change', function () { state.showEquation = ce.checked; });
+    var cd = $('#chk-dim');
+    if (cd) cd.addEventListener('change', function () { state.showDimensions = cd.checked; });
+    var cg = $('#chk-grid');
+    if (cg) cg.addEventListener('change', function () { state.showGrid = cg.checked; });
+    var ci = $('#chk-idler');
+    if (ci) ci.addEventListener('change', function () { state.showIdler = ci.checked; });
+
+    /* Unit toggle */
+    $$('.unit-toggle .unit-pill').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        units = btn.dataset.unit;
+        $$('.unit-toggle .unit-pill').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.unit === units);
+        });
+        updateUnitLabels();
+      });
+    });
+
+    /* Presets */
+    $$('#preset-btns .preset-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        applyPreset(btn.dataset.preset);
+      });
+    });
+
+    /* Action bar */
+    var btnReset = $('#btn-reset');
+    if (btnReset) btnReset.addEventListener('click', resetAll);
+    var btnCsv = $('#btn-csv');
+    if (btnCsv) btnCsv.addEventListener('click', exportCSV);
+    var btnPng = $('#btn-png');
+    if (btnPng) btnPng.addEventListener('click', exportPNG);
+
+    /* Calc modal */
+    var calcBtn = $('#btn-calc');
+    if (calcBtn) calcBtn.addEventListener('click', openCalcModal);
+    var calcClose = $('#calc-modal-close');
+    if (calcClose) calcClose.addEventListener('click', closeCalcModal);
+    var calcModalEl = $('#calc-modal');
+    if (calcModalEl) calcModalEl.addEventListener('click', function (e) {
+      if (e.target === calcModalEl) closeCalcModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && calcModalEl && calcModalEl.classList.contains('active')) closeCalcModal();
+    });
+
+    /* Learning panels */
+    var expAll = $('#learn-expand-all');
+    var colAll = $('#learn-collapse-all');
+    var cards = Array.prototype.slice.call($$('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+
+    /* Context menu on canvas */
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      showContextMenu(e.clientX, e.clientY);
+    });
+    document.addEventListener('click', hideContextMenu);
+  }
+
+  function applyDriveTypeUI() {
+    var isChain = state.driveType === 'chain';
+    var isOpen  = state.driveType === 'open';
+    [slMu, inMu].forEach(function (el) { if (el) el.disabled = isChain; });
+    var muGroup = slMu.closest('.sim-row-item');
+    if (muGroup) muGroup.style.opacity = isChain ? '0.4' : '';
+    var trBadge = rbTR.closest('.readout-badge');
+    if (trBadge) trBadge.style.opacity = isChain ? '0.65' : '';
+    var slipGroup = slSlip ? slSlip.closest('.sim-row-item') : null;
+    if (slipGroup) slipGroup.style.opacity = isChain ? '0.4' : '';
+    [slSlip, inSlip].forEach(function (el) { if (el) el.disabled = isChain; });
+    /* Idler — only meaningful for open belt; hide for crossed/chain */
+    var idlerLbl = document.getElementById('chk-idler-lbl');
+    if (idlerLbl) idlerLbl.style.display = isOpen ? '' : 'none';
+  }
+
+  function updateUnitLabels() {
+    /* Re-render all unit-aware controls with current SI values. */
+    if (setD1) setD1(state.D1);
+    if (setD2) setD2(state.D2);
+    if (setC)  setC(state.C);
+    if (setN1) setN1(state.N1);
+    if (setMu) setMu(state.mu);
+    if (setT1) setT1(state.T1);
+    if (setSlip) setSlip(state.slip);
+    /* Invalidate cached learning-panel HTML so KaTeX re-renders with new units. */
+    _learnCache.eq = '';
+    if (state.computed && state.computed.VR != null) {
+      updateReadouts();
+      draw();
+    }
+  }
+
+  /* ================================================================
+     PRESETS
+     ================================================================ */
+  var PRESETS = {
+    'reduction-2to1': { driveType: 'open',    D1: 300, D2: 150, C: 600, N1: 1440, mu: 0.30, T1: 2000, slip: 1 },
+    'speed-up':       { driveType: 'open',    D1: 100, D2: 300, C: 500, N1: 1500, mu: 0.30, T1: 1500, slip: 1 },
+    'crossed-equal':  { driveType: 'crossed', D1: 250, D2: 250, C: 700, N1: 900,  mu: 0.30, T1: 2000, slip: 0 },
+    'chain-bike':     { driveType: 'chain',   D1: 200, D2: 100, C: 500, N1: 60,   mu: 0.30, T1: 800,  slip: 0 },
+    'industrial':     { driveType: 'open',    D1: 400, D2: 200, C: 1000, N1: 1450, mu: 0.35, T1: 3500, slip: 1.5 }
+  };
+  function applyPreset(name) {
+    var p = PRESETS[name]; if (!p) return;
+    state.driveType = p.driveType;
+    setD1(p.D1); setD2(p.D2); setC(p.C); setN1(p.N1); setMu(p.mu); setT1(p.T1); setSlip(p.slip);
+    $$('#drive-type-btns .preset-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.drive === p.driveType);
+    });
+    applyDriveTypeUI();
+  }
+
+  function resetAll() {
+    state.driveType = 'open';
+    setD1(300); setD2(150); setC(600); setN1(600); setMu(0.30); setT1(2000); setSlip(0);
+    state.showEquation = true; state.showDimensions = true; state.showGrid = false;
+    var ce = $('#chk-equation'); if (ce) ce.checked = true;
+    var cd = $('#chk-dim');      if (cd) cd.checked = true;
+    var cg = $('#chk-grid');     if (cg) cg.checked = false;
+    $$('#drive-type-btns .preset-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.drive === 'open');
+    });
+    applyDriveTypeUI();
+  }
+
+  /* ================================================================
+     CONTEXT MENU
+     ================================================================ */
+  function ensureContextMenu() {
+    var menu = $('#canvas-ctx-menu');
+    if (menu) return menu;
+    menu = document.createElement('div');
+    menu.id = 'canvas-ctx-menu';
+    menu.className = 'ctx-menu';
+    menu.innerHTML =
+      '<button data-act="csv">Export Data (CSV)</button>' +
+      '<button data-act="png">Export Image (PNG)</button>' +
+      '<button data-act="grid">Toggle Grid</button>' +
+      '<button data-act="dim">Toggle Dimensions</button>' +
+      '<button data-act="reset">Reset Simulation</button>';
+    document.body.appendChild(menu);
+    menu.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      var act = b.dataset.act;
+      if (act === 'csv')   exportCSV();
+      if (act === 'png')   exportPNG();
+      if (act === 'grid')  { state.showGrid = !state.showGrid; var cg = $('#chk-grid'); if (cg) cg.checked = state.showGrid; }
+      if (act === 'dim')   { state.showDimensions = !state.showDimensions; var cd = $('#chk-dim'); if (cd) cd.checked = state.showDimensions; }
+      if (act === 'reset') resetAll();
+      hideContextMenu();
+    });
+    return menu;
+  }
+  function showContextMenu(x, y) {
+    var menu = ensureContextMenu();
+    menu.style.display = 'block';
+    var w = menu.offsetWidth, h = menu.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    if (x + w + 8 > vw) x = vw - w - 8;
+    if (y + h + 8 > vh) y = vh - h - 8;
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+  }
+  function hideContextMenu() {
+    var menu = $('#canvas-ctx-menu');
+    if (menu) menu.style.display = 'none';
+  }
+
+  /* ================================================================
+     EXPORT — CSV + PNG
+     ================================================================ */
+  function exportCSV() {
+    var c = state.computed;
+    var rows = [
+      ['Parameter', 'Symbol', 'Value (SI)', 'Unit'],
+      ['Drive Type', '', state.driveType, ''],
+      ['Driver Diameter', 'D1', state.D1, 'mm'],
+      ['Driven Diameter', 'D2', state.D2, 'mm'],
+      ['Centre Distance', 'C', state.C, 'mm'],
+      ['Driver Speed', 'N1', state.N1, 'rpm'],
+      ['Coefficient of Friction', 'mu', state.mu, ''],
+      ['Tight-side Tension', 'T1', state.T1, 'N'],
+      ['Slip', 's', state.slip, '%'],
+      ['Velocity Ratio', 'VR', roundN(c.VR, 4), ''],
+      ['Driven Speed', 'N2', roundN(c.N2, 1), 'rpm'],
+      ['Belt Speed', 'v', roundN(c.v, 3), 'm/s'],
+      ['Wrap Angle (smaller pulley, governing)', 'theta', roundN(c.theta * 180 / Math.PI, 2), 'deg'],
+      ['Tension Ratio', 'T1/T2', state.driveType === 'chain' ? 'N/A (positive engagement)' : roundN(c.tensionRatio, 3), ''],
+      ['Slack Tension', 'T2', state.driveType === 'chain' ? 0 : roundN(c.T2, 1), 'N'],
+      ['Power Transmitted', 'P', roundN(c.P, 3), 'kW'],
+      ['Belt Length', 'L', roundN(c.L, 1), 'mm']
+    ];
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'belt-drive-' + state.driveType + '-' + Date.now() + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
+  }
+  function exportPNG() {
+    /* Compose canvas + watermark to a temporary canvas */
+    var off = document.createElement('canvas');
+    off.width = canvas.width; off.height = canvas.height;
+    var octx = off.getContext('2d');
+    octx.drawImage(canvas, 0, 0);
+    octx.fillStyle = 'rgba(255,255,255,0.6)';
+    octx.font = (12 * (canvas.width / W)) + 'px Segoe UI, sans-serif';
+    octx.textAlign = 'right';
+    octx.fillText('mechsimulator.com — Belt & Chain Drive', off.width - 10, off.height - 10);
+    var a = document.createElement('a');
+    a.href = off.toDataURL('image/png');
+    a.download = 'belt-drive-' + state.driveType + '-' + Date.now() + '.png';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); }, 100);
+  }
+
+  /* ================================================================
+     LEARNING PANELS — Live Equations (KaTeX)
+     ================================================================ */
+  var _learnCache = { eq: '' };
+  /* Display-unit helpers — return number formatted with current unit */
+  function dispD(mmVal, withUnit) {
+    var u = U();
+    var n = u.len.fromMM(mmVal);
+    return (+n).toFixed(u.len.dp) + (withUnit ? '\\;\\mathrm{' + u.len.label + '}' : '');
+  }
+  function dispF(nVal, withUnit) {
+    var u = U();
+    var n = u.force.fromN(nVal);
+    return (+n).toFixed(u.force.dp) + (withUnit ? '\\;\\mathrm{' + u.force.label + '}' : '');
+  }
+  function dispS(msVal, withUnit) {
+    var u = U();
+    var n = u.spd.fromMS(msVal);
+    return (+n).toFixed(u.spd.dp) + (withUnit ? '\\;\\mathrm{' + u.spd.label + '}' : '');
+  }
+  function dispP(kwVal, withUnit) {
+    var u = U();
+    var n = u.power.fromKW(kwVal);
+    return (+n).toFixed(u.power.dp) + (withUnit ? '\\;\\mathrm{' + u.power.label + '}' : '');
+  }
+  function updateLearnPanels(c) {
+    var eq = document.getElementById('lp-eq-body');
+    if (!eq) return;
+    var u = U();
+    var html = '';
+    /* VR */
+    html += '<div class="eq-line">\\[ VR = \\dfrac{D_1}{D_2} = \\dfrac{N_2}{N_1} \\]</div>';
+    html += '<div class="eq-line">\\(VR = \\dfrac{' + dispD(state.D1, true) + '}{' + dispD(state.D2, true) + '} = \\mathbf{' + c.VR.toFixed(3) + '}\\)</div>';
+    /* Belt speed — formula stays in SI; final result shown in display unit */
+    html += '<div class="eq-line">\\[ v = \\dfrac{\\pi \\, D_1 \\, N_1}{60\\,000}\\;\\text{(SI)} \\]</div>';
+    html += '<div class="eq-line">\\(v = \\dfrac{\\pi \\times ' + state.D1 + ' \\times ' + state.N1
+         + '}{60\\,000} = \\mathbf{' + dispS(c.v, true) + '}\\)</div>';
+    /* Wrap angle */
+    if (state.driveType === 'crossed') {
+      html += '<div class="eq-line">\\[ \\theta = \\pi + 2\\sin^{-1}\\!\\left(\\dfrac{R_1+R_2}{C}\\right) \\]</div>';
+    } else {
+      html += '<div class="eq-line">\\[ \\theta_{\\text{small}} = \\pi - 2\\sin^{-1}\\!\\left(\\dfrac{|R_1-R_2|}{C}\\right) \\]</div>';
+    }
+    html += '<div class="eq-line">\\(\\theta = \\mathbf{' + (c.theta * 180 / Math.PI).toFixed(2) + '^\\circ} = '
+         + c.theta.toFixed(3) + '\\;\\mathrm{rad}\\)</div>';
+    /* Tension & power */
+    if (state.driveType === 'chain') {
+      html += '<div class="eq-line">\\[ P = T_{\\text{chain}} \\cdot v \\]</div>';
+      html += '<div class="eq-line">\\(P = ' + dispF(state.T1, true) + ' \\times ' + dispS(c.v, true)
+           + ' = \\mathbf{' + dispP(c.P, true) + '}\\)</div>';
+      html += '<div class="eq-line"><em>Chain drives use positive engagement — no slip; capstan equation does not apply.</em></div>';
+    } else {
+      html += '<div class="eq-line">\\[ \\dfrac{T_1}{T_2} = e^{\\mu\\theta} \\]</div>';
+      html += '<div class="eq-line">\\(\\dfrac{T_1}{T_2} = e^{' + state.mu.toFixed(2) + ' \\times ' + c.theta.toFixed(3)
+           + '} = \\mathbf{' + c.tensionRatio.toFixed(3) + '}\\)</div>';
+      html += '<div class="eq-line">\\[ P = (T_1 - T_2) \\cdot v \\]</div>';
+      html += '<div class="eq-line">\\(P = (' + dispF(state.T1, false) + ' - ' + dispF(c.T2, false) + ')\\;\\mathrm{' + u.force.label + '} \\times '
+           + dispS(c.v, true) + ' = \\mathbf{' + dispP(c.P, true) + '}\\)</div>';
+    }
+    /* Belt length */
+    html += '<div class="eq-line">\\(L \\approx \\mathbf{' + dispD(c.L, true) + '}\\)</div>';
+
+    if (html !== _learnCache.eq) {
+      eq.innerHTML = html;
+      _learnCache.eq = html;
+    }
+
+    /* Coach panel — heuristic insights */
+    var coach = document.getElementById('lp-coach-body');
+    if (coach) {
+      var tips = [];
+      if (state.driveType !== 'chain' && c.tensionRatio < 1.5) {
+        tips.push('Tension ratio is low (' + c.tensionRatio.toFixed(2) + '). Increase wrap angle θ (use shorter C) or friction μ to raise capacity.');
+      }
+      if (c.theta * 180 / Math.PI < 150 && state.driveType === 'open') {
+        tips.push('Wrap on the smaller pulley is below 150° — consider a crossed belt or idler to increase contact.');
+      }
+      if (state.driveType === 'crossed') {
+        tips.push('Crossed belt always has θ > 180° → higher power capacity, but the belt rubs at the crossing causing wear.');
+      }
+      if (state.driveType === 'chain') {
+        tips.push('Chain drive: no slip, exact ratio. Useful for camshafts, bicycles, conveyors. Avoid high speeds (>20 m/s) due to chordal action.');
+      }
+      if (c.v > 25) {
+        tips.push('Belt speed is high (' + c.v.toFixed(1) + ' m/s). Centrifugal tension reduces effective driving tension — check optimum belt-speed condition.');
+      }
+      if (state.driveType !== 'chain' && state.slip > 3) {
+        tips.push('Slip > 3 % — driven speed is reduced noticeably (N₂ = ' + roundN(c.N2, 0) + ' rpm vs ideal ' + roundN(c.N2id, 0) + ' rpm).');
+      }
+      if (!c.valid) tips.push('⚠ Pulleys overlap at this centre distance C — increase C.');
+      if (tips.length === 0) tips.push('All parameters look reasonable for a typical industrial drive.');
+      coach.innerHTML = tips.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+    }
+  }
+
+  /* ================================================================
+     CALC MODAL — Pattern 2
+     ================================================================ */
+  function calcStep(num, title, formula, calculation, result) {
+    var html = '<div class="cs-step">';
+    html += '<div class="cs-step-hd">';
+    html += '<span class="cs-num">Step ' + num + '</span>';
+    html += '<span class="cs-title">' + title + '</span>';
+    html += '</div>';
+    if (formula)     html += '<div class="cs-formula">' + formula + '</div>';
+    if (calculation) html += '<div class="cs-calc">' + calculation + '</div>';
+    if (result != null) html += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+    html += '</div>';
+    return html;
+  }
+  function buildCalcSteps() {
+    var c = state.computed;
+    var u = U();
+    var isCh = state.driveType === 'chain';
+    var html = '';
+
+    /* Given block — values shown in user-selected display unit */
+    var dlbl = u.len.label, flbl = u.force.label;
+    html += '<div class="cs-inputs"><span class="cs-badge">Given — Current Simulation State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>Drive type = ' + state.driveType + '</span>';
+    html += '<span>D₁ = ' + (+u.len.fromMM(state.D1)).toFixed(u.len.dp) + ' ' + dlbl + '</span>';
+    html += '<span>D₂ = ' + (+u.len.fromMM(state.D2)).toFixed(u.len.dp) + ' ' + dlbl + '</span>';
+    html += '<span>C = '  + (+u.len.fromMM(state.C)).toFixed(u.len.dp)  + ' ' + dlbl + '</span>';
+    html += '<span>N₁ = ' + state.N1 + ' rpm</span>';
+    if (!isCh) html += '<span>μ = ' + state.mu.toFixed(2) + '</span>';
+    html += '<span>T₁ = ' + (+u.force.fromN(state.T1)).toFixed(u.force.dp) + ' ' + flbl + '</span>';
+    if (!isCh) html += '<span>s = ' + state.slip.toFixed(1) + ' %</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">ⓘ Formulas are written in SI (D₁ in mm); substituted values shown in SI for consistency. Final results are converted to your selected display unit.</p></div>';
+
+    /* Step 1 — VR */
+    html += calcStep(1, 'Velocity Ratio',
+      '\\[ VR = \\dfrac{D_1}{D_2} = \\dfrac{N_2}{N_1} \\]',
+      '\\(VR = \\dfrac{' + state.D1 + '}{' + state.D2 + '} = ' + c.VR.toFixed(3) + '\\)',
+      'VR = ' + c.VR.toFixed(3));
+
+    /* Step 2 — Driven Speed (chain has positive engagement: s = 0) */
+    if (isCh) {
+      html += calcStep(2, 'Driven Speed N₂ (no slip — positive engagement)',
+        '\\[ N_2 = N_1 \\cdot \\dfrac{D_1}{D_2} \\]',
+        '\\(N_2 = ' + state.N1 + ' \\times ' + c.VR.toFixed(3) + ' = ' + roundN(c.N2, 1) + '\\;\\mathrm{rpm}\\)',
+        roundN(c.N2, 0) + ' rpm');
+    } else {
+      html += calcStep(2, 'Driven Speed N₂',
+        '\\[ N_2 = N_1 \\cdot \\dfrac{D_1}{D_2} \\cdot \\left(1 - \\dfrac{s}{100}\\right) \\]',
+        '\\(N_2 = ' + state.N1 + ' \\times ' + c.VR.toFixed(3) + ' \\times (1 - ' + state.slip.toFixed(2) + '/100) = ' + roundN(c.N2, 1) + '\\;\\mathrm{rpm}\\)',
+        roundN(c.N2, 0) + ' rpm');
+    }
+
+    /* Step 3 — Belt Speed */
+    html += calcStep(3, 'Belt Speed v',
+      '\\[ v = \\dfrac{\\pi \\, D_1 \\, N_1}{60\\,000} \\]',
+      '\\(v = \\dfrac{\\pi \\times ' + state.D1 + ' \\times ' + state.N1 + '}{60\\,000} = ' + fmt(c.v, 3) + '\\;\\mathrm{m/s}\\)',
+      fmt(u.spd.fromMS(c.v), 2) + ' ' + u.spd.label);
+
+    /* Step 4 — Wrap Angle */
+    var wrapFormula = state.driveType === 'crossed'
+      ? '\\[ \\theta = \\pi + 2\\sin^{-1}\\!\\left(\\dfrac{R_1+R_2}{C}\\right) \\]'
+      : '\\[ \\theta = \\pi - 2\\sin^{-1}\\!\\left(\\dfrac{|R_1-R_2|}{C}\\right) \\quad\\text{(smaller pulley — governs slip)} \\]';
+    var wrapCalc = state.driveType === 'crossed'
+      ? '\\(\\theta = \\pi + 2\\sin^{-1}\\!\\left(\\dfrac{' + (state.D1/2) + ' + ' + (state.D2/2) + '}{' + state.C + '}\\right) = ' + c.theta.toFixed(3) + '\\;\\mathrm{rad}\\)'
+      : '\\(\\theta = \\pi - 2\\sin^{-1}\\!\\left(\\dfrac{' + Math.abs(state.D1/2 - state.D2/2) + '}{' + state.C + '}\\right) = ' + c.theta.toFixed(3) + '\\;\\mathrm{rad}\\)';
+    html += calcStep(4, 'Angle of Wrap θ',
+      wrapFormula, wrapCalc,
+      (c.theta * 180 / Math.PI).toFixed(1) + '°  (' + c.theta.toFixed(3) + ' rad)');
+
+    if (isCh) {
+      /* Chain power directly from T1 */
+      html += calcStep(5, 'Chain Drive Power',
+        '\\[ P = T_{\\text{chain}} \\cdot v \\]',
+        '\\(P = ' + state.T1 + ' \\times ' + fmt(c.v, 3) + ' = ' + (state.T1 * c.v).toFixed(0) + '\\;\\mathrm{W}\\)',
+        fmt(u.power.fromKW(c.P), 3) + ' ' + u.power.label);
+    } else {
+      /* Step 5 — Capstan */
+      html += calcStep(5, 'Capstan Equation — Tension Ratio',
+        '\\[ \\dfrac{T_1}{T_2} = e^{\\mu \\theta} \\]',
+        '\\(\\dfrac{T_1}{T_2} = e^{' + state.mu.toFixed(2) + ' \\times ' + c.theta.toFixed(3) + '} = e^{' + (state.mu * c.theta).toFixed(3) + '} = ' + c.tensionRatio.toFixed(3) + '\\)',
+        c.tensionRatio.toFixed(3) + ' : 1');
+
+      /* Step 6 — T2 */
+      html += calcStep(6, 'Slack-side Tension T₂',
+        '\\[ T_2 = \\dfrac{T_1}{T_1/T_2} \\]',
+        '\\(T_2 = \\dfrac{' + state.T1 + '}{' + c.tensionRatio.toFixed(3) + '} = ' + fmt(c.T2, 1) + '\\;\\mathrm{N}\\)',
+        fmt(u.force.fromN(c.T2), u.force.dp) + ' ' + u.force.label);
+
+      /* Step 7 — Power */
+      html += calcStep(7, 'Power Transmitted',
+        '\\[ P = (T_1 - T_2) \\cdot v \\]',
+        '\\(P = (' + state.T1 + ' - ' + fmt(c.T2, 1) + ') \\times ' + fmt(c.v, 3) + ' = ' + (c.P * 1000).toFixed(0) + '\\;\\mathrm{W}\\)',
+        fmt(u.power.fromKW(c.P), 3) + ' ' + u.power.label);
+    }
+
+    /* Step — Belt length */
+    var lenFormula = state.driveType === 'crossed'
+      ? '\\[ L = 2C + \\dfrac{\\pi(D_1+D_2)}{2} + \\dfrac{(D_1+D_2)^2}{4C} \\]'
+      : '\\[ L = 2C + \\dfrac{\\pi(D_1+D_2)}{2} + \\dfrac{(D_1-D_2)^2}{4C} \\]';
+    html += calcStep(isCh ? 6 : 8, 'Belt / Chain Length',
+      lenFormula,
+      '\\(L = ' + fmt(c.L, 1) + '\\;\\mathrm{mm}\\)',
+      fmt(u.len.fromMM(c.L), u.len.dp) + ' ' + u.len.label);
+
+    /* Context note */
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Note</span><span class="cs-title">Real-World Context</span></div>';
+    html += '<div class="cs-result">Typical V-belt drive: μ ≈ 0.30–0.45, allowable T₁ ≈ 1.5–2.5 kN per cross-section. Chain drives: avoid v > 15–20 m/s due to chordal action and noise. For an industrial motor pulley running at ' + state.N1 + ' rpm, the calculated belt speed of ' + fmt(c.v, 2) + ' m/s is ' + (c.v < 25 ? 'within' : 'above') + ' the typical operating range.</div></div>';
+
+    return html;
+  }
+  function openCalcModal() {
+    var modal = $('#calc-modal');
+    var body  = $('#calc-modal-body');
+    if (!modal || !body) return;
+    compute();
+    body.innerHTML = buildCalcSteps();
+    modal.classList.add('active');
+    var cb = $('#calc-modal-close'); if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    var modal = $('#calc-modal'); if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = $('#btn-calc'); if (b) b.focus();
+  }
+
+  /* ================================================================
+     EXPLORE MODE — 6 CONCEPTS
+     ================================================================ */
+  var CONCEPTS = [
+    { id: 'velocity-ratio', name: 'Velocity Ratio', symbol: 'VR = D₁/D₂',
+      formula: 'VR = D₁/D₂ = N₂/N₁', cat: 'Basics',
+      desc: 'The velocity ratio relates pulley diameters to shaft speeds. A larger driver gives higher output speed (speed increaser). For chain drives, use sprocket tooth counts T₁/T₂ instead of diameters.',
+      example: { problem: 'Driver D₁=300mm, driven D₂=150mm, N₁=600rpm. Find N₂.',
+        steps: ['VR = D₁/D₂ = 300/150 = 2', 'N₂ = N₁ × VR = 600 × 2 = 1200 rpm'],
+        answer: 1200, unit: 'rpm' } },
+    { id: 'open-belt', name: 'Open Belt Drive', symbol: 'θ = π − 2α',
+      formula: 'θ = π − 2sin⁻¹((R₁−R₂)/C)', cat: 'Belt Types',
+      desc: 'In an open belt drive, both pulleys rotate in the same direction. The wrap angle on the smaller pulley is less than 180°. Preferred for long centre distances and minimal belt tension on one side.',
+      example: { problem: 'R₁=150mm, R₂=75mm, C=600mm. Find wrap angle on driven pulley.',
+        steps: ['α = arcsin((150−75)/600) = arcsin(0.125) = 7.18°', 'θ = π − 2×7.18° = 180° − 14.36° = 165.64°'],
+        answer: 165.64, unit: '°' } },
+    { id: 'crossed-belt', name: 'Crossed Belt Drive', symbol: 'θ = π + 2β',
+      formula: 'θ = π + 2sin⁻¹((R₁+R₂)/C)', cat: 'Belt Types',
+      desc: 'In a crossed belt drive, the belt crosses between the pulleys, causing the driven to rotate opposite to the driver. Both pulleys have the same wrap angle, always greater than 180°. Higher belt wear at the crossing point.',
+      example: { problem: 'R₁=150mm, R₂=75mm, C=600mm. Find wrap angle on both pulleys.',
+        steps: ['β = arcsin((150+75)/600) = arcsin(0.375) = 22.02°', 'θ = π + 2×22.02° = 180° + 44.04° = 224.04°'],
+        answer: 224.04, unit: '°' } },
+    { id: 'capstan', name: 'Capstan Equation', symbol: 'T₁/T₂ = e^μθ',
+      formula: 'T₁/T₂ = e^(μθ)', cat: 'Belt Tension',
+      desc: 'The capstan (Euler–Eytelwein) equation gives the maximum tension ratio before slipping. μ is the coefficient of friction (0.20–0.50 for flat belts, 0.30–0.60 for V-belts). θ is the angle of wrap in radians. Higher wrap angle and friction increase power capacity.',
+      example: { problem: 'μ=0.3, θ=165.6°=2.891 rad. Find T₁/T₂.',
+        steps: ['T₁/T₂ = e^(μθ)', '= e^(0.3 × 2.891) = e^0.867 = 2.38'],
+        answer: 2.38, unit: ':1' } },
+    { id: 'power', name: 'Power Transmitted', symbol: 'P = (T₁−T₂)×v',
+      formula: 'P = (T₁−T₂) × v (W)', cat: 'Power',
+      desc: 'Net power transmitted equals the effective belt tension (T₁−T₂) multiplied by belt speed v. Belt speed v = π×D₁×N₁/60000 m/s (D₁ in mm). For maximum power, there is an optimum belt speed of v = √(T₁/3m) where m is belt mass per metre.',
+      example: { problem: 'T₁=2000N, T₂=840N, D₁=300mm, N₁=600rpm. Find power.',
+        steps: ['v = π×300×600/60000 = 9.42 m/s', 'P = (2000−840) × 9.42 = 10,924 W = 10.9 kW'],
+        answer: 10.9, unit: 'kW' } },
+    { id: 'chain-drive', name: 'Chain Drive', symbol: 'VR = T₁/T₂',
+      formula: 'VR = T₁/T₂ (teeth ratio)', cat: 'Chain',
+      desc: 'Chain drives use positive engagement between chain links and sprocket teeth, eliminating slip entirely. Velocity ratio = T₁/T₂ (driver teeth ÷ driven teeth). The capstan equation does not apply because there is no friction-based slipping. Slack side carries only sag tension. Avoid speeds above ~20 m/s due to chordal action.',
+      example: { problem: 'Driver sprocket 20 teeth, driven 50 teeth, N₁=900rpm. Find N₂.',
+        steps: ['VR = T₁/T₂ = 20/50 = 0.4 (speed reduction)', 'N₂ = N₁ × VR = 900 × 0.4 = 360 rpm'],
+        answer: 360, unit: 'rpm' } }
+  ];
+
+  var activeConceptId = null;
+  function renderExplore() {
+    var grid = $('#explore-grid');
+    if (grid.children.length === 0) {
+      CONCEPTS.forEach(function (c) {
+        var btn = document.createElement('button');
+        btn.className  = 'is-btn';
+        btn.dataset.id = c.id;
+        btn.innerHTML  = '<span class="is-btn-name">' + c.name + '</span>' +
+                         '<span class="is-btn-sym">'  + c.symbol + '</span>';
+        btn.addEventListener('click', function () {
+          $$('#explore-grid .is-btn').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          activeConceptId = c.id;
+          showConceptInfo(c);
+        });
+        grid.appendChild(btn);
+      });
+    }
+    if (!activeConceptId) {
+      var firstBtn = grid.querySelector('.is-btn');
+      if (firstBtn) firstBtn.click();
+    }
+  }
+  function showConceptInfo(c) {
+    var info = $('#explore-info');
+    var stepsHtml = c.example.steps.map(function (s, i) {
+      var isLast = (i === c.example.steps.length - 1);
+      return '<p class="ex-step">' + (i + 1) + '. ' + (isLast ? '<strong>' + s + '</strong>' : s) + '</p>';
+    }).join('');
+    info.innerHTML =
+      '<div class="ii-top">' +
+        '<span class="ii-name">' + c.name + '</span>' +
+        '<span class="ii-cat-badge">' + c.cat + '</span>' +
+      '</div>' +
+      '<p class="ii-desc">' + c.desc + '</p>' +
+      '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span></div>' +
+      '<div class="example-box"><h4>Worked Example</h4>' +
+        '<p class="ex-problem">' + c.example.problem + '</p>' + stepsHtml +
+      '</div>';
+  }
+
+  /* ================================================================
+     PRACTICE MODE — (unchanged logic, retained)
+     ================================================================ */
+  var pracState = { score: 0, total: 0, answer: 0, dp: 0, tolerance: 0, steps: [] };
+  function genPracticeQ() {
+    var type = randInt(1, 4);
+    var prompt = '', unit = '', answer = 0, dp = 2, steps = [], tol = 0.05;
+    if (type === 1) {
+      var D1 = randInt(1, 8) * 50, D2 = randInt(1, 8) * 50;
+      var N1 = randInt(2, 20) * 50;
+      var VR = D1 / D2, N2 = N1 * VR;
+      prompt = 'A belt drive has driver pulley D₁ = ' + D1 + ' mm, driven pulley D₂ = ' + D2 + ' mm, and driver speed N₁ = ' + N1 + ' rpm. Calculate the driven shaft speed N₂ (rpm).';
+      unit = 'rpm'; dp = 0; tol = 1; answer = N2;
+      steps = ['VR = D₁/D₂ = ' + D1 + '/' + D2 + ' = ' + roundN(VR, 3),
+               'N₂ = N₁ × VR = ' + N1 + ' × ' + roundN(VR, 3) + ' = ' + roundN(N2, 0) + ' rpm'];
+    } else if (type === 2) {
+      var D1b = randInt(1, 6) * 50, N1b = randInt(2, 20) * 50;
+      var v = Math.PI * (D1b / 1000) * N1b / 60;
+      prompt = 'Calculate the belt speed (m/s) for a drive with driver pulley diameter D₁ = ' + D1b + ' mm running at N₁ = ' + N1b + ' rpm.';
+      unit = 'm/s'; dp = 2; tol = 0.05; answer = roundN(v, 2);
+      steps = ['v = π × D₁ × N₁ / 60000',
+               'v = π × ' + D1b + ' × ' + N1b + ' / 60000',
+               'v = ' + roundN(v, 3) + ' m/s'];
+    } else if (type === 3) {
+      var muVal = randInt(20, 45) / 100;
+      var thetaDeg = randFloat(140, 200, 1);
+      var thetaRad = thetaDeg * Math.PI / 180;
+      var tr = Math.exp(muVal * thetaRad);
+      prompt = 'A flat belt drive has a coefficient of friction μ = ' + muVal.toFixed(2) + ' and an angle of wrap θ = ' + thetaDeg.toFixed(1) + '°. Calculate the tension ratio T₁/T₂ using the capstan equation.';
+      unit = ':1'; dp = 2; tol = 0.05; answer = roundN(tr, 2);
+      steps = ['θ = ' + thetaDeg.toFixed(1) + '° = ' + roundN(thetaRad, 4) + ' rad',
+               'T₁/T₂ = e^(μθ) = e^(' + muVal.toFixed(2) + ' × ' + roundN(thetaRad, 4) + ')',
+               'T₁/T₂ = e^' + roundN(muVal * thetaRad, 4) + ' = ' + roundN(tr, 2)];
+    } else {
+      var T1v = randInt(5, 50) * 100;
+      var D1c = randInt(1, 6) * 50;
+      var N1c = randInt(2, 20) * 50;
+      var muVal2 = randInt(20, 40) / 100;
+      var thetaRad2 = Math.PI - 2 * Math.asin(clamp(25 / 600, -0.999, 0.999));
+      var tr2 = Math.exp(muVal2 * thetaRad2);
+      var T2v = T1v / tr2;
+      var v2 = Math.PI * (D1c / 1000) * N1c / 60;
+      var P = (T1v - T2v) * v2 / 1000;
+      prompt = 'A belt drive transmits power with tight side tension T₁ = ' + T1v + ' N, driver pulley D₁ = ' + D1c + ' mm, N₁ = ' + N1c + ' rpm, and μ = ' + muVal2.toFixed(2) + ' with θ = ' + roundN(thetaRad2 * 180 / Math.PI, 1) + '°. Find the power transmitted (kW).';
+      unit = 'kW'; dp = 2; tol = 0.1; answer = roundN(P, 2);
+      steps = ['v = π × ' + D1c + ' × ' + N1c + ' / 60000 = ' + roundN(v2, 3) + ' m/s',
+               'T₁/T₂ = e^(' + muVal2.toFixed(2) + ' × ' + roundN(thetaRad2, 3) + ') = ' + roundN(tr2, 3),
+               'T₂ = ' + T1v + ' / ' + roundN(tr2, 3) + ' = ' + roundN(T2v, 1) + ' N',
+               'P = (T₁ − T₂) × v = (' + T1v + ' − ' + roundN(T2v, 1) + ') × ' + roundN(v2, 3) + ' = ' + roundN(P * 1000, 1) + ' W = ' + roundN(P, 2) + ' kW'];
+    }
+    pracState.answer = answer; pracState.dp = dp; pracState.tolerance = tol; pracState.steps = steps;
+    $('#prac-prompt').textContent  = prompt;
+    $('#prac-unit').textContent    = unit;
+    $('#prac-input').value         = '';
+    $('#prac-feedback').textContent = '';
+    $('#prac-feedback').className  = 'feedback';
+    hide($('#prac-sol')); show($('#prac-input-row'));
+    $('#prac-input').focus();
+  }
+  function checkPractice() {
+    var raw = parseFloat($('#prac-input').value);
+    if (isNaN(raw)) {
+      $('#prac-feedback').textContent = 'Please enter a number.';
+      $('#prac-feedback').className   = 'feedback err';
+      return;
+    }
+    pracState.total++;
+    $('#prac-total').textContent = pracState.total;
+    var ok = Math.abs(raw - pracState.answer) <= pracState.tolerance + Math.abs(pracState.answer) * 0.02;
+    if (ok) {
+      pracState.score++;
+      $('#prac-score').textContent = pracState.score;
+      $('#prac-feedback').textContent = '✓ Correct! Well done.';
+      $('#prac-feedback').className   = 'feedback ok';
+    } else {
+      $('#prac-feedback').textContent = '× Incorrect. Expected: ' + pracState.answer;
+      $('#prac-feedback').className   = 'feedback err';
+    }
+    var solEl = $('#prac-sol-steps');
+    solEl.innerHTML = pracState.steps.map(function (s, i) {
+      var isLast = (i === pracState.steps.length - 1);
+      return '<p class="sol-step">' + (i + 1) + '. ' + (isLast ? '<strong>' + s + '</strong>' : s) + '</p>';
+    }).join('');
+    show($('#prac-sol')); hide($('#prac-input-row'));
+  }
+  $('#prac-new-btn').addEventListener('click', genPracticeQ);
+  $('#prac-check-btn').addEventListener('click', checkPractice);
+  $('#prac-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+
+  /* ================================================================
+     QUIZ MODE — (unchanged logic, retained)
+     ================================================================ */
+  var MCQ_BANK = [
+    { type: 'mcq', prompt: 'Which formula correctly gives the velocity ratio (VR) of a belt drive?',
+      options: ['VR = D₂/D₁', 'VR = D₁/D₂', 'VR = N₁ × D₂', 'VR = N₁ + N₂'], correct: 1,
+      explain: 'VR = D₁/D₂ = N₂/N₁. The velocity ratio equals the ratio of driver to driven diameter.' },
+    { type: 'mcq', prompt: 'Which type of belt drive causes the driven pulley to rotate in the OPPOSITE direction to the driver?',
+      options: ['Open belt drive', 'Crossed belt drive', 'V-belt drive', 'Chain drive'], correct: 1,
+      explain: 'A crossed belt drive causes the driven pulley to rotate in the opposite direction because the belt crosses between the two pulleys.' },
+    { type: 'mcq', prompt: 'In the capstan equation T₁/T₂ = e^(μθ), what does increasing the angle of wrap (θ) achieve?',
+      options: ['Decreases tension ratio', 'Has no effect on tension ratio', 'Increases tension ratio and power capacity', 'Reduces belt speed'], correct: 2,
+      explain: 'Increasing wrap angle θ increases the exponent μθ, which exponentially increases T₁/T₂, allowing more power to be transmitted before slip occurs.' },
+    { type: 'mcq', prompt: 'What is the main advantage of a chain drive over a belt drive?',
+      options: ['Lower noise', 'No slip — exact velocity ratio', 'Higher speed capacity', 'Lower initial cost'], correct: 1,
+      explain: 'Chain drives use positive engagement between chain links and sprocket teeth, eliminating slip and ensuring an exact velocity ratio.' },
+    { type: 'mcq', prompt: 'For an open belt drive with unequal pulleys, which pulley has the smaller angle of wrap?',
+      options: ['The larger (driver) pulley', 'The smaller (driven) pulley', 'Both have equal wrap', 'It depends on belt speed'], correct: 1,
+      explain: 'In an open belt, the smaller pulley always has a smaller wrap angle θ = π − 2α, which limits the drive capacity.' },
+    { type: 'mcq', prompt: 'Belt speed v in m/s is calculated using:',
+      options: ['v = πD₁N₁/60', 'v = D₁N₁/60', 'v = πD₁N₁/60000', 'v = 2πD₁N₁/60'], correct: 2,
+      explain: 'v = π × D₁ × N₁ / 60000 m/s, where D₁ is in mm and N₁ in rpm. The 60000 converts mm·rpm to m/s.' },
+    { type: 'mcq', prompt: 'In a crossed belt drive, the wrap angle on both pulleys is:',
+      options: ['Less than 180°', 'Exactly 180°', 'Greater than 180°', 'Different for each pulley'], correct: 2,
+      explain: 'Crossed belt: θ = π + 2sin⁻¹((R₁+R₂)/C), which is always > π (180°). Both pulleys have the same wrap angle.' },
+    { type: 'mcq', prompt: 'Power transmitted by a belt drive equals:',
+      options: ['P = T₁ × v', 'P = (T₁ − T₂) × v', 'P = T₂ × v', 'P = (T₁ + T₂) × v'], correct: 1,
+      explain: 'Net power = effective tension × belt speed = (T₁ − T₂) × v. Only the difference in tensions does useful work.' }
+  ];
+  function quizNumN2() {
+    var D1 = randInt(2, 6) * 50, D2 = randInt(1, 5) * 50, N1 = randInt(4, 16) * 50;
+    var N2 = N1 * D1 / D2;
+    return { type: 'numeric',
+      prompt: 'A belt drive has D₁ = ' + D1 + ' mm, D₂ = ' + D2 + ' mm, N₁ = ' + N1 + ' rpm. Calculate N₂ (rpm).',
+      answer: roundN(N2, 0), dp: 0, tol: 2, unit: 'rpm',
+      explain: 'N₂ = N₁ × D₁/D₂ = ' + N1 + ' × ' + D1 + '/' + D2 + ' = ' + roundN(N2, 0) + ' rpm' };
+  }
+  function quizNumTR() {
+    var mu = randInt(25, 40) / 100;
+    var thetaDeg = randInt(150, 190);
+    var thetaRad = thetaDeg * Math.PI / 180;
+    var tr = Math.exp(mu * thetaRad);
+    return { type: 'numeric',
+      prompt: 'An open belt drive has μ = ' + mu.toFixed(2) + ' and wrap angle θ = ' + thetaDeg + '°. Calculate T₁/T₂ (2 dp).',
+      answer: roundN(tr, 2), dp: 2, tol: 0.05, unit: ':1',
+      explain: 'T₁/T₂ = e^(μθ) = e^(' + mu.toFixed(2) + '×' + roundN(thetaRad, 3) + ') = ' + roundN(tr, 2) };
+  }
+  function quizNumBeltSpeed() {
+    var D1 = randInt(2, 6) * 50, N1 = randInt(4, 16) * 50;
+    var v = Math.PI * (D1 / 1000) * N1 / 60;
+    return { type: 'numeric',
+      prompt: 'Find the belt speed (m/s) for D₁ = ' + D1 + ' mm, N₁ = ' + N1 + ' rpm (2 dp).',
+      answer: roundN(v, 2), dp: 2, tol: 0.05, unit: 'm/s',
+      explain: 'v = π×' + D1 + '×' + N1 + '/60000 = ' + roundN(v, 2) + ' m/s' };
+  }
+  function shuffleArr(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = randInt(0, i); var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+  var quizState = { questions: [], current: 0, score: 0, answers: [], started: false };
+  function resetQuiz() {
+    quizState.started = false; quizState.current = 0; quizState.score = 0;
+    quizState.answers = []; quizState.questions = [];
+    $('#quiz-qnum').textContent = '1';
+    $('#quiz-prompt').textContent = 'Press "Start Quiz" to begin a 5-question belt & chain drive quiz.';
+    $('#quiz-feedback').textContent = ''; $('#quiz-feedback').className = 'quiz-feedback';
+    hide($('#quiz-answers')); hide($('#quiz-num-row')); hide($('#quiz-next-btn'));
+    show($('#quiz-start-btn')); hide($('#quiz-result')); show($('#quiz-panel'));
+  }
+  function buildQuizQuestions() {
+    var mcqs = shuffleArr(MCQ_BANK).slice(0, 3);
+    var numGens = [quizNumN2, quizNumTR, quizNumBeltSpeed];
+    var nums = shuffleArr(numGens).slice(0, 2).map(function (fn) { return fn(); });
+    return shuffleArr(mcqs.concat(nums));
+  }
+  function showQuizQuestion() {
+    var q = quizState.questions[quizState.current];
+    var fb = $('#quiz-feedback'); fb.textContent = ''; fb.className = 'quiz-feedback';
+    hide($('#quiz-next-btn'));
+    $('#quiz-qnum').textContent = quizState.current + 1;
+    $('#quiz-prompt').textContent = q.prompt;
+    if (q.type === 'mcq') {
+      hide($('#quiz-num-row'));
+      var grid = $('#quiz-answers'); grid.innerHTML = ''; show(grid);
+      q.options.forEach(function (opt, idx) {
+        var btn = document.createElement('button');
+        btn.className = 'answer-btn'; btn.textContent = opt;
+        btn.addEventListener('click', function () {
+          if (btn.classList.contains('locked')) return;
+          grid.querySelectorAll('.answer-btn').forEach(function (b) { b.classList.add('locked'); });
+          var isCorrect = (idx === q.correct);
+          if (isCorrect) {
+            btn.classList.add('correct'); quizState.score++;
+            fb.textContent = '✓ Correct! ' + (q.explain || ''); fb.className = 'quiz-feedback ok';
+          } else {
+            btn.classList.add('wrong');
+            grid.querySelectorAll('.answer-btn')[q.correct].classList.add('correct');
+            fb.textContent = '× Incorrect. ' + (q.explain || ''); fb.className = 'quiz-feedback err';
+          }
+          quizState.answers.push({ correct: isCorrect, prompt: q.prompt });
+          show($('#quiz-next-btn'));
+        });
+        grid.appendChild(btn);
+      });
+    } else {
+      hide($('#quiz-answers'));
+      show($('#quiz-num-row'));
+      $('#quiz-unit').textContent = q.unit || '';
+      $('#quiz-input').value = ''; $('#quiz-input').focus();
+    }
+  }
+  function submitNumericQuiz() {
+    var q = quizState.questions[quizState.current];
+    var raw = parseFloat($('#quiz-input').value);
+    var fb  = $('#quiz-feedback');
+    if (isNaN(raw)) { fb.textContent = 'Please enter a number.'; fb.className = 'quiz-feedback err'; return; }
+    hide($('#quiz-num-row'));
+    var isCorrect = Math.abs(raw - q.answer) <= q.tol + Math.abs(q.answer) * 0.02;
+    if (isCorrect) {
+      quizState.score++;
+      fb.textContent = '✓ Correct! Answer: ' + q.answer + ' ' + (q.unit || ''); fb.className = 'quiz-feedback ok';
+    } else {
+      fb.textContent = '× Incorrect. Correct answer: ' + q.answer + ' ' + (q.unit || ''); fb.className = 'quiz-feedback err';
+    }
+    quizState.answers.push({ correct: isCorrect, prompt: q.prompt });
+    show($('#quiz-next-btn'));
+  }
+  function advanceQuiz() {
+    quizState.current++;
+    if (quizState.current >= quizState.questions.length) showQuizResult();
+    else showQuizQuestion();
+  }
+  function showQuizResult() {
+    hide($('#quiz-panel')); hide($('#quiz-next-btn')); hide($('#quiz-start-btn'));
+    var score = quizState.score, total = quizState.questions.length;
+    var stars = score === 5 ? '★★★★★' : score === 4 ? '★★★★☆' : score === 3 ? '★★★☆☆' : score === 2 ? '★★☆☆☆' : '★☆☆☆☆';
+    var cls = score === 5 ? 'perfect' : score >= 3 ? 'good' : 'poor';
+    var verdict = score === 5 ? 'Excellent mastery of belt & chain drives!'
+                : score >= 3 ? 'Good understanding — review the missed topics.'
+                : 'Keep practising — revisit Explore mode for help.';
+    var rowsHtml = quizState.answers.map(function (a, i) {
+      var cls2 = a.correct ? 'ok' : 'err';
+      var mark = a.correct ? '✓' : '×';
+      var shortQ = a.prompt.length > 80 ? a.prompt.slice(0, 80) + '…' : a.prompt;
+      return '<div class="qr-row ' + cls2 + '"><span class="qr-qnum">Q' + (i + 1) + '</span><span class="qr-detail">' + shortQ + '</span><span class="qr-mark">' + mark + '</span></div>';
+    }).join('');
+    var res = $('#quiz-result');
+    res.innerHTML =
+      '<div class="qr-header"><div class="qr-title-wrap"><span class="qr-title">Quiz Complete</span><span class="qr-stars">' + stars + '</span></div>' +
+      '<div class="qr-score-wrap"><div class="qr-score ' + cls + '">' + score + '/' + total + '</div><div class="qr-verdict">' + verdict + '</div></div></div>' +
+      '<div class="qr-rows">' + rowsHtml + '</div>' +
+      '<button class="btn btn-primary" id="quiz-retry-btn">Try Again</button>';
+    show(res);
+    $('#quiz-retry-btn').addEventListener('click', function () { resetQuiz(); });
+  }
+  $('#quiz-start-btn').addEventListener('click', function () {
+    hide($('#quiz-start-btn'));
+    quizState.questions = buildQuizQuestions();
+    quizState.current = 0; quizState.score = 0; quizState.answers = []; quizState.started = true;
+    hide($('#quiz-result')); show($('#quiz-panel'));
+    showQuizQuestion();
+  });
+  $('#quiz-next-btn').addEventListener('click', advanceQuiz);
+  $('#quiz-submit-btn').addEventListener('click', submitNumericQuiz);
+  $('#quiz-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitNumericQuiz(); });
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+  var SECTIONS = {
+    simulate: $('#sim-mode'),
+    explore:  $('#explore-mode'),
+    practice: $('#practice-mode'),
+    quiz:     $('#quiz-mode')
+  };
+  function setMode(m) {
+    state.mode = m;
+    Object.keys(SECTIONS).forEach(function (k) {
+      SECTIONS[k].classList.toggle('hidden', k !== m);
+    });
+    $$('#mode-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.value === m);
+    });
+    if (m === 'simulate') { startAnim(); }
+    else { stopAnim(); }
+    if (m === 'explore') renderExplore();
+    if (m === 'quiz')    resetQuiz();
+  }
+  $$('#mode-tabs .pill').forEach(function (p) {
+    p.addEventListener('click', function () { setMode(p.dataset.value); });
+  });
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  wireSim();
+  applyDriveTypeUI();
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeCanvas).observe(canvas);
+  compute();
+  setMode('simulate');
+
+})();

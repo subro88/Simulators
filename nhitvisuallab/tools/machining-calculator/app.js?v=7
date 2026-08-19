@@ -1,0 +1,2108 @@
+(function () {
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════
+     1. DATA
+
+     Cutting-speed bands match the "Cutting Speed & Feed Chart"
+     published further down this page, so the tool and the article
+     can never disagree.
+
+     kc11 / mc are Kienzle specific-cutting-force constants
+     (kc = kc11 * h^-mc, h = undeformed chip thickness in mm),
+     after Tschaetsch, "Applied Machining Technology", and the
+     Sandvik Coromant technical guide. kc11 is the specific force
+     at h = 1 mm, b = 1 mm.
+  ══════════════════════════════════════════════════════════ */
+  var MATERIALS = [
+    { name: 'Mild Steel (1018 / S235)',     hss: [25, 40],   carb: [100, 200], ceram: [200, 400], kc11: 1780, mc: 0.17 },
+    { name: 'Medium Carbon Steel (1045)',   hss: [18, 30],   carb: [80, 160],  ceram: [160, 300], kc11: 2220, mc: 0.14 },
+    { name: 'Alloy Steel (4140 / 42CrMo4)', hss: [15, 25],   carb: [70, 140],  ceram: [140, 260], kc11: 2500, mc: 0.26 },
+    { name: 'Tool Steel (annealed)',        hss: [12, 20],   carb: [50, 100],  ceram: [100, 200], kc11: 2600, mc: 0.26 },
+    { name: 'Stainless Steel (304 / 316)',  hss: [12, 22],   carb: [60, 120],  ceram: [120, 240], kc11: 2350, mc: 0.21 },
+    { name: 'Cast Iron (grey, GG25)',       hss: [20, 35],   carb: [70, 140],  ceram: [160, 320], kc11: 1160, mc: 0.26 },
+    { name: 'Cast Iron (ductile)',          hss: [15, 28],   carb: [60, 120],  ceram: [120, 240], kc11: 1500, mc: 0.26 },
+    { name: 'Aluminium (6061 / 7075)',      hss: [70, 150],  carb: [250, 600], ceram: [400, 800], kc11: 700,  mc: 0.23 },
+    { name: 'Brass (free-cutting)',         hss: [70, 120],  carb: [180, 350], ceram: [300, 500], kc11: 780,  mc: 0.18 },
+    { name: 'Bronze',                       hss: [30, 60],   carb: [100, 250], ceram: [200, 400], kc11: 1200, mc: 0.20 },
+    { name: 'Copper',                       hss: [40, 70],   carb: [120, 250], ceram: [200, 400], kc11: 1200, mc: 0.23 },
+    { name: 'Titanium (Ti-6Al-4V)',         hss: [8, 15],    carb: [30, 60],   ceram: [60, 120],  kc11: 1400, mc: 0.23 },
+    { name: 'Inconel / Nickel alloy',       hss: [5, 10],    carb: [15, 35],   ceram: [35, 80],   kc11: 2900, mc: 0.24 },
+    { name: 'Magnesium',                    hss: [90, 180],  carb: [250, 600], ceram: [400, 800], kc11: 400,  mc: 0.21 },
+    { name: 'Plastics (acetal, nylon)',     hss: [100, 250], carb: [200, 600], ceram: [300, 700], kc11: 250,  mc: 0.19 },
+    { name: 'Acrylic / PMMA',               hss: [80, 200],  carb: [150, 400], ceram: [250, 600], kc11: 200,  mc: 0.19 }
+  ];
+
+  /* Taylor tool-life exponent n in V*T^n = C.
+     C is NOT tabulated — it is calibrated from this tool's own speed
+     bands so the two can never drift apart: at the middle of the
+     recommended band the tool life is TREF minutes, hence
+     C = V_mid * TREF^n. For mild steel + carbide this yields C = 351,
+     squarely inside the 250-400 range quoted in the literature. */
+  var TOOLS = [
+    { name: 'HSS',     key: 'hss',   n: 0.125 },
+    { name: 'Carbide', key: 'carb',  n: 0.25  },
+    { name: 'Ceramic', key: 'ceram', n: 0.45  }
+  ];
+  var TREF = 30;   /* min of tool life at mid-band cutting speed */
+
+  var SUB_OPS = {
+    turning:  ['Facing', 'Cylindrical', 'Boring', 'Parting'],
+    milling:  ['Face', 'End', 'Slot', 'Peripheral'],
+    drilling: ['Through', 'Blind Hole', 'Reaming', 'Tapping']
+  };
+
+  /* Sub-operation speed factors. Reaming and tapping run far slower than
+     drilling the same hole; the Explore cards have always said so, and
+     now the model does it. */
+  var SUBOP_VC = {
+    turning:  [1, 1, 0.85, 0.6],   /* boring: overhang; parting: weak tool */
+    milling:  [1, 1, 0.8, 1],      /* slotting: full engagement, more heat */
+    drilling: [1, 1, 0.5, 0.25]    /* reaming 50%, tapping 25% */
+  };
+
+  var POINT_ANGLE = 118;                       /* twist drill, degrees   */
+  var KAPPA_DRILL = POINT_ANGLE / 2;           /* lip lead angle, deg    */
+  var TAP_FRICTION = 1.8;                      /* total/cutting torque   */
+
+  /* ══════════════════════════════════════════════════════════
+     2. DOM REFS
+  ══════════════════════════════════════════════════════════ */
+  function $(id) { return document.getElementById(id); }
+
+  var canvas = $('main-canvas');
+  var ctx    = canvas.getContext('2d');
+
+  var modeTabs  = $('mode-tabs');
+  var opTabs    = $('op-tabs');
+  var subopTabs = $('subop-tabs');
+  var matSel    = $('material-sel');
+  var toolSel   = $('tool-sel');
+  var driveTabs = $('drive-tabs');
+  var presetSel = $('sel-preset');
+
+  var slDia   = $('sl-diameter'), stDia   = $('st-diameter');
+  var slLen   = $('sl-length'),   stLen   = $('st-length');
+  var slDoc   = $('sl-doc'),      stDoc   = $('st-doc');
+  var slFeed  = $('sl-feed'),     stFeed  = $('st-feed');
+  var slTeeth = $('sl-teeth'),    stTeeth = $('st-teeth');
+  var slWidth = $('sl-width'),    stWidth = $('st-width');
+  var slSpeed = $('sl-speed'),    stSpeed = $('st-speed');
+  var slRpm   = $('sl-rpm'),      stRpm   = $('st-rpm');
+  var slNose  = $('sl-nose'),     stNose  = $('st-nose');
+  var slEta   = $('sl-eta'),      stEta   = $('st-eta');
+  var stRate  = $('st-rate'),     stTcost = $('st-toolcost');
+
+  var rowTeeth = $('row-teeth'), rowWidth = $('row-width');
+  var rowSpeed = $('row-speed'), rowRpm   = $('row-rpm');
+  var rowNose  = $('row-nose'),  rowDoc   = $('row-doc');
+
+  var simPanel      = $('sim-panel');
+  var explorePanel  = $('explore-panel');
+  var practicePanel = $('practice-panel');
+  var quizPanel     = $('quiz-panel');
+
+  /* ══════════════════════════════════════════════════════════
+     3. STATE
+  ══════════════════════════════════════════════════════════ */
+  var mode      = 'simulate';
+  var opType    = 'turning';
+  var subOp     = 1;              /* Cylindrical is the honest default */
+  var driveMode = 'speed';        /* 'speed' -> RPM, or 'rpm' -> speed */
+  var imperial  = false;
+  var animAngle = 0;
+  var animId    = null;
+
+  var show = { grid: true, dims: true, force: true, chip: true, info: true, eq: true };
+
+  /* ══════════════════════════════════════════════════════════
+     4. DISPLAY UNITS
+     Every physical value is computed and stored in SI. Imperial is a
+     presentation layer only, so the two systems can never disagree.
+  ══════════════════════════════════════════════════════════ */
+  var CONV = {
+    len:   { f: 0.0393701, u: 'in',         d: 3, si: 'mm',        ds: 1 },
+    speed: { f: 3.2808399, u: 'SFM',        d: 0, si: 'm/min',     ds: 0 },
+    feed:  { f: 0.0393701, u: 'in/min',     d: 3, si: 'mm/min',    ds: 1 },
+    fpr:   { f: 0.0393701, u: 'in/rev',     d: 4, si: 'mm/rev',    ds: 3 },
+    fpt:   { f: 0.0393701, u: 'in/tooth',   d: 4, si: 'mm/tooth',  ds: 3 },
+    mrr:   { f: 0.0610237, u: 'in\u00B3/min', d: 3, si: 'cm\u00B3/min', ds: 2 },
+    power: { f: 1.3410221, u: 'hp',         d: 2, si: 'kW',        ds: 2 },
+    force: { f: 0.2248089, u: 'lbf',        d: 0, si: 'N',         ds: 0 },
+    torq:  { f: 0.7375621, u: 'lbf\u00B7ft', d: 2, si: 'N\u00B7m',  ds: 2 },
+    ra:    { f: 39.370079, u: '\u00B5in',   d: 0, si: '\u00B5m',   ds: 2 },
+    kc:    { f: 3.6628e-4, u: 'hp/in\u00B3/min', d: 2, si: 'N/mm\u00B2', ds: 0 }
+  };
+
+  /* Numeric value in the active system, as a fixed string. */
+  function dsp(val, key) {
+    var c = CONV[key];
+    if (!isFinite(val)) return '\u2014';
+    return imperial ? (val * c.f).toFixed(c.d) : val.toFixed(c.ds);
+  }
+  /* Unit label in the active system. Canvas and readout cards both go
+     through here, so an overlay can never carry a stale unit. */
+  function uLbl(key) { var c = CONV[key]; return imperial ? c.u : c.si; }
+  /* Value + unit, for canvas strings. */
+  function dspU(val, key) { return dsp(val, key) + ' ' + uLbl(key); }
+
+  function setU(id, key) { var e = $(id); if (e) e.textContent = uLbl(key); }
+  function setTxt(id, t) { var e = $(id); if (e) e.textContent = t; }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function round(v, d) { var f = Math.pow(10, d); return Math.round(v * f) / f; }
+  function fin(v, fallback) { return isFinite(v) ? v : (fallback === undefined ? 0 : fallback); }
+
+  /* ══════════════════════════════════════════════════════════
+     5. CALCULATION ENGINE
+
+     One function, three operations, twelve sub-operations. Every
+     sub-operation changes the model — none of them is decorative.
+  ══════════════════════════════════════════════════════════ */
+  function speedBand() {
+    var mat = MATERIALS[+matSel.value];
+    var band = mat[TOOLS[+toolSel.value].key];
+    var k = SUBOP_VC[opType][subOp];
+    return [band[0] * k, band[1] * k];
+  }
+
+  /* Kienzle: specific cutting force rises steeply as the chip gets thin.
+     A constant kc (the old model) understates power at fine feeds by up
+     to a factor of two. */
+  function kcOf(mat, h) {
+    if (!(h > 0)) return mat.kc11;
+    return mat.kc11 * Math.pow(h, -mat.mc);
+  }
+
+  /* Taylor tool life, calibrated against this tool's own speed band. */
+  function taylorLife(vc) {
+    var band = speedBand();
+    var vMid = (band[0] + band[1]) / 2;
+    var n = TOOLS[+toolSel.value].n;
+    var C = vMid * Math.pow(TREF, n);
+    if (!(vc > 0)) return Infinity;
+    return Math.pow(C / vc, 1 / n);
+  }
+
+  /* Theoretical peak-to-valley finish from the feed marks left by a
+     round-nosed tool: Ra (um) ~= f^2 * 1000 / (31.2 * r_eps). */
+  function raOf(feed, rEps) {
+    if (!(rEps > 0)) return NaN;
+    return feed * feed * 1000 / (31.2 * rEps);
+  }
+
+  function calculate() {
+    var mat  = MATERIALS[+matSel.value];
+    var D    = +slDia.value;
+    var L    = +slLen.value;
+    var ap   = +slDoc.value;
+    var f    = +slFeed.value;
+    var Z    = +slTeeth.value;
+    var ae   = Math.min(+slWidth.value, D);   /* a_e can never exceed the cutter */
+    var rEps = +slNose.value;
+    var eta  = clamp(+slEta.value / 100, 0.2, 1);
+    var rate = +stRate.value || 0;
+    var tcost = +stTcost.value || 0;
+
+    /* ── Speed / RPM, either direction ───────────────────────────── */
+    var V, N;
+    if (driveMode === 'rpm') {
+      N = +slRpm.value;
+      V = Math.PI * D * N / 1000;
+    } else {
+      V = +slSpeed.value;
+      N = 1000 * V / (Math.PI * D);
+    }
+
+    var r = {
+      op: opType, subOp: subOp, D: D, L: L, ap: ap, f: f, Z: Z, ae: ae,
+      rEps: rEps, eta: eta, rate: rate, tcost: tcost,
+      V: V, N: N, mat: mat,
+      vcMean: V,          /* mean cutting speed over the cut          */
+      hm: NaN,            /* mean undeformed chip thickness           */
+      kc: NaN, Fc: NaN, Mc: NaN, Ff: NaN,
+      mrr: 0, vf: 0, time: 0, Pc: 0, Pm: 0,
+      Lcut: L, phis: NaN, ctf: NaN, Ra: NaN,
+      note: ''
+    };
+
+    if (opType === 'turning') {
+      /* Lead angle 90 deg: chip thickness h = f, chip width b = a_p. */
+      var isRadial = (subOp === 0 || subOp === 3);   /* facing, parting */
+      r.vcMean = isRadial ? V / 2 : V;               /* mean of D..0    */
+
+      r.hm = f;
+      r.kc = kcOf(mat, r.hm);
+      r.Fc = r.kc * ap * f;
+      r.vf = f * N;
+      r.mrr = 1000 * ap * f * r.vcMean;              /* mm3/min         */
+      r.Lcut = isRadial ? D / 2 : L;
+      r.time = r.Lcut / (f * N);
+      r.Ra = raOf(f, rEps);
+      if (subOp === 2) r.note = 'Boring: keep the bar overhang under 4x its diameter or chatter, not power, sets the limit.';
+      if (subOp === 3) r.note = 'Parting: a_p is the blade width. Cutting speed falls to zero at centre \u2014 use constant surface speed if the lathe has it.';
+      if (subOp === 0) r.note = 'Facing: with fixed RPM the cutting speed falls from V at the rim to zero at centre; the values below use the mean.';
+
+    } else if (opType === 'milling') {
+      /* Radial engagement drives everything: the arc of contact sets the
+         mean chip thickness, which sets kc, which sets force and power. */
+      var ratio = clamp(2 * ae / D, 0, 2);
+      r.phis = Math.acos(clamp(1 - ratio, -1, 1)) * 180 / Math.PI;  /* deg */
+      if (r.phis > 0.01) {
+        r.hm = 360 * ae * f / (Math.PI * D * r.phis);
+      } else {
+        r.hm = 0;
+      }
+      /* Radial chip-thinning factor: multiply f_z by this to hold the
+         chip thickness of a full slot when engagement is light. */
+      r.ctf = (ae > 0 && ae < D) ? D / (2 * Math.sqrt(ae * (D - ae))) : 1;
+
+      r.kc = kcOf(mat, r.hm);
+      r.vf = f * Z * N;
+      r.mrr = ae * ap * r.vf;                        /* mm3/min         */
+      r.Fc = r.kc * ap * r.hm * Z * r.phis / 360;    /* mean tangential */
+
+      /* Approach: the cutter centre must travel until it is fully
+         engaged. Half a diameter once engagement passes the centreline,
+         sqrt(a_e (D - a_e)) below it. Face milling and slotting cross the
+         part completely, so both ends cost D/2. */
+      var app = (ae <= D / 2) ? Math.sqrt(ae * (D - ae)) : D / 2;
+      if (subOp === 0 || subOp === 2) r.Lcut = L + D;        /* face, slot */
+      else r.Lcut = L + 2 * app;                             /* end, peripheral */
+      r.time = r.Lcut / r.vf;
+      r.Ra = raOf(f, rEps);
+      if (subOp === 2) r.note = 'Slotting: a_e is locked to the cutter diameter and the chip is the thickest of any milling cut \u2014 reduce f_z or a_p if the tool squeals.';
+      else if (subOp === 0) r.note = 'Face milling: the cutter crosses the whole part, so approach and overtravel cost one full diameter. Wide a_e, shallow a_p.';
+      else if (r.ctf > 1.4) r.note = 'Light radial engagement thins the chip by ' + r.ctf.toFixed(2) + '\u00D7. Raise f_z to ' + (f * r.ctf).toFixed(3) + ' mm/tooth to keep the tool cutting instead of rubbing.';
+      else if (subOp === 3) r.note = 'Peripheral (side) milling uses the flank of the cutter: deep axially, light radially. The equations are the same as end milling \u2014 only which part of the cutter does the work differs.';
+      else r.note = 'End milling: a moderate radial engagement with the corner of the cutter. Same model as peripheral milling; the difference is orientation, not mechanics.';
+
+    } else {  /* drilling */
+      var kapR = KAPPA_DRILL * Math.PI / 180;
+
+      if (subOp === 2) {
+        /* Reaming: removes a thin annulus, several flutes, so the chip
+           per tooth is small and kc is correspondingly high. */
+        var Zr = 6;
+        r.hm = f / Zr;
+        r.kc = kcOf(mat, r.hm);
+        r.vf = f * N;
+        r.mrr = Math.PI * D * ap * f * N;            /* annulus, mm3/min */
+        r.Fc = r.kc * ap * f;
+        r.Lcut = L;
+        r.time = r.Lcut / r.vf;
+        r.Ra = raOf(f / Zr, rEps);
+        r.note = 'Reaming: a_p is the stock left on the radius (0.1\u20130.3 mm is typical). Feed 2\u20133x the drilling feed \u2014 a reamer that rubs will bell-mouth the hole.';
+
+      } else if (subOp === 3) {
+        /* Tapping: the feed is not free \u2014 it is the thread pitch.
+           The groove is a helix of area A = 0.2707 P^2 (ISO 60 deg
+           thread) running round the pitch circle, so the volume removed
+           per revolution is A * pi * D_p and MRR = A * pi * D_p * N. */
+        var P = f;
+        var Dp = D - 0.6495 * P;
+        var Agr = 0.2707 * P * P;
+        r.hm = 0.5413 * P / 4;                       /* 4 chamfer teeth  */
+        r.kc = kcOf(mat, r.hm);
+        r.vf = P * N;
+        r.mrr = Agr * Math.PI * Dp * N;
+        r.Lcut = L;
+        r.time = 2 * r.Lcut / r.vf;                  /* in, then back out */
+        r.Ra = NaN;
+        r.tapDp = Dp;
+        r.note = 'Tapping: feed is locked to the pitch. The torque shown is the cutting torque \u2014 total tap torque runs about ' + TAP_FRICTION + 'x higher once thread-flank friction is included.';
+
+      } else {
+        /* Through / blind drilling: two lips, each taking half the feed. */
+        r.hm = (f / 2) * Math.sin(kapR);
+        r.kc = kcOf(mat, r.hm);
+        r.vf = f * N;
+        r.mrr = Math.PI * D * D * f * N / 4;
+        /* Sandvik feed force: Ff = 0.5 kc (D/2) fn sin(kappa). */
+        r.Ff = 0.5 * r.kc * (D / 2) * f * Math.sin(kapR);
+        r.Fc = r.kc * D * f / 2;                     /* total tangential */
+        /* The drill point is a cone: it must clear the far face. */
+        r.pointLen = 0.3 * D;
+        r.Lcut = (subOp === 0) ? (L + r.pointLen + 2) : L;
+        r.time = r.Lcut / r.vf;
+        r.Ra = NaN;
+        r.note = (subOp === 0)
+          ? 'Through hole: the stroke adds the drill point (0.3D = ' + r.pointLen.toFixed(1) + ' mm) plus 2 mm breakthrough clearance.'
+          : 'Blind hole: depth is measured to the full-diameter shoulder; the point sits 0.3D = ' + r.pointLen.toFixed(1) + ' mm deeper.';
+      }
+    }
+
+    /* ── Power, torque, life, cost — common to every operation ──────
+       Net cutting power from the removal rate and the specific force.
+       This is algebraically identical to F_c * v_c / 60000, so the
+       force card and the power card can never contradict each other. */
+    r.Pc = r.mrr * r.kc / 6e7;                  /* kW at the cut        */
+    r.Pm = r.Pc / eta;                          /* kW at the motor      */
+    r.Mc = (N > 0) ? r.Pc * 30000 / (Math.PI * N) : NaN;
+    if (opType === 'drilling' && subOp === 3 && isFinite(r.Mc)) r.McTotal = r.Mc * TAP_FRICTION;
+
+    r.mrrCm3 = r.mrr / 1000;
+    r.life = taylorLife(r.V);
+    r.partsPerEdge = (r.time > 0) ? r.life / r.time : Infinity;
+    r.cost = (r.time / 60) * rate + (isFinite(r.partsPerEdge) && r.partsPerEdge > 0 ? tcost / r.partsPerEdge : 0);
+
+    /* Guards — no NaN or Infinity may reach a readout card. */
+    ['vf', 'mrr', 'mrrCm3', 'time', 'Pc', 'Pm', 'cost'].forEach(function (k) {
+      r[k] = fin(r[k]);
+    });
+    r.N = fin(r.N);
+    r.V = fin(r.V);
+
+    /* Warnings the operator would actually get told on the shop floor. */
+    r.warn = '';
+    var band = speedBand();
+    if (r.V > band[1] * 1.25) r.warn = 'Cutting speed is ' + Math.round(r.V / band[1] * 100) + '% of the top of the recommended band \u2014 tool life falls to ' + (isFinite(r.life) ? r.life.toFixed(1) : '?') + ' min.';
+    else if (r.V < band[0] * 0.6) r.warn = 'Cutting speed is well below the recommended band. Built-up edge and a poor finish are more likely than a broken tool.';
+    else if (r.Pm > 15) r.warn = 'This cut needs ' + r.Pm.toFixed(1) + ' kW at the motor \u2014 more than most workshop machines have.';
+    return r;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     6. READOUTS
+  ══════════════════════════════════════════════════════════ */
+  function cell(id, on) { var e = $(id); if (e) e.style.display = on ? '' : 'none'; }
+
+  function updateReadouts() {
+    var r = calculate();
+
+    setTxt('ro-rpm', Math.round(r.N).toString());
+    setTxt('ro-speed', dsp(r.V, 'speed'));
+    setTxt('ro-feedrate', dsp(r.vf, 'feed'));
+    setTxt('ro-mrr', dsp(r.mrrCm3, 'mrr'));
+    setTxt('ro-force', isFinite(r.Fc) ? dsp(r.Fc, 'force') : '\u2014');
+    setTxt('ro-torque', isFinite(r.Mc) ? dsp(r.Mc, 'torq') : '\u2014');
+    setTxt('ro-power', dsp(r.Pc, 'power'));
+    setTxt('ro-motor', dsp(r.Pm, 'power'));
+    setTxt('ro-time', r.time.toFixed(2));
+    setTxt('ro-life', isFinite(r.life) ? (r.life > 999 ? '999+' : r.life.toFixed(1)) : '\u2014');
+    setTxt('ro-ra', isFinite(r.Ra) ? dsp(r.Ra, 'ra') : '\u2014');
+    setTxt('ro-cost', '$' + r.cost.toFixed(2));
+    setTxt('ro-hm', isFinite(r.hm) ? r.hm.toFixed(4) : '\u2014');
+    setTxt('ro-kc', isFinite(r.kc) ? dsp(r.kc, 'kc') : '\u2014');
+
+    setU('u-ro-speed', 'speed');
+    setU('u-ro-feedunit', 'feed');
+    setU('u-ro-mrr', 'mrr');
+    setU('u-ro-force', 'force');
+    setU('u-ro-torque', 'torq');
+    setU('u-ro-power', 'power');
+    setU('u-ro-motor', 'power');
+    setU('u-ro-ra', 'ra');
+    setU('u-ro-kc', 'kc');
+    setTxt('u-ro-hm', imperial ? 'in' : 'mm');
+    if (imperial) setTxt('ro-hm', isFinite(r.hm) ? (r.hm * 0.0393701).toFixed(5) : '\u2014');
+
+    /* Never show a dash where a card does not apply \u2014 hide it. */
+    cell('cell-ra', isFinite(r.Ra));
+    cell('cell-hm', opType === 'milling' || opType === 'drilling');
+    cell('cell-force', isFinite(r.Fc));
+
+    /* Warning strip + sub-operation note */
+    var warnEl = $('sim-warn');
+    if (warnEl) {
+      if (r.warn) { warnEl.innerHTML = '<strong>Check this:</strong> ' + r.warn; warnEl.style.display = ''; }
+      else warnEl.style.display = 'none';
+    }
+    var noteEl = $('subop-note');
+    if (noteEl) {
+      if (r.note) { noteEl.textContent = r.note; noteEl.style.display = ''; }
+      else noteEl.style.display = 'none';
+    }
+
+    renderLearnPanels(r);
+    return r;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     7. CONTROL SYNC
+  ══════════════════════════════════════════════════════════ */
+  /* Slider tracks stay in SI; only the printed number and its unit
+     change, so dragging behaves identically in either system. */
+  function setStep(st, val, key, dec) {
+    if (document.activeElement === st) return;   /* never fight a typist */
+    if (key) st.value = imperial ? (val * CONV[key].f).toFixed(CONV[key].d) : val.toFixed(dec === undefined ? CONV[key].ds : dec);
+    else st.value = val;
+  }
+
+  function syncControls() {
+    var feedKey = (opType === 'milling') ? 'fpt' : 'fpr';
+    if (opType === 'drilling' && subOp === 3) feedKey = 'fpr';
+
+    setStep(stDia,   +slDia.value,   'len');
+    setStep(stLen,   +slLen.value,   'len');
+    setStep(stDoc,   +slDoc.value,   'len', 2);
+    setStep(stFeed,  +slFeed.value,  feedKey);
+    setStep(stWidth, +slWidth.value, 'len');
+    setStep(stSpeed, +slSpeed.value, 'speed');
+    setStep(stNose,  +slNose.value,  'len', 2);
+    if (document.activeElement !== stTeeth) stTeeth.value = slTeeth.value;
+    if (document.activeElement !== stRpm)   stRpm.value   = Math.round(+slRpm.value);
+    if (document.activeElement !== stEta)   stEta.value   = slEta.value;
+
+    setU('u-dia', 'len'); setU('u-len', 'len'); setU('u-doc', 'len');
+    setU('u-width', 'len'); setU('u-speed', 'speed'); setU('u-nose', 'len');
+    setU('u-feed', feedKey);
+
+    /* Labels that change meaning with the operation. */
+    var docLbl = 'Depth of Cut <em>a<sub>p</sub></em>', feedLbl = 'Feed <em>f</em>', lenLbl = 'Cutting Length <em>L</em>', diaLbl = 'Diameter <em>D</em>';
+    if (opType === 'turning') {
+      if (subOp === 3) { docLbl = 'Blade Width <em>w</em>'; lenLbl = 'Stock Length <em>L</em>'; }
+      if (subOp === 0) lenLbl = 'Stock Length <em>L</em>';
+      if (subOp === 2) diaLbl = 'Bore Diameter <em>D</em>';
+    } else if (opType === 'milling') {
+      feedLbl = 'Feed per Tooth <em>f<sub>z</sub></em>';
+      diaLbl = 'Cutter Diameter <em>D</em>';
+    } else {
+      diaLbl = 'Drill Diameter <em>D</em>';
+      lenLbl = (subOp === 0) ? 'Plate Thickness <em>t</em>' : 'Hole Depth <em>h</em>';
+      if (subOp === 2) { docLbl = 'Radial Allowance <em>a<sub>p</sub></em>'; diaLbl = 'Reamer Diameter <em>D</em>'; }
+      if (subOp === 3) { feedLbl = 'Thread Pitch <em>P</em>'; diaLbl = 'Tap Size <em>D</em>'; }
+    }
+    var e;
+    if ((e = $('lbl-doc')))  e.innerHTML = docLbl;
+    if ((e = $('lbl-feed'))) e.innerHTML = feedLbl;
+    if ((e = $('lbl-len')))  e.innerHTML = lenLbl;
+    if ((e = $('lbl-dia')))  e.innerHTML = diaLbl;
+
+    /* a_e can never exceed the cutter, and a slot is defined by a_e = D. */
+    if (opType === 'milling') {
+      slWidth.max = slDia.value;
+      if (subOp === 2) { slWidth.value = slDia.value; slWidth.disabled = true; }
+      else slWidth.disabled = false;
+      if (+slWidth.value > +slDia.value) slWidth.value = slDia.value;
+    }
+    /* Tapping locks the feed to the pitch, so the feed slider IS pitch. */
+    cell('row-doc', !(opType === 'drilling' && subOp === 3));
+    rowNose.style.display = isFinite(raOf(1, +slNose.value)) && (opType !== 'drilling' || subOp === 2) ? '' : 'none';
+  }
+
+  function onInput() { syncControls(); updateReadouts(); draw(); }
+
+  /* Slider <-> stepper pairs. The stepper commits on input and on blur;
+     it never rolls a half-typed value back. */
+  function pair(sl, st, key, dec) {
+    if (!sl || !st) return;
+    sl.addEventListener('input', onInput);
+    function commit() {
+      var v = parseFloat(st.value);
+      if (isNaN(v)) return;
+      if (key && imperial) v = v / CONV[key].f;
+      sl.value = clamp(v, +sl.min, +sl.max);
+      onInput();
+    }
+    st.addEventListener('change', commit);
+    st.addEventListener('blur', commit);
+    st.addEventListener('keydown', function (e) { if (e.key === 'Enter') { commit(); st.blur(); } });
+  }
+  pair(slDia, stDia, 'len');   pair(slLen, stLen, 'len');
+  pair(slDoc, stDoc, 'len');   pair(slWidth, stWidth, 'len');
+  pair(slSpeed, stSpeed, 'speed'); pair(slNose, stNose, 'len');
+  pair(slTeeth, stTeeth, null); pair(slEta, stEta, null);
+  pair(slRpm, stRpm, null);
+  (function () {
+    slFeed.addEventListener('input', onInput);
+    function commit() {
+      var v = parseFloat(stFeed.value);
+      if (isNaN(v)) return;
+      var key = (opType === 'milling') ? 'fpt' : 'fpr';
+      if (imperial) v = v / CONV[key].f;
+      slFeed.value = clamp(v, +slFeed.min, +slFeed.max);
+      onInput();
+    }
+    stFeed.addEventListener('change', commit);
+    stFeed.addEventListener('blur', commit);
+    stFeed.addEventListener('keydown', function (e) { if (e.key === 'Enter') { commit(); stFeed.blur(); } });
+  })();
+  [stRate, stTcost].forEach(function (el) {
+    if (el) el.addEventListener('input', function () { updateReadouts(); draw(); });
+  });
+
+  /* ── Recommended speed for the current material / tool / sub-op ── */
+  function applyRecommendedSpeed() {
+    var band = speedBand();
+    var mid = (band[0] + band[1]) / 2;
+    slSpeed.min = Math.max(1, round(band[0] * 0.5, 0));
+    slSpeed.max = round(band[1] * 1.6, 0);
+    slSpeed.value = round(mid, 0);
+    slRpm.value = clamp(1000 * mid / (Math.PI * (+slDia.value)), +slRpm.min, +slRpm.max);
+    setTxt('band-hint', 'Recommended ' + band[0].toFixed(0) + '\u2013' + band[1].toFixed(0) + ' m/min');
+  }
+
+  matSel.addEventListener('change', function () { applyRecommendedSpeed(); onInput(); });
+  toolSel.addEventListener('change', function () { applyRecommendedSpeed(); onInput(); });
+  var recBtn = $('btn-recommend');
+  if (recBtn) recBtn.addEventListener('click', function () { applyRecommendedSpeed(); onInput(); });
+
+  /* ── Drive mode: solve for RPM, or solve for cutting speed ─────── */
+  if (driveTabs) {
+    driveTabs.addEventListener('click', function (e) {
+      var b = e.target.closest('.pill'); if (!b) return;
+      var want = b.dataset.value;
+      if (want === driveMode) return;
+      /* Seed the target from what is on screen so flipping the mode
+         never jumps the cut. */
+      var D = +slDia.value;
+      if (want === 'rpm') slRpm.value = clamp(1000 * (+slSpeed.value) / (Math.PI * D), +slRpm.min, +slRpm.max);
+      else slSpeed.value = clamp(Math.PI * D * (+slRpm.value) / 1000, +slSpeed.min, +slSpeed.max);
+      driveMode = want;
+      driveTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === b); });
+      rowSpeed.style.display = (driveMode === 'speed') ? '' : 'none';
+      rowRpm.style.display   = (driveMode === 'rpm')   ? '' : 'none';
+      onInput();
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     8. OPERATION / SUB-OPERATION
+  ══════════════════════════════════════════════════════════ */
+  function buildSubOps() {
+    var ops = SUB_OPS[opType];
+    subopTabs.innerHTML = '';
+    ops.forEach(function (name, i) {
+      var btn = document.createElement('button');
+      btn.className = 'pill' + (i === subOp ? ' active' : '');
+      btn.dataset.value = i;
+      btn.type = 'button';
+      btn.textContent = name;
+      subopTabs.appendChild(btn);
+    });
+  }
+
+  function updateUIForOp() {
+    var isMill = (opType === 'milling');
+    rowTeeth.style.display = isMill ? '' : 'none';
+    rowWidth.style.display = isMill ? '' : 'none';
+
+    if (opType === 'turning') {
+      slFeed.min = 0.02; slFeed.max = 1.2; slFeed.step = 0.01;
+      slFeed.value = (subOp === 3) ? 0.08 : 0.2;
+      slDoc.min = 0.1; slDoc.max = 12; slDoc.step = 0.1;
+      slDoc.value = (subOp === 3) ? 3 : 2;
+      slDia.min = 5; slDia.max = 500;
+    } else if (isMill) {
+      slFeed.min = 0.01; slFeed.max = 0.6; slFeed.step = 0.005;
+      slFeed.value = 0.1;
+      slDoc.min = 0.1; slDoc.max = 12; slDoc.step = 0.1;
+      slDoc.value = 2;
+      slDia.min = 2; slDia.max = 250;
+      if (subOp === 2) slWidth.value = slDia.value;                                   /* slot: a_e = D  */
+      else if (subOp === 0) slWidth.value = Math.min(+slDia.value, Math.round(+slDia.value * 0.75));
+      else if (subOp === 3) { slWidth.value = Math.max(0.4, round(+slDia.value * 0.12, 1)); slDoc.value = Math.min(+slDoc.max, round(+slDia.value * 0.8, 1)); }
+      else slWidth.value = Math.max(1, Math.round(+slDia.value * 0.35));
+    } else {
+      slDia.min = 1; slDia.max = 60;
+      /* A drill carried over from a 50 mm turning job is not a drill.
+         Anything above 32 mm falls back to a sensible twist-drill size. */
+      if (+slDia.value > 32) slDia.value = 12;
+      if (subOp === 3) {                      /* tapping: feed = pitch */
+        slFeed.min = 0.25; slFeed.max = 3.5; slFeed.step = 0.05;
+        slFeed.value = 1.25;
+      } else if (subOp === 2) {               /* reaming */
+        slFeed.min = 0.1; slFeed.max = 1.5; slFeed.step = 0.01;
+        slFeed.value = 0.4;
+        slDoc.min = 0.05; slDoc.max = 0.6; slDoc.step = 0.01;
+        slDoc.value = 0.15;
+      } else {
+        slFeed.min = 0.02; slFeed.max = 0.6; slFeed.step = 0.01;
+        slFeed.value = 0.15;
+      }
+    }
+    applyRecommendedSpeed();
+    syncControls();
+    updateReadouts();
+  }
+
+  opTabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.pill'); if (!b) return;
+    opType = b.dataset.value;
+    subOp = (opType === 'turning') ? 1 : 0;
+    opTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === b); });
+    buildSubOps();
+    updateUIForOp();
+    draw();
+  });
+
+  subopTabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.pill'); if (!b) return;
+    subOp = +b.dataset.value;
+    subopTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === b); });
+    updateUIForOp();
+    draw();
+  });
+
+  /* ══════════════════════════════════════════════════════════
+     9. PRESETS
+  ══════════════════════════════════════════════════════════ */
+  var PRESETS = {
+    'rough-steel':   { op: 'turning',  sub: 1, mat: 0,  tool: 1, D: 80,  L: 150, ap: 4,    f: 0.35, V: 180 },
+    'finish-steel':  { op: 'turning',  sub: 1, mat: 0,  tool: 1, D: 60,  L: 120, ap: 0.5,  f: 0.12, V: 220, nose: 0.4 },
+    'part-off':      { op: 'turning',  sub: 3, mat: 0,  tool: 1, D: 40,  L: 60,  ap: 3,    f: 0.08, V: 110 },
+    'bore-stainless':{ op: 'turning',  sub: 2, mat: 4,  tool: 1, D: 45,  L: 90,  ap: 1.2,  f: 0.15, V: 76 },
+    'face-iron':     { op: 'milling',  sub: 0, mat: 5,  tool: 1, D: 80,  L: 200, ap: 3,    f: 0.2,  V: 105, Z: 6, ae: 60 },
+    'hsm-alu':       { op: 'milling',  sub: 3, mat: 7,  tool: 1, D: 12,  L: 150, ap: 12,   f: 0.06, V: 425, Z: 3, ae: 1.5 },
+    'slot-mild':     { op: 'milling',  sub: 2, mat: 0,  tool: 1, D: 16,  L: 100, ap: 4,    f: 0.06, V: 120, Z: 4 },
+    'ti-finish':     { op: 'milling',  sub: 1, mat: 11, tool: 1, D: 10,  L: 80,  ap: 6,    f: 0.05, V: 45,  Z: 4, ae: 2 },
+    'drill-steel':   { op: 'drilling', sub: 0, mat: 0,  tool: 1, D: 12,  L: 40,  ap: 2,    f: 0.2,  V: 110 },
+    'tap-m8':        { op: 'drilling', sub: 3, mat: 0,  tool: 0, D: 8,   L: 20,  ap: 2,    f: 1.25, V: 8 },
+    'ream-h7':       { op: 'drilling', sub: 2, mat: 0,  tool: 0, D: 10,  L: 30,  ap: 0.15, f: 0.4,  V: 16 }
+  };
+
+  if (presetSel) {
+    presetSel.addEventListener('change', function () {
+      var p = PRESETS[presetSel.value];
+      if (!p) return;
+      opType = p.op; subOp = p.sub;
+      opTabs.querySelectorAll('.pill').forEach(function (b) { b.classList.toggle('active', b.dataset.value === opType); });
+      buildSubOps();
+      matSel.value = p.mat; toolSel.value = p.tool;
+      updateUIForOp();
+      slDia.value = p.D; slLen.value = p.L; slDoc.value = p.ap; slFeed.value = p.f;
+      if (p.Z !== undefined) slTeeth.value = p.Z;
+      if (p.ae !== undefined) slWidth.value = p.ae;
+      if (p.nose !== undefined) slNose.value = p.nose;
+      slSpeed.min = Math.min(+slSpeed.min, p.V);
+      slSpeed.max = Math.max(+slSpeed.max, p.V);
+      slSpeed.value = p.V;
+      driveMode = 'speed';
+      if (driveTabs) {
+        driveTabs.querySelectorAll('.pill').forEach(function (b) { b.classList.toggle('active', b.dataset.value === 'speed'); });
+        rowSpeed.style.display = ''; rowRpm.style.display = 'none';
+      }
+      onInput();
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     10. CANVAS
+  ══════════════════════════════════════════════════════════ */
+  var MCW = 920, MCH = 400;
+  var lastCssW = 0, lastDpr = 0;
+
+  function resizeCanvas() {
+    var rect = canvas.parentElement.getBoundingClientRect();
+    var w = Math.max(240, Math.floor(rect.width - 20));
+    var h = Math.round(w * (w < 560 ? 0.62 : 0.43));
+    var dpr = window.devicePixelRatio || 1;
+    MCW = w; MCH = h;
+    /* Idempotent: writing the same size back would make a ResizeObserver
+       watch its own output. */
+    if (w !== lastCssW || dpr !== lastDpr) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.height = h + 'px';
+      lastCssW = w; lastDpr = dpr;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  var C_ACC = '#76ff03', C_DIM = '#6b7a99', C_BG = '#1a1f2e', C_WORK = '#2a3050';
+
+  function draw() {
+    resizeCanvas();
+    var w = MCW, h = MCH;
+    var r = calculate();
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, w, h);
+
+    if (show.grid) {
+      ctx.strokeStyle = 'rgba(42,48,80,0.4)';
+      ctx.lineWidth = 1;
+      for (var gx = 0; gx < w; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke(); }
+      for (var gy = 0; gy < h; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke(); }
+    }
+
+    if (opType === 'turning') drawTurning(w, h, r);
+    else if (opType === 'milling') drawMilling(w, h, r);
+    else drawDrilling(w, h, r);
+
+    if (show.eq) drawEquation(w, h, r);
+    if (show.info) drawInfo(w, h, r);
+  }
+
+  /* Info overlay sized from the text it holds, and pinned inside the
+     canvas at every width — the old fixed 192px box ran off a phone. */
+  function drawInfo(w, h, r) {
+    var lines = [
+      'RPM   ' + Math.round(r.N),
+      'Feed  ' + dspU(r.vf, 'feed'),
+      'MRR   ' + dspU(r.mrrCm3, 'mrr'),
+      'Power ' + dspU(r.Pm, 'power'),
+      'Time  ' + r.time.toFixed(2) + ' min'
+    ];
+    ctx.font = (w < 560 ? '9px ' : '11px ') + 'monospace';
+    var pad = 8, lh = w < 560 ? 12 : 16;
+    var tw = 0;
+    lines.forEach(function (t) { tw = Math.max(tw, ctx.measureText(t).width); });
+    var bw = Math.min(tw + pad * 2, w - 16);
+    var bh = lines.length * lh + pad;
+    var bx = w - bw - 8, by = 8;
+
+    ctx.fillStyle = 'rgba(13,17,23,0.82)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = C_ACC; ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillStyle = C_ACC;
+    ctx.textAlign = 'left';
+    lines.forEach(function (t, i) { ctx.fillText(t, bx + pad, by + pad + (i + 1) * lh - 5); });
+  }
+
+  /* The defining equation, with the live value rolled in. Unicode here,
+     never LaTeX — canvas has no math renderer. */
+  function drawEquation(w, h, r) {
+    var txt, val;
+    if (driveMode === 'rpm') {
+      txt = 'V = \u03C0 \u00D7 D \u00D7 N / 1000  =  ';
+      val = dspU(r.V, 'speed');
+    } else {
+      txt = 'N = 1000 \u00D7 V / (\u03C0 \u00D7 D)  =  ';
+      val = Math.round(r.N) + ' rev/min';
+    }
+    var fs = w < 560 ? 11 : 14;
+    ctx.font = 'italic ' + fs + 'px Georgia, serif';
+    var tw = ctx.measureText(txt).width;
+    ctx.font = 'bold ' + fs + 'px Georgia, serif';
+    var vw = ctx.measureText(val).width;
+    var x = Math.max(8, (w - tw - vw) / 2), y = h - 8;
+
+    ctx.textAlign = 'left';
+    ctx.font = 'italic ' + fs + 'px Georgia, serif';
+    ctx.fillStyle = C_DIM;
+    ctx.fillText(txt, x, y);
+    ctx.font = 'bold ' + fs + 'px Georgia, serif';
+    ctx.fillStyle = C_ACC;
+    ctx.fillText(val, x + tw, y);
+  }
+
+  function arrow(x1, y1, x2, y2, col, dash) {
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+    if (dash) ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.setLineDash([]);
+    var a = Math.atan2(y2 - y1, x2 - x1);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - 9 * Math.cos(a - 0.4), y2 - 9 * Math.sin(a - 0.4));
+    ctx.lineTo(x2 - 9 * Math.cos(a + 0.4), y2 - 9 * Math.sin(a + 0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function drawTurning(w, h, r) {
+    var cx = w * 0.42, cy = h * 0.46;
+    var workR = Math.min(h * 0.28, w * 0.15);
+    var isFacing = (subOp === 0), isBoring = (subOp === 2), isParting = (subOp === 3);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    /* rotation trail */
+    ctx.strokeStyle = 'rgba(118,255,3,0.30)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, workR + 14, -0.5, animAngle % (Math.PI * 2), false); ctx.stroke();
+
+    ctx.fillStyle = C_WORK; ctx.strokeStyle = C_ACC; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, workR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    if (isBoring) {
+      /* Boring cuts from the inside: show the bore growing. */
+      var boreR = workR * 0.45;
+      ctx.fillStyle = '#0d1117';
+      ctx.strokeStyle = 'rgba(118,255,3,0.6)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, boreR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    } else {
+      var cutR = workR - Math.min(workR * 0.5, r.ap * (workR / 60) * 3);
+      if (cutR > 4) {
+        ctx.fillStyle = C_BG; ctx.strokeStyle = 'rgba(118,255,3,0.5)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(0, 0, cutR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+    }
+
+    ctx.fillStyle = C_ACC;
+    ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+
+    /* spindle-direction arrowhead */
+    var aa = animAngle % (Math.PI * 2), ar = workR + 20;
+    ctx.strokeStyle = C_ACC; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, ar, aa - 0.8, aa, false); ctx.stroke();
+    var ax = ar * Math.cos(aa), ay = ar * Math.sin(aa);
+    ctx.fillStyle = C_ACC;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 8 * Math.cos(aa - 0.5), ay - 8 * Math.sin(aa - 0.5));
+    ctx.lineTo(ax - 8 * Math.cos(aa + 0.5), ay - 8 * Math.sin(aa + 0.5));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    /* Tool: parting and facing feed radially, cylindrical feeds axially,
+       boring works from inside the bore. */
+    var tX, tY;
+    if (isBoring) {
+      tX = cx + workR * 0.30; tY = cy - 4;
+      ctx.fillStyle = 'rgba(118,255,3,0.65)';
+      ctx.fillRect(tX + 6, tY - 5, w * 0.22, 10);
+      ctx.fillStyle = C_ACC;
+      ctx.beginPath();
+      ctx.moveTo(tX, tY + 4); ctx.lineTo(tX + 12, tY - 9); ctx.lineTo(tX + 20, tY - 5); ctx.lineTo(tX + 14, tY + 6);
+      ctx.closePath(); ctx.fill();
+    } else if (isParting || isFacing) {
+      var toolTopY = cy - workR - 34;
+      var bladeW = isParting ? Math.max(4, r.ap * 1.6) : 12;
+      ctx.fillStyle = C_ACC;
+      ctx.fillRect(cx - bladeW / 2, toolTopY, bladeW, 26);
+      ctx.fillStyle = 'rgba(118,255,3,0.55)';
+      ctx.fillRect(cx - bladeW / 2 - 3, toolTopY - 34, bladeW + 6, 34);
+      tX = cx; tY = toolTopY + 26;
+      arrow(cx + 34, cy - workR - 46, cx + 34, cy - workR + 4, C_ACC, true);
+      ctx.fillStyle = C_DIM; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('Feed (radial)', cx + 42, cy - workR - 18);
+    } else {
+      tX = cx + workR + 8; tY = cy - 4;
+      ctx.fillStyle = C_ACC;
+      ctx.beginPath();
+      ctx.moveTo(tX, tY); ctx.lineTo(tX + 26, tY - 11); ctx.lineTo(tX + 52, tY - 11);
+      ctx.lineTo(tX + 52, tY + 11); ctx.lineTo(tX + 26, tY + 11);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(118,255,3,0.6)';
+      ctx.fillRect(tX + 44, tY - 8, Math.min(58, w * 0.1), 16);
+      arrow(tX + 76, tY + 30, tX + 18, tY + 30, C_ACC, true);
+      ctx.fillStyle = C_DIM; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Feed \u2192', tX + 46, tY + 46);
+    }
+
+    if (show.chip && !isBoring) {
+      ctx.strokeStyle = 'rgba(118,255,3,0.55)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      var curl = (animAngle * 2) % 6;
+      if (isParting || isFacing) {
+        ctx.moveTo(tX + 6, tY - 2);
+        ctx.bezierCurveTo(tX + 28, tY - 8 - curl, tX + 34, tY + 14, tX + 18, tY + 22 + curl);
+      } else {
+        ctx.moveTo(tX - 2, tY - 5);
+        ctx.bezierCurveTo(tX + 5, tY - 25 - curl, tX - 15, tY - 35, tX - 25, tY - 20 - curl);
+      }
+      ctx.stroke();
+    }
+
+    if (show.force && isFinite(r.Fc)) drawForceLabel(w, h, r, tX, tY);
+
+    ctx.fillStyle = C_DIM; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    if (show.dims) {
+      ctx.fillText('D = ' + dspU(r.D, 'len'), cx, cy + workR + 30);
+      ctx.strokeStyle = C_DIM; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+      ctx.beginPath(); ctx.moveTo(cx, cy - workR - 5); ctx.lineTo(cx, cy + workR + 5); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.fillStyle = C_ACC; ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(SUB_OPS.turning[subOp] + ' \u2014 travel ' + dspU(r.Lcut, 'len'), cx, 20);
+  }
+
+  function drawMilling(w, h, r) {
+    var cx = w * 0.46, cy = h * 0.52;
+    var cutterR = Math.min(h * 0.20, w * 0.10);
+    var wpW = w * 0.46, wpH = h * 0.34;
+    var wpX = cx - wpW / 2, wpY = cy - wpH / 2 + 18;
+
+    ctx.fillStyle = C_WORK; ctx.strokeStyle = C_DIM; ctx.lineWidth = 1;
+    ctx.fillRect(wpX, wpY, wpW, wpH);
+    ctx.strokeRect(wpX, wpY, wpW, wpH);
+
+    /* The swept band is drawn to the same a_e / D ratio the model uses. */
+    var band = (r.ae / r.D) * (cutterR * 2);
+    ctx.fillStyle = 'rgba(118,255,3,0.12)';
+    ctx.fillRect(cx - cutterR, wpY, Math.max(2, band), wpH);
+
+    ctx.save();
+    ctx.translate(cx - cutterR + band / 2, wpY - 2);
+    ctx.fillStyle = 'rgba(118,255,3,0.15)'; ctx.strokeStyle = C_ACC; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, cutterR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    var Z = +slTeeth.value;
+    for (var i = 0; i < Z; i++) {
+      var an = (Math.PI * 2 * i / Z) + animAngle;
+      ctx.strokeStyle = C_ACC; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo((cutterR - 7) * Math.cos(an), (cutterR - 7) * Math.sin(an));
+      ctx.lineTo((cutterR + 5) * Math.cos(an), (cutterR + 5) * Math.sin(an));
+      ctx.stroke();
+    }
+    ctx.fillStyle = C_ACC;
+    ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    var ay2 = wpY + wpH + 26;
+    arrow(cx - 58, ay2, cx + 58, ay2, C_ACC, true);
+    ctx.fillStyle = C_DIM; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Table feed ' + dspU(r.vf, 'feed'), cx, ay2 + 16);
+
+    if (show.dims) {
+      ctx.fillStyle = C_DIM;
+      ctx.fillText('D = ' + dspU(r.D, 'len'), cx, wpY - cutterR - 12);
+      ctx.fillStyle = 'rgba(118,255,3,0.85)'; ctx.font = '10px sans-serif';
+      ctx.fillText('a\u2091 = ' + dspU(r.ae, 'len') + '   \u03C6\u209B = ' + (isFinite(r.phis) ? r.phis.toFixed(0) : '\u2014') + '\u00B0', cx, wpY + wpH * 0.55);
+      ctx.fillText('h\u2098 = ' + (isFinite(r.hm) ? (imperial ? (r.hm * CONV.len.f).toFixed(5) : r.hm.toFixed(4)) : '\u2014') + ' ' + uLbl('len'), cx, wpY + wpH * 0.55 + 14);
+    }
+    if (show.force && isFinite(r.Fc)) drawForceLabel(w, h, r, cx - cutterR + band / 2, wpY - 2);
+
+    ctx.fillStyle = C_ACC; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(SUB_OPS.milling[subOp] + ' milling \u2014 travel ' + dspU(r.Lcut, 'len'), cx, 20);
+  }
+
+  function drawDrilling(w, h, r) {
+    var cx = w * 0.46, cy = h * 0.52;
+    var drillW = Math.min(w * 0.07, 34);
+    var wpW = w * 0.38, wpH = h * 0.46;
+    var wpX = cx - wpW / 2, wpY = cy - wpH / 2 + 14;
+    var isTap = (subOp === 3), isReam = (subOp === 2), isBlind = (subOp === 1);
+
+    ctx.fillStyle = C_WORK; ctx.strokeStyle = C_DIM; ctx.lineWidth = 1;
+    ctx.fillRect(wpX, wpY, wpW, wpH);
+    ctx.strokeRect(wpX, wpY, wpW, wpH);
+
+    var maxDepth = isBlind ? wpH * 0.62 : wpH;
+    var depth = Math.min(maxDepth, maxDepth * ((animAngle % 3) / 3) + maxDepth * 0.15);
+
+    /* Pilot hole for reaming and tapping — neither starts from solid. */
+    if (isTap || isReam) {
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(cx - drillW * 0.42, wpY, drillW * 0.84, maxDepth);
+    }
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(cx - drillW / 2, wpY, drillW, depth);
+
+    var top = wpY - 34, tip = wpY + depth;
+    ctx.fillStyle = 'rgba(118,255,3,0.6)';
+    ctx.fillRect(cx - drillW / 2 + 2, top - 38, drillW - 4, 38);
+
+    if (isTap) {
+      /* A tap has straight flutes and a chamfer, not a drill point. */
+      ctx.fillStyle = C_ACC;
+      ctx.fillRect(cx - drillW / 2, top, drillW, tip - top - 6);
+      ctx.strokeStyle = 'rgba(13,17,23,0.65)'; ctx.lineWidth = 1.4;
+      for (var ty = top + 4; ty < tip - 8; ty += 6) {
+        ctx.beginPath(); ctx.moveTo(cx - drillW / 2, ty); ctx.lineTo(cx + drillW / 2, ty + 3); ctx.stroke();
+      }
+      ctx.fillStyle = C_ACC;
+      ctx.beginPath();
+      ctx.moveTo(cx - drillW / 2, tip - 6); ctx.lineTo(cx - drillW * 0.22, tip);
+      ctx.lineTo(cx + drillW * 0.22, tip); ctx.lineTo(cx + drillW / 2, tip - 6);
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = C_ACC;
+      ctx.fillRect(cx - drillW / 2, top, drillW, tip - top - (isReam ? 3 : 8));
+      ctx.strokeStyle = 'rgba(13,17,23,0.5)'; ctx.lineWidth = 1.5;
+      for (var fy = top; fy < tip - 10; fy += 8) {
+        var off = ((fy + animAngle * 10) % 16) - 8;
+        ctx.beginPath();
+        ctx.moveTo(cx - drillW / 2, fy); ctx.lineTo(cx + off, fy + 4); ctx.lineTo(cx + drillW / 2, fy + 8);
+        ctx.stroke();
+      }
+      ctx.fillStyle = C_ACC;
+      ctx.beginPath();
+      if (isReam) {
+        ctx.moveTo(cx - drillW / 2, tip - 3); ctx.lineTo(cx - drillW * 0.34, tip);
+        ctx.lineTo(cx + drillW * 0.34, tip); ctx.lineTo(cx + drillW / 2, tip - 3);
+      } else {
+        ctx.moveTo(cx - drillW / 2, tip - 8); ctx.lineTo(cx, tip); ctx.lineTo(cx + drillW / 2, tip - 8);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+
+    if (show.chip && !isTap) {
+      ctx.fillStyle = 'rgba(118,255,3,0.45)';
+      for (var ci = 0; ci < 6; ci++) {
+        var chx = cx + Math.sin(animAngle * 3 + ci * 1.5) * drillW * 1.25;
+        var chy = wpY - 6 - ((ci * 11 + animAngle * 16) % 44);
+        ctx.beginPath(); ctx.arc(chx, chy, 2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    arrow(cx + drillW + 18, top - 18, cx + drillW + 18, tip, C_ACC, true);
+    ctx.fillStyle = C_DIM; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(isTap ? 'Feed = pitch' : 'Feed \u2193', cx + drillW + 26, (top + tip) / 2);
+
+    if (show.dims) {
+      ctx.textAlign = 'center'; ctx.fillStyle = C_DIM;
+      ctx.fillText('D = ' + dspU(r.D, 'len'), cx, wpY + wpH + 18);
+      /* The point length only exists on a real drill. */
+      if (!isTap && !isReam && isFinite(r.pointLen)) {
+        ctx.fillStyle = 'rgba(118,255,3,0.85)'; ctx.font = '10px sans-serif';
+        ctx.fillText('point 0.3D = ' + dspU(r.pointLen, 'len'), cx, wpY + wpH + 32);
+      }
+    }
+    if (show.force && isFinite(r.Ff)) {
+      ctx.fillStyle = '#f5c842'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('Thrust F\u1DA0 = ' + dspU(r.Ff, 'force'), 12, h - 30);
+    }
+    if (show.force && isFinite(r.Mc)) {
+      ctx.fillStyle = '#f5c842'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('Torque M\u1D9C = ' + dspU(r.Mc, 'torq'), 12, h - 46);
+    }
+
+    ctx.fillStyle = C_ACC; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(SUB_OPS.drilling[subOp] + ' \u2014 stroke ' + dspU(r.Lcut, 'len'), cx, 20);
+  }
+
+  function drawForceLabel(w, h, r, x, y) {
+    ctx.fillStyle = '#f5c842'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('F\u1D9C = ' + dspU(r.Fc, 'force'), 12, h - 46);
+    if (isFinite(r.Mc)) ctx.fillText('M\u1D9C = ' + dspU(r.Mc, 'torq'), 12, h - 30);
+    /* A short vector on the tool tip, so force is not just a number. */
+    var len = clamp(r.Fc / 60, 10, 46);
+    arrow(x, y, x, y + len, '#f5c842', false);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     11. ANIMATION
+  ══════════════════════════════════════════════════════════ */
+  function animate() { animAngle += 0.03; draw(); animId = requestAnimationFrame(animate); }
+  function startAnim() { if (!animId) animId = requestAnimationFrame(animate); }
+  function stopAnim() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { resizeCanvas(); if (!animId) draw(); }).observe(canvas.parentElement);
+  }
+  window.addEventListener('resize', function () { resizeCanvas(); if (!animId) draw(); });
+
+  /* ══════════════════════════════════════════════════════════
+     12. DISPLAY CONTROLS
+  ══════════════════════════════════════════════════════════ */
+  [['chk-grid', 'grid'], ['chk-dims', 'dims'], ['chk-force', 'force'],
+   ['chk-chip', 'chip'], ['chk-info', 'info'], ['chk-eq', 'eq']].forEach(function (p) {
+    var el = $(p[0]);
+    if (!el) return;
+    el.checked = show[p[1]];
+    el.addEventListener('change', function () { show[p[1]] = el.checked; draw(); });
+  });
+  var cvtReset = $('cvt-reset');
+  if (cvtReset) cvtReset.addEventListener('click', function () {
+    Object.keys(show).forEach(function (k) { show[k] = true; });
+    [['chk-grid', 'grid'], ['chk-dims', 'dims'], ['chk-force', 'force'],
+     ['chk-chip', 'chip'], ['chk-info', 'info'], ['chk-eq', 'eq']].forEach(function (p) {
+      var el = $(p[0]); if (el) el.checked = true;
+    });
+    draw();
+  });
+
+  /* ══════════════════════════════════════════════════════════
+     13. EXPORT + CONTEXT MENU
+  ══════════════════════════════════════════════════════════ */
+  function exportCSV() {
+    var r = calculate();
+    var u = imperial ? 'Imperial' : 'Metric';
+    var rows = [
+      ['MechSimulator \u2014 Speeds and Feeds Calculator'],
+      ['Unit system', u],
+      ['Operation', opType + ' / ' + SUB_OPS[opType][subOp]],
+      ['Material', r.mat.name],
+      ['Tool material', TOOLS[+toolSel.value].name],
+      [],
+      ['Input', 'Value', 'Unit'],
+      ['Diameter D', dsp(r.D, 'len'), uLbl('len')],
+      ['Cutting length L', dsp(r.L, 'len'), uLbl('len')],
+      ['Depth of cut a_p', dsp(r.ap, 'len'), uLbl('len')],
+      ['Feed', dsp(r.f, opType === 'milling' ? 'fpt' : 'fpr'), uLbl(opType === 'milling' ? 'fpt' : 'fpr')],
+      ['Teeth Z', r.Z, ''],
+      ['Width of cut a_e', dsp(r.ae, 'len'), uLbl('len')],
+      ['Nose radius', dsp(r.rEps, 'len'), uLbl('len')],
+      ['Efficiency eta', (r.eta * 100).toFixed(0), '%'],
+      [],
+      ['Result', 'Value', 'Unit'],
+      ['Spindle speed N', Math.round(r.N), 'rev/min'],
+      ['Cutting speed V', dsp(r.V, 'speed'), uLbl('speed')],
+      ['Feed rate', dsp(r.vf, 'feed'), uLbl('feed')],
+      ['Mean chip thickness h_m', isFinite(r.hm) ? r.hm.toFixed(4) : '', 'mm'],
+      ['Specific cutting force k_c', dsp(r.kc, 'kc'), uLbl('kc')],
+      ['Cutting force F_c', isFinite(r.Fc) ? dsp(r.Fc, 'force') : '', uLbl('force')],
+      ['Spindle torque M_c', isFinite(r.Mc) ? dsp(r.Mc, 'torq') : '', uLbl('torq')],
+      ['MRR', dsp(r.mrrCm3, 'mrr'), uLbl('mrr')],
+      ['Cutting power P_c', dsp(r.Pc, 'power'), uLbl('power')],
+      ['Motor power P_m', dsp(r.Pm, 'power'), uLbl('power')],
+      ['Machining time', r.time.toFixed(3), 'min'],
+      ['Tool life (Taylor)', isFinite(r.life) ? r.life.toFixed(1) : '', 'min'],
+      ['Surface finish Ra', isFinite(r.Ra) ? dsp(r.Ra, 'ra') : '', uLbl('ra')],
+      ['Cost per part', r.cost.toFixed(3), 'USD']
+    ];
+    var csv = rows.map(function (row) {
+      return row.map(function (c) { return '"' + String(c === undefined ? '' : c).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    dl(new Blob([csv], { type: 'text/csv' }), 'speeds-and-feeds.csv');
+  }
+
+  function exportPNG() {
+    var out = document.createElement('canvas');
+    out.width = canvas.width; out.height = canvas.height;
+    var o = out.getContext('2d');
+    o.fillStyle = '#0d1117'; o.fillRect(0, 0, out.width, out.height);
+    o.drawImage(canvas, 0, 0);
+    var dpr = window.devicePixelRatio || 1;
+    o.setTransform(dpr, 0, 0, dpr, 0, 0);
+    o.fillStyle = 'rgba(118,255,3,0.55)';
+    o.font = 'bold 11px sans-serif'; o.textAlign = 'right';
+    o.fillText('mechsimulator.com', MCW - 10, MCH - 26);
+    out.toBlob(function (b) { dl(b, 'speeds-and-feeds.png'); });
+  }
+
+  function dl(blob, name) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  var bCsv = $('btn-csv'), bPng = $('btn-png');
+  if (bCsv) bCsv.addEventListener('click', exportCSV);
+  if (bPng) bPng.addEventListener('click', exportPNG);
+
+  var ctxMenu = null;
+  function closeCtx() { if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; } }
+  canvas.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    closeCtx();
+    var items = [
+      ['Copy RPM', function () { copyTxt(Math.round(calculate().N).toString()); }],
+      ['Copy all results', function () { copyTxt(resultText()); }],
+      [null],
+      ['Export CSV', exportCSV],
+      ['Export PNG', exportPNG],
+      [null],
+      [show.grid ? 'Hide grid' : 'Show grid', function () { show.grid = !show.grid; var c = $('chk-grid'); if (c) c.checked = show.grid; draw(); }],
+      ['Show calculation', openCalc],
+      ['Reset display', function () { if (cvtReset) cvtReset.click(); }]
+    ];
+    var m = document.createElement('div');
+    m.className = 'ctx-menu';
+    items.forEach(function (it) {
+      if (!it[0]) { var s = document.createElement('div'); s.className = 'ctx-sep'; m.appendChild(s); return; }
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'ctx-item'; b.textContent = it[0];
+      b.addEventListener('click', function () { it[1](); closeCtx(); });
+      m.appendChild(b);
+    });
+    document.body.appendChild(m);
+    var mw = m.offsetWidth, mh = m.offsetHeight;
+    m.style.left = Math.min(e.clientX, window.innerWidth - mw - 8) + 'px';
+    m.style.top = Math.min(e.clientY, window.innerHeight - mh - 8) + 'px';
+    ctxMenu = m;
+  });
+  document.addEventListener('click', closeCtx);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeCtx(); closeCalc(); } });
+
+  function copyTxt(t) {
+    if (navigator.clipboard) navigator.clipboard.writeText(t);
+  }
+  function resultText() {
+    var r = calculate();
+    return [
+      'N = ' + Math.round(r.N) + ' rev/min',
+      'V = ' + dspU(r.V, 'speed'),
+      'Feed = ' + dspU(r.vf, 'feed'),
+      'MRR = ' + dspU(r.mrrCm3, 'mrr'),
+      'Fc = ' + (isFinite(r.Fc) ? dspU(r.Fc, 'force') : '\u2014'),
+      'Mc = ' + (isFinite(r.Mc) ? dspU(r.Mc, 'torq') : '\u2014'),
+      'Pc = ' + dspU(r.Pc, 'power'),
+      'Time = ' + r.time.toFixed(2) + ' min',
+      'Tool life = ' + (isFinite(r.life) ? r.life.toFixed(1) + ' min' : '\u2014')
+    ].join('\n');
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     14. LIVE EQUATIONS (KaTeX)
+     LaTeX only inside the HTML panels; shared/latex-auto.js re-renders
+     them through a MutationObserver.
+  ══════════════════════════════════════════════════════════ */
+  var _learnCache = '';
+
+  function renderLearnPanels(r) {
+    var body = $('lp-eq-body');
+    if (!body) return;
+    var f2 = function (v, d) { return isFinite(v) ? v.toFixed(d === undefined ? 2 : d) : '?'; };
+    var html = '';
+
+    html += '<div class="eq-line">\\[ N = \\frac{1000\\,V}{\\pi D} = \\frac{1000 \\times ' + f2(r.V, 1) + '}{\\pi \\times ' + f2(r.D, 1) + '} = ' + Math.round(r.N) + '\\ \\text{rev/min} \\]</div>';
+
+    if (opType === 'milling') {
+      html += '<div class="eq-line">\\[ \\varphi_s = \\arccos\\!\\left(1 - \\frac{2a_e}{D}\\right) = ' + f2(r.phis, 1) + '^\\circ \\]</div>';
+      html += '<div class="eq-line">\\[ h_m = \\frac{360\\,a_e f_z}{\\pi D \\varphi_s} = ' + f2(r.hm, 4) + '\\ \\text{mm} \\]</div>';
+      html += '<div class="eq-line">\\[ v_f = f_z \\cdot z \\cdot N = ' + f2(r.f, 3) + ' \\times ' + r.Z + ' \\times ' + Math.round(r.N) + ' = ' + f2(r.vf, 1) + '\\ \\text{mm/min} \\]</div>';
+      html += '<div class="eq-line">\\[ Q = a_e a_p v_f = ' + f2(r.mrrCm3, 2) + '\\ \\text{cm}^3\\text{/min} \\]</div>';
+    } else if (opType === 'drilling' && subOp === 3) {
+      html += '<div class="eq-line">\\[ v_f = P \\cdot N = ' + f2(r.f, 2) + ' \\times ' + Math.round(r.N) + ' = ' + f2(r.vf, 1) + '\\ \\text{mm/min} \\]</div>';
+      html += '<div class="eq-line">\\[ Q = A_{gr}\\,\\pi D_p N,\\quad A_{gr} = 0.2707\\,P^2 = ' + f2(0.2707 * r.f * r.f, 4) + '\\ \\text{mm}^2 \\]</div>';
+    } else {
+      html += '<div class="eq-line">\\[ v_f = f \\cdot N = ' + f2(r.f, 3) + ' \\times ' + Math.round(r.N) + ' = ' + f2(r.vf, 1) + '\\ \\text{mm/min} \\]</div>';
+      html += '<div class="eq-line">\\[ Q = ' + (opType === 'drilling'
+        ? '\\frac{\\pi D^2 f N}{4}'
+        : '1000\\,a_p f\\,v_c') + ' = ' + f2(r.mrrCm3, 2) + '\\ \\text{cm}^3\\text{/min} \\]</div>';
+    }
+
+    html += '<div class="eq-line">\\[ k_c = k_{c1.1}\\,h^{-m_c} = ' + r.mat.kc11 + ' \\times ' + f2(r.hm, 4) + '^{-' + r.mat.mc + '} = ' + f2(r.kc, 0) + '\\ \\text{N/mm}^2 \\]</div>';
+    html += '<div class="eq-line">\\[ P_c = \\frac{Q\\,k_c}{60 \\times 10^6} = ' + f2(r.Pc, 3) + '\\ \\text{kW}, \\qquad P_{motor} = \\frac{P_c}{\\eta} = ' + f2(r.Pm, 3) + '\\ \\text{kW} \\]</div>';
+    if (isFinite(r.Mc)) {
+      html += '<div class="eq-line">\\[ M_c = \\frac{30000\\,P_c}{\\pi N} = ' + f2(r.Mc, 2) + '\\ \\text{N}\\cdot\\text{m} \\]</div>';
+    }
+    html += '<div class="eq-line">\\[ T_{cut} = \\frac{L_{travel}}{v_f} = \\frac{' + f2(r.Lcut, 1) + '}{' + f2(r.vf, 1) + '} = ' + f2(r.time, 3) + '\\ \\text{min} \\]</div>';
+
+    /* Caching prevents KaTeX re-rendering on every animation frame. */
+    if (html !== _learnCache) { body.innerHTML = html; _learnCache = html; }
+
+    var mech = $('lp-mech-body');
+    if (mech) {
+      mech.innerHTML =
+        '<p>The chip is not a constant. As it gets thinner the specific cutting force <em>k</em><sub>c</sub> rises steeply \u2014 which is why a fine finishing pass can draw nearly as much force per unit area as a heavy roughing cut.</p>' +
+        '<div class="eq-line">\\[ k_c = k_{c1.1} \\cdot h^{-m_c} \\]</div>' +
+        '<p><strong>' + r.mat.name + ':</strong> \\(k_{c1.1} = ' + r.mat.kc11 + '\\) N/mm\u00B2, \\(m_c = ' + r.mat.mc + '\\). At the current chip thickness \\(h = ' + f2(r.hm, 4) + '\\) mm this gives \\(k_c = ' + f2(r.kc, 0) + '\\) N/mm\u00B2 \u2014 ' + f2(r.kc / r.mat.kc11, 2) + '\u00D7 the 1 mm reference value.</p>' +
+        '<div class="eq-line">\\[ F_c = k_c \\cdot b \\cdot h, \\qquad P_c = \\frac{F_c\\,v_c}{60000} \\]</div>' +
+        '<p class="lp-note">Both routes to power \u2014 force \u00D7 speed, and removal rate \u00D7 specific force \u2014 are algebraically identical, so the force card and the power card here can never disagree.</p>';
+    }
+
+    var life = $('lp-life-body');
+    if (life) {
+      var band = speedBand();
+      var n = TOOLS[+toolSel.value].n;
+      var C = ((band[0] + band[1]) / 2) * Math.pow(TREF, n);
+      life.innerHTML =
+        '<div class="eq-line">\\[ V \\cdot T^{\\,n} = C \\quad\\Longrightarrow\\quad T = \\left(\\frac{C}{V}\\right)^{1/n} \\]</div>' +
+        '<p>For <strong>' + TOOLS[+toolSel.value].name + '</strong> the exponent is \\(n = ' + n + '\\). The constant is calibrated from this tool\u2019s own recommended band: at the mid-band speed of ' + f2((band[0] + band[1]) / 2, 0) + ' m/min the life is ' + TREF + ' min, so \\(C = ' + f2(C, 0) + '\\).</p>' +
+        '<div class="eq-line">\\[ T = \\left(\\frac{' + f2(C, 0) + '}{' + f2(r.V, 1) + '}\\right)^{1/' + n + '} = ' + (isFinite(r.life) ? f2(r.life, 1) : '\\infty') + '\\ \\text{min} \\]</div>' +
+        '<p class="lp-note">Halving tool life needs only a <strong>' + f2((Math.pow(2, n) - 1) * 100, 0) + '%</strong> speed increase at this exponent. That asymmetry is why speed, not feed, is the first thing to pull back when edges are failing early \u2014 raising feed costs far less life than raising speed.</p>' +
+        '<p class="lp-note">At ' + f2(r.time, 2) + ' min per part this edge lasts about <strong>' + (isFinite(r.partsPerEdge) ? Math.floor(r.partsPerEdge) : '\u221E') + ' parts</strong>, putting the tool share of the cost at $' + (isFinite(r.partsPerEdge) && r.partsPerEdge > 0 ? (r.tcost / r.partsPerEdge).toFixed(3) : '0.000') + ' per part.</p>';
+    }
+
+    var coach = $('lp-coach-body');
+    if (coach) {
+      var tips = [];
+      var band2 = speedBand();
+      if (r.V > band2[1]) tips.push('You are above the recommended band. Tool life is ' + f2(r.life, 1) + ' min \u2014 dropping to ' + f2(band2[1], 0) + ' m/min would raise it to ' + f2(taylorLife(band2[1]), 1) + ' min.');
+      if (opType === 'milling' && r.ctf > 1.4) tips.push('At a_e/D = ' + f2(r.ae / r.D, 2) + ' the chip is thinned ' + f2(r.ctf, 2) + '\u00D7. Feed per tooth should go up to ' + f2(r.f * r.ctf, 3) + ' mm/tooth, not down.');
+      if (r.Pm > 7.5) tips.push('At ' + f2(r.Pm, 1) + ' kW this cut is beyond a typical 7.5 kW workshop spindle. Reduce a_p or a_e before reducing speed \u2014 removal rate scales with both, tool life does not.');
+      if (isFinite(r.Ra) && r.Ra > 3.2) tips.push('Ra of ' + f2(r.Ra, 2) + ' \u00B5m is rough for a finishing cut. Halving the feed quarters Ra; increasing the nose radius does the same without costing cycle time.');
+      if (opType === 'drilling' && subOp === 0 && r.D > 10 && r.L / r.D > 3) tips.push('Depth is ' + f2(r.L / r.D, 1) + '\u00D7 diameter. Peck the hole or use through-coolant \u2014 chip evacuation, not power, is the limit here.');
+      if (!tips.length) tips.push('These parameters sit inside the recommended band with a tool life of ' + (isFinite(r.life) ? f2(r.life, 1) + ' min' : 'no practical limit') + '. Push the feed before the speed if you want more removal rate for the same life.');
+      coach.innerHTML = '<ul class="coach-list">' + tips.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>';
+    }
+  }
+
+  var expandAll = $('learn-expand-all'), collapseAll = $('learn-collapse-all');
+  function allCards() { return document.querySelectorAll('.learn-card'); }
+  if (expandAll) expandAll.addEventListener('click', function () { allCards().forEach(function (c) { c.open = true; }); });
+  if (collapseAll) collapseAll.addEventListener('click', function () { allCards().forEach(function (c) { c.open = false; }); });
+
+  /* ══════════════════════════════════════════════════════════
+     15. SHOW CALCULATION MODAL
+  ══════════════════════════════════════════════════════════ */
+  var calcModal = $('calc-modal'), calcBody = $('calc-modal-body');
+
+  function step(n, title, formula, calc, result) {
+    return '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step ' + n + '</span>' +
+      '<span class="cs-title">' + title + '</span></div>' +
+      '<div class="cs-formula">' + formula + '</div>' +
+      '<div class="cs-calc">' + calc + '</div>' +
+      '<div class="cs-result">' + result + '</div></div>';
+  }
+
+  function buildCalcSteps() {
+    var r = calculate();
+    var f2 = function (v, d) { return isFinite(v) ? v.toFixed(d === undefined ? 2 : d) : '?'; };
+    var h = '';
+
+    h += '<div class="cs-inputs"><span class="cs-badge">' + opType + ' \u00B7 ' + SUB_OPS[opType][subOp] + '</span>' +
+      '<div class="cs-given">' +
+      '<span>D = ' + f2(r.D, 1) + ' mm</span>' +
+      '<span>L = ' + f2(r.L, 1) + ' mm</span>' +
+      '<span>a_p = ' + f2(r.ap, 2) + ' mm</span>' +
+      '<span>' + (opType === 'milling' ? 'f_z' : (opType === 'drilling' && subOp === 3 ? 'P' : 'f')) + ' = ' + f2(r.f, 3) + ' mm</span>' +
+      (opType === 'milling' ? '<span>z = ' + r.Z + '</span><span>a_e = ' + f2(r.ae, 1) + ' mm</span>' : '') +
+      '<span>V = ' + f2(r.V, 1) + ' m/min</span>' +
+      '<span>' + r.mat.name + '</span>' +
+      '</div>' +
+      '<p class="cs-si-note">Every step is worked in SI. If the page is showing Imperial, the numbers below are still the metric ones the engine solves \u2014 conversion happens only at the display.</p></div>';
+
+    var n = 1;
+    h += step(n++, 'Spindle speed',
+      '\\[ N = \\frac{1000\\,V}{\\pi D} \\]',
+      '\\( N = \\dfrac{1000 \\times ' + f2(r.V, 1) + '}{\\pi \\times ' + f2(r.D, 1) + '} \\)',
+      'Spindle speed <strong>' + Math.round(r.N) + ' rev/min</strong>');
+
+    if (opType === 'milling') {
+      h += step(n++, 'Arc of engagement',
+        '\\[ \\varphi_s = \\arccos\\!\\left(1 - \\frac{2a_e}{D}\\right) \\]',
+        '\\( \\varphi_s = \\arccos\\!\\left(1 - \\dfrac{2 \\times ' + f2(r.ae, 1) + '}{' + f2(r.D, 1) + '}\\right) \\)',
+        'Engagement angle <strong>' + f2(r.phis, 1) + '\u00B0</strong>');
+      h += step(n++, 'Mean chip thickness',
+        '\\[ h_m = \\frac{360\\,a_e f_z}{\\pi D \\varphi_s} \\]',
+        '\\( h_m = \\dfrac{360 \\times ' + f2(r.ae, 1) + ' \\times ' + f2(r.f, 3) + '}{\\pi \\times ' + f2(r.D, 1) + ' \\times ' + f2(r.phis, 1) + '} \\)',
+        'Mean chip thickness <strong>' + f2(r.hm, 4) + ' mm</strong>');
+      h += step(n++, 'Table feed',
+        '\\[ v_f = f_z \\cdot z \\cdot N \\]',
+        '\\( v_f = ' + f2(r.f, 3) + ' \\times ' + r.Z + ' \\times ' + Math.round(r.N) + ' \\)',
+        'Table feed <strong>' + f2(r.vf, 1) + ' mm/min</strong>');
+      h += step(n++, 'Removal rate',
+        '\\[ Q = a_e \\cdot a_p \\cdot v_f \\]',
+        '\\( Q = ' + f2(r.ae, 1) + ' \\times ' + f2(r.ap, 2) + ' \\times ' + f2(r.vf, 1) + ' \\)',
+        'Removal rate <strong>' + f2(r.mrrCm3, 2) + ' cm\u00B3/min</strong>');
+    } else if (opType === 'drilling') {
+      h += step(n++, 'Feed rate',
+        '\\[ v_f = f \\cdot N \\]',
+        '\\( v_f = ' + f2(r.f, 3) + ' \\times ' + Math.round(r.N) + ' \\)',
+        'Feed rate <strong>' + f2(r.vf, 1) + ' mm/min</strong>');
+      h += step(n++, 'Chip thickness on the lip',
+        '\\[ h = \\frac{f}{2}\\sin\\kappa_r,\\quad \\kappa_r = \\frac{118^\\circ}{2} \\]',
+        '\\( h = \\dfrac{' + f2(r.f, 3) + '}{2}\\sin 59^\\circ \\)',
+        'Chip thickness <strong>' + f2(r.hm, 4) + ' mm</strong> (each of two lips takes half the feed)');
+      h += step(n++, 'Removal rate',
+        '\\[ Q = \\frac{\\pi D^2 f N}{4} \\]',
+        '\\( Q = \\dfrac{\\pi \\times ' + f2(r.D, 1) + '^2 \\times ' + f2(r.f, 3) + ' \\times ' + Math.round(r.N) + '}{4} \\)',
+        'Removal rate <strong>' + f2(r.mrrCm3, 2) + ' cm\u00B3/min</strong>');
+    } else {
+      h += step(n++, 'Feed rate',
+        '\\[ v_f = f \\cdot N \\]',
+        '\\( v_f = ' + f2(r.f, 3) + ' \\times ' + Math.round(r.N) + ' \\)',
+        'Feed rate <strong>' + f2(r.vf, 1) + ' mm/min</strong>');
+      h += step(n++, 'Removal rate',
+        '\\[ Q = 1000\\,a_p\\,f\\,v_c \\]',
+        '\\( Q = 1000 \\times ' + f2(r.ap, 2) + ' \\times ' + f2(r.f, 3) + ' \\times ' + f2(r.vcMean, 1) + ' \\)',
+        'Removal rate <strong>' + f2(r.mrrCm3, 2) + ' cm\u00B3/min</strong>' +
+        ((subOp === 0 || subOp === 3) ? ' &mdash; the mean speed is used because the cut runs from the rim to the centre.' : ''));
+    }
+
+    h += step(n++, 'Specific cutting force (Kienzle)',
+      '\\[ k_c = k_{c1.1}\\,h^{-m_c} \\]',
+      '\\( k_c = ' + r.mat.kc11 + ' \\times ' + f2(r.hm, 4) + '^{-' + r.mat.mc + '} \\)',
+      'Specific cutting force <strong>' + f2(r.kc, 0) + ' N/mm\u00B2</strong> &mdash; ' + f2(r.kc / r.mat.kc11, 2) + '\u00D7 the 1 mm reference');
+
+    h += step(n++, 'Power',
+      '\\[ P_c = \\frac{Q\\,k_c}{60 \\times 10^6}, \\qquad P_{motor} = \\frac{P_c}{\\eta} \\]',
+      '\\( P_c = \\dfrac{' + f2(r.mrr, 0) + ' \\times ' + f2(r.kc, 0) + '}{6 \\times 10^7} \\)',
+      'At the cut <strong>' + f2(r.Pc, 3) + ' kW</strong>, at the motor <strong>' + f2(r.Pm, 3) + ' kW</strong>');
+
+    if (isFinite(r.Mc)) {
+      h += step(n++, 'Spindle torque',
+        '\\[ M_c = \\frac{30000\\,P_c}{\\pi N} \\]',
+        '\\( M_c = \\dfrac{30000 \\times ' + f2(r.Pc, 3) + '}{\\pi \\times ' + Math.round(r.N) + '} \\)',
+        'Torque <strong>' + f2(r.Mc, 2) + ' N\u00B7m</strong>' +
+        (opType === 'drilling' && subOp === 3 ? ' cutting only; expect about <strong>' + f2(r.Mc * TAP_FRICTION, 2) + ' N\u00B7m</strong> total with thread friction.' : ''));
+    }
+
+    h += step(n++, 'Machining time',
+      '\\[ T = \\frac{L_{travel}}{v_f} \\]',
+      '\\( T = \\dfrac{' + f2(r.Lcut, 1) + '}{' + f2(r.vf, 1) + '} \\)',
+      'Cutting time <strong>' + f2(r.time, 3) + ' min</strong>' +
+      (r.note ? '<br><span style="opacity:.8">' + r.note + '</span>' : ''));
+
+    var band = speedBand();
+    var nn = TOOLS[+toolSel.value].n;
+    var C = ((band[0] + band[1]) / 2) * Math.pow(TREF, nn);
+    h += step(n++, 'Tool life (Taylor)',
+      '\\[ V T^{\\,n} = C \\;\\Rightarrow\\; T = \\left(\\frac{C}{V}\\right)^{1/n} \\]',
+      '\\( T = \\left(\\dfrac{' + f2(C, 0) + '}{' + f2(r.V, 1) + '}\\right)^{1/' + nn + '} \\)',
+      'Tool life <strong>' + (isFinite(r.life) ? f2(r.life, 1) + ' min' : 'unbounded') + '</strong> \u2248 ' + (isFinite(r.partsPerEdge) ? Math.floor(r.partsPerEdge) : '\u221E') + ' parts per edge');
+
+    if (isFinite(r.Ra)) {
+      h += step(n++, 'Theoretical surface finish',
+        '\\[ R_a \\approx \\frac{f^2}{31.2\\,r_\\varepsilon} \\]',
+        '\\( R_a = \\dfrac{' + f2(r.f, 3) + '^2 \\times 1000}{31.2 \\times ' + f2(r.rEps, 2) + '} \\)',
+        'Surface finish <strong>' + f2(r.Ra, 2) + ' \u00B5m Ra</strong> (feed marks only \u2014 real finish is worse)');
+    }
+
+    h += step(n++, 'Cost per part',
+      '\\[ \\text{Cost} = \\frac{T}{60}\\,R + \\frac{C_{tool}}{\\text{parts per edge}} \\]',
+      '\\( = \\dfrac{' + f2(r.time, 3) + '}{60} \\times ' + f2(r.rate, 2) + ' + \\dfrac{' + f2(r.tcost, 2) + '}{' + (isFinite(r.partsPerEdge) ? Math.floor(r.partsPerEdge) : '\\infty') + '} \\)',
+      'Cost <strong>$' + f2(r.cost, 3) + ' per part</strong>');
+
+    return h;
+  }
+
+  function openCalc() {
+    if (!calcModal) return;
+    calcBody.innerHTML = buildCalcSteps();     /* rebuilt every open */
+    calcModal.classList.add('active');
+    if (window.renderMathInElement) {
+      try {
+        window.renderMathInElement(calcBody, {
+          delimiters: [{ left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }],
+          throwOnError: false
+        });
+      } catch (e) { /* KaTeX offline: the LaTeX source stays readable */ }
+    }
+  }
+  function closeCalc() { if (calcModal) calcModal.classList.remove('active'); }
+
+  var bCalc = $('btn-calc'), bCalcClose = $('calc-modal-close');
+  if (bCalc) bCalc.addEventListener('click', openCalc);
+  if (bCalcClose) bCalcClose.addEventListener('click', closeCalc);
+  if (calcModal) calcModal.addEventListener('click', function (e) { if (e.target === calcModal) closeCalc(); });
+
+  /* ══════════════════════════════════════════════════════════
+     16. FEED & SPEED CONVERTER
+     A canonical state in SI; every field writes to it and reads back.
+     The focused field is never rewritten while it is being typed in.
+  ══════════════════════════════════════════════════════════ */
+  (function () {
+    var cv = { D: 50, N: 500, f: 0.2, z: 4 };
+    var ids = ['cv-dia', 'cv-diain', 'cv-rpm', 'cv-vc', 'cv-sfm', 'cv-fr', 'cv-ipr', 'cv-vf', 'cv-ipm', 'cv-z', 'cv-fz', 'cv-ipt'];
+    var el = {};
+    ids.forEach(function (i) { el[i] = $(i); });
+    if (!el['cv-rpm']) return;
+
+    function put(id, v, d) {
+      var e = el[id];
+      if (!e || document.activeElement === e) return;
+      e.value = isFinite(v) ? v.toFixed(d) : '';
+    }
+    function refresh() {
+      var D = cv.D, N = cv.N, f = cv.f, z = cv.z;
+      var vc = Math.PI * D * N / 1000;
+      put('cv-dia', D, 2);
+      put('cv-diain', D * 0.0393701, 4);
+      put('cv-rpm', N, 0);
+      put('cv-vc', vc, 1);
+      put('cv-sfm', vc * 3.2808399, 1);
+      put('cv-fr', f, 4);
+      put('cv-ipr', f * 0.0393701, 5);
+      put('cv-vf', f * N, 1);
+      put('cv-ipm', f * N * 0.0393701, 4);
+      put('cv-z', z, 0);
+      put('cv-fz', z > 0 ? f / z : NaN, 4);
+      put('cv-ipt', z > 0 ? (f / z) * 0.0393701 : NaN, 5);
+    }
+    var setters = {
+      'cv-dia':   function (v) { cv.D = v; },
+      'cv-diain': function (v) { cv.D = v / 0.0393701; },
+      'cv-rpm':   function (v) { cv.N = v; },
+      'cv-vc':    function (v) { cv.N = 1000 * v / (Math.PI * cv.D); },
+      'cv-sfm':   function (v) { cv.N = 1000 * (v / 3.2808399) / (Math.PI * cv.D); },
+      'cv-fr':    function (v) { cv.f = v; },
+      'cv-ipr':   function (v) { cv.f = v / 0.0393701; },
+      'cv-vf':    function (v) { cv.f = cv.N > 0 ? v / cv.N : cv.f; },
+      'cv-ipm':   function (v) { cv.f = cv.N > 0 ? (v / 0.0393701) / cv.N : cv.f; },
+      'cv-z':     function (v) { cv.z = Math.max(1, Math.round(v)); },
+      'cv-fz':    function (v) { cv.f = v * cv.z; },
+      'cv-ipt':   function (v) { cv.f = (v / 0.0393701) * cv.z; }
+    };
+    ids.forEach(function (id) {
+      if (!el[id]) return;
+      el[id].addEventListener('input', function () {
+        var v = parseFloat(el[id].value);
+        if (!isFinite(v)) return;
+        setters[id](v);
+        refresh();
+      });
+    });
+    var pull = $('cv-pull');
+    if (pull) pull.addEventListener('click', function () {
+      var r = calculate();
+      cv.D = r.D; cv.N = r.N; cv.z = Math.max(1, r.Z);
+      cv.f = (opType === 'milling') ? r.f * r.Z : r.f;
+      refresh();
+    });
+    refresh();
+  })();
+
+  /* ══════════════════════════════════════════════════════════
+     17. MODE SWITCHING
+  ══════════════════════════════════════════════════════════ */
+  modeTabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.pill'); if (!b) return;
+    modeTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === b); });
+    switchMode(b.dataset.value);
+  });
+
+  function switchMode(m) {
+    mode = m;
+    simPanel.style.display      = m === 'simulate' ? '' : 'none';
+    explorePanel.style.display  = m === 'explore'  ? '' : 'none';
+    practicePanel.style.display = m === 'practice' ? '' : 'none';
+    quizPanel.style.display     = m === 'quiz'     ? '' : 'none';
+    var lp = $('learn-panels');
+    if (lp) lp.style.display = m === 'simulate' ? '' : 'none';
+
+    if (m === 'simulate') { startAnim(); } else { stopAnim(); }
+    if (m === 'explore') buildExploreCards();
+    if (m === 'practice') newPractice();
+    if (m === 'quiz') startQuiz();
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     18. EXPLORE MODE
+  ══════════════════════════════════════════════════════════ */
+  var EXPLORE_DATA = {
+    fundamentals: [
+      { title: 'Cutting Speed (V)', formula: 'V = \u03C0 \u00D7 D \u00D7 N / 1000   (m/min)', desc: 'The linear velocity where the tool meets the work. It is set by the work material and the tool material \u2014 not by the machine. Write the cutting speed on the job card, not the RPM: when the diameter changes, the RPM must change with it.', example: 'D = 50 mm, N = 200 rev/min\nV = \u03C0 \u00D7 50 \u00D7 200 / 1000 = 31.4 m/min' },
+      { title: 'Spindle Speed (N)', formula: 'N = 1000 \u00D7 V / (\u03C0 \u00D7 D)   (rev/min)', desc: 'Inversely proportional to diameter. A 400 mm faceplate and a 4 mm end mill cutting the same material at the same speed differ by a factor of a hundred in RPM.', example: 'V = 30 m/min, D = 40 mm\nN = 1000 \u00D7 30 / (\u03C0 \u00D7 40) = 239 rev/min' },
+      { title: 'Feed Rate', formula: 'Turning:  v\u1DA0 = f \u00D7 N   (mm/min)\nMilling:  v\u1DA0 = f\u2082 \u00D7 z \u00D7 N   (mm/min)', desc: 'How fast the tool advances. Turning and drilling feed per revolution; milling feeds per tooth, so the number of teeth multiplies it. Confusing the two is the single most common speeds-and-feeds error.', example: 'Turning: f = 0.2 mm/rev, N = 200 rev/min\nv\u1DA0 = 0.2 \u00D7 200 = 40 mm/min' },
+      { title: 'Depth of Cut (a\u209A)', formula: 'a\u209A = (D\u2081 \u2212 D\u2082) / 2   (turning)', desc: 'The radial thickness removed in one pass. Depth costs power but almost no tool life; speed costs tool life but little power. When you need more metal off per minute, reach for depth and feed before speed.', example: 'Roughing: a\u209A = 2\u20135 mm\nFinishing: a\u209A = 0.2\u20130.5 mm' }
+    ],
+    forces: [
+      { title: 'Specific Cutting Force (Kienzle)', formula: 'k\u1D9C = k\u1D9C\u2081.\u2081 \u00D7 h\u207B\u1D50\u1D9C   (N/mm\u00B2)', desc: 'The force needed per square millimetre of chip cross-section. It is not a constant \u2014 as the chip gets thinner the force per unit area climbs sharply, because a larger share of the energy goes into ploughing and friction rather than shearing. This is why a light finishing pass is not as cheap as its tiny chip suggests.', example: 'Mild steel, k\u1D9C\u2081.\u2081 = 1780, m\u1D9C = 0.17\nAt h = 1.0 mm:  k\u1D9C = 1780 N/mm\u00B2\nAt h = 0.05 mm: k\u1D9C = 1780 \u00D7 0.05\u207B\u2070\u00B7\u00B9\u2077 = 3243 N/mm\u00B2' },
+      { title: 'Cutting Force (F\u1D9C)', formula: 'F\u1D9C = k\u1D9C \u00D7 b \u00D7 h   (N)', desc: 'Chip width b times chip thickness h gives the cross-section; times the specific force gives the tangential force on the tool. In turning with a 90\u00B0 lead angle, b = a\u209A and h = f.', example: 'a\u209A = 2 mm, f = 0.2 mm/rev, k\u1D9C = 2620 N/mm\u00B2\nF\u1D9C = 2620 \u00D7 2 \u00D7 0.2 = 1048 N' },
+      { title: 'Spindle Torque and Power', formula: 'P\u1D9C = F\u1D9C \u00D7 V / 60000   (kW)\nM\u1D9C = 30000 \u00D7 P\u1D9C / (\u03C0 \u00D7 N)   (N\u00B7m)', desc: 'Power is force times speed. Torque is power divided by rotational speed \u2014 which is why the same cut needs enormous torque on a big diameter and very little on a small one. Check torque, not power, when the spindle is running slowly.', example: 'F\u1D9C = 1048 N, V = 150 m/min\nP\u1D9C = 1048 \u00D7 150 / 60000 = 2.62 kW\nAt N = 955: M\u1D9C = 30000 \u00D7 2.62 / (\u03C0 \u00D7 955) = 26.2 N\u00B7m' },
+      { title: 'Drilling Thrust and Torque', formula: 'M\u1D9C = k\u1D9C \u00D7 f \u00D7 D\u00B2 / 8000   (N\u00B7m)\nF\u1DA0 = 0.5 \u00D7 k\u1D9C \u00D7 (D/2) \u00D7 f \u00D7 sin\u03BA\u1D63   (N)', desc: 'A twist drill has two lips, each taking half the feed at a lead angle of half the point angle. Torque grows with the square of diameter, thrust only linearly \u2014 which is why big drills stall a machine long before they push it off the table.', example: 'D = 12 mm, f = 0.15 mm/rev, k\u1D9C = 2830 N/mm\u00B2\nM\u1D9C = 2830 \u00D7 0.15 \u00D7 144 / 8000 = 7.6 N\u00B7m\nF\u1DA0 = 0.5 \u00D7 2830 \u00D7 6 \u00D7 0.15 \u00D7 sin59\u00B0 = 1092 N' }
+    ],
+    turning: [
+      { title: 'Turning MRR', formula: 'Q = 1000 \u00D7 a\u209A \u00D7 f \u00D7 V   (mm\u00B3/min)\n  = \u03C0 \u00D7 D \u00D7 a\u209A \u00D7 f \u00D7 N   (mm\u00B3/min)', desc: 'Both forms are the same expression \u2014 substitute N = 1000V/(\u03C0D) into the second and you get the first. Divide by 1000 for cm\u00B3/min.', example: 'D = 50 mm, a\u209A = 2 mm, f = 0.2 mm/rev, N = 191 rev/min\nQ = \u03C0 \u00D7 50 \u00D7 2 \u00D7 0.2 \u00D7 191 = 12 000 mm\u00B3/min\n  = 12.0 cm\u00B3/min' },
+      { title: 'Machining Time', formula: 'Cylindrical / boring:  T = L / (f \u00D7 N)\nFacing / parting:      T = (D/2) / (f \u00D7 N)', desc: 'Facing and parting feed radially, not along the axis, so the travel is the radius \u2014 not the workpiece length. With a fixed RPM the cutting speed also falls to zero at centre, which is why constant-surface-speed control exists.', example: 'Facing D = 100 mm, f = 0.2 mm/rev, N = 300 rev/min\nT = 50 / (0.2 \u00D7 300) = 0.83 min' },
+      { title: 'Surface Finish', formula: 'R\u2090 \u2248 f\u00B2 / (31.2 \u00D7 r\u03B5)   (\u00B5m, f and r\u03B5 in mm)', desc: 'The theoretical finish left by the feed marks of a round-nosed tool. Halving the feed quarters Ra; doubling the nose radius halves it. Real finish is always worse \u2014 built-up edge, vibration and tool wear all add to it.', example: 'f = 0.2 mm/rev, r\u03B5 = 0.8 mm\nR\u2090 = 0.2\u00B2 \u00D7 1000 / (31.2 \u00D7 0.8) = 1.6 \u00B5m' },
+      { title: 'Sub-operations', formula: 'Facing | Cylindrical | Boring | Parting', desc: 'Facing and parting cut radially and use the mean diameter for speed. Boring runs at about 85% of the recommended speed because a long bar chatters before it runs out of power. Parting uses a narrow blade at a light feed and is the operation most likely to end in a broken tool.', example: 'Each sub-operation in this simulator uses its own travel, speed factor and mean diameter \u2014 switch between them and watch the time and power change.' }
+    ],
+    milling: [
+      { title: 'Table Feed and Chip Thinning', formula: '\u03C6\u209B = arccos(1 \u2212 2a\u2091/D)\nh\u2098 = 360 \u00D7 a\u2091 \u00D7 f\u2082 / (\u03C0 \u00D7 D \u00D7 \u03C6\u209B)', desc: 'When radial engagement is light the tooth is only in the cut for a short arc, and the average chip is far thinner than the programmed feed per tooth. Below about 30% engagement the tool starts rubbing instead of cutting \u2014 the fix is to raise the feed, not lower it.', example: 'D = 12 mm, a\u2091 = 1.5 mm, f\u2082 = 0.06 mm/tooth\n\u03C6\u209B = arccos(1 \u2212 0.25) = 41.4\u00B0\nh\u2098 = 360 \u00D7 1.5 \u00D7 0.06 / (\u03C0 \u00D7 12 \u00D7 41.4) = 0.021 mm' },
+      { title: 'Milling MRR', formula: 'Q = a\u2091 \u00D7 a\u209A \u00D7 v\u1DA0 / 1000   (cm\u00B3/min)', desc: 'Width of cut times depth of cut times table feed. High-speed machining trades a small a\u2091 for a large a\u209A and a very high feed, keeping MRR high while the heat stays in the chip rather than the tool.', example: 'a\u2091 = 20 mm, a\u209A = 2 mm, v\u1DA0 = 120 mm/min\nQ = 20 \u00D7 2 \u00D7 120 / 1000 = 4.8 cm\u00B3/min' },
+      { title: 'Milling Time', formula: 'Face / slot:      T = (L + D) / v\u1DA0\nSide (a\u2091 < D/2):  T = (L + 2\u221A(a\u2091(D\u2212a\u2091))) / v\u1DA0', desc: 'The cutter must approach until it is fully engaged and overtravel at the far end. For a full-width cut that costs half a diameter at each end; for a light side cut it costs much less, because the cutter reaches full engagement sooner.', example: 'L = 100 mm, D = 50 mm, v\u1DA0 = 120 mm/min\nFace: T = (100 + 50) / 120 = 1.25 min' },
+      { title: 'Climb vs Conventional', formula: 'Climb: chip thick \u2192 thin\nConventional: chip thin \u2192 thick', desc: 'Climb milling starts each tooth in thick material and ends thin, which puts the heat in the chip and leaves a better finish \u2014 but it needs a backlash-free machine. Conventional milling rubs at entry, which work-hardens stainless and shortens tool life.', example: 'On a CNC machine, climb mill almost everything.\nOn a manual mill with a worn leadscrew, climb milling can snatch the work into the cutter.' }
+    ],
+    drilling: [
+      { title: 'Drilling MRR', formula: 'Q = \u03C0 \u00D7 D\u00B2 \u00D7 f \u00D7 N / 4   (mm\u00B3/min)', desc: 'A drill removes a full cylinder, so the removal rate goes with the square of the diameter. Doubling the drill size quadruples the metal removed \u2014 and the torque \u2014 for the same feed per revolution.', example: 'D = 12 mm, f = 0.15 mm/rev, N = 800 rev/min\nQ = \u03C0 \u00D7 144 \u00D7 0.15 \u00D7 800 / 4 = 13 572 mm\u00B3/min\n  = 13.6 cm\u00B3/min' },
+      { title: 'Stroke Length', formula: 'Through: L = t + 0.3D + clearance\nBlind:   L = depth to the shoulder', desc: 'The conical point of a 118\u00B0 twist drill stands about 0.3 diameters proud of the full-diameter shoulder. For a through hole that length must be added, or the last fraction of the hole is never cut; for a blind hole the point simply sits deeper than the specified depth.', example: 'Plate t = 25 mm, D = 20 mm\nL = 25 + 0.3 \u00D7 20 + 2 = 33 mm' },
+      { title: 'Reaming', formula: 'V \u2248 0.5 \u00D7 drilling speed\nQ = \u03C0 \u00D7 D \u00D7 a\u209A \u00D7 f \u00D7 N', desc: 'A reamer removes a thin annulus, not a cylinder \u2014 typically 0.1 to 0.3 mm on the radius. It runs at about half the drilling speed and two to three times the feed. A reamer that is fed too slowly rubs, work-hardens the bore and bell-mouths the entry.', example: 'D = 10 mm H7, allowance 0.15 mm on radius\nf = 0.4 mm/rev, V = 16 m/min' },
+      { title: 'Tapping', formula: 'v\u1DA0 = P \u00D7 N   (feed IS the pitch)\nQ = A_gr \u00D7 \u03C0 \u00D7 D\u209A \u00D7 N,   A_gr = 0.2707 P\u00B2', desc: 'Tapping is the one operation where feed is not a free choice: the tap is guided by the thread it is cutting, so the feed per revolution must equal the pitch exactly. Time counts the reverse-out as well as the cut. The torque shown here is the cutting torque; thread-flank friction adds roughly 80% more.', example: 'M8 \u00D7 1.25 in mild steel, V = 8 m/min\nN = 1000 \u00D7 8 / (\u03C0 \u00D7 8) = 318 rev/min\nv\u1DA0 = 1.25 \u00D7 318 = 398 mm/min' }
+    ],
+    economics: [
+      { title: 'Taylor Tool Life', formula: 'V \u00D7 T\u207F = C   \u21D2   T = (C / V)^(1/n)', desc: 'The oldest equation in metal cutting, and still the one that decides what a job costs. n is set by the tool material \u2014 about 0.125 for HSS, 0.25 for carbide, 0.45 for ceramic. C is the speed that gives one minute of life.', example: 'Carbide (n = 0.25), C = 351\nAt V = 200 m/min: T = (351/200)\u2074 = 9.5 min\nAt V = 100 m/min: T = (351/100)\u2074 = 151 min' },
+      { title: 'Why Speed Costs More Than Feed', formula: 'T \u221D V^(\u22121/n)', desc: 'With carbide at n = 0.25, tool life varies with the fourth power of speed \u2014 a 19% speed increase halves it. Feed and depth affect life far more gently. The productive move is almost always more feed and more depth at a moderate speed, not a faster spindle.', example: 'Raising V from 150 to 180 m/min (+20%)\nT falls from 30 min to 14.5 min \u2014 less than half.' },
+      { title: 'Cost per Part', formula: 'Cost = (T / 60) \u00D7 R + C_tool / parts per edge', desc: 'Machine time plus the share of the insert consumed. Pushing the speed cuts the first term and inflates the second; the minimum sits at a moderate speed, not at either extreme. This is the calculation that decides whether a faster cycle is actually cheaper.', example: 'T = 2.6 min, R = $50/hr, insert $8, 12 parts/edge\nCost = 0.043 \u00D7 50 + 8/12 = $2.17 + $0.67 = $2.84' },
+      { title: 'Machine Efficiency', formula: 'P_motor = P\u1D9C / \u03B7', desc: 'Belts, gears and bearings take their cut before any power reaches the workpiece. A typical machine tool is around 75% efficient, so a 3 kW cut needs a 4 kW motor. Check the motor figure, not the cutting figure, against the machine plate.', example: 'P\u1D9C = 2.62 kW, \u03B7 = 0.75\nP_motor = 2.62 / 0.75 = 3.49 kW' }
+    ]
+  };
+
+  var exploreCat = 'fundamentals';
+  var exTabs = $('explore-tabs');
+  if (exTabs) exTabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.pill'); if (!b) return;
+    exploreCat = b.dataset.value;
+    exTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === b); });
+    buildExploreCards();
+  });
+
+  function buildExploreCards() {
+    var container = $('explore-cards');
+    if (!container) return;
+    var data = EXPLORE_DATA[exploreCat] || [];
+    container.innerHTML = '';
+    data.forEach(function (item) {
+      var card = document.createElement('div');
+      card.className = 'explore-card';
+      card.innerHTML =
+        '<h3>' + item.title + '</h3>' +
+        '<div class="formula">' + item.formula.replace(/\n/g, '<br>') + '</div>' +
+        '<p>' + item.desc + '</p>' +
+        '<div class="example"><strong>Worked Example:</strong><br>' + item.example.replace(/\n/g, '<br>') + '</div>';
+      container.appendChild(card);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     19. PRACTICE MODE
+  ══════════════════════════════════════════════════════════ */
+  var pracScore = 0, pracTotal = 0;
+  var pracAnswer = 0, pracUnit = '', pracSolution = '';
+
+  var PRACTICE_GENERATORS = [
+    function () {
+      var D = 20 + Math.floor(Math.random() * 80);
+      var mi = Math.floor(Math.random() * MATERIALS.length);
+      var b = MATERIALS[mi].hss;
+      var V = Math.round(b[0] + Math.random() * (b[1] - b[0]));
+      var N = round(1000 * V / (Math.PI * D), 0);
+      return { q: 'Calculate the spindle speed for turning ' + MATERIALS[mi].name + ' with an HSS tool (V = ' + V + ' m/min) at a workpiece diameter of ' + D + ' mm.', a: N, u: 'rev/min', tol: 2,
+        sol: 'N = 1000 \u00D7 V / (\u03C0 \u00D7 D)\nN = 1000 \u00D7 ' + V + ' / (\u03C0 \u00D7 ' + D + ')\nN = ' + N + ' rev/min' };
+    },
+    function () {
+      var D = 30 + Math.floor(Math.random() * 70);
+      var N = 100 + Math.floor(Math.random() * 500);
+      var V = round(Math.PI * D * N / 1000, 1);
+      return { q: 'Find the cutting speed if D = ' + D + ' mm and N = ' + N + ' rev/min.', a: V, u: 'm/min', tol: 0.5,
+        sol: 'V = \u03C0 \u00D7 D \u00D7 N / 1000\nV = \u03C0 \u00D7 ' + D + ' \u00D7 ' + N + ' / 1000\nV = ' + V + ' m/min' };
+    },
+    function () {
+      var f = round(0.1 + Math.random() * 0.3, 2);
+      var N = 150 + Math.floor(Math.random() * 400);
+      var fm = round(f * N, 1);
+      return { q: 'Calculate the feed rate in mm/min for turning with f = ' + f + ' mm/rev and N = ' + N + ' rev/min.', a: fm, u: 'mm/min', tol: 1,
+        sol: 'v\u1DA0 = f \u00D7 N\nv\u1DA0 = ' + f + ' \u00D7 ' + N + '\nv\u1DA0 = ' + fm + ' mm/min' };
+    },
+    function () {
+      /* MRR in cm3/min: pi D a_p f N gives mm3/min, so divide by 1000. */
+      var D = 30 + Math.floor(Math.random() * 60);
+      var ap = round(0.5 + Math.random() * 3, 1);
+      var f = round(0.1 + Math.random() * 0.3, 2);
+      var N = 100 + Math.floor(Math.random() * 400);
+      var mm3 = Math.PI * D * ap * f * N;
+      var mrr = round(mm3 / 1000, 2);
+      return { q: 'Find the material removal rate for turning: D = ' + D + ' mm, a\u209A = ' + ap + ' mm, f = ' + f + ' mm/rev, N = ' + N + ' rev/min. Give the answer in cm\u00B3/min.', a: mrr, u: 'cm\u00B3/min', tol: Math.max(0.05, mrr * 0.02),
+        sol: 'Q = \u03C0 \u00D7 D \u00D7 a\u209A \u00D7 f \u00D7 N\nQ = \u03C0 \u00D7 ' + D + ' \u00D7 ' + ap + ' \u00D7 ' + f + ' \u00D7 ' + N + '\nQ = ' + round(mm3, 0) + ' mm\u00B3/min\n\nConvert: 1 cm\u00B3 = 1000 mm\u00B3\nQ = ' + round(mm3, 0) + ' / 1000 = ' + mrr + ' cm\u00B3/min' };
+    },
+    function () {
+      var L = 50 + Math.floor(Math.random() * 150);
+      var f = round(0.1 + Math.random() * 0.3, 2);
+      var N = 150 + Math.floor(Math.random() * 400);
+      var T = round(L / (f * N), 3);
+      return { q: 'Calculate the machining time for cylindrical turning: L = ' + L + ' mm, f = ' + f + ' mm/rev, N = ' + N + ' rev/min.', a: T, u: 'min', tol: Math.max(0.01, T * 0.03),
+        sol: 'T = L / (f \u00D7 N)\nT = ' + L + ' / (' + f + ' \u00D7 ' + N + ')\nT = ' + T + ' min' };
+    },
+    function () {
+      var D = 40 + Math.floor(Math.random() * 80);
+      var f = round(0.1 + Math.random() * 0.25, 2);
+      var N = 200 + Math.floor(Math.random() * 400);
+      var T = round((D / 2) / (f * N), 3);
+      return { q: 'A bar of diameter ' + D + ' mm is faced from the rim to centre at f = ' + f + ' mm/rev and N = ' + N + ' rev/min. How long does the cut take?', a: T, u: 'min', tol: Math.max(0.01, T * 0.03),
+        sol: 'Facing feeds radially, so the travel is the RADIUS, not the length.\nTravel = D / 2 = ' + (D / 2) + ' mm\nT = (D/2) / (f \u00D7 N)\nT = ' + (D / 2) + ' / (' + f + ' \u00D7 ' + N + ')\nT = ' + T + ' min' };
+    },
+    function () {
+      var fz = round(0.05 + Math.random() * 0.15, 2);
+      var Z = 2 + Math.floor(Math.random() * 6);
+      var N = 200 + Math.floor(Math.random() * 600);
+      var fm = round(fz * Z * N, 1);
+      return { q: 'Calculate the table feed rate for milling: f\u2082 = ' + fz + ' mm/tooth, z = ' + Z + ' teeth, N = ' + N + ' rev/min.', a: fm, u: 'mm/min', tol: 2,
+        sol: 'v\u1DA0 = f\u2082 \u00D7 z \u00D7 N\nv\u1DA0 = ' + fz + ' \u00D7 ' + Z + ' \u00D7 ' + N + '\nv\u1DA0 = ' + fm + ' mm/min' };
+    },
+    function () {
+      var ae = 10 + Math.floor(Math.random() * 40);
+      var ap = round(0.5 + Math.random() * 3, 1);
+      var fm = 50 + Math.floor(Math.random() * 200);
+      var mrr = round(ae * ap * fm / 1000, 2);
+      return { q: 'Find the MRR for milling: a\u2091 = ' + ae + ' mm, a\u209A = ' + ap + ' mm, v\u1DA0 = ' + fm + ' mm/min. Answer in cm\u00B3/min.', a: mrr, u: 'cm\u00B3/min', tol: Math.max(0.05, mrr * 0.02),
+        sol: 'Q = a\u2091 \u00D7 a\u209A \u00D7 v\u1DA0 / 1000\nQ = ' + ae + ' \u00D7 ' + ap + ' \u00D7 ' + fm + ' / 1000\nQ = ' + mrr + ' cm\u00B3/min' };
+    },
+    function () {
+      var D = 20 + Math.floor(Math.random() * 60);
+      var ae = Math.max(1, Math.round(D * (0.1 + Math.random() * 0.35)));
+      var phis = round(Math.acos(1 - 2 * ae / D) * 180 / Math.PI, 1);
+      return { q: 'A ' + D + ' mm cutter takes a radial width of cut a\u2091 = ' + ae + ' mm. Find the arc of engagement \u03C6\u209B in degrees.', a: phis, u: '\u00B0', tol: 0.5,
+        sol: '\u03C6\u209B = arccos(1 \u2212 2a\u2091/D)\n\u03C6\u209B = arccos(1 \u2212 2 \u00D7 ' + ae + ' / ' + D + ')\n\u03C6\u209B = arccos(' + round(1 - 2 * ae / D, 4) + ')\n\u03C6\u209B = ' + phis + '\u00B0' };
+    },
+    function () {
+      var D = 8 + Math.floor(Math.random() * 20);
+      var ae = Math.max(1, Math.round(D * (0.08 + Math.random() * 0.3)));
+      var fz = round(0.04 + Math.random() * 0.08, 3);
+      var phis = Math.acos(1 - 2 * ae / D) * 180 / Math.PI;
+      var hm = round(360 * ae * fz / (Math.PI * D * phis), 4);
+      return { q: 'Find the mean chip thickness h\u2098 for a ' + D + ' mm cutter at a\u2091 = ' + ae + ' mm and f\u2082 = ' + fz + ' mm/tooth. (\u03C6\u209B = ' + round(phis, 1) + '\u00B0)', a: hm, u: 'mm', tol: Math.max(0.0005, hm * 0.03),
+        sol: 'h\u2098 = 360 \u00D7 a\u2091 \u00D7 f\u2082 / (\u03C0 \u00D7 D \u00D7 \u03C6\u209B)\nh\u2098 = 360 \u00D7 ' + ae + ' \u00D7 ' + fz + ' / (\u03C0 \u00D7 ' + D + ' \u00D7 ' + round(phis, 1) + ')\nh\u2098 = ' + hm + ' mm\n\nThe chip is thinner than the feed per tooth \u2014 that is radial chip thinning.' };
+    },
+    function () {
+      var D = 6 + Math.floor(Math.random() * 20);
+      var f = round(0.05 + Math.random() * 0.2, 2);
+      var N = 300 + Math.floor(Math.random() * 800);
+      var mrr = round(Math.PI * D * D * f * N / (4 * 1000), 2);
+      return { q: 'Find the MRR for drilling: D = ' + D + ' mm, f = ' + f + ' mm/rev, N = ' + N + ' rev/min. Answer in cm\u00B3/min.', a: mrr, u: 'cm\u00B3/min', tol: Math.max(0.05, mrr * 0.02),
+        sol: 'Q = \u03C0 \u00D7 D\u00B2 \u00D7 f \u00D7 N / 4\nQ = \u03C0 \u00D7 ' + D + '\u00B2 \u00D7 ' + f + ' \u00D7 ' + N + ' / 4\nQ = ' + round(Math.PI * D * D * f * N / 4, 0) + ' mm\u00B3/min\n\nDivide by 1000 for cm\u00B3/min:\nQ = ' + mrr + ' cm\u00B3/min' };
+    },
+    function () {
+      var t = 15 + Math.floor(Math.random() * 30);
+      var D = 8 + Math.floor(Math.random() * 16);
+      var f = round(0.08 + Math.random() * 0.15, 2);
+      var N = 300 + Math.floor(Math.random() * 500);
+      var L = round(t + 0.3 * D + 2, 1);
+      var T = round(L / (f * N), 3);
+      return { q: 'A ' + D + ' mm through hole is drilled in a ' + t + ' mm plate at f = ' + f + ' mm/rev, N = ' + N + ' rev/min. Include the drill point (0.3D) and 2 mm breakthrough. Find the time.', a: T, u: 'min', tol: Math.max(0.005, T * 0.04),
+        sol: 'Stroke L = t + 0.3D + clearance\nL = ' + t + ' + 0.3 \u00D7 ' + D + ' + 2 = ' + L + ' mm\nT = L / (f \u00D7 N)\nT = ' + L + ' / (' + f + ' \u00D7 ' + N + ')\nT = ' + T + ' min' };
+    },
+    function () {
+      var mi = Math.floor(Math.random() * MATERIALS.length);
+      var m = MATERIALS[mi];
+      var h = round(0.05 + Math.random() * 0.3, 2);
+      var kc = round(m.kc11 * Math.pow(h, -m.mc), 0);
+      return { q: 'Using Kienzle, find k\u1D9C for ' + m.name + ' (k\u1D9C\u2081.\u2081 = ' + m.kc11 + ' N/mm\u00B2, m\u1D9C = ' + m.mc + ') at a chip thickness of h = ' + h + ' mm.', a: kc, u: 'N/mm\u00B2', tol: Math.max(5, kc * 0.02),
+        sol: 'k\u1D9C = k\u1D9C\u2081.\u2081 \u00D7 h^(\u2212m\u1D9C)\nk\u1D9C = ' + m.kc11 + ' \u00D7 ' + h + '^(\u2212' + m.mc + ')\nk\u1D9C = ' + kc + ' N/mm\u00B2\n\nThat is ' + round(kc / m.kc11, 2) + '\u00D7 the value at h = 1 mm \u2014 thin chips cost more force per mm\u00B2.' };
+    },
+    function () {
+      var mi = Math.floor(Math.random() * MATERIALS.length);
+      var m = MATERIALS[mi];
+      var ap = round(1 + Math.random() * 3, 1);
+      var f = round(0.1 + Math.random() * 0.25, 2);
+      var kc = m.kc11 * Math.pow(f, -m.mc);
+      var Fc = round(kc * ap * f, 0);
+      return { q: 'Find the cutting force turning ' + m.name + ' at a\u209A = ' + ap + ' mm and f = ' + f + ' mm/rev. (k\u1D9C\u2081.\u2081 = ' + m.kc11 + ' N/mm\u00B2, m\u1D9C = ' + m.mc + ', lead angle 90\u00B0.)', a: Fc, u: 'N', tol: Math.max(10, Fc * 0.03),
+        sol: 'With a 90\u00B0 lead angle: h = f = ' + f + ' mm, b = a\u209A = ' + ap + ' mm\nk\u1D9C = ' + m.kc11 + ' \u00D7 ' + f + '^(\u2212' + m.mc + ') = ' + round(kc, 0) + ' N/mm\u00B2\nF\u1D9C = k\u1D9C \u00D7 b \u00D7 h\nF\u1D9C = ' + round(kc, 0) + ' \u00D7 ' + ap + ' \u00D7 ' + f + '\nF\u1D9C = ' + Fc + ' N' };
+    },
+    function () {
+      var Fc = 400 + Math.floor(Math.random() * 1600);
+      var V = 60 + Math.floor(Math.random() * 200);
+      var P = round(Fc * V / 60000, 2);
+      return { q: 'A cut generates F\u1D9C = ' + Fc + ' N at a cutting speed of ' + V + ' m/min. Find the cutting power in kW.', a: P, u: 'kW', tol: Math.max(0.02, P * 0.03),
+        sol: 'P\u1D9C = F\u1D9C \u00D7 V / 60000\nP\u1D9C = ' + Fc + ' \u00D7 ' + V + ' / 60000\nP\u1D9C = ' + P + ' kW' };
+    },
+    function () {
+      var P = round(0.5 + Math.random() * 6, 2);
+      var N = 200 + Math.floor(Math.random() * 1500);
+      var M = round(30000 * P / (Math.PI * N), 2);
+      return { q: 'A spindle delivers ' + P + ' kW at ' + N + ' rev/min. Find the torque in N\u00B7m.', a: M, u: 'N\u00B7m', tol: Math.max(0.05, M * 0.03),
+        sol: 'M\u1D9C = 30000 \u00D7 P\u1D9C / (\u03C0 \u00D7 N)\nM\u1D9C = 30000 \u00D7 ' + P + ' / (\u03C0 \u00D7 ' + N + ')\nM\u1D9C = ' + M + ' N\u00B7m' };
+    },
+    function () {
+      var mrr = 4000 + Math.floor(Math.random() * 20000);
+      var mi = Math.floor(Math.random() * MATERIALS.length);
+      var kc = MATERIALS[mi].kc11;
+      var eta = 0.75;
+      var P = round(mrr * kc / (6e7 * eta), 2);
+      return { q: 'Find the motor power for Q = ' + mrr + ' mm\u00B3/min cutting ' + MATERIALS[mi].name + ' with k\u1D9C = ' + kc + ' N/mm\u00B2 and \u03B7 = 0.75.', a: P, u: 'kW', tol: Math.max(0.02, P * 0.03),
+        sol: 'P\u1D9C = Q \u00D7 k\u1D9C / (60 \u00D7 10\u2076)\nP\u1D9C = ' + mrr + ' \u00D7 ' + kc + ' / 60 000 000 = ' + round(mrr * kc / 6e7, 3) + ' kW\nP_motor = P\u1D9C / \u03B7 = ' + round(mrr * kc / 6e7, 3) + ' / 0.75\nP_motor = ' + P + ' kW' };
+    },
+    function () {
+      var n = [0.125, 0.25, 0.45][Math.floor(Math.random() * 3)];
+      var C = [180, 250, 300, 350, 400][Math.floor(Math.random() * 5)];
+      var V = 80 + Math.floor(Math.random() * 200);
+      var T = round(Math.pow(C / V, 1 / n), 2);
+      return { q: 'Taylor: with C = ' + C + ' and n = ' + n + ', find the tool life at a cutting speed of ' + V + ' m/min.', a: T, u: 'min', tol: Math.max(0.05, T * 0.04),
+        sol: 'V \u00D7 T\u207F = C  \u21D2  T = (C / V)^(1/n)\nT = (' + C + ' / ' + V + ')^(1/' + n + ')\nT = ' + round(C / V, 3) + '^' + round(1 / n, 3) + '\nT = ' + T + ' min' };
+    },
+    function () {
+      var f = round(0.08 + Math.random() * 0.3, 2);
+      var re = [0.2, 0.4, 0.8, 1.2][Math.floor(Math.random() * 4)];
+      var Ra = round(f * f * 1000 / (31.2 * re), 2);
+      return { q: 'Estimate the theoretical surface finish Ra for turning at f = ' + f + ' mm/rev with a nose radius of ' + re + ' mm.', a: Ra, u: '\u00B5m', tol: Math.max(0.02, Ra * 0.03),
+        sol: 'R\u2090 \u2248 f\u00B2 / (31.2 \u00D7 r\u03B5)   [f, r\u03B5 in mm \u2192 Ra in mm]\nR\u2090 = ' + f + '\u00B2 \u00D7 1000 / (31.2 \u00D7 ' + re + ')\nR\u2090 = ' + Ra + ' \u00B5m' };
+    },
+    function () {
+      var D = 6 + Math.floor(Math.random() * 18);
+      var f = round(0.08 + Math.random() * 0.2, 2);
+      var mi = Math.floor(Math.random() * MATERIALS.length);
+      var m = MATERIALS[mi];
+      var h = (f / 2) * Math.sin(59 * Math.PI / 180);
+      var kc = m.kc11 * Math.pow(h, -m.mc);
+      var M = round(kc * f * D * D / 8000, 2);
+      return { q: 'Find the drilling torque for a ' + D + ' mm drill in ' + m.name + ' at f = ' + f + ' mm/rev. Use k\u1D9C = ' + round(kc, 0) + ' N/mm\u00B2 and M\u1D9C = k\u1D9C f D\u00B2 / 8000.', a: M, u: 'N\u00B7m', tol: Math.max(0.05, M * 0.03),
+        sol: 'M\u1D9C = k\u1D9C \u00D7 f \u00D7 D\u00B2 / 8000\nM\u1D9C = ' + round(kc, 0) + ' \u00D7 ' + f + ' \u00D7 ' + D + '\u00B2 / 8000\nM\u1D9C = ' + M + ' N\u00B7m' };
+    }
+  ];
+
+  var pracNewBtn   = $('prac-new');
+  var pracCheckBtn = $('prac-check');
+  var pracShowBtn  = $('prac-show');
+  var pracInput    = $('prac-input');
+  var pracQuestion = $('prac-question');
+  var pracUnitEl   = $('prac-unit');
+  var pracFeedback = $('prac-feedback');
+  var pracScoreEl  = $('prac-score');
+  var pracSolPanel = $('prac-solution');
+
+  function newPractice() {
+    var gen = PRACTICE_GENERATORS[Math.floor(Math.random() * PRACTICE_GENERATORS.length)];
+    var prob = gen();
+    pracAnswer = prob.a;
+    pracUnit = prob.u;
+    pracSolution = prob.sol;
+    pracQuestion.textContent = prob.q;
+    pracUnitEl.textContent = prob.u;
+    pracInput.value = '';
+    pracFeedback.textContent = '';
+    pracFeedback.className = 'feedback';
+    pracSolPanel.style.display = 'none';
+    pracInput.focus();
+    /* A per-question tolerance, never a blanket 0.5 — several answers
+       here are legitimately below 1. */
+    pracInput._tol = prob.tol;
+  }
+
+  if (pracNewBtn) pracNewBtn.addEventListener('click', newPractice);
+
+  if (pracCheckBtn) pracCheckBtn.addEventListener('click', function () {
+    var val = parseFloat(pracInput.value);
+    if (isNaN(val)) { pracFeedback.textContent = 'Enter a number.'; pracFeedback.className = 'feedback err'; return; }
+    pracTotal++;
+    var tol = pracInput._tol;
+    if (!(tol > 0)) tol = Math.max(Math.abs(pracAnswer) * 0.02, Math.abs(pracAnswer) < 10 ? 0.01 : 0.5);
+    if (Math.abs(val - pracAnswer) <= tol) {
+      pracScore++;
+      pracFeedback.textContent = 'Correct!';
+      pracFeedback.className = 'feedback ok';
+    } else {
+      pracFeedback.textContent = 'Incorrect. Answer: ' + pracAnswer + ' ' + pracUnit;
+      pracFeedback.className = 'feedback err';
+    }
+    pracScoreEl.textContent = pracScore + ' / ' + pracTotal;
+  });
+
+  if (pracShowBtn) pracShowBtn.addEventListener('click', function () {
+    pracSolPanel.style.display = '';
+    var lines = pracSolution.split('\n');
+    pracSolPanel.innerHTML = '<strong>Solution:</strong><br>' + lines.map(function (l) { return '<div class="step">' + (l || '&nbsp;') + '</div>'; }).join('');
+  });
+
+  if (pracInput) pracInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') pracCheckBtn.click(); });
+
+  /* ══════════════════════════════════════════════════════════
+     20. QUIZ MODE
+  ══════════════════════════════════════════════════════════ */
+  var QUIZ_SIZE = 5;
+  var quizSet = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+
+  var QUIZ_POOL = [
+    { type: 'mcq', q: 'Which formula correctly calculates spindle speed from cutting speed?', opts: ['N = 1000V / (\u03C0D)', 'N = \u03C0D / (1000V)', 'N = V \u00D7 D / 1000', 'N = 1000 / (V\u03C0D)'], ans: 0 },
+    { type: 'mcq', q: 'Which material allows the highest cutting speed with carbide tools?', opts: ['Stainless Steel', 'Titanium', 'Aluminium', 'Cast Iron'], ans: 2 },
+    { type: 'mcq', q: 'In the Kienzle equation k\u1D9C = k\u1D9C\u2081.\u2081 h\u207B\u1D50\u1D9C, what happens as the chip gets thinner?', opts: ['k\u1D9C falls', 'k\u1D9C rises', 'k\u1D9C is unchanged', 'k\u1D9C becomes negative'], ans: 1 },
+    { type: 'mcq', q: 'In milling, the table feed rate equals:', opts: ['f \u00D7 N', 'f\u2082 \u00D7 z \u00D7 N', 'V \u00D7 D', 'f\u2082 \u00D7 N / z'], ans: 1 },
+    { type: 'mcq', q: 'Facing a bar at constant RPM: what happens to the cutting speed as the tool moves towards centre?', opts: ['It rises', 'It stays constant', 'It falls to zero', 'It doubles'], ans: 2 },
+    { type: 'mcq', q: 'Machine efficiency (\u03B7) in power calculations is typically:', opts: ['0.50', '0.75', '0.90', '1.00'], ans: 1 },
+    { type: 'mcq', q: 'Radial engagement below about 30% of the cutter diameter thins the chip. The correct response is to:', opts: ['Reduce the feed per tooth', 'Increase the feed per tooth', 'Reduce the spindle speed', 'Increase the depth of cut only'], ans: 1 },
+    { type: 'mcq', q: 'In Taylor\u2019s equation VT\u207F = C, which tool material has the LARGEST exponent n?', opts: ['HSS', 'Carbide', 'Ceramic', 'They are all equal'], ans: 2 },
+    { type: 'mcq', q: 'Why must the drill point length (about 0.3D) be added when drilling a through hole?', opts: ['To allow for tool wear', 'Because the conical point must clear the far face', 'To account for chip packing', 'To allow for spindle run-out'], ans: 1 },
+    { type: 'mcq', q: 'In tapping, the feed per revolution must equal:', opts: ['Half the pitch', 'The thread pitch', 'The tap diameter', 'The chamfer length'], ans: 1 },
+    { type: 'mcq', q: 'Theoretical surface finish Ra improves fastest when you:', opts: ['Increase spindle speed', 'Halve the feed', 'Increase depth of cut', 'Reduce the nose radius'], ans: 1 },
+    { type: 'mcq', q: 'Spindle torque is related to cutting power by:', opts: ['M = P \u00D7 N', 'M = 30000P / (\u03C0N)', 'M = P / N\u00B2', 'M = \u03C0NP / 30000'], ans: 1 },
+    { type: 'mcq', q: 'A reamer removes:', opts: ['A solid cylinder', 'A thin annulus of stock', 'A conical plug', 'A helical groove'], ans: 1 },
+    { type: 'mcq', q: 'Increasing the depth of cut while keeping other parameters constant will:', opts: ['Decrease MRR', 'Increase MRR', 'Not affect MRR', 'Decrease RPM'], ans: 1 },
+    { type: 'num', gen: function () {
+      var D = 40 + Math.floor(Math.random() * 40);
+      var V = 20 + Math.floor(Math.random() * 30);
+      return { q: 'Calculate spindle speed: V = ' + V + ' m/min, D = ' + D + ' mm', a: round(1000 * V / (Math.PI * D), 0), u: 'rev/min', tol: 2 };
+    } },
+    { type: 'num', gen: function () {
+      var f = round(0.1 + Math.random() * 0.2, 2);
+      var N = 200 + Math.floor(Math.random() * 300);
+      return { q: 'Find the feed rate in mm/min: f = ' + f + ' mm/rev, N = ' + N + ' rev/min', a: round(f * N, 1), u: 'mm/min', tol: 1 };
+    } },
+    { type: 'num', gen: function () {
+      var D = 50 + Math.floor(Math.random() * 50);
+      var N = 100 + Math.floor(Math.random() * 200);
+      return { q: 'Find the cutting speed: D = ' + D + ' mm, N = ' + N + ' rev/min', a: round(Math.PI * D * N / 1000, 1), u: 'm/min', tol: 0.5 };
+    } },
+    { type: 'num', gen: function () {
+      var D = 40 + Math.floor(Math.random() * 60);
+      var f = round(0.1 + Math.random() * 0.2, 2);
+      var N = 200 + Math.floor(Math.random() * 300);
+      var T = round((D / 2) / (f * N), 3);
+      return { q: 'Facing time for a ' + D + ' mm bar at f = ' + f + ' mm/rev, N = ' + N + ' rev/min (travel = radius)', a: T, u: 'min', tol: Math.max(0.005, T * 0.04) };
+    } },
+    { type: 'num', gen: function () {
+      var fz = round(0.05 + Math.random() * 0.1, 2);
+      var Z = 3 + Math.floor(Math.random() * 4);
+      var N = 250 + Math.floor(Math.random() * 300);
+      return { q: 'Table feed: f\u2082 = ' + fz + ' mm/tooth, z = ' + Z + ', N = ' + N + ' rev/min', a: round(fz * Z * N, 1), u: 'mm/min', tol: 2 };
+    } },
+    { type: 'num', gen: function () {
+      var P = round(0.8 + Math.random() * 4, 2);
+      var N = 300 + Math.floor(Math.random() * 1200);
+      var M = round(30000 * P / (Math.PI * N), 2);
+      return { q: 'Spindle torque for P\u1D9C = ' + P + ' kW at N = ' + N + ' rev/min', a: M, u: 'N\u00B7m', tol: Math.max(0.05, M * 0.04) };
+    } },
+    { type: 'num', gen: function () {
+      var f = round(0.1 + Math.random() * 0.2, 2);
+      var re = [0.4, 0.8, 1.2][Math.floor(Math.random() * 3)];
+      var Ra = round(f * f * 1000 / (31.2 * re), 2);
+      return { q: 'Theoretical Ra at f = ' + f + ' mm/rev with nose radius ' + re + ' mm', a: Ra, u: '\u00B5m', tol: Math.max(0.02, Ra * 0.04) };
+    } }
+  ];
+
+  var quizCounter  = $('quiz-counter');
+  var quizQuestion = $('quiz-question');
+  var quizOptions  = $('quiz-options');
+  var quizInputGrp = $('quiz-input-group');
+  var quizInput    = $('quiz-input');
+  var quizUnitEl   = $('quiz-unit');
+  var quizSubmit   = $('quiz-submit');
+  var quizNext     = $('quiz-next');
+  var quizFeedback = $('quiz-feedback');
+  var quizResult   = $('quiz-result');
+  var quizBar      = $('quiz-bar');
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function startQuiz() {
+    quizScore = 0; quizIdx = 0; quizAnswered = false;
+    quizResult.style.display = 'none';
+    quizBar.style.display = '';
+    var pool = shuffle(QUIZ_POOL.slice());
+    quizSet = [];
+    for (var i = 0; i < Math.min(QUIZ_SIZE, pool.length); i++) {
+      var item = pool[i];
+      if (item.type === 'num') {
+        var g = item.gen();
+        quizSet.push({ type: 'num', q: g.q, a: g.a, u: g.u, tol: g.tol, given: null });
+      } else {
+        quizSet.push({ type: 'mcq', q: item.q, opts: item.opts, ans: item.ans, given: null });
+      }
+    }
+    showQuizQuestion();
+  }
+
+  function showQuizQuestion() {
+    var item = quizSet[quizIdx];
+    quizCounter.textContent = 'Q ' + (quizIdx + 1) + ' / ' + QUIZ_SIZE;
+    quizQuestion.textContent = item.q;
+    quizFeedback.textContent = '';
+    quizFeedback.className = 'feedback';
+    quizSubmit.style.display = '';
+    quizNext.style.display = 'none';
+    quizAnswered = false;
+
+    if (item.type === 'mcq') {
+      quizInputGrp.style.display = 'none';
+      quizOptions.style.display = '';
+      quizOptions.innerHTML = '';
+      item.opts.forEach(function (opt, oi) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'quiz-option';
+        btn.textContent = opt;
+        btn.dataset.idx = oi;
+        btn.addEventListener('click', function () {
+          quizOptions.querySelectorAll('.quiz-option').forEach(function (b) { b.classList.remove('selected'); });
+          btn.classList.add('selected');
+        });
+        quizOptions.appendChild(btn);
+      });
+    } else {
+      quizOptions.style.display = 'none';
+      quizInputGrp.style.display = '';
+      quizInput.value = '';
+      quizUnitEl.textContent = item.u;
+      quizInput.focus();
+    }
+  }
+
+  quizSubmit.addEventListener('click', function () {
+    if (quizAnswered) return;
+    var item = quizSet[quizIdx];
+    var correct = false;
+
+    if (item.type === 'mcq') {
+      var sel = quizOptions.querySelector('.quiz-option.selected');
+      if (!sel) { quizFeedback.textContent = 'Select an answer.'; quizFeedback.className = 'feedback err'; return; }
+      var chosen = +sel.dataset.idx;
+      item.given = item.opts[chosen];
+      correct = (chosen === item.ans);
+      quizOptions.querySelectorAll('.quiz-option').forEach(function (b, bi) {
+        b.disabled = true;
+        if (bi === item.ans) b.classList.add('correct');
+        if (bi === chosen && !correct) b.classList.add('wrong');
+      });
+    } else {
+      var val = parseFloat(quizInput.value);
+      if (isNaN(val)) { quizFeedback.textContent = 'Enter a number.'; quizFeedback.className = 'feedback err'; return; }
+      item.given = val;
+      var tol = item.tol > 0 ? item.tol : Math.max(Math.abs(item.a) * 0.02, Math.abs(item.a) < 10 ? 0.01 : 0.5);
+      correct = Math.abs(val - item.a) <= tol;
+    }
+
+    quizAnswered = true;
+    if (correct) {
+      quizScore++;
+      quizFeedback.textContent = 'Correct!';
+      quizFeedback.className = 'feedback ok';
+    } else {
+      var ca = item.type === 'mcq' ? item.opts[item.ans] : item.a + ' ' + item.u;
+      quizFeedback.textContent = 'Incorrect. Answer: ' + ca;
+      quizFeedback.className = 'feedback err';
+    }
+    item._correct = correct;
+    quizSubmit.style.display = 'none';
+    quizNext.style.display = '';
+  });
+
+  quizNext.addEventListener('click', function () {
+    quizIdx++;
+    if (quizIdx >= QUIZ_SIZE) showQuizResult();
+    else showQuizQuestion();
+  });
+
+  quizInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') quizSubmit.click(); });
+
+  function showQuizResult() {
+    quizBar.style.display = 'none';
+    quizResult.style.display = '';
+    var scoreClass = quizScore === QUIZ_SIZE ? 'perfect' : quizScore >= 3 ? 'good' : 'poor';
+    var stars = quizScore === QUIZ_SIZE ? '\u2605\u2605\u2605' : quizScore >= 3 ? '\u2605\u2605' : '\u2605';
+
+    var html = '<div class="qr-header"><div class="qr-score ' + scoreClass + '">' + quizScore + ' / ' + QUIZ_SIZE + '</div><div class="qr-stars">' + stars + '</div></div>';
+    html += '<div class="qr-rows">';
+    quizSet.forEach(function (item, i) {
+      var rowClass = item._correct ? 'ok' : 'err';
+      var mark = item._correct ? '\u2713' : '\u2717';
+      var ca = item.type === 'mcq' ? item.opts[item.ans] : item.a + ' ' + item.u;
+      var ga = item.given;
+      if (item.type === 'num' && ga !== null) ga = ga + ' ' + item.u;
+      html += '<div class="qr-row ' + rowClass + '"><span class="qr-q">Q' + (i + 1) + ': ' + item.q + '</span>';
+      html += '<span class="qr-a">Your: ' + (ga === null ? '-' : ga) + '</span>';
+      if (!item._correct) html += '<span class="qr-a" style="color:var(--green)">Ans: ' + ca + '</span>';
+      html += '<span class="qr-mark">' + mark + '</span></div>';
+    });
+    html += '</div><button class="btn btn-primary" type="button" id="quiz-retry">New Quiz</button>';
+    quizResult.innerHTML = html;
+    $('quiz-retry').addEventListener('click', startQuiz);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     21. UNIT TOGGLE
+  ══════════════════════════════════════════════════════════ */
+  (function () {
+    var tabs = $('unit-tabs');
+    if (!tabs) return;
+    tabs.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-value]');
+      if (!b) return;
+      var want = (b.getAttribute('data-value') === 'imp');
+      if (want === imperial) return;
+      imperial = want;
+      Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (x) {
+        x.classList.toggle('active', x === b);
+      });
+      syncControls();
+      updateReadouts();
+      draw();                 /* the canvas carries units too */
+    });
+  })();
+
+  /* ══════════════════════════════════════════════════════════
+     22. INIT
+  ══════════════════════════════════════════════════════════ */
+  buildSubOps();
+  updateUIForOp();
+  syncControls();
+  updateReadouts();
+  draw();
+  startAnim();
+
+  /* Proof that init() reached its end: resizeCanvas() has replaced the
+     HTML width attribute with a device-pixel one. */
+  if (canvas.width === 920 && (window.devicePixelRatio || 1) !== 1) {
+    /* nothing to do — kept as a documented invariant, not a throw */
+  }
+})();
+
+/* ── Cutting speed chart: live filter ────────────────────────────────── */
+(function () {
+  'use strict';
+
+  var input = document.getElementById('cs-filter');
+  var table = document.getElementById('cs-table');
+  var count = document.getElementById('cs-count');
+  if (!input || !table) return;
+
+  var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+  var total = rows.length;
+
+  function report(n) {
+    if (count) {
+      count.textContent = n === total ? total + ' materials' : n + ' of ' + total + ' materials';
+    }
+  }
+
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    // Accept both spellings so "aluminum" finds "Aluminium".
+    var alt = q.replace('aluminum', 'aluminium');
+    var shown = 0;
+    rows.forEach(function (r) {
+      var name = r.cells[0].textContent.toLowerCase();
+      var hit = !q || name.indexOf(q) !== -1 || name.indexOf(alt) !== -1;
+      r.hidden = !hit;
+      if (hit) shown++;
+    });
+    report(shown);
+  });
+
+  report(total);
+})();

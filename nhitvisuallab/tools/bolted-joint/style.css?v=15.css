@@ -1,0 +1,830 @@
+/* -- Bolted Joint Design Simulator -------------------------------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b27;
+  --surface2:  #1f2535;
+  --border:    #2a3050;
+  --accent:    #546e7a;
+  --accent-lo: rgba(84,110,122,.22);
+  --green:     #3ddc84;
+  --red:       #ff5555;
+  --gold:      #f5c842;
+  --text:      #dde3f0;
+  --text-dim:  #6b7a99;
+  --font:      'Segoe UI', system-ui, sans-serif;
+  --mono:      'Courier New', monospace;
+  --radius:    12px;
+  --bolt-color:    #546e7a;
+  --plate-color:   #78909c;
+  --stress-color:  #ff5555;
+  --preload-color: #42a5f5;
+  --shear-color:   #3ddc84;
+  --bearing-color: #f5c842;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; padding: 0 16px; }
+#app { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* -- Header ------------------------------------------------------- */
+header { text-align: center; padding: 4px 0; }
+header h1 {
+  font-size: 1.8rem; font-weight: 700;
+  background: linear-gradient(120deg, #37474f 0%, #78909c 50%, #b0bec5 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { color: var(--text-dim); font-size: 0.85rem; margin-top: 3px; }
+
+/* -- Controls bar ------------------------------------------------- */
+.controls-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.ctrl-group { display: flex; align-items: center; gap: 8px; }
+.ctrl-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); white-space: nowrap; }
+
+.pill-tabs { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 2px; }
+.pill {
+  padding: 5px 13px; border: none; background: transparent; color: var(--text-dim);
+  border-radius: 6px; cursor: pointer; font-size: 0.81rem;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.pill.active { background: var(--accent); color: #fff; box-shadow: 0 0 12px var(--accent-lo); }
+.pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+/* -- Canvas card -------------------------------------------------- */
+.canvas-card {
+  width: 100%; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px; position: relative; overflow-x: clip;
+}
+.canvas-card canvas { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: pan-y; }
+
+/* -- Buttons ------------------------------------------------------ */
+.btn {
+  padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 0.84rem; font-weight: 600; transition: filter .18s, box-shadow .18s, opacity .18s;
+}
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:not(:disabled):hover { filter: brightness(1.12); box-shadow: 0 0 12px var(--accent-lo); }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--border); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:not(:disabled):hover { filter: brightness(1.12); }
+
+/* -- Sim controls ------------------------------------------------- */
+.sim-controls {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+}
+
+/* Rows that hold a label plus pills stay a simple flex line. */
+.sim-row { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; min-width: 0; }
+
+/* Rows of controls cascade on their own: as many equal cells as fit, then wrap.
+   auto-fit + minmax(0-floor) is what stops a long <select> from forcing the
+   track wider than the panel — the old flex row could not shrink below the
+   select's intrinsic content width, which is what made the shear row bleed. */
+.sim-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px; align-items: end; width: 100%; min-width: 0;
+}
+
+/* One control cell. The caption and the exact-value stepper share the top line
+   and the slider gets the full width beneath, so the track stays long enough to
+   drag however narrow the column gets. A select simply spans both rows. */
+.sim-slider-group {
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: 5px; min-width: 0;
+}
+.sim-slider-label {
+  min-width: 0;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Greek symbols must survive the uppercase transform — a lowercase mu becomes
+   a capital Mu, which reads as a Latin M. */
+.sim-slider-label .sym { text-transform: none; }
+/* Pill groups sit in the control row of a cell and share its width evenly, so
+   the three mode cells line up with the select cells directly above them. */
+.sim-slider-group .pill-tabs { width: 100%; min-width: 0; }
+.sim-slider-group .pill-tabs .pill {
+  flex: 1 1 0; min-width: 0; text-align: center; padding: 6px 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Select dropdown — must be allowed to shrink, or its longest <option>
+   sets the column width and pushes the neighbouring cell out of the panel. */
+.sim-select {
+  width: 100%; min-width: 0; max-width: 100%;
+  padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-family: var(--mono);
+  font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  text-overflow: ellipsis;
+  transition: border-color .18s;
+}
+.sim-select:focus { outline: none; border-color: var(--accent); }
+
+.preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.preset-btn {
+  padding: 5px 12px; border: 2px solid var(--border); border-radius: 8px;
+  background: var(--surface2); color: var(--text-dim); font-size: 0.75rem;
+  font-weight: 700; cursor: pointer; transition: border-color .18s, color .18s, background .18s;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--text); }
+.preset-btn.active { border-color: var(--accent); color: #fff; background: rgba(84,110,122,.18); }
+
+.readout-row {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 6px;
+}
+.readout-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 8px; text-align: center; min-width: 0;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 3px;
+}
+.readout-label {
+  font-size: 0.58rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-dim); line-height: 1.25; min-height: 2.5em;
+  display: flex; align-items: center; justify-content: center;
+}
+.readout-val { font-family: var(--mono); font-size: 1.02rem; font-weight: 700; color: var(--accent); }
+.readout-unit { font-size: 0.68rem; color: var(--text-dim); margin-left: 2px; }
+
+.sim-toggles { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sim-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.78rem; color: var(--text-dim); }
+.sim-toggle input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+.sim-toggle.checked { color: var(--text); }
+
+.action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* -- Explore mode ------------------------------------------------- */
+.item-selector {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.is-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 8px; margin-top: 10px; }
+.is-btn {
+  padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+  background: var(--surface2); color: var(--text-dim); font-size: 0.82rem;
+  font-weight: 600; cursor: pointer; text-align: left;
+  transition: border-color .18s, color .18s, background .18s, box-shadow .18s;
+}
+.is-btn:hover { border-color: rgba(84,110,122,.45); color: var(--text); }
+.is-btn.active { border-color: var(--accent); color: #fff; background: rgba(84,110,122,.15); box-shadow: 0 0 14px var(--accent-lo); }
+.is-btn-name { display: block; font-size: 0.82rem; font-weight: 700; }
+.is-btn-sym  { display: block; font-size: 0.68rem; color: var(--accent); margin-top: 2px; font-family: var(--mono); }
+
+.item-info {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
+}
+.ii-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ii-name { font-size: 1.15rem; font-weight: 800; color: var(--text); }
+.ii-cat-badge {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; padding: 3px 10px; border-radius: 20px;
+  background: var(--accent-lo); color: var(--accent);
+}
+.ii-desc { font-size: 0.85rem; color: var(--text-dim); line-height: 1.65; }
+
+/* Formula box */
+.formula-box {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.fb-formula { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.fb-unit { font-size: 0.78rem; color: var(--text-dim); }
+
+/* Example calculation */
+.example-box {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px;
+}
+.example-box h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 8px; }
+.example-box .ex-problem { font-size: 0.84rem; color: var(--text); margin-bottom: 8px; line-height: 1.6; }
+.example-box .ex-step { font-size: 0.8rem; color: var(--text-dim); line-height: 1.6; padding: 2px 0; }
+.example-box .ex-step strong { color: var(--green); font-family: var(--mono); }
+
+/* -- Practice mode ------------------------------------------------ */
+.practice-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.pp-prompt { font-size: 0.92rem; font-weight: 600; color: var(--text); margin-bottom: 14px; line-height: 1.6; }
+.pp-input-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pp-input {
+  flex: 1; min-width: 120px; max-width: 220px;
+  padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-family: var(--mono);
+  font-size: 1rem; font-weight: 700; transition: border-color .18s;
+}
+.pp-input:focus { outline: none; border-color: var(--accent); }
+.pp-unit { font-size: 0.88rem; color: var(--text-dim); font-weight: 600; }
+.pp-bottom { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.feedback { font-size: 0.88rem; font-weight: 600; }
+.feedback.ok  { color: var(--green); }
+.feedback.err { color: var(--red); }
+
+.solution-panel {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; margin-top: 12px;
+}
+.solution-panel h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 8px; }
+.sol-step { font-size: 0.82rem; color: var(--text-dim); line-height: 1.7; padding: 2px 0; }
+.sol-step strong { color: var(--green); font-family: var(--mono); }
+
+.practice-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.pbar-score { font-size: 0.84rem; color: var(--text-dim); margin-left: auto; white-space: nowrap; }
+.pbar-score span { color: var(--text); font-weight: 700; }
+
+/* -- Quiz panels -------------------------------------------------- */
+.question-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.qp-prompt { font-size: 0.88rem; font-weight: 600; color: var(--text); margin-bottom: 12px; line-height: 1.6; }
+.answer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.answer-btn {
+  padding: 14px 16px; border: 2px solid var(--border); border-radius: 10px;
+  background: var(--surface2); color: var(--text); font-size: 0.88rem;
+  font-weight: 600; cursor: pointer; text-align: center;
+  transition: border-color .18s, background .18s, color .18s, transform .12s;
+}
+.answer-btn:hover:not(.locked) { border-color: var(--accent); background: rgba(84,110,122,.06); }
+.answer-btn.correct { border-color: var(--green); background: rgba(61,220,132,.12); color: var(--green); }
+.answer-btn.wrong { border-color: var(--red); background: rgba(255,85,85,.08); color: var(--red); }
+.answer-btn.locked { cursor: default; opacity: 0.6; }
+.answer-btn.correct.locked { opacity: 1; }
+
+.quiz-input-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.qi-input {
+  flex: 1; min-width: 120px; max-width: 200px;
+  padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-family: var(--mono);
+  font-size: 1rem; font-weight: 700; transition: border-color .18s;
+}
+.qi-input:focus { outline: none; border-color: var(--accent); }
+.qi-unit { font-size: 0.84rem; color: var(--text-dim); font-weight: 600; }
+
+.quiz-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.qbar-counter { display: flex; align-items: baseline; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
+.qbar-q-label { font-size: 0.7rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.qbar-q-num { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--text); line-height: 1; }
+.qbar-q-sep { font-size: 0.82rem; color: var(--text-dim); }
+.qbar-q-total { font-family: var(--mono); font-size: 0.88rem; color: var(--text-dim); }
+.quiz-feedback { font-size: 0.88rem; font-weight: 600; }
+.quiz-feedback.ok  { color: var(--green); }
+.quiz-feedback.err { color: var(--red); }
+
+/* Quiz result */
+.quiz-result {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.qr-header { display: flex; align-items: flex-start; justify-content: space-between; }
+.qr-title-wrap { display: flex; flex-direction: column; gap: 5px; }
+.qr-title  { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.qr-stars  { font-size: 1.2rem; letter-spacing: 3px; }
+.qr-score-wrap { text-align: right; }
+.qr-score { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; line-height: 1; text-shadow: 0 0 14px currentColor; }
+.qr-score.perfect { color: var(--gold); }
+.qr-score.good { color: var(--green); }
+.qr-score.poor { color: var(--red); }
+.qr-verdict { font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; }
+.qr-rows { display: flex; flex-direction: column; gap: 7px; }
+.qr-row {
+  display: grid; grid-template-columns: 30px 1fr 26px; align-items: center; gap: 10px;
+  background: var(--surface2); border: 1px solid var(--border); border-left-width: 3px;
+  border-radius: 8px; padding: 9px 12px;
+}
+.qr-row.ok  { border-left-color: var(--green); }
+.qr-row.err { border-left-color: var(--red); }
+.qr-qnum { font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+.qr-detail { font-size: 0.78rem; color: var(--text-dim); }
+.qr-detail strong { color: var(--text); }
+.qr-mark { text-align: right; font-size: 1rem; font-weight: 700; }
+.qr-row.ok .qr-mark { color: var(--green); }
+.qr-row.err .qr-mark { color: var(--red); }
+
+/* -- SEO Article -------------------------------------------------- */
+.seo-article { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; line-height: 1.7; }
+.seo-article h2 { font-size: 1.25rem; color: var(--text); margin-bottom: 12px; }
+.seo-article h3 { font-size: 1.05rem; color: var(--accent); margin: 16px 0 6px; }
+.seo-article p { font-size: 0.88rem; color: var(--text-dim); margin-bottom: 10px; }
+
+/* -- Responsive ---------------------------------------------------
+   The control grid narrows its cell floor in steps rather than jumping
+   straight to one column, so a tablet keeps two or three cells per line. */
+@media (max-width: 900px) {
+  .sim-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+  .answer-grid { grid-template-columns: 1fr 1fr; }
+  .is-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .controls-bar { gap: 10px; }
+  .readout-row { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  .sim-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 10px; }
+}
+@media (max-width: 560px) {
+  header h1 { font-size: 1.4rem; }
+  .subtitle  { font-size: 0.78rem; }
+  .controls-bar { padding: 10px 12px; gap: 8px; }
+  .pill { padding: 5px 10px; font-size: 0.76rem; }
+  .answer-grid { grid-template-columns: 1fr; }
+  .is-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Phones: one control per line, and every hit target grows rather than
+     shrinks — a single column leaves plenty of width to spend on them. */
+  .sim-controls { padding: 10px 11px; gap: 9px; }
+  .sim-grid { grid-template-columns: 1fr; gap: 9px; }
+  .sim-grid.num { grid-template-columns: 1fr 1fr; gap: 9px 8px; }
+  .sim-slider-group { gap: 6px 8px; }
+  .sim-slider-label { font-size: 0.7rem; }
+  .sim-select { font-size: 0.82rem; padding: 9px 10px; }
+
+  /* Pills need a real thumb target too */
+  .sim-slider-group .pill-tabs .pill { padding: 9px 4px; font-size: 0.75rem; }
+  .pill-tabs { padding: 3px; }
+
+  .readout-row { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 5px; }
+  .readout-card { padding: 6px 5px; }
+  .readout-label { font-size: 0.54rem; min-height: 2.6em; }
+  .readout-val { font-size: 0.92rem; }
+  .readout-unit { font-size: 0.6rem; }
+
+  .action-row .btn { padding: 7px 12px; font-size: 0.78rem; }
+}
+@media (max-width: 360px) {
+  .readout-row { grid-template-columns: 1fr 1fr; }
+  .sim-slider-label { font-size: 0.66rem; }
+}
+
+/* ═══ Steppers — the only numeric control ═════════════════════════
+   One connected segment: [−][ value ][+][unit]. Press-and-hold repeats and the
+   arrow keys step the field, because there is no slider to drag any more. */
+.stepper {
+  display: flex; align-items: stretch; width: 100%; min-width: 0;
+  background: var(--bg);
+  border: 1.5px solid var(--border); border-radius: 9px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.stepper:focus-within { border-color: var(--accent); }
+.step-btn {
+  flex: 0 0 auto; width: 34px;
+  border: none; border-radius: 0;
+  background: var(--surface2); color: var(--accent);
+  font-size: 1.15rem; font-weight: 700; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s;
+  -webkit-user-select: none; user-select: none; touch-action: manipulation;
+}
+.step-btn:hover  { background: var(--accent); color: #fff; }
+.step-btn:active { background: var(--accent); color: #fff; filter: brightness(1.15); }
+.step-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.step-btn:disabled { opacity: .3; cursor: not-allowed; background: var(--surface2); color: var(--text-dim); }
+/* The value cell doubles as the range indicator: --pct is written by app.js on
+   every change, so the fill shows where this variable sits between its own min
+   and max. It replaces the readout the slider used to give, without taking a
+   second row or a second control to operate. */
+.step-input {
+  flex: 1 1 auto; min-width: 44px; width: 100%;
+  padding: 7px 4px; text-align: center;
+  border: none; color: var(--text);
+  font-family: var(--mono); font-size: 0.95rem; font-weight: 700;
+  -moz-appearance: textfield;
+  background-color: transparent;
+  background-image:
+    linear-gradient(90deg, var(--accent) 0 var(--pct, 0%), transparent var(--pct, 0%) 100%),
+    linear-gradient(90deg, var(--accent-lo) 0 var(--pct, 0%), transparent var(--pct, 0%) 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-size: 100% 2px, 100% 100%;
+  background-position: left bottom, left center;
+  transition: background-size .12s ease;
+}
+.stepper:focus-within .step-input { background-size: 100% 3px, 100% 100%; }
+.step-input::-webkit-outer-spin-button,
+.step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.step-input:focus { outline: none; }
+/* The unit lives in the caption, not in the pill — inside the pill it ate the
+   width the value needed and clipped the number on a narrow column. */
+.lbl-unit {
+  text-transform: none; font-weight: 700; color: var(--accent);
+  opacity: .85; margin-left: 2px;
+}
+
+/* Derived value, shown in the same rhythm as an input but not editable. */
+.grip-readout .grip-val {
+  display: flex; align-items: baseline; justify-content: center; gap: 4px;
+  padding: 7px 4px;
+  border: 1.5px dashed var(--border); border-radius: 9px;
+  background: rgba(139,157,195,0.05);
+  font-family: var(--mono); font-size: 0.95rem; font-weight: 700; color: var(--accent);
+}
+.grip-readout .grip-unit { font-size: 0.68rem; color: var(--text-dim); font-weight: 700; }
+
+/* ═══ Canvas tool dock ═════════════════════════════════════════════
+   The action bar, docked in the strip the canvas keeps clear at its bottom
+   edge (app.js grows the logical canvas height by exactly this band, so the
+   dock never covers drawn content at any width). Reading order matches
+   frequency: units, then the things you produce, then reset, then undo. */
+.canvas-tools {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: 12px; z-index: 3;
+  display: flex; align-items: stretch; justify-content: center;
+  flex-wrap: nowrap; row-gap: 4px; gap: 5px;
+  padding: 7px 9px;
+  background: rgba(18, 23, 40, 0.86);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid rgba(139, 157, 195, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  max-width: calc(100% - 16px);
+}
+.canvas-tools .ct-sep {
+  width: 1px; align-self: stretch; margin: 3px 4px;
+  background: rgba(139, 157, 195, 0.22);
+}
+
+/* SI / Imperial sits first, because it decides which catalogue everything
+   else in the tool is talking about. */
+.ct-units { display: flex; flex-direction: column; align-items: center; gap: 3px; justify-content: center; }
+.ct-units-cap {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-dim); line-height: 1;
+}
+.ct-units .pill-tabs { padding: 2px; gap: 2px; background: rgba(13,17,23,.7); }
+.ct-units .pill { padding: 5px 12px; font-size: 0.76rem; }
+
+.ct-btn {
+  display: inline-flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  min-width: 58px; padding: 7px 9px 6px;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid transparent; border-radius: 10px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .12s ease;
+}
+.ct-label {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: .03em;
+  line-height: 1; white-space: nowrap;
+}
+.ct-btn:hover:not(:disabled) {
+  background: rgba(139, 157, 195, 0.13); color: var(--text);
+  border-color: rgba(139, 157, 195, 0.22); transform: translateY(-1px);
+}
+.ct-btn:active:not(:disabled) { transform: translateY(0); }
+.ct-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.ct-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* The calculation view is the primary action, so it carries the accent. */
+.ct-btn.ct-primary {
+  background: linear-gradient(180deg, #6b8794, var(--accent));
+  color: #fff; border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 8px rgba(84, 110, 122, 0.42);
+}
+.ct-btn.ct-primary:hover:not(:disabled) {
+  filter: brightness(1.12); background: linear-gradient(180deg, #6b8794, var(--accent));
+  border-color: rgba(255, 255, 255, 0.28); color: #fff;
+}
+.ct-btn.ct-danger:hover:not(:disabled) {
+  background: rgba(255, 85, 85, 0.14); color: var(--red);
+  border-color: rgba(255, 85, 85, 0.32);
+}
+
+/* Narrow canvases: keep the dock inside the card by dropping the captions
+   before shrinking the targets. The title attribute keeps every label. */
+@media (max-width: 720px) {
+  .canvas-tools { gap: 3px; padding: 6px 7px; border-radius: 12px; }
+  .canvas-tools .ct-sep { margin: 3px 2px; }
+  .ct-btn { min-width: 44px; padding: 8px; }
+  .ct-units-cap { display: none; }
+  .ct-units .pill { padding: 6px 9px; font-size: 0.72rem; }
+}
+@media (max-width: 560px) {
+  .ct-label { display: none; }
+  .ct-btn { min-width: 0; width: 42px; height: 42px; padding: 0; }
+  .ct-btn svg { width: 19px; height: 19px; }
+  .ct-units { flex-direction: row; align-items: center; }
+  .ct-units .pill { padding: 9px 11px; font-size: 0.74rem; }
+  /* Rather than crushing eight targets onto one line, let the bar wrap —
+     app.js measures the dock, so the canvas reserves the taller strip.
+     An explicit width is needed: an absolutely-positioned flex container
+     shrink-wraps, and it was settling on a narrow 4-per-row block instead of
+     using the width it had. */
+  .canvas-tools { width: calc(100% - 24px); max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: space-evenly; }
+  .canvas-tools .ct-sep { display: none; }
+}
+
+/* ═══ Calc modal ═══════════════════════════════════════════════════ */
+.calc-modal {
+  display: none; position: fixed; inset: 0; z-index: 1200;
+  background: rgba(0,0,0,0.72); backdrop-filter: blur(4px);
+  align-items: flex-start; justify-content: center;
+  padding: 24px 16px; overflow-y: auto;
+}
+.calc-modal.active { display: flex; }
+.calc-modal-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  width: 100%; max-width: 760px; display: flex; flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  max-height: calc(100vh - 48px); overflow: hidden;
+}
+.calc-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--surface2); flex-shrink: 0;
+}
+.calc-modal-title { font-size: 1rem; font-weight: 800; color: var(--text); }
+.calc-modal-close {
+  width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text-dim);
+  font-size: 1.4rem; line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.calc-modal-close:hover { border-color: var(--accent); color: var(--text); background: var(--surface2); }
+.calc-modal-body { padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+
+.cs-inputs {
+  background: var(--accent-lo); border: 1px solid var(--accent);
+  border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.cs-badge {
+  display: inline-block; padding: 3px 12px; border-radius: 20px;
+  background: var(--accent-lo); color: var(--accent);
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; align-self: flex-start;
+}
+.cs-given { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.cs-given span { font-family: var(--mono); font-size: 0.82rem; color: var(--text); }
+.cs-si-note { font-size: 0.72rem; color: var(--text-dim); margin: 0; }
+.cs-step {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.cs-step-hd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cs-num {
+  font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--accent); background: var(--accent-lo); padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+}
+.cs-title { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.cs-formula {
+  font-size: 0.92rem; color: var(--text); background: var(--surface2);
+  border-radius: 6px; padding: 8px 10px; border-left: 3px solid var(--accent); overflow-x: auto;
+}
+.cs-calc   { font-size: 0.9rem; color: var(--text); line-height: 1.7; overflow-x: auto; }
+.cs-result { font-size: 0.88rem; color: var(--text-dim); margin-top: 2px; }
+.cs-result .katex { color: var(--green); }
+
+/* ═══ Learning panels ══════════════════════════════════════════════ */
+.learn-panels {
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(31,37,53,0.6), rgba(20,26,46,0.6));
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.learn-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border); margin-bottom: 12px;
+}
+.learn-head-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.learn-head-actions { display: flex; gap: 8px; }
+.learn-toggle-all {
+  padding: 5px 12px; background: var(--accent-lo); border: 1px solid var(--accent);
+  color: var(--accent); border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.learn-toggle-all:hover { background: rgba(84,110,122,.3); color: #fff; }
+.learn-toggle-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.learn-card {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+  margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s ease;
+}
+.learn-card:last-child { margin-bottom: 0; }
+.learn-card[open] { border-color: var(--accent); }
+.learn-card > summary {
+  list-style: none; cursor: pointer; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 0.88rem; font-weight: 700; color: var(--text);
+  user-select: none; transition: background 0.15s ease; position: relative;
+}
+.learn-card > summary::-webkit-details-marker { display: none; }
+.learn-card > summary::marker { content: ''; }
+.learn-card > summary:hover { background: var(--accent-lo); }
+.learn-card > summary::after {
+  content: '\25BE'; margin-left: auto; color: var(--text-dim); font-size: 0.78rem; transition: transform 0.2s ease;
+}
+.learn-card[open] > summary::after { transform: rotate(180deg); color: var(--accent); }
+.lp-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px; background: var(--accent-lo); font-size: 0.9rem; flex-shrink: 0;
+}
+.lp-sub { color: var(--text-dim); font-weight: 500; font-size: 0.78rem; }
+.learn-body { padding: 12px 14px 14px; }
+.eq-line { margin: 6px 0; font-size: 0.95rem; color: var(--text); overflow-x: auto; }
+.coach-item { font-size: 0.84rem; color: var(--text-dim); line-height: 1.6; padding: 4px 0 4px 18px; position: relative; }
+.coach-item::before { content: '\25B8'; position: absolute; left: 0; color: var(--accent); }
+.coach-item strong { color: var(--text); }
+.coach-item.warn::before { content: '\26A0'; color: var(--gold); }
+.coach-item.bad::before  { content: '\2716'; color: var(--red); }
+.coach-item.good::before { content: '\2714'; color: var(--green); }
+
+/* ═══ Context menu ═════════════════════════════════════════════════ */
+.ctx-menu {
+  display: none; position: fixed; z-index: 1300; min-width: 160px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5); padding: 5px; flex-direction: column;
+}
+.ctx-menu.active { display: flex; }
+.ctx-item {
+  padding: 8px 12px; border: none; background: transparent; color: var(--text);
+  font-size: 0.83rem; text-align: left; border-radius: 6px; cursor: pointer;
+}
+.ctx-item:hover { background: var(--accent-lo); color: #fff; }
+
+@media (max-width: 500px) {
+  .learn-panels { padding: 10px; }
+  .learn-card > summary { padding: 10px 12px; font-size: 0.82rem; }
+  .lp-sub { display: none; }
+  .learn-body { padding: 10px 12px 12px; }
+  .learn-head-title { font-size: 0.85rem; }
+  .learn-toggle-all { padding: 4px 10px; font-size: 0.72rem; }
+  .calc-modal { padding: 12px 8px; }
+  .calc-modal-box { max-height: calc(100vh - 24px); }
+  .calc-modal-body { padding: 12px 12px; }
+  .cs-step { padding: 10px; }
+}
+
+/* INTERLINK-START  header quick-links */
+.head-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;}
+.btn-link{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;cursor:pointer;background:var(--surface2,#1f2535);color:var(--text,#dde3f0);border:1.5px solid var(--border,#2a3050);white-space:nowrap;transition:border-color .18s,background .18s,color .18s;}
+.btn-link:hover{border-color:var(--accent,#4fc3f7);background:var(--accent-lo,rgba(79,195,247,.18));color:#fff;}
+.btn-link img{width:20px;height:20px;border-radius:4px;flex:none;}
+.btn-link .lbl{line-height:1;}
+@media(max-width:560px){.btn-link .lbl{display:none;}.btn-link{padding:5px 9px;}}
+/* INTERLINK-END */
+
+
+
+/* ═══ In-canvas display controls (collapsible) ═══════════════════ */
+.canvas-toggles {
+  position: absolute; top: 8px; left: 8px; z-index: 4;
+  background: rgba(13,17,30,0.82);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  border: 1px solid rgba(139,157,195,0.22); border-radius: 9px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.32);
+}
+.canvas-toggles > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px; white-space: nowrap;
+  font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text); border-radius: 9px;
+  transition: background 0.12s, color 0.12s;
+}
+.canvas-toggles > summary::-webkit-details-marker { display: none; }
+.canvas-toggles > summary::marker { content: ''; }
+.canvas-toggles > summary:hover { background: rgba(124,179,66,0.10); color: var(--accent); }
+.canvas-toggles .cvt-ico { flex-shrink: 0; color: var(--accent); }
+.canvas-toggles .cvt-caret { margin-left: auto; padding-left: 4px; color: var(--text-dim); font-size: 0.7rem; transition: transform 0.2s; }
+.canvas-toggles[open] > summary .cvt-caret { transform: rotate(180deg); color: var(--accent); }
+.canvas-toggles[open] > summary { border-bottom: 1px solid rgba(139,157,195,0.18); border-radius: 9px 9px 0 0; }
+.canvas-toggles .cvt-body { display: flex; flex-direction: column; gap: 5px; padding: 8px 11px 9px; }
+.canvas-toggles .cvt-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.72rem; color: var(--text-dim); cursor: pointer; white-space: nowrap;
+  transition: color 0.12s;
+}
+.canvas-toggles .cvt-item:hover { color: var(--text); }
+.canvas-toggles .cvt-item input[type="checkbox"] {
+  accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0;
+}
+
+/* the toggles keep their .sim-toggle class; drop the pill chrome inside the panel */
+.canvas-toggles .cvt-body .sim-toggle {
+  background: none; border: none; border-radius: 0;
+  padding: 0; min-height: 0; font-size: 0.72rem;
+}
+.canvas-toggles .cvt-body .sim-toggle:has(input:checked) { border-color: transparent; }
+
+/* ═══ Mobile: collapse the canvas display-controls to an icon-only chip ═══ */
+@media (max-width: 768px) {
+  .canvas-toggles > summary {
+    padding: 0; gap: 0;
+    min-width: 44px; min-height: 44px;
+    justify-content: center;
+  }
+  .canvas-toggles > summary .cvt-title,
+  .canvas-toggles > summary .cvt-caret { display: none; }
+  .canvas-toggles .cvt-ico { width: 18px; height: 18px; }
+  .canvas-toggles[open] > summary {
+    padding: 7px 10px; gap: 7px;
+    min-height: 0; justify-content: flex-start;
+  }
+  .canvas-toggles[open] > summary .cvt-title { display: inline; }
+  .canvas-toggles[open] > summary .cvt-caret { display: inline; margin-left: auto; padding-left: 4px; }
+}
+
+/* Provenance line under the Live Equations panel — which ISO row the numbers came from */
+.eq-note {
+  margin: 10px 0 0; padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.76rem; line-height: 1.5; color: var(--text-dim);
+}
+
+/* Phones: keep the dock inside the canvas and the targets thumb-sized. */
+@media (max-width: 560px) {
+  .canvas-tools { bottom: 9px; gap: 2px; padding: 4px 5px; border-radius: 11px; }
+  .canvas-tools .ct-sep { margin: 2px 1px; }
+  .ct-btn { width: 38px; height: 38px; border-radius: 8px; }
+  .ct-btn svg { width: 17px; height: 17px; }
+}
+@media (max-width: 360px) {
+  .ct-btn { width: 34px; height: 36px; }
+  .ct-btn svg { width: 16px; height: 16px; }
+}
+
+/* ═══ Phone touch sizing (must come last) ══════════════════════════
+   These override the base stepper block above. A media query adds no
+   specificity, so ordering — not the breakpoint — is what makes them win. */
+@media (max-width: 560px) {
+  .step-btn { width: 44px; font-size: 1.25rem; }
+  .step-input { padding: 10px 4px; font-size: 1rem; }
+  .step-unit { font-size: 0.72rem; padding: 0 10px; }
+  .grip-readout .grip-val { padding: 10px 4px; font-size: 1rem; }
+}
+@media (max-width: 360px) {
+  .step-btn { width: 38px; }
+  .sim-grid.num { grid-template-columns: 1fr; }
+}
+
+/* ═══ Article data tables ══════════════════════════════════════════
+   The house .seo-table style (as used across the reference-table tools),
+   tuned for the wide numeric charts on this page: auto layout so a 13-column
+   torque chart gives each column the width its numbers need, tabular figures
+   so the digits line up, and a sticky first column so the size stays visible
+   while the chart scrolls sideways on a phone. */
+.seo-article table {
+  width: 100%; border-collapse: collapse; margin: 10px 0 16px;
+  font-size: 0.82rem; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+}
+.seo-article th,
+.seo-article td {
+  padding: 7px 10px; text-align: left;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: break-word;
+}
+.seo-article th {
+  background: var(--surface2); color: var(--accent);
+  font-weight: 700; font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: .04em;
+  white-space: nowrap;
+}
+.seo-article th sub { text-transform: none; font-size: 0.8em; }
+.seo-article th small { display: block; font-size: 0.9em; font-weight: 600; opacity: .75; text-transform: none; letter-spacing: 0; }
+.seo-article td { color: var(--text-dim); }
+.seo-article td:first-child { color: var(--text); font-weight: 600; }
+.seo-article tbody tr:last-child td { border-bottom: none; }
+.seo-article tbody tr:nth-child(even) td { background: rgba(139,157,195,0.035); }
+.seo-article tbody tr:hover td { background: rgba(84,110,122,0.13); }
+
+/* Numeric charts: right-aligned tabular figures, grouped headers centred. */
+.seo-table { table-layout: auto; }
+.seo-table thead th { text-align: center; border-bottom: 1px solid var(--border); }
+.seo-table thead tr:first-child th[colspan] {
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  color: var(--text); background: rgba(84,110,122,0.20);
+}
+.seo-table tbody td {
+  text-align: right; font-family: var(--mono); font-size: 0.78rem;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.seo-table tbody td:first-child,
+.seo-table thead th:first-child { text-align: left; }
+/* Keep the size column readable while the chart scrolls sideways. */
+.seo-table tbody td:first-child,
+.seo-table thead th:first-child {
+  position: sticky; left: 0; z-index: 1;
+  background: var(--bg); font-family: inherit; font-size: 0.8rem;
+  box-shadow: 1px 0 0 var(--border);
+}
+.seo-table thead th:first-child { background: var(--surface2); }
+.seo-table tbody tr:nth-child(even) td:first-child { background: #12161f; }
+.seo-table tbody tr:hover td:first-child { background: #1a2130; }
+
+@media (max-width: 560px) {
+  .seo-article table { font-size: 0.76rem; }
+  .seo-article th, .seo-article td { padding: 6px 7px; }
+  .seo-table tbody td { font-size: 0.73rem; }
+}
