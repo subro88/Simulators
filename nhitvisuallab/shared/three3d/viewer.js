@@ -80,7 +80,7 @@
     opts = opts || {};
     if (!canvas) { console.warn('Sim3D: no canvas for', slug); return null; }
     if (!models[slug]) {
-      var mapped = (S.mapSlug && S.mapSlug(slug)) || '__default__';
+      var mapped = (global.Sim3D.mapSlug && global.Sim3D.mapSlug(slug)) || '__default__';
       slug = models[mapped] ? mapped : '__default__';
     }
 
@@ -98,6 +98,39 @@
     camera.position.set(6, 4, 8);
 
     var controls = new Orbit(camera, canvas);
+
+    // Cut-section (local clipping) + auto-explore state
+    renderer.localClippingEnabled = true;
+    var cutOn = false, explore = false;
+    var clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+    var highlighted = null;
+    function setClip(on) {
+      if (!model.group) return;
+      model.group.traverse(function (o) {
+        if (!o.material) return;
+        var mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(function (m) { m.clippingPlanes = on ? [clipPlane] : []; m.needsUpdate = true; });
+      });
+    }
+    function highlight(obj) {
+      if (!obj) return;
+      obj.traverse(function (o) {
+        if (!o.material) return;
+        var mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(function (m) {
+          if (m.userData._emi === undefined) m.userData._emi = m.emissive ? m.emissive.getHex() : 0;
+          if (m.emissive) m.emissive.setHex(0x2b6cff);
+        });
+      });
+    }
+    function restore(obj) {
+      if (!obj) return;
+      obj.traverse(function (o) {
+        if (!o.material) return;
+        var mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(function (m) { if (m.userData && m.userData._emi !== undefined && m.emissive) m.emissive.setHex(m.userData._emi); });
+      });
+    }
 
     // Lights
     scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x202830, 0.9));
@@ -133,6 +166,49 @@
     if (model.group) scene.add(model.group);
     applyMeta(slug);
 
+    // ---- Controls bar: cut section, explore, component descriptions ----
+    var sectionEl = document.getElementById('sim3d-section');
+    var comps = (model && model.components) ? model.components : [];
+    if (sectionEl) {
+      var bar = document.createElement('div'); bar.className = 'sim3d-controls';
+      var cutBtn = document.createElement('button'); cutBtn.type = 'button'; cutBtn.textContent = 'Cut Section'; cutBtn.className = 'sim3d-btn';
+      var expBtn = document.createElement('button'); expBtn.type = 'button'; expBtn.textContent = 'Explore'; expBtn.className = 'sim3d-btn';
+      bar.appendChild(cutBtn); bar.appendChild(expBtn);
+      if (comps.length) {
+        var lbl = document.createElement('span'); lbl.className = 'sim3d-ctrl-label'; lbl.textContent = 'Components:'; bar.appendChild(lbl);
+        comps.forEach(function (c, i) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'sim3d-btn sim3d-comp'; b.textContent = c.name; b.dataset.i = i; bar.appendChild(b);
+        });
+      }
+      sectionEl.appendChild(bar);
+      var descEl = document.createElement('div'); descEl.className = 'sim3d-desc'; descEl.style.display = 'none'; sectionEl.appendChild(descEl);
+
+      if (!document.getElementById('sim3d-controls-style')) {
+        var st = document.createElement('style'); st.id = 'sim3d-controls-style';
+        st.textContent = '.sim3d-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;}' +
+          '.sim3d-btn{background:#16203a;color:#cdd7ee;border:1px solid #2a3a5a;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;}' +
+          '.sim3d-btn:hover{background:#1d2a48;}' +
+          '.sim3d-btn.active{background:#2b6cff;color:#fff;border-color:#2b6cff;}' +
+          '.sim3d-ctrl-label{color:#8aa0c0;font-size:13px;margin-left:6px;}' +
+          '.sim3d-desc{margin:6px 0 2px;padding:10px 12px;background:#0a1322;border:1px solid #1e2c44;border-radius:8px;color:#bcd0ea;font-size:13px;line-height:1.5;}';
+        document.head.appendChild(st);
+      }
+
+      cutBtn.addEventListener('click', function () { cutOn = !cutOn; cutBtn.classList.toggle('active', cutOn); setClip(cutOn); });
+      expBtn.addEventListener('click', function () { explore = !explore; expBtn.classList.toggle('active', explore); });
+      bar.querySelectorAll('.sim3d-comp').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var i = +b.dataset.i; var c = comps[i];
+          bar.querySelectorAll('.sim3d-comp').forEach(function (x) { x.classList.remove('active'); });
+          b.classList.add('active');
+          if (highlighted) restore(highlighted);
+          highlighted = c.object; highlight(highlighted);
+          descEl.style.display = 'block';
+          descEl.innerHTML = '<strong>' + c.name + '</strong><br>' + c.desc;
+        });
+      });
+    }
+
     var clock = new THREE.Clock();
     function resize() {
       var nw = canvas.clientWidth || w, nh = canvas.clientHeight || h;
@@ -145,6 +221,7 @@
     function loop() {
       resize();
       var dt = clock.getDelta(), t = clock.elapsedTime;
+      if (explore) controls.theta += 0.012;
       if (model.update) model.update(t, dt);
       controls.apply();
       renderer.render(scene, camera);

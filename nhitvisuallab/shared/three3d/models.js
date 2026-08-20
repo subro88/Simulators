@@ -292,6 +292,88 @@
     return { group: g, update: function (t) { parts.forEach(function (p, i) { var x = -2 + ((t * 1.5 + i * 0.4) % 4); p.position.set(x, Math.sin(x * 3 + i) * 0.2, Math.cos(x * 3 + i) * 0.2); }); } };
   });
 
+  meta('four-stroke-engine', 'Four-Stroke Engine',
+    'Over 720° of crank rotation the piston makes four strokes: intake draws the charge in, compression squeezes it, the spark fires the power stroke that drives the crankshaft, and exhaust pushes the burnt gas out. Valves time each stroke; the flywheel carries the crank through the dead centres.');
+  S.register('four-stroke-engine', function (ctx) {
+    var g = new T.Group();
+    var steel = ctx.makeMaterial(0x607d8b, { metalness: 0.6, roughness: 0.4 });
+    var alu = ctx.makeMaterial(0x90a4ae, { metalness: 0.5, roughness: 0.5 });
+    var pistonMat = ctx.makeMaterial(0xffb74d, { metalness: 0.4, roughness: 0.4 });
+    var gasMat = ctx.makeMaterial(0x4fc3f7, { transparent: true, opacity: 0.22, side: T.DoubleSide });
+
+    var housing = new T.Group();
+    var block = new T.Mesh(new T.CylinderGeometry(0.95, 0.95, 2.6, 32, 1, true), alu.clone());
+    block.material.transparent = true; block.material.opacity = 0.16; block.material.side = T.DoubleSide;
+    block.position.y = 0.2; housing.add(block);
+    var head = cyl(1.1, 0.4, steel); head.position.y = 1.7; housing.add(head);
+    var gas = cyl(0.85, 1, gasMat); g.add(gas);
+    var pistonAssy = new T.Group();
+    var piston = new T.Mesh(new T.CylinderGeometry(0.85, 0.85, 0.5, 32), pistonMat); pistonAssy.add(piston);
+    var pin = cyl(0.1, 1.1, steel); pin.rotation.z = Math.PI / 2; pistonAssy.add(pin); g.add(pistonAssy);
+
+    var crankCenter = v2(0, -1.9, 0);
+    var crank = new T.Group(); crank.position.copy(crankCenter);
+    var web = cyl(0.5, 0.3, steel); web.rotation.x = Math.PI / 2; crank.add(web);
+    var cweight = new T.Mesh(new T.CylinderGeometry(0.7, 0.7, 0.25, 24, 1, false, 0, Math.PI), steel);
+    cweight.rotation.x = Math.PI / 2; cweight.position.y = -0.25; crank.add(cweight);
+    var crankPinMesh = cyl(0.18, 0.5, ctx.makeMaterial(0xff7043)); crankPinMesh.rotation.x = Math.PI / 2;
+    crankPinMesh.position.set(0, 0.7, 0); crank.add(crankPinMesh);
+    g.add(crank);
+
+    var fly = new T.Mesh(new T.TorusGeometry(0.9, 0.18, 16, 40), steel); fly.position.copy(crankCenter); g.add(fly);
+
+    var rod = cyl(0.12, 1, ctx.makeMaterial(0xb0bec5)); g.add(rod);
+
+    function valve(x, color) {
+      var v = new T.Group();
+      var stem = cyl(0.08, 0.9, steel); stem.position.y = 0.45;
+      var hv = cyl(0.28, 0.12, ctx.makeMaterial(color)); hv.position.y = 0.0;
+      v.add(stem); v.add(hv); v.position.set(x, 1.7, 0); return v;
+    }
+    var intake = valve(-0.35, 0x4caf50), exhaust = valve(0.35, 0xef5350); g.add(intake, exhaust);
+    var portIn = cyl(0.12, 0.8, alu); portIn.rotation.z = Math.PI / 2; portIn.position.set(-0.9, 1.9, 0); housing.add(portIn);
+    var portEx = cyl(0.12, 0.8, alu); portEx.rotation.z = Math.PI / 2; portEx.position.set(0.9, 1.9, 0); housing.add(portEx);
+    g.add(housing);
+
+    var spark = sph(0.12, ctx.makeMaterial(0xffeb3b, { emissive: 0xffeb3b })); spark.position.set(0, 1.5, 0); g.add(spark);
+
+    var r = 0.7, Lr = 2.2;
+    return {
+      group: g,
+      components: [
+        { name: 'Engine Block & Head', desc: 'The cylinder barrel and head form the combustion chamber that guides the piston and seals the charge.', object: housing },
+        { name: 'Piston', desc: 'A reciprocating part that compresses the charge and is driven down by combustion pressure to deliver power.', object: pistonAssy },
+        { name: 'Connecting Rod', desc: 'Links the piston pin to the crank pin, converting the piston’s reciprocation into crank rotation.', object: rod },
+        { name: 'Crankshaft', desc: 'Spins with the flywheel; its offset pin turns the connecting-rod motion into rotary output torque.', object: crank },
+        { name: 'Flywheel', desc: 'Stores rotational inertia to carry the crank smoothly through the non-powered strokes and dead centres.', object: fly },
+        { name: 'Intake Valve', desc: 'Opens during the intake stroke to admit the fresh air–fuel charge into the cylinder.', object: intake },
+        { name: 'Exhaust Valve', desc: 'Opens during the exhaust stroke to let the burnt gases escape the cylinder.', object: exhaust },
+        { name: 'Spark Plug', desc: 'Fires at the end of compression to ignite the charge and start the power stroke.', object: spark }
+      ],
+      update: function (t) {
+        var phase = (t * 0.15) % 1;
+        var theta = phase * Math.PI * 4;
+        var cp = v2(crankCenter.x + r * Math.sin(theta), crankCenter.y + r * Math.cos(theta), 0);
+        var pistonPinY = crankCenter.y + r * Math.cos(theta) +
+          Math.sqrt(Lr * Lr - (r * Math.sin(theta)) * (r * Math.sin(theta)));
+        var pTop = pistonPinY + 0.25;
+        piston.position.y = pTop;
+        pin.position.y = pistonPinY;
+        var gasBottom = pTop + 0.25, gasTop = 1.5, gh = Math.max(0.05, gasTop - gasBottom);
+        gas.position.y = (gasTop + gasBottom) / 2; gas.scale.y = gh;
+        placeLink(rod, cp, v2(0, pistonPinY, 0));
+        crank.rotation.z = -theta;
+        fly.rotation.z = -theta;
+        var intakeOpen = phase < 0.25, exhaustOpen = phase > 0.75;
+        intake.position.y = 1.7 - (intakeOpen ? 0.35 : 0);
+        exhaust.position.y = 1.7 - (exhaustOpen ? 0.35 : 0);
+        var sparkOn = (phase > 0.48 && phase < 0.56);
+        spark.visible = sparkOn;
+      }
+    };
+  });
+
+
   meta('piston-gas', 'Gas Laws & Cycles', 'PV = nRT. Boyle, Charles and ideal-gas behaviour, plus engine and power cycles (Otto, Diesel, Rankine, refrigeration) trace P–V diagrams and efficiency.');
   S.register('piston-gas', function (ctx) {
     var g = new T.Group();
@@ -478,7 +560,7 @@
     'electro-pneumatic-circuit': 'hyd-circuit', 'escape-velocity': 'motion-free', 'faradays-law': 'motor-gen',
     'fatigue-life': 'impact', 'fatigue-testing': 'impact', 'fluid-flow': 'fluid',
     'flywheel': 'flywheel', 'flywheel-energy': 'flywheel', 'four-bar-linkage': 'four-bar-linkage',
-    'four-stroke-engine': 'piston-gas', 'free-body-diagram': 'force-diagram', 'free-fall': 'motion-free',
+    'four-stroke-engine': 'four-stroke-engine', 'free-body-diagram': 'force-diagram', 'free-fall': 'motion-free',
     'friction': 'force-diagram', 'gdt-trainer': 'part-symbol', 'gear-strength': 'gear-trains',
     'gear-trains': 'gear-trains', 'geneva-mechanism': 'slider-crank', 'governor': 'governor',
     'gyroscope': 'gyroscope', 'hardness-testing': 'hardness', 'heat-exchanger': 'heat-exchanger',
