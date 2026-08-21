@@ -95,27 +95,6 @@
     </nav>
     <header>
       <h1>Hoop Stress Calculator &mdash; Thin-Walled Pressure Vessel</h1>
-<section id="sim3d-section" class="sim3d-section">
-  <h2>3D Model — <span id="sim3d-title">Hoop Stress Calculator — Thin-Walled Pressure Vessel</span></h2>
-  <p id="sim3d-blurb" class="sim3d-blurb">Free hoop stress calculator for thin-walled pressure vessels — σh = Pd/2t, longitudinal stress and factor of safety for cylindrical and spherical vessels under internal pressure.</p>
-  <div class="sim3d-wrap">
-    <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-    <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
-  </div>
-  <style>
-    .sim3d-section{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}
-    .sim3d-section h2{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}
-    .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:#aebfd4;}
-    .sim3d-wrap{position:relative;width:100%;max-width:640px;}
-    .sim3d-canvas{width:100%;height:380px;display:block;background:#0e1726;border-radius:8px;touch-action:none;cursor:grab;}
-    .sim3d-canvas:active{cursor:grabbing;}
-    .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}
-  </style>
-</section>
-
-
-
-
 
       <p class="subtitle">Hoop Stress, Longitudinal Stress &amp; Safety Factor Simulator</p>
     </header>
@@ -126,7 +105,8 @@
         <span class="ctrl-label">Mode</span>
         <div class="pill-tabs" id="mode-tabs">
           <button class="pill active" data-value="simulate">Simulate</button>
-          <button class="pill" data-value="explore">Explore</button>
+          <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Explore</button>
           <button class="pill" data-value="practice">Practice</button>
           <button class="pill" data-value="quiz">Quiz</button>
         </div>
@@ -134,7 +114,28 @@
       <div class="head-actions"><a class="btn-link" href="../mohrs-circle/index.html" title="Open Mohr's Circle" aria-label="Open Mohr's Circle"><img src="../../Icons/mohrs-circle.svg" width="20" height="20" alt=""><span class="lbl">Mohr's Circle</span></a><a class="btn-link" href="../stress-strain/index.html" title="Open Stress-Strain" aria-label="Open Stress-Strain"><img src="../../Icons/stress-strain.svg" width="20" height="20" alt=""><span class="lbl">Stress-Strain</span></a><a class="btn-guide" href="index.html#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;transition:filter .18s;">&#128214; User Guide</a></div>
     </div>
 
-    <!-- ══ SIMULATE MODE ════════════════════════════════════════════ -->
+    
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">Hoop Stress Calculator — Thin-Walled Pressure Vessel</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Free hoop stress calculator for thin-walled pressure vessels — σh = Pd/2t, longitudinal stress and factor of safety for cylindrical and spherical vessels under internal pressure.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+      </div>
+      <style>
+        .sim3d-section{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}
+        .sim3d-section h2{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}
+        .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:#aebfd4;}
+        .sim3d-wrap{position:relative;width:100%;max-width:640px;}
+        .sim3d-canvas{width:100%;height:380px;display:block;background:#0e1726;border-radius:8px;touch-action:none;cursor:grab;}
+        .sim3d-canvas:active{cursor:grabbing;}
+        .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}
+      </style>
+    </section>
+  </div>
+<!-- ══ SIMULATE MODE ════════════════════════════════════════════ -->
     <section id="sim-mode">
       <div class="sim-controls">
         <div class="sim-row">
@@ -448,15 +449,51 @@
 <script src="../../shared/share-params.js%3Fv=1" defer></script>
 <script src="../../shared/cookie-notice.js%3Fv=2" defer></script>
   <script src="../../shared/ads-collapse.js%3Fv=2" defer></script>
-  
-
-
-
 
 <script src="../../shared/three3d/three.min.js"></script>
 <script src="../../shared/three3d/viewer.js"></script>
 <script src="../../shared/three3d/models.js"></script>
 <script>Sim3D.mount('pressure-vessel', document.getElementById('sim3d-canvas'));</script>
 <script src="../../shared/sidebar/sidebar.js"></script>
+
+<script>
+/* 3D-Model tab visibility — injected by fix_3d_tabs.py */
+(function () {
+  var modeTabs = document.getElementById('mode-tabs');
+  if (!modeTabs) return;
+  var pills = modeTabs.querySelectorAll('.pill');
+  var model3dWrapper = document.getElementById('model3d-wrapper');
+  if (!model3dWrapper) return;
+
+  // Collect every mode wrapper so we can hide them when 3D Model is active
+  var WRAPPERS = [
+    'sim-wrapper', 'sim-panel', 'sim-section',
+    'explore-wrapper', 'explore-panel', 'explore-section',
+    'practice-wrapper', 'practice-panel', 'practice-section',
+    'quiz-wrapper', 'quiz-panel', 'quiz-section',
+    'model3d-wrapper'
+  ];
+
+  function getVal(pill) {
+    return pill.dataset.mode || pill.dataset.value || '';
+  }
+
+  pills.forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var val = getVal(pill);
+      if (val !== '3d-model') {
+        // Clicking any NON-3D tab → hide 3D wrapper, let existing JS handle the rest
+        model3dWrapper.style.display = 'none';
+      } else {
+        // Clicking 3D Model tab → hide all other wrappers, show 3D wrapper
+        WRAPPERS.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = (id === 'model3d-wrapper') ? '' : 'none';
+        });
+      }
+    });
+  });
+})();
+</script>
 </body>
 </html>

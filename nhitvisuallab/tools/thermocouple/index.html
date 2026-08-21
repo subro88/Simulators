@@ -57,27 +57,6 @@
 
     <header>
       <h1>Thermocouple &amp; Seebeck Effect Simulator</h1>
-<section id="sim3d-section" class="sim3d-section">
-  <h2>3D Model — <span id="sim3d-title">Thermocouple &amp; Seebeck Effect Simulator</span></h2>
-  <p id="sim3d-blurb" class="sim3d-blurb">Interactive Seebeck effect simulator. Heat one junction, watch thermo-EMF and electron flow. Build a thermopile to turn heat into electricity. Free, no sign-up.</p>
-  <div class="sim3d-wrap">
-    <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-    <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
-  </div>
-  <style>
-    .sim3d-section{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}
-    .sim3d-section h2{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}
-    .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:#aebfd4;}
-    .sim3d-wrap{position:relative;width:100%;max-width:640px;}
-    .sim3d-canvas{width:100%;height:380px;display:block;background:#0e1726;border-radius:8px;touch-action:none;cursor:grab;}
-    .sim3d-canvas:active{cursor:grabbing;}
-    .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}
-  </style>
-</section>
-
-
-
-
 
       <p class="subtitle">Two metals, two junctions, one temperature difference &bull; Thermo-EMF &amp; electron flow &bull; Turn heat into electricity &bull; Neutral &amp; inversion temperature</p>
     </header>
@@ -87,7 +66,8 @@
         <div class="pill-tabs" id="mode-tabs">
           <button class="pill active" data-mode="simulate" type="button">Simulate</button>
           <button class="pill" data-mode="graph" type="button">E&ndash;&theta; Graph</button>
-          <button class="pill" data-mode="explore" type="button">Explore</button>
+          <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore" type="button">Explore</button>
           <button class="pill" data-mode="practice" type="button">Practice</button>
           <button class="pill" data-mode="quiz" type="button">Quiz</button>
           <button class="pill" data-mode="tables" type="button">Tables</button>
@@ -676,7 +656,28 @@
       <nav class="site-footer-nav"><a href="../../index.html">Home</a><a href="../../about/index.html">About</a><a href="../../privacy-policy/index.html">Privacy Policy</a><a href="../../terms/index.html">Terms of Use</a><a href="../../contact/index.html">Contact</a></nav>
       <p class="site-footer-copy">&copy; 2026 NHIT VisualLab</p>
     </footer>
-  </main>
+  
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">Thermocouple &amp; Seebeck Effect Simulator</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive Seebeck effect simulator. Heat one junction, watch thermo-EMF and electron flow. Build a thermopile to turn heat into electricity. Free, no sign-up.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+      </div>
+      <style>
+        .sim3d-section{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}
+        .sim3d-section h2{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}
+        .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:#aebfd4;}
+        .sim3d-wrap{position:relative;width:100%;max-width:640px;}
+        .sim3d-canvas{width:100%;height:380px;display:block;background:#0e1726;border-radius:8px;touch-action:none;cursor:grab;}
+        .sim3d-canvas:active{cursor:grabbing;}
+        .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}
+      </style>
+    </section>
+  </div>
+</main>
 
   <script src="../../shared/related.js%3Fv=11" defer></script>
   <script src="app.js%3Fv=22" defer></script>
@@ -685,14 +686,50 @@
   <script src="../../shared/cookie-notice.js%3Fv=2" defer></script>
   <script src="../../shared/ads-collapse.js%3Fv=2" defer></script>
 
-
-
-
-
 <script src="../../shared/three3d/three.min.js"></script>
 <script src="../../shared/three3d/viewer.js"></script>
 <script src="../../shared/three3d/models.js"></script>
 <script>Sim3D.mount('thermocouple', document.getElementById('sim3d-canvas'));</script>
 <script src="../../shared/sidebar/sidebar.js"></script>
+
+<script>
+/* 3D-Model tab visibility — injected by fix_3d_tabs.py */
+(function () {
+  var modeTabs = document.getElementById('mode-tabs');
+  if (!modeTabs) return;
+  var pills = modeTabs.querySelectorAll('.pill');
+  var model3dWrapper = document.getElementById('model3d-wrapper');
+  if (!model3dWrapper) return;
+
+  // Collect every mode wrapper so we can hide them when 3D Model is active
+  var WRAPPERS = [
+    'sim-wrapper', 'sim-panel', 'sim-section',
+    'explore-wrapper', 'explore-panel', 'explore-section',
+    'practice-wrapper', 'practice-panel', 'practice-section',
+    'quiz-wrapper', 'quiz-panel', 'quiz-section',
+    'model3d-wrapper'
+  ];
+
+  function getVal(pill) {
+    return pill.dataset.mode || pill.dataset.value || '';
+  }
+
+  pills.forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var val = getVal(pill);
+      if (val !== '3d-model') {
+        // Clicking any NON-3D tab → hide 3D wrapper, let existing JS handle the rest
+        model3dWrapper.style.display = 'none';
+      } else {
+        // Clicking 3D Model tab → hide all other wrappers, show 3D wrapper
+        WRAPPERS.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = (id === 'model3d-wrapper') ? '' : 'none';
+        });
+      }
+    });
+  });
+})();
+</script>
 </body>
 </html>
