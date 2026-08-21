@@ -1,0 +1,1551 @@
+/* ═══════════════════════════════════════════════════════════════
+   Thermal Power Plant Simulator — app.js (v2 - 3D Isometric Edition)
+   NHIT VisualLab | Canvas 2D Engine | Coupled Turbine-Generator
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+/* ── DOM Elements ── */
+const plantCanvas   = document.getElementById('plant-canvas');
+const plantCtx      = plantCanvas.getContext('2d');
+const teleCanvas    = document.getElementById('telemetry-canvas');
+const teleCtx       = teleCanvas.getContext('2d');
+const tooltip       = document.getElementById('tooltip');
+const expPanel      = document.getElementById('explore-panel');
+const genSlider     = document.getElementById('gen-slider');
+const genVal        = document.getElementById('gen-val');
+const speedSlider   = document.getElementById('speed-slider');
+const speedVal      = document.getElementById('speed-val');
+const btnStart      = document.getElementById('btn-start');
+const btnReset      = document.getElementById('btn-reset');
+
+/* ── Canvas Dimensions ── */
+const PW = 1440, PH = 760;
+plantCanvas.width  = PW;
+plantCanvas.height = PH;
+
+const TW = 1440, TH = 200;
+teleCanvas.width  = TW;
+teleCanvas.height = TH;
+
+/* ── Simulation State & Physical Model ── */
+const S = {
+  running: true,
+  t: 0,              // Global animation time [0, inf)
+  simSpeed: 1.0,     // Speed multiplier
+  zoom: 1.0,
+  panX: 0, panY: 0,
+  mode: 'simulate',  // 'simulate' | 'explore' | 'info'
+  hoveredId: null,
+  dragStart: null,
+  
+  // Power Demand & Dynamics
+  targetMW: 210,     // User setpoint (60 - 300 MW)
+  currentMW: 210,    // Actual lagging output
+  
+  // Physics parameters (derived from MW)
+  boilerTemp: 1380,  // °C
+  steamPres: 158,    // bar
+  steamFlow: 650,    // t/hr
+  turbineRpm: 3000,  // RPM (synchronous grid lock)
+  efficiency: 39.8,  // %
+  coalFeed: 84.2,    // t/hr
+  flueGasFlow: 750,  // kNm3/hr
+  
+  // Active Telemetry Traces
+  traces: {
+    mw: true,
+    temp: true,
+    pres: true,
+    eff: true,
+    coal: true
+  }
+};
+
+/* ── Historical Telemetry Buffer (Rolling Time-Series) ── */
+const MAX_HISTORY = 180;
+const history = {
+  time: [],
+  mw: [],
+  temp: [],
+  pres: [],
+  eff: [],
+  coal: []
+};
+
+// Seed initial history
+for (let i = 0; i < MAX_HISTORY; i++) {
+  history.time.push(i);
+  history.mw.push(210);
+  history.temp.push(1380);
+  history.pres.push(158);
+  history.eff.push(39.8);
+  history.coal.push(84.2);
+}
+
+/* ── Color Palette ── */
+const C = {
+  bg:         '#0d1117',
+  cardBg:     '#161b27',
+  border:     '#2a3050',
+  accent:     '#e53935',
+  accentLo:   'rgba(229,57,53,0.25)',
+  gold:       '#f5c842',
+  blue:       '#4f8ef7',
+  cyan:       '#29b6f6',
+  teal:       '#00b4d8',
+  green:      '#3ddc84',
+  purple:     '#ab47bc',
+  orange:     '#ff9800',
+  text:       '#dde3f0',
+  textDim:    '#6b7a99',
+  genGold:    '#ffb300',
+  genBody:    '#e0a000',
+  genBase:    '#6d4c41',
+  turbCasing: '#455a64',
+  turbRotor:  '#90a4ae',
+  boilerWall: '#263238',
+  boilerCut:  '#b71c1c',
+  pipeSteam:  '#ff3d00',
+  pipeFeed:   '#00e5ff',
+  pipeCool:   '#29b6f6',
+  flueDuct:   '#546e7a'
+};
+
+/* ─────────────────────────────────────────────────────────────
+   HOTSPOTS & EXPLORE SPECIFICATIONS
+   ───────────────────────────────────────────────────────────── */
+const HOTSPOTS = [
+  {
+    id: 'coal',
+    label: '① Coal Feed & Conveyor',
+    cx: 870, cy: 670, r: 45,
+    html: `<h4><span class="tip-tag">① FUEL SYSTEM</span>Online Coal Feed & Quality</h4>
+<p>Raw coal is reclaimed from the stockpile and elevated via <strong>inclined belt conveyor</strong> to the pulveriser mills. Online gamma analyzers monitor moisture, ash, and calorific value in real time.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Feed Rate</span><span class="tip-stat-val" id="tip-coal-feed">84.2 t/hr</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Gross Calorific Val (GCV)</span><span class="tip-stat-val">4200 kcal/kg</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Pulverised Fineness</span><span class="tip-stat-val">&lt;75 µm (70% pass 200 mesh)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Moisture / Ash</span><span class="tip-stat-val">9.5% / 28.0%</span></div>
+</div>`,
+    explore: {
+      num: '①', title: 'Online Coal Feed & Properties Monitoring',
+      desc: `The <strong>Coal Handling Plant (CHP)</strong> feeds raw coal from the stockyard via automated belt conveyors into high-capacity coal bunkers. From the bunker, gravimetric raw coal feeders deliver fuel to <strong>bowl or ball pulveriser mills</strong> where it is ground into a micro-fine powder (&lt;75 µm). Hot primary air dries the coal and pneumatically conveys it to tangential or wall-mounted burners.
+Continuous radiometric analyzers perform online proximate analysis (measuring moisture, volatile matter, fixed carbon, and ash content), enabling the DCS to dynamically adjust fuel-air stoichiometry for optimal combustion.`,
+      stats: [
+        ['Fuel Type', 'Sub-Bituminous C Coal'],
+        ['Feed Rate @ Full Load', '35 – 125 t/hr (load dependent)'],
+        ['Gross Calorific Value', '3800 – 4500 kcal/kg'],
+        ['Pulveriser Mill Type', 'Medium Speed Bowl Mills (6 operational)'],
+        ['Primary Air Temp', '280 – 340 °C'],
+        ['Ash Content Range', '22% – 38%']
+      ],
+      formula: 'Heat Input Q_in (MW) = ṁ_coal (kg/s) × GCV (MJ/kg)\nMill Power Specific Energy ≈ 12 – 18 kWh/tonne'
+    }
+  },
+  {
+    id: 'boiler',
+    label: '② Smart Boiler & Furnace',
+    cx: 970, cy: 360, r: 70,
+    html: `<h4><span class="tip-tag">② HEAT GENERATION</span>Smart Boiler & Combustion</h4>
+<p>Massive 3D water-tube boiler burning pulverised coal at 1300–1500°C. Generates high-pressure superheated steam with automated fireball positioning and slagging mitigation.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Furnace Temperature</span><span class="tip-stat-val" id="tip-boiler-temp">1380 °C</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Superheated Steam Pressure</span><span class="tip-stat-val" id="tip-steam-pres">158.0 bar</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Steam Temp (HP Inlet)</span><span class="tip-stat-val">540 °C</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Boiler Efficiency</span><span class="tip-stat-val">88.5 %</span></div>
+</div>`,
+    explore: {
+      num: '②', title: 'Smart Boiler — Combustion & Steam Generation',
+      desc: `The boiler is a natural/forced circulation pulverized coal unit. The combustion chamber is enclosed by membrane <strong>water-wall tubes</strong>. Radiant heat evaporates water into saturated steam, which separates in the heavy forged <strong>Steam Drum</strong> at the boiler crown.
+Saturated steam flows through radiant and convective <strong>Superheater tube banks</strong> to reach 540–565°C. Part of the steam returns from the HP turbine exhaust for <strong>Reheating</strong> back to 540°C.
+Modern <em>Smart Boiler</em> digital twins use acoustic pyrometry and optical sensors to monitor fireball temperature profiles, optimize overfire air (OFA) to minimize NOx, and dynamically operate sootblowers to prevent slagging.`,
+      stats: [
+        ['Furnace Core Temp', '1250 – 1520 °C'],
+        ['Drum Operating Pressure', '170 – 185 bar'],
+        ['Main Steam Flow Rate', '200 – 950 t/hr'],
+        ['Superheater Outlet Temp', '540 °C ± 2 °C'],
+        ['Reheater Outlet Temp', '540 °C'],
+        ['Economiser Water Temp', '250 → 295 °C'],
+        ['Excess Air (O₂ Level)', '3.0 – 4.2%']
+      ],
+      formula: 'Q_boiler = ṁ_steam × (h_main - h_feed) + ṁ_reheat × (h_rh,out - h_rh,in)\nη_boiler = Q_steam / (ṁ_coal × GCV)'
+    }
+  },
+  {
+    id: 'ash',
+    label: '③ Ash Handling & Slagging',
+    cx: 970, cy: 540, r: 45,
+    html: `<h4><span class="tip-tag">③ BYPRODUCT</span>Ash Hopper & Slagging Control</h4>
+<p>Heavy bottom ash falls into the water-sealed hopper for wet sluicing or submerged dry scraping. Clinker grinders and slag sensors ensure non-stop discharge.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Bottom Ash Fraction</span><span class="tip-stat-val">15 – 20 % of total ash</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Discharge Method</span><span class="tip-stat-val">Submerged Scraper Conveyor</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Ash Loss on Ignition (LOI)</span><span class="tip-stat-val">&lt; 1.8 %</span></div>
+</div>`,
+    explore: {
+      num: '③', title: 'Ash Evacuation & Slagging Control',
+      desc: `Ash generated during combustion divides into two streams:
+1. <strong>Bottom Ash (15–20%)</strong>: Coarser particles and molten slag agglomerations drop into the V-shaped bottom hopper, quenched in a water trough, crushed by clinker grinders, and transported to the ash handling facility.
+2. <strong>Fly Ash (80–85%)</strong>: Microscopic ash particles carried in the flue gas stream through the backpass, economiser, and air preheater to the Electrostatic Precipitator (ESP).
+Continuous monitoring of furnace slagging and furnace exit gas temperature (FEGT) prevents ash fusion clinkering on superheater tubes.`,
+      stats: [
+        ['Total Ash Yield', '10 – 35 t/hr'],
+        ['Bottom Ash Hopper Temp', '65 – 80 °C (water bath)'],
+        ['Slag Viscosity Critical Temp', 'T_cv ≈ 1280 °C'],
+        ['Water Seal Makeup Flow', '25 m³/hr'],
+        ['Ash Recycling Rate', '>95% (Cement & Bricks)']
+      ],
+      formula: 'Total Ash = ṁ_coal × (Ash % / 100)\nBottom Ash = 0.18 × Total Ash'
+    }
+  },
+  {
+    id: 'turbine',
+    label: '④ Steam Turbine & Digital Control',
+    cx: 610, cy: 430, r: 50,
+    html: `<h4><span class="tip-tag">④ PRIME MOVER</span>Multi-Stage Steam Turbine</h4>
+<p>High-Pressure (HP) and Low-Pressure (LP) turbine casings directly coupled on the same horizontal shaft as the generator. Converts steam enthalpy into 3000 RPM mechanical rotation.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Inlet Enthalpy</span><span class="tip-stat-val">3420 kJ/kg (540°C, 158 bar)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Exhaust Pressure</span><span class="tip-stat-val">0.07 bar abs (vacuum)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Shaft Speed</span><span class="tip-stat-val">3000 RPM (Locked 50 Hz)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Isentropic Efficiency</span><span class="tip-stat-val">88.2 %</span></div>
+</div>`,
+    explore: {
+      num: '④', title: 'Steam Turbine & Digital Electro-Hydraulic Control (DEH)',
+      desc: `The steam turbine is a tandem-compound reaction/impulse multi-cylinder machine.
+- <strong>HP Stage</strong>: High pressure steam expands from 158 bar down to 38 bar.
+- <strong>IP Stage</strong>: Reheated steam at 540°C expands from 36 bar to 7 bar.
+- <strong>LP Stage</strong>: Double-flow casing expands steam down to condenser vacuum (0.07 bar, ~39°C), with moisture separators protecting the final titanium blades.
+The turbine is directly coupled to the generator rotor with a forged steel rigid coupling collar. Digital Electro-Hydraulic (DEH) governors modulate high-pressure electro-hydraulic servo valves for fast load-frequency response and overspeed trip protection.`,
+      stats: [
+        ['Turbine Architecture', 'HP + IP + Double-Flow LP'],
+        ['Inlet Steam Conditions', '540 °C / 158 bar'],
+        ['Reheat Steam Conditions', '540 °C / 36 bar'],
+        ['Condenser Backpressure', '0.065 – 0.085 bar abs'],
+        ['Rotor Synchronous Speed', '3000 RPM (50 Hz) / 3600 RPM (60 Hz)'],
+        ['Mechanical Coupling', 'Rigid Forged Flange Collar'],
+        ['Vibration Limit', '< 25 µm RMS']
+      ],
+      formula: 'Shaft Power P_mech = ṁ_steam × (h_in - h_out) × η_mech\nTorque τ = P_mech / ω = P_mech / (2π × 50)'
+    }
+  },
+  {
+    id: 'generator',
+    label: '⑤ Synchronous Turbogenerator',
+    cx: 410, cy: 495, r: 50,
+    html: `<h4><span class="tip-tag">⑤ POWER GENERATION</span>Coupled Synchronous Generator</h4>
+<p>2-Pole 3-phase hydrogen/water-cooled synchronous generator directly coupled to turbine. Produces 11 kV AC power with dynamic excitation and Power System Stabilizer (PSS) tuning.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Electrical Output</span><span class="tip-stat-val" id="tip-gen-mw">210.0 MW</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Terminal Voltage</span><span class="tip-stat-val">11.0 kV (Line-to-Line)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Power Factor</span><span class="tip-stat-val">0.85 Lagging</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Efficiency</span><span class="tip-stat-val">98.6 %</span></div>
+</div>`,
+    explore: {
+      num: '⑤', title: 'Synchronous Turbogenerator & Excitation System',
+      desc: `The turbogenerator converts the mechanical shaft torque delivered by the coupled turbine into 3-phase high-voltage electrical alternating current.
+- <strong>Rotor (Field)</strong>: Solid alloy steel forging carrying DC field windings energized via a brushless exciter or static thyristor bridge. Cooled by pressurized hydrogen gas (H₂ @ 3.5 bar) for superior heat dissipation.
+- <strong>Stator (Armature)</strong>: Laminated magnetic core with transposed Roebel bar windings producing 11 kV AC voltage at 50 Hz. Cooled by ultra-pure demineralised water flowing through hollow conductors.
+- <strong>Power System Stabilizer (PSS)</strong>: Digital PSS tuning modulates field excitation to damp low-frequency electromechanical oscillations on the interconnected transmission grid.`,
+      stats: [
+        ['Rated Output Power', '60 – 300 MW (350 MVA max)'],
+        ['Stator Voltage', '11 kV (3-Phase AC)'],
+        ['Rated Current', '~13,800 Amperes @ Full Load'],
+        ['Grid Frequency', '50.00 Hz (Synchronous lock)'],
+        ['Rotor Coolant', 'Hydrogen Gas H₂ (98% purity, 3.5 bar)'],
+        ['Stator Coolant', 'Demineralized Water (<0.5 µS/cm)'],
+        ['Excitation System', 'Static Thyristor + Digital PSS']
+      ],
+      formula: 'P_elec = √3 × V_L × I_L × cos(φ)\nSync Speed N_s = (120 × f) / Poles = (120 × 50) / 2 = 3000 RPM'
+    }
+  },
+  {
+    id: 'condenser',
+    label: '⑥ Condenser & Hotwell',
+    cx: 610, cy: 530, r: 40,
+    html: `<h4><span class="tip-tag">⑥ HEAT SINK</span>Surface Condenser & Extraction</h4>
+<p>Surface condenser situated directly underneath turbine exhaust. Condenses low-pressure steam into water under deep vacuum using circulating water from the cooling towers.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Vacuum Level</span><span class="tip-stat-val">0.07 bar abs (93% vac)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Condensate Temp</span><span class="tip-stat-val">39.0 °C</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">CW Flow Rate</span><span class="tip-stat-val">18,500 m³/hr</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Hotwell Pump</span><span class="tip-stat-val">2x100% Vertical CEP</span></div>
+</div>`,
+    explore: {
+      num: '⑥', title: 'Surface Condenser & Feedwater Recovery',
+      desc: `The surface condenser is a massive dual-pass shell-and-tube heat exchanger mounted directly beneath the LP turbine exhaust hood.
+Exhaust steam condenses on the outer surfaces of thousands of cold titanium/brass tubes carrying circulating water from the cooling tower. The phase change creates a deep vacuum (0.065–0.085 bar abs), which increases the turbine enthalpy drop and thermodynamic cycle efficiency.
+The deaerated pure condensate collects in the bottom <strong>Hotwell</strong> and is pumped by vertical multistage <strong>Condensate Extraction Pumps (CEP)</strong> through Low Pressure Heaters and the Deaerator back to the boiler feed pumps.`,
+      stats: [
+        ['Condenser Shell Pressure', '0.07 bar abs (93 kPa vacuum)'],
+        ['Saturation Condensing Temp', '39.0 °C'],
+        ['Cooling Water Supply Temp', '32.0 °C'],
+        ['Cooling Water Return Temp', '42.0 °C'],
+        ['Tube Bundle Surface Area', '14,500 m²'],
+        ['Heat Rejection Rate', '160 – 380 MW_th']
+      ],
+      formula: 'Q_cond = ṁ_steam × (h_exhaust - h_condensate) = ṁ_cw × C_p × ΔT_cw'
+    }
+  },
+  {
+    id: 'cooling',
+    label: '⑦ Cooling Towers & Island Basin',
+    cx: 175, cy: 370, r: 60,
+    html: `<h4><span class="tip-tag">⑦ HEAT DISSIPATION</span>Hyperbolic Cooling Towers</h4>
+<p>Twin natural/induced draft hyperbolic cooling towers located on the island basin. Evaporative cooling rejects condenser heat to atmosphere, cooling water from 42°C back to 32°C.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">Cooling Range (ΔT)</span><span class="tip-stat-val">10.0 °C (42 → 32°C)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Approach to Wet Bulb</span><span class="tip-stat-val">5.0 °C</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Evaporative Loss</span><span class="tip-stat-val">~1.8 % of CW flow</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Basin Water Source</span><span class="tip-stat-val">River / Lake Island Intake</span></div>
+</div>`,
+    explore: {
+      num: '⑦', title: 'Cooling Towers & Water Island Intake',
+      desc: `Warm cooling water (42°C) pumped from the condenser discharges into distribution spray nozzles above plastic PVC film fill inside the <strong>Hyperbolic Natural Draft Cooling Towers</strong>.
+Atmospheric air enters through perimeter louvers at the base and flows upward driven by density differential (natural chimney effect). Approximately 1.5–2% of the water evaporates into the updraft, absorbing latent heat and cooling the remaining bulk water down to 32°C.
+The cooled water collects in the cold water basin and returns to the plant via gravity channels and circulating water pumps. An island water intake replenishes evaporative and blowdown losses.`,
+      stats: [
+        ['Tower Height / Diameter', '135 m / 95 m'],
+        ['Circulating Flow Rate', '18,500 – 35,000 m³/hr'],
+        ['Design Wet Bulb Temp', '27.0 °C'],
+        ['Tower Heat Rejection', '150 – 350 MW_th'],
+        ['Evaporative Water Loss', '~350 m³/hr'],
+        ['Drift Eliminator Efficiency', '< 0.005% drift loss']
+      ],
+      formula: 'Effectiveness ε = (T_hot - T_cold) / (T_hot - T_wetbulb)\nMakeup Flow ṁ_makeup = ṁ_evap + ṁ_blowdown + ṁ_drift'
+    }
+  },
+  {
+    id: 'esp',
+    label: '⑧ ESP & Triple Chimneys',
+    cx: 1250, cy: 370, r: 60,
+    html: `<h4><span class="tip-tag">⑧ EMISSION CONTROL</span>ESP, FGD & Chimney Stacks</h4>
+<p>Flue gas is cleaned by high-voltage Electrostatic Precipitators (>99.9% particulate capture) and Flue Gas Desulphurisation before release via 250m multi-flue chimney stacks.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">ESP Efficiency</span><span class="tip-stat-val">&gt; 99.9 % PM capture</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">FGD SO₂ Removal</span><span class="tip-stat-val">&gt; 96.0 %</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Chimney Stack Height</span><span class="tip-stat-val">250 meters</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">CEMS Monitoring</span><span class="tip-stat-val">Online SOx, NOx, CO, PM</span></div>
+</div>`,
+    explore: {
+      num: '⑧', title: 'Electrostatic Precipitator (ESP) & Emission Stacks',
+      desc: `Flue gas exiting the boiler air preheater passes through the <strong>Electrostatic Precipitator (ESP)</strong>:
+- <strong>Ionization & Collection</strong>: Discharge electrodes energized at 50–80 kV DC emit a corona discharge that negatively charges fly ash particles. The charged dust migrates to grounded collecting plates and is dislodged by mechanical rapping hammers into hoppers below.
+- <strong>Flue Gas Desulphurisation (FGD)</strong>: Limestone-gypsum wet scrubbers neutralize acidic SO₂ gas.
+- <strong>Triple Chimney Stacks</strong>: Cleaned exhaust gas at 130–145°C discharges into the atmosphere through 250m tall concrete chimney stacks with red-and-white aviation safety bands. Continuous Emission Monitoring Systems (CEMS) broadcast live pollutant data to environmental regulators.`,
+      stats: [
+        ['ESP High-Voltage Supply', '55 – 75 kV DC (Switched Mode)'],
+        ['Particulate Emission Limit', '< 30 mg/Nm³ (Achieved: 15 mg/Nm³)'],
+        ['FGD Gypsum Purity', '> 92% (Sold to drywall makers)'],
+        ['Stack Height', '250 meters'],
+        ['Flue Gas Velocity', '18 – 22 m/s'],
+        ['CEMS Sensors', 'NDIR (SO₂, NO, CO), Paramagnetic (O₂), Triboelectric (Dust)']
+      ],
+      formula: 'Deutsch-Anderson Eq: η_ESP = 1 - exp(- (w × A) / Q)\nwhere w = migration velocity, A = collection area, Q = gas flow'
+    }
+  },
+  {
+    id: 'grid',
+    label: '⑨ Step-Up Transformer & Grid',
+    cx: 375, cy: 220, r: 45,
+    html: `<h4><span class="tip-tag">⑨ GRID DISPATCH</span>Step-Up Transformer & Transmission</h4>
+<p>Generator Step-Up (GSU) Transformer steps voltage up from 11 kV to 220/400 kV. Isolated high-voltage lines dispatch bulk electricity to the transmission grid without clutter.</p>
+<div class="tip-stats">
+  <div class="tip-stat"><span class="tip-stat-key">GSU Voltage Ratio</span><span class="tip-stat-val">11 kV → 220 / 400 kV</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Transformer Rating</span><span class="tip-stat-val">350 MVA (ONAN/ONAF)</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Transmission Pylons</span><span class="tip-stat-val">Double Circuit Quad Bundle</span></div>
+  <div class="tip-stat"><span class="tip-stat-key">Grid Frequency</span><span class="tip-stat-val">50.00 Hz (Synched)</span></div>
+</div>`,
+    explore: {
+      num: '⑨', title: 'Generator Step-Up Transformer & High-Voltage Grid',
+      desc: `The <strong>Generator Step-Up Transformer (GSU / GT)</strong> is located directly behind the generator building, connected via heavy-duty Isolated Phase Busduct (IPB) to minimize 11 kV I²R copper losses.
+The transformer raises the voltage to 220 kV or 400 kV to enable efficient, low-loss bulk power transmission over hundreds of kilometers.
+From the high-voltage switchyard (featuring SF₆ gas-insulated circuit breakers, disconnectors, and lightning arresters), power is dispatched onto double-circuit steel lattice transmission pylons leading to regional substations and domestic load centers.`,
+      stats: [
+        ['Transformer Power Rating', '350 MVA'],
+        ['Primary Voltage (Generator)', '11 kV ± 5%'],
+        ['Secondary Voltage (Grid)', '220 kV / 400 kV'],
+        ['Transformer Efficiency', '99.65 %'],
+        ['Cooling Type', 'Oil Natural Air Forced (ONAF)'],
+        ['Protection Relays', 'Differential (87G/87T), Overfluxing (24), Buchholz']
+      ],
+      formula: 'V_secondary / V_primary = N_sec / N_pri\nTransmission Loss P_loss = 3 × I_line² × R_line'
+    }
+  }
+];
+
+/* ─────────────────────────────────────────────────────────────
+   PHYSICS ENGINE & TELEMETRY UPDATER
+   ───────────────────────────────────────────────────────────── */
+let lastTelemetryUpdate = 0;
+
+function updatePhysics(dt) {
+  // First-order lag response to target MW setpoint (thermal inertia)
+  const lagSpeed = S.simSpeed * 1.5 * dt;
+  S.currentMW += (S.targetMW - S.currentMW) * Math.min(1, lagSpeed);
+  
+  // Correlated thermodynamics variables based on current MW load ratio
+  const loadRatio = S.currentMW / 300.0; // 0.2 to 1.0
+  
+  // Minor realistic sinusoidal noise
+  const noise1 = Math.sin(S.t * 2.5) * 0.8;
+  const noise2 = Math.cos(S.t * 1.7) * 0.4;
+  
+  S.boilerTemp   = 1150 + loadRatio * 320 + noise1 * 4;           // 1150°C -> 1470°C
+  S.steamPres    = 90 + loadRatio * 85 + noise2 * 0.8;             // 90 bar -> 175 bar
+  S.steamFlow    = 180 + loadRatio * 750 + noise1 * 5;             // 180 t/h -> 930 t/h
+  S.coalFeed     = 25 + loadRatio * 82 + noise2 * 0.5;             // 25 t/h -> 107 t/h
+  S.flueGasFlow  = 220 + loadRatio * 700;                          // kNm3/h
+  S.turbineRpm   = 3000 + (Math.sin(S.t * 8.0) * 0.4);             // Solid 3000 RPM
+  
+  // Thermal efficiency curve: peaks around 75-85% load
+  const optimalLoad = 0.78;
+  const dev = loadRatio - optimalLoad;
+  S.efficiency   = 41.2 - (dev * dev * 14.0) + (noise1 * 0.05);   // ~37% to 41.2%
+  
+  // Push to history rolling buffer every 100ms
+  const now = performance.now();
+  if (now - lastTelemetryUpdate > 100) {
+    lastTelemetryUpdate = now;
+    history.time.push(history.time.length);
+    history.mw.push(S.currentMW);
+    history.temp.push(S.boilerTemp);
+    history.pres.push(S.steamPres);
+    history.eff.push(S.efficiency);
+    history.coal.push(S.coalFeed);
+    
+    if (history.time.length > MAX_HISTORY) {
+      history.time.shift();
+      history.mw.shift();
+      history.temp.shift();
+      history.pres.shift();
+      history.eff.shift();
+      history.coal.shift();
+    }
+  }
+  
+  // Update Live Badges
+  document.getElementById('r-power-mw').textContent    = S.currentMW.toFixed(1);
+  document.getElementById('r-boiler-temp').textContent = S.boilerTemp.toFixed(0);
+  document.getElementById('r-steam-pres').textContent  = S.steamPres.toFixed(1);
+  document.getElementById('r-turbine-rpm').textContent = S.turbineRpm.toFixed(0);
+  document.getElementById('r-efficiency').textContent  = S.efficiency.toFixed(1);
+  document.getElementById('r-coal-feed').textContent   = S.coalFeed.toFixed(1);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   3D ISOMETRIC PROJECTION RENDERING ENGINE
+   ───────────────────────────────────────────────────────────── */
+function render3DPlant() {
+  plantCtx.clearRect(0, 0, PW, PH);
+  plantCtx.save();
+  
+  // Apply Zoom & Pan Transform
+  plantCtx.translate(S.panX, S.panY);
+  plantCtx.scale(S.zoom, S.zoom);
+  
+  // 1. Background Environment & Lake
+  drawEnvironment();
+  
+  // 2. Island, Cooling Towers & Water Channels (Left)
+  drawIslandAndCoolingTowers();
+  
+  // 3. Grid Pylons & Step-Up Transformer (Top Left - Clean No Overlap)
+  drawGridAndTransformer();
+  
+  // 4. Coal Yard, Heap & Conveyor Trestle (Bottom)
+  drawCoalSystem();
+  
+  // 5. ESP & Triple Chimneys (Far Right)
+  drawESPAndChimneys();
+  
+  // 6. Massive 3D Boiler & Steam Drum Cutaway (Center Right)
+  draw3DBoiler();
+  
+  // 7. Directly Coupled Steam Turbine & Generator Assembly (Center)
+  drawCoupledTurbineGenerator();
+  
+  // 8. 3D Interconnecting Piping with Flow Animation
+  draw3DPipes();
+  
+  // 9. Hotspot Callout Badges & Labels
+  drawHotspotBadges();
+  
+  plantCtx.restore();
+}
+
+/* ─── 1. Background Environment ─── */
+function drawEnvironment() {
+  // Deep gradient background
+  const bgGrad = plantCtx.createLinearGradient(0, 0, PW, PH);
+  bgGrad.addColorStop(0, '#0d121c');
+  bgGrad.addColorStop(0.6, '#131b2a');
+  bgGrad.addColorStop(1, '#0b0f17');
+  plantCtx.fillStyle = bgGrad;
+  plantCtx.fillRect(0, 0, PW, PH);
+  
+  // Subtle isometric plant ground slab (gray concrete pad)
+  plantCtx.beginPath();
+  plantCtx.moveTo(280, 520);
+  plantCtx.lineTo(760, 270);
+  plantCtx.lineTo(1390, 480);
+  plantCtx.lineTo(910, 740);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#18202e';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#223048';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Isometric floor grid lines on concrete slab
+  plantCtx.strokeStyle = 'rgba(42, 60, 90, 0.25)';
+  plantCtx.lineWidth = 1;
+  for (let i = 1; i < 8; i++) {
+    const t = i / 8;
+    // Axis 1
+    plantCtx.beginPath();
+    plantCtx.moveTo(280 + (760 - 280) * t, 520 + (270 - 520) * t);
+    plantCtx.lineTo(910 + (1390 - 910) * t, 740 + (480 - 740) * t);
+    plantCtx.stroke();
+    // Axis 2
+    plantCtx.beginPath();
+    plantCtx.moveTo(280 + (910 - 280) * t, 520 + (740 - 520) * t);
+    plantCtx.lineTo(760 + (1390 - 760) * t, 270 + (480 - 270) * t);
+    plantCtx.stroke();
+  }
+}
+
+/* ─── 2. Island & Hyperbolic Cooling Towers (Left) ─── */
+function drawIslandAndCoolingTowers() {
+  // Lake Body (Blue isometric polygon)
+  plantCtx.beginPath();
+  plantCtx.moveTo(20, 360);
+  plantCtx.lineTo(310, 260);
+  plantCtx.lineTo(330, 530);
+  plantCtx.lineTo(40, 610);
+  plantCtx.closePath();
+  const lakeGrad = plantCtx.createLinearGradient(0, 300, 300, 600);
+  lakeGrad.addColorStop(0, '#0277bd');
+  lakeGrad.addColorStop(1, '#01579b');
+  plantCtx.fillStyle = lakeGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#29b6f6';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Animated Water Wave Ripples
+  plantCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  plantCtx.lineWidth = 1.5;
+  for (let w = 0; w < 5; w++) {
+    const wy = 320 + w * 55 + Math.sin(S.t * 3 + w) * 4;
+    const wx = 80 + (w % 2) * 50;
+    plantCtx.beginPath();
+    plantCtx.moveTo(wx, wy);
+    plantCtx.quadraticCurveTo(wx + 40, wy - 6, wx + 80, wy);
+    plantCtx.quadraticCurveTo(wx + 120, wy + 6, wx + 160, wy);
+    plantCtx.stroke();
+  }
+  
+  // Green Island Mound
+  plantCtx.beginPath();
+  plantCtx.moveTo(60, 420);
+  plantCtx.lineTo(240, 310);
+  plantCtx.lineTo(270, 440);
+  plantCtx.lineTo(100, 540);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#2e7d32';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#4caf50';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Shoreline sand line
+  plantCtx.strokeStyle = '#81c784';
+  plantCtx.lineWidth = 3;
+  plantCtx.stroke();
+  
+  // Draw Two 3D Hyperbolic Cooling Towers on the Island
+  drawSingleCoolingTower(130, 340, 48, 85);
+  drawSingleCoolingTower(205, 385, 48, 85);
+}
+
+function drawSingleCoolingTower(cx, cy, w, h) {
+  const topW = w * 0.55;
+  const waistW = w * 0.42;
+  const botW = w;
+  
+  // Tower body
+  plantCtx.beginPath();
+  plantCtx.moveTo(cx - botW/2, cy);
+  plantCtx.bezierCurveTo(cx - waistW, cy - h*0.45, cx - waistW, cy - h*0.75, cx - topW/2, cy - h);
+  plantCtx.lineTo(cx + topW/2, cy - h);
+  plantCtx.bezierCurveTo(cx + waistW, cy - h*0.75, cx + waistW, cy - h*0.45, cx + botW/2, cy);
+  plantCtx.closePath();
+  
+  const twGrad = plantCtx.createLinearGradient(cx - w, cy, cx + w, cy);
+  twGrad.addColorStop(0, '#546e7a');
+  twGrad.addColorStop(0.5, '#90a4ae');
+  twGrad.addColorStop(1, '#37474f');
+  plantCtx.fillStyle = twGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#263238';
+  plantCtx.lineWidth = 1.5;
+  plantCtx.stroke();
+  
+  // Top lip ellipse
+  plantCtx.beginPath();
+  plantCtx.ellipse(cx, cy - h, topW/2, 6, 0, 0, Math.PI * 2);
+  plantCtx.fillStyle = '#263238';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#78909c';
+  plantCtx.stroke();
+  
+  // Animated Steam / Vapor Plume Rising
+  if (S.running) {
+    const loadFactor = S.currentMW / 300;
+    for (let p = 0; p < 5; p++) {
+      const pt = (S.t * 0.6 + p / 5) % 1;
+      const py = (cy - h) - pt * (70 + loadFactor * 50);
+      const px = cx + Math.sin(p * 2 + S.t * 3) * (10 + pt * 18);
+      const pr = 8 + pt * 22;
+      const alpha = (1 - pt) * 0.35 * loadFactor;
+      
+      plantCtx.beginPath();
+      plantCtx.arc(px, py, pr, 0, Math.PI * 2);
+      plantCtx.fillStyle = `rgba(224, 242, 254, ${alpha})`;
+      plantCtx.fill();
+    }
+  }
+}
+
+/* ─── 3. Grid Pylons & Step-Up Transformer (Top Left - No Overlap) ─── */
+function drawGridAndTransformer() {
+  // Step-Up Transformer (Yellow 3D isometric cuboid)
+  const tx = 345, ty = 205, tw = 65, th = 60, td = 40;
+  
+  // Transformer Front Face
+  plantCtx.fillStyle = '#ffb300';
+  plantCtx.fillRect(tx, ty, tw, th);
+  plantCtx.strokeStyle = '#c67c00';
+  plantCtx.lineWidth = 2;
+  plantCtx.strokeRect(tx, ty, tw, th);
+  
+  // Transformer Top Face
+  plantCtx.beginPath();
+  plantCtx.moveTo(tx, ty);
+  plantCtx.lineTo(tx + td * 0.7, ty - td * 0.5);
+  plantCtx.lineTo(tx + tw + td * 0.7, ty - td * 0.5);
+  plantCtx.lineTo(tx + tw, ty);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#ffd54f';
+  plantCtx.fill();
+  plantCtx.stroke();
+  
+  // Transformer Right Face
+  plantCtx.beginPath();
+  plantCtx.moveTo(tx + tw, ty);
+  plantCtx.lineTo(tx + tw + td * 0.7, ty - td * 0.5);
+  plantCtx.lineTo(tx + tw + td * 0.7, ty + th - td * 0.5);
+  plantCtx.lineTo(tx + tw, ty + th);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#ffa000';
+  plantCtx.fill();
+  plantCtx.stroke();
+  
+  // High Voltage Bushings on Top
+  for (let b = 0; b < 3; b++) {
+    const bx = tx + 15 + b * 20;
+    const by = ty - 12;
+    plantCtx.fillStyle = '#37474f';
+    plantCtx.fillRect(bx - 3, by, 6, 12);
+    plantCtx.beginPath();
+    plantCtx.arc(bx, by, 5, 0, Math.PI * 2);
+    plantCtx.fillStyle = '#cfd8dc';
+    plantCtx.fill();
+  }
+  
+  // Lightning Bolt Emblem on front
+  plantCtx.beginPath();
+  plantCtx.moveTo(tx + tw/2 + 2, ty + 15);
+  plantCtx.lineTo(tx + tw/2 - 8, ty + 33);
+  plantCtx.lineTo(tx + tw/2 + 1, ty + 33);
+  plantCtx.lineTo(tx + tw/2 - 4, ty + 48);
+  plantCtx.lineTo(tx + tw/2 + 9, ty + 28);
+  plantCtx.lineTo(tx + tw/2 + 1, ty + 28);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#212121';
+  plantCtx.fill();
+  
+  // Isolated Phase Busduct (IPB) from Generator to Transformer
+  plantCtx.strokeStyle = '#f57c00';
+  plantCtx.lineWidth = 6;
+  plantCtx.beginPath();
+  plantCtx.moveTo(410, 455);
+  plantCtx.lineTo(410, 310);
+  plantCtx.lineTo(375, 275);
+  plantCtx.stroke();
+  
+  // Transmission Pylon 1 (High in Background - Well Separated from Transformer)
+  drawLatticePylon(240, 155, 95);
+  
+  // Transmission Pylon 2 (Further Back towards Village)
+  drawLatticePylon(120, 115, 75);
+  
+  // Overhead Catenary Power Transmission Lines
+  plantCtx.strokeStyle = '#90a4ae';
+  plantCtx.lineWidth = 1.5;
+  for (let l = 0; l < 3; l++) {
+    const off = l * 6;
+    // From Transformer to Pylon 1
+    plantCtx.beginPath();
+    plantCtx.moveTo(tx + 15 + l*18, ty - 12);
+    plantCtx.quadraticCurveTo(280, 130 + off, 240, 85 + off);
+    plantCtx.stroke();
+    
+    // From Pylon 1 to Pylon 2
+    plantCtx.beginPath();
+    plantCtx.moveTo(240, 85 + off);
+    plantCtx.quadraticCurveTo(180, 95 + off, 120, 60 + off);
+    plantCtx.stroke();
+  }
+  
+  // Distant Village Houses on green hill
+  drawMiniHouse(55, 115);
+  drawMiniHouse(85, 105);
+}
+
+function drawLatticePylon(px, py, h) {
+  plantCtx.strokeStyle = '#78909c';
+  plantCtx.lineWidth = 1.5;
+  
+  // Main lattice legs
+  plantCtx.beginPath();
+  plantCtx.moveTo(px - 16, py);
+  plantCtx.lineTo(px, py - h);
+  plantCtx.lineTo(px + 16, py);
+  plantCtx.stroke();
+  
+  // Crossarms
+  plantCtx.beginPath();
+  plantCtx.moveTo(px - 28, py - h * 0.75);
+  plantCtx.lineTo(px + 28, py - h * 0.75);
+  plantCtx.moveTo(px - 22, py - h * 0.55);
+  plantCtx.lineTo(px + 22, py - h * 0.55);
+  plantCtx.stroke();
+  
+  // Diagonal braces
+  plantCtx.beginPath();
+  plantCtx.moveTo(px - 14, py - 15); plantCtx.lineTo(px + 10, py - 35);
+  plantCtx.moveTo(px + 14, py - 15); plantCtx.lineTo(px - 10, py - 35);
+  plantCtx.moveTo(px - 10, py - 35); plantCtx.lineTo(px + 6, py - 55);
+  plantCtx.moveTo(px + 10, py - 35); plantCtx.lineTo(px - 6, py - 55);
+  plantCtx.stroke();
+  
+  // Glass disc insulator strings
+  for (let i = -1; i <= 1; i++) {
+    plantCtx.fillStyle = '#b0bec5';
+    plantCtx.fillRect(px + i * 22 - 2, py - h * 0.75, 4, 10);
+  }
+}
+
+function drawMiniHouse(hx, hy) {
+  plantCtx.fillStyle = '#c62828';
+  plantCtx.beginPath();
+  plantCtx.moveTo(hx, hy - 12);
+  plantCtx.lineTo(hx - 10, hy - 4);
+  plantCtx.lineTo(hx + 10, hy - 4);
+  plantCtx.closePath();
+  plantCtx.fill();
+  
+  plantCtx.fillStyle = '#eceff1';
+  plantCtx.fillRect(hx - 8, hy - 4, 16, 12);
+  plantCtx.fillStyle = '#ffb300';
+  plantCtx.fillRect(hx - 4, hy - 1, 4, 4);
+}
+
+/* ─── 4. Coal Yard & Inclined Conveyor (Bottom) ─── */
+function drawCoalSystem() {
+  // Coal Stockpile Heap at Bottom Center
+  plantCtx.beginPath();
+  plantCtx.ellipse(870, 705, 75, 30, 0, 0, Math.PI * 2);
+  plantCtx.fillStyle = '#1c1c24';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#2d2d38';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Internal coal lumps texture
+  for (let i = 0; i < 15; i++) {
+    const rx = 830 + (i * 17) % 80;
+    const ry = 690 + (i * 7) % 20;
+    plantCtx.fillStyle = '#111116';
+    plantCtx.fillRect(rx, ry, 6, 5);
+  }
+  
+  // Inclined Trestle Conveyor Belt (from heap to boiler feed bunker)
+  const x1 = 870, y1 = 695;
+  const x2 = 965, y2 = 535;
+  
+  // Support Pillars
+  plantCtx.strokeStyle = '#546e7a';
+  plantCtx.lineWidth = 3;
+  for (let p = 1; p <= 4; p++) {
+    const tx = x1 + (x2 - x1) * (p / 4);
+    const ty = y1 + (y2 - y1) * (p / 4);
+    plantCtx.beginPath();
+    plantCtx.moveTo(tx, ty);
+    plantCtx.lineTo(tx, ty + (5 - p) * 18);
+    plantCtx.stroke();
+  }
+  
+  // Conveyor Bed
+  plantCtx.strokeStyle = '#37474f';
+  plantCtx.lineWidth = 14;
+  plantCtx.beginPath(); plantCtx.moveTo(x1, y1); plantCtx.lineTo(x2, y2); plantCtx.stroke();
+  
+  plantCtx.strokeStyle = '#212121';
+  plantCtx.lineWidth = 8;
+  plantCtx.beginPath(); plantCtx.moveTo(x1, y1); plantCtx.lineTo(x2, y2); plantCtx.stroke();
+  
+  // Animated Coal Lumps Moving on Belt
+  if (S.running) {
+    const numLumps = 10;
+    for (let c = 0; c < numLumps; c++) {
+      const ct = (S.t * S.simSpeed * 0.7 + c / numLumps) % 1;
+      const cx = x1 + (x2 - x1) * ct;
+      const cy = y1 + (y2 - y1) * ct - 4;
+      
+      plantCtx.beginPath();
+      plantCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+      plantCtx.fillStyle = '#0a0a0f';
+      plantCtx.fill();
+    }
+  }
+}
+
+/* ─── 5. ESP & Triple Chimneys (Far Right) ─── */
+function drawESPAndChimneys() {
+  // Electrostatic Precipitator (ESP) 3D Box
+  const ex = 1110, ey = 470, ew = 70, eh = 55;
+  
+  plantCtx.fillStyle = '#455a64';
+  plantCtx.fillRect(ex, ey, ew, eh);
+  plantCtx.strokeStyle = '#263238';
+  plantCtx.lineWidth = 2;
+  plantCtx.strokeRect(ex, ey, ew, eh);
+  
+  // ESP Hoppers underneath
+  plantCtx.beginPath();
+  plantCtx.moveTo(ex + 10, ey + eh);
+  plantCtx.lineTo(ex + 25, ey + eh + 20);
+  plantCtx.lineTo(ex + 40, ey + eh);
+  plantCtx.lineTo(ex + 55, ey + eh + 20);
+  plantCtx.lineTo(ex + 65, ey + eh);
+  plantCtx.fillStyle = '#37474f';
+  plantCtx.fill();
+  plantCtx.stroke();
+  
+  // Three Tall 3D Cylindrical Chimney Stacks
+  const cxs = [1260, 1310, 1360];
+  const cys = [390, 410, 430];
+  const chH = 220;
+  const chW = 20;
+  
+  for (let i = 0; i < 3; i++) {
+    const cx = cxs[i];
+    const cy = cys[i];
+    
+    // Chimney cylinder
+    plantCtx.fillStyle = '#cfd8dc';
+    plantCtx.fillRect(cx - chW/2, cy - chH, chW, chH);
+    plantCtx.strokeStyle = '#37474f';
+    plantCtx.lineWidth = 1.5;
+    plantCtx.strokeRect(cx - chW/2, cy - chH, chW, chH);
+    
+    // Red Aviation Stripes (4 bands)
+    plantCtx.fillStyle = '#d32f2f';
+    for (let b = 0; b < 4; b++) {
+      plantCtx.fillRect(cx - chW/2, (cy - chH) + b * 40, chW, 16);
+    }
+    
+    // Chimney Top Opening Ellipse
+    plantCtx.beginPath();
+    plantCtx.ellipse(cx, cy - chH, chW/2, 4, 0, 0, Math.PI * 2);
+    plantCtx.fillStyle = '#263238';
+    plantCtx.fill();
+    plantCtx.stroke();
+    
+    // Animated Flue Gas Smoke Plumes
+    if (S.running) {
+      const loadFactor = S.currentMW / 300;
+      for (let s = 0; s < 6; s++) {
+        const st = (S.t * 0.5 + s / 6 + i * 0.2) % 1;
+        const sy = (cy - chH) - st * 100;
+        const sx = cx + Math.sin(S.t * 3 + s) * 12 + st * 15;
+        const sr = 6 + st * 20;
+        const alpha = (1 - st) * 0.28 * loadFactor;
+        
+        plantCtx.beginPath();
+        plantCtx.arc(sx, sy, sr, 0, Math.PI * 2);
+        plantCtx.fillStyle = `rgba(144, 164, 174, ${alpha})`;
+        plantCtx.fill();
+      }
+    }
+  }
+}
+
+/* ─── 6. Massive 3D Boiler & Steam Drum Cutaway (Center Right) ─── */
+function draw3DBoiler() {
+  const bx = 830, by = 180, bw = 240, bh = 340, bd = 110;
+  
+  // 3D Boiler Outer Framework (Isometric Cutaway)
+  // Left wall
+  plantCtx.beginPath();
+  plantCtx.moveTo(bx, by + 40);
+  plantCtx.lineTo(bx + bd * 0.7, by);
+  plantCtx.lineTo(bx + bd * 0.7, by + bh);
+  plantCtx.lineTo(bx, by + bh + 40);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#1c2530';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#2d3b4e';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Back & Right Wall Structure
+  plantCtx.beginPath();
+  plantCtx.moveTo(bx + bd * 0.7, by);
+  plantCtx.lineTo(bx + bw + bd * 0.7, by + 50);
+  plantCtx.lineTo(bx + bw + bd * 0.7, by + bh + 50);
+  plantCtx.lineTo(bx + bd * 0.7, by + bh);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#263238';
+  plantCtx.fill();
+  plantCtx.stroke();
+  
+  // Open Cutaway Interior Glow (Furnace Chamber)
+  const fg = plantCtx.createRadialGradient(bx + 110, by + 220, 20, bx + 110, by + 220, 140);
+  const flameIntensity = (S.currentMW / 300);
+  fg.addColorStop(0, `rgba(255, 140, 0, ${0.75 * flameIntensity})`);
+  fg.addColorStop(0.4, `rgba(229, 57, 53, ${0.55 * flameIntensity})`);
+  fg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  plantCtx.fillStyle = fg;
+  plantCtx.fillRect(bx + 15, by + 90, bw - 30, bh - 110);
+  
+  // Vertical Red Water-Wall Tubes Grid
+  plantCtx.strokeStyle = '#ef5350';
+  plantCtx.lineWidth = 3;
+  for (let i = 0; i < 11; i++) {
+    const wx = bx + 30 + i * 16;
+    plantCtx.beginPath();
+    plantCtx.moveTo(wx, by + 105);
+    plantCtx.lineTo(wx, by + 300);
+    plantCtx.stroke();
+  }
+  
+  // Superheater serpentine coils (upper section)
+  plantCtx.strokeStyle = '#ff7043';
+  plantCtx.lineWidth = 3.5;
+  for (let s = 0; s < 4; s++) {
+    const sx = bx + 55 + s * 38;
+    plantCtx.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const sy = by + 120 + k * 14;
+      const off = (k % 2 === 0) ? 14 : -14;
+      if (k === 0) plantCtx.moveTo(sx + off, sy);
+      else plantCtx.lineTo(sx + off, sy);
+    }
+    plantCtx.stroke();
+  }
+  
+  // Animated Roaring Flame Tongues inside Furnace
+  if (S.running) {
+    const ft = S.t * Math.PI * 2;
+    for (let f = 0; f < 6; f++) {
+      const fx = bx + 45 + f * 26;
+      const fy = by + 285;
+      const fh = (60 + Math.sin(ft * 3 + f * 1.2) * 22) * flameIntensity;
+      
+      // Outer flame
+      plantCtx.beginPath();
+      plantCtx.moveTo(fx - 14, fy);
+      plantCtx.quadraticCurveTo(fx - 18, fy - fh * 0.5, fx, fy - fh);
+      plantCtx.quadraticCurveTo(fx + 18, fy - fh * 0.5, fx + 14, fy);
+      plantCtx.closePath();
+      plantCtx.fillStyle = 'rgba(255, 87, 34, 0.85)';
+      plantCtx.fill();
+      
+      // Inner hot core
+      plantCtx.beginPath();
+      plantCtx.moveTo(fx - 6, fy);
+      plantCtx.quadraticCurveTo(fx - 8, fy - fh * 0.4, fx, fy - fh * 0.75);
+      plantCtx.quadraticCurveTo(fx + 8, fy - fh * 0.4, fx + 6, fy);
+      plantCtx.closePath();
+      plantCtx.fillStyle = 'rgba(255, 235, 59, 0.95)';
+      plantCtx.fill();
+    }
+  }
+  
+  // 3D Steam Drum Cylinder at Boiler Crown
+  const dx = bx + 30, dy = by + 15, dw = 160, dh = 30;
+  plantCtx.beginPath();
+  plantCtx.roundRect(dx, dy, dw, dh, 14);
+  const drumGrad = plantCtx.createLinearGradient(dx, dy, dx, dy + dh);
+  drumGrad.addColorStop(0, '#78909c');
+  drumGrad.addColorStop(0.5, '#eceff1');
+  drumGrad.addColorStop(1, '#37474f');
+  plantCtx.fillStyle = drumGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#263238';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  plantCtx.fillStyle = '#0d47a1';
+  plantCtx.font = 'bold 11px Segoe UI, sans-serif';
+  plantCtx.textAlign = 'center';
+  plantCtx.fillText('STEAM DRUM', dx + dw/2, dy + 19);
+  
+  // Large Red 3D Flow Arrows (Downpass circulation)
+  plantCtx.fillStyle = '#d32f2f';
+  plantCtx.beginPath();
+  plantCtx.moveTo(bx + 175, by + 120);
+  plantCtx.lineTo(bx + 195, by + 120);
+  plantCtx.lineTo(bx + 195, by + 170);
+  plantCtx.lineTo(bx + 208, by + 170);
+  plantCtx.lineTo(bx + 185, by + 205);
+  plantCtx.lineTo(bx + 162, by + 170);
+  plantCtx.lineTo(bx + 175, by + 170);
+  plantCtx.closePath();
+  plantCtx.fill();
+}
+
+/* ─── 7. Coupled Steam Turbine & Generator Assembly (Center) ─── */
+function drawCoupledTurbineGenerator() {
+  // Common Bedplate Foundation
+  plantCtx.beginPath();
+  plantCtx.moveTo(330, 520);
+  plantCtx.lineTo(710, 410);
+  plantCtx.lineTo(730, 450);
+  plantCtx.lineTo(350, 560);
+  plantCtx.closePath();
+  plantCtx.fillStyle = '#37474f';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#263238';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  /* ─── Generator (Left unit) ─── */
+  const gx = 355, gy = 480, gw = 125, gh = 65;
+  
+  // Generator 3D Cylinder Stator Housing (Yellow/Gold)
+  plantCtx.beginPath();
+  plantCtx.roundRect(gx, gy - gh/2, gw, gh, 10);
+  const genGrad = plantCtx.createLinearGradient(gx, gy - gh/2, gx, gy + gh/2);
+  genGrad.addColorStop(0, '#ffd54f');
+  genGrad.addColorStop(0.4, '#ffb300');
+  genGrad.addColorStop(1, '#ff8f00');
+  plantCtx.fillStyle = genGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#e65100';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Front Inspection Hatch & Bearing Cap
+  plantCtx.beginPath();
+  plantCtx.ellipse(gx + 25, gy, 18, 24, 0, 0, Math.PI * 2);
+  plantCtx.fillStyle = '#455a64';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#263238';
+  plantCtx.stroke();
+  
+  // Generator Label
+  plantCtx.fillStyle = '#ffffff';
+  plantCtx.font = 'bold 12px Segoe UI, sans-serif';
+  plantCtx.textAlign = 'center';
+  plantCtx.fillText('GENERATOR', gx + gw/2 + 8, gy + 4);
+  
+  /* ─── DIRECT MECHANICAL COUPLING SHAFT (The Link) ─── */
+  const cpx = gx + gw;
+  const cpy = gy;
+  const cpw = 36;
+  
+  // Central Steel Shaft
+  plantCtx.fillStyle = '#b0bec5';
+  plantCtx.fillRect(cpx, cpy - 9, cpw, 18);
+  plantCtx.strokeStyle = '#37474f';
+  plantCtx.lineWidth = 1.5;
+  plantCtx.strokeRect(cpx, cpy - 9, cpw, 18);
+  
+  // Heavy Rigid Coupling Flange Collar (Orange/Red)
+  plantCtx.fillStyle = '#e65100';
+  plantCtx.fillRect(cpx + 8, cpy - 16, 20, 32);
+  plantCtx.strokeStyle = '#bf360c';
+  plantCtx.strokeRect(cpx + 8, cpy - 16, 20, 32);
+  
+  // Rotating Bolt Marks on Coupling
+  if (S.running) {
+    const rot = (S.t * S.simSpeed * 12) % Math.PI;
+    plantCtx.fillStyle = '#ffffff';
+    plantCtx.fillRect(cpx + 16, cpy - 12 + Math.sin(rot) * 10, 4, 4);
+  }
+  
+  /* ─── Steam Turbine (Right unit - coupled) ─── */
+  const tx = cpx + cpw, ty = gy - 10, tw = 120, th = 80;
+  
+  // Turbine 3D Stepped Casing (High Pressure to Low Pressure Expansion)
+  plantCtx.beginPath();
+  plantCtx.moveTo(tx, ty - th * 0.35);
+  plantCtx.lineTo(tx + tw, ty - th * 0.55);
+  plantCtx.lineTo(tx + tw, ty + th * 0.55);
+  plantCtx.lineTo(tx, ty + th * 0.35);
+  plantCtx.closePath();
+  
+  const turbGrad = plantCtx.createLinearGradient(tx, ty - th/2, tx, ty + th/2);
+  turbGrad.addColorStop(0, '#78909c');
+  turbGrad.addColorStop(0.5, '#b0bec5');
+  turbGrad.addColorStop(1, '#455a64');
+  plantCtx.fillStyle = turbGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#263238';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  // Cutaway Window showing Spinning Bladed Rotor inside Turbine
+  const cutW = 75, cutH = 46;
+  const cutX = tx + 18, cutY = ty - cutH/2;
+  plantCtx.fillStyle = '#1e2836';
+  plantCtx.fillRect(cutX, cutY, cutW, cutH);
+  plantCtx.strokeStyle = '#00e5ff';
+  plantCtx.lineWidth = 1.5;
+  plantCtx.strokeRect(cutX, cutY, cutW, cutH);
+  
+  // Spinning Multi-Stage Turbine Blades
+  if (S.running) {
+    const bladeAngle = S.t * S.simSpeed * Math.PI * 16;
+    for (let stage = 0; stage < 5; stage++) {
+      const bx = cutX + 10 + stage * 13;
+      const bScale = 1.0 + stage * 0.22;
+      
+      for (let b = 0; b < 6; b++) {
+        const a = bladeAngle + (b / 6) * Math.PI * 2;
+        const by = ty + Math.sin(a) * (14 * bScale);
+        plantCtx.fillStyle = (b % 2 === 0) ? '#4fc3f7' : '#e0f7fa';
+        plantCtx.fillRect(bx - 2, by - 2, 4, 4);
+      }
+    }
+  }
+  
+  plantCtx.fillStyle = '#ffffff';
+  plantCtx.font = 'bold 12px Segoe UI, sans-serif';
+  plantCtx.textAlign = 'center';
+  plantCtx.fillText('STEAM TURBINE', tx + tw/2, ty + th/2 + 18);
+  
+  /* ─── Condenser Box (Situated DIRECTLY Below Turbine) ─── */
+  const cdx = tx - 10, cdy = ty + th/2 + 25, cdw = 105, cdh = 60;
+  plantCtx.fillStyle = '#1e293b';
+  plantCtx.fillRect(cdx, cdy, cdw, cdh);
+  plantCtx.strokeStyle = '#38bdf8';
+  plantCtx.lineWidth = 2;
+  plantCtx.strokeRect(cdx, cdy, cdw, cdh);
+  
+  // Water level in condenser hotwell
+  plantCtx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+  plantCtx.fillRect(cdx + 2, cdy + cdh - 22, cdw - 4, 20);
+  
+  plantCtx.fillStyle = '#38bdf8';
+  plantCtx.font = 'bold 10px Segoe UI, sans-serif';
+  plantCtx.fillText('CONDENSER', cdx + cdw/2, cdy + 20);
+  plantCtx.font = '9px Segoe UI, sans-serif';
+  plantCtx.fillText('0.07 bar vacuum', cdx + cdw/2, cdy + 33);
+}
+
+/* ─── 8. 3D Interconnecting Piping with Flow Animation ─── */
+function draw3DPipes() {
+  const t = S.t * S.simSpeed;
+  
+  // 1. High-Pressure Main Steam Pipes (Boiler Steam Drum -> Superheater -> Turbine)
+  drawFlowPipe([
+    [990, 215],
+    [990, 150],
+    [720, 150],
+    [720, 420],
+    [640, 420]
+  ], '#ff3d00', 8, t * 1.5, 'steam');
+  
+  // 2. High-Pressure Steam Loop 2
+  drawFlowPipe([
+    [960, 215],
+    [960, 135],
+    [700, 135],
+    [700, 400],
+    [635, 400]
+  ], '#ff6e40', 6, t * 1.5 + 0.3, 'steam');
+  
+  // 3. Feedwater Recovery Pipe (Condenser Hotwell -> Feed Pump -> Boiler Economiser)
+  drawFlowPipe([
+    [635, 600],
+    [635, 630],
+    [820, 630],
+    [820, 390],
+    [850, 390]
+  ], '#00e5ff', 6, t * 0.9, 'water');
+  
+  // 4. Cooling Water Supply Pipe (Cooling Towers -> Condenser)
+  drawFlowPipe([
+    [240, 440],
+    [320, 440],
+    [520, 565],
+    [560, 565]
+  ], '#29b6f6', 6, t * 1.1, 'cool');
+  
+  // 5. Warm Cooling Water Return Pipe (Condenser -> Cooling Towers)
+  drawFlowPipe([
+    [560, 580],
+    [500, 580],
+    [300, 460],
+    [220, 460]
+  ], '#ff7043', 6, t * 1.1 + 0.5, 'warm');
+  
+  // 6. Flue Gas Duct (Boiler Outpass -> ESP -> Chimneys)
+  drawFlowPipe([
+    [1070, 440],
+    [1110, 440],
+    [1180, 480],
+    [1250, 480]
+  ], '#78909c', 10, t * 0.7, 'gas');
+}
+
+function drawFlowPipe(pts, color, width, flowPhase, type) {
+  // Base outer pipe casing
+  plantCtx.strokeStyle = '#1e293b';
+  plantCtx.lineWidth = width + 4;
+  plantCtx.lineCap = 'round';
+  plantCtx.lineJoin = 'round';
+  plantCtx.beginPath();
+  plantCtx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) plantCtx.lineTo(pts[i][0], pts[i][1]);
+  plantCtx.stroke();
+  
+  // Inner colored pipe
+  plantCtx.strokeStyle = color;
+  plantCtx.lineWidth = width;
+  plantCtx.stroke();
+  
+  // Animated moving dashed flow particles
+  if (S.running) {
+    plantCtx.strokeStyle = '#ffffff';
+    plantCtx.lineWidth = width * 0.55;
+    plantCtx.setLineDash([10, 16]);
+    plantCtx.lineDashOffset = -flowPhase * 36;
+    plantCtx.stroke();
+    plantCtx.setLineDash([]);
+  }
+}
+
+/* ─── 9. Hotspot Callout Badges & Labels ─── */
+function drawHotspotBadges() {
+  for (const hs of HOTSPOTS) {
+    const isHovered = (hs.id === S.hoveredId);
+    const pulse = Math.sin(S.t * 6) * 3;
+    
+    // Outer glow on hover
+    if (isHovered) {
+      plantCtx.beginPath();
+      plantCtx.arc(hs.cx, hs.cy, 24 + pulse, 0, Math.PI * 2);
+      plantCtx.fillStyle = 'rgba(229, 57, 53, 0.45)';
+      plantCtx.fill();
+    }
+    
+    // Circular Badge
+    plantCtx.beginPath();
+    plantCtx.arc(hs.cx, hs.cy, 16, 0, Math.PI * 2);
+    plantCtx.fillStyle = isHovered ? '#d32f2f' : '#b71c1c';
+    plantCtx.fill();
+    plantCtx.strokeStyle = '#ffffff';
+    plantCtx.lineWidth = 2.5;
+    plantCtx.stroke();
+    
+    // Badge Number text
+    plantCtx.fillStyle = '#ffffff';
+    plantCtx.font = 'bold 13px Segoe UI, sans-serif';
+    plantCtx.textAlign = 'center';
+    plantCtx.textBaseline = 'middle';
+    plantCtx.fillText(hs.label.charAt(0), hs.cx, hs.cy);
+    plantCtx.textBaseline = 'alphabetic';
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   REAL-TIME TELEMETRY GRAPH ENGINE
+   ───────────────────────────────────────────────────────────── */
+function renderTelemetryGraph() {
+  teleCtx.clearRect(0, 0, TW, TH);
+  
+  // Background
+  teleCtx.fillStyle = '#0b0e14';
+  teleCtx.fillRect(0, 0, TW, TH);
+  
+  // Grid Lines
+  teleCtx.strokeStyle = 'rgba(42, 48, 80, 0.45)';
+  teleCtx.lineWidth = 1;
+  for (let y = 30; y < TH; y += 40) {
+    teleCtx.beginPath();
+    teleCtx.moveTo(60, y);
+    teleCtx.lineTo(TW - 20, y);
+    teleCtx.stroke();
+  }
+  for (let x = 60; x < TW - 20; x += 120) {
+    teleCtx.beginPath();
+    teleCtx.moveTo(x, 15);
+    teleCtx.lineTo(x, TH - 25);
+    teleCtx.stroke();
+  }
+  
+  // Y-Axis Labels
+  teleCtx.fillStyle = '#6b7a99';
+  teleCtx.font = '10px Courier New, monospace';
+  teleCtx.textAlign = 'right';
+  teleCtx.fillText('100%', 52, 35);
+  teleCtx.fillText('75%', 52, 75);
+  teleCtx.fillText('50%', 52, 115);
+  teleCtx.fillText('25%', 52, 155);
+  teleCtx.fillText('0%', 52, TH - 25);
+  
+  const graphX = 60;
+  const graphW = TW - 80;
+  const graphH = TH - 45;
+  const graphY0 = TH - 25;
+  
+  // Draw Traces
+  if (S.traces.mw)   drawTrace(history.mw,   0, 320,  '#e53935', 2.5, graphX, graphW, graphH, graphY0);
+  if (S.traces.temp) drawTrace(history.temp, 800, 1600, '#ff9800', 2.0, graphX, graphW, graphH, graphY0);
+  if (S.traces.pres) drawTrace(history.pres, 0, 200,  '#29b6f6', 2.0, graphX, graphW, graphH, graphY0);
+  if (S.traces.eff)  drawTrace(history.eff,  20, 50,  '#3ddc84', 2.0, graphX, graphW, graphH, graphY0);
+  if (S.traces.coal) drawTrace(history.coal, 0, 130,  '#ab47bc', 2.0, graphX, graphW, graphH, graphY0);
+}
+
+function drawTrace(arr, minVal, maxVal, color, lineWidth, gx, gw, gh, gy0) {
+  if (arr.length < 2) return;
+  
+  teleCtx.strokeStyle = color;
+  teleCtx.lineWidth = lineWidth;
+  teleCtx.beginPath();
+  
+  for (let i = 0; i < arr.length; i++) {
+    const val = arr[i];
+    const norm = Math.max(0, Math.min(1, (val - minVal) / (maxVal - minVal)));
+    const px = gx + (i / (MAX_HISTORY - 1)) * gw;
+    const py = gy0 - norm * gh;
+    
+    if (i === 0) teleCtx.moveTo(px, py);
+    else teleCtx.lineTo(px, py);
+  }
+  teleCtx.stroke();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MAIN ANIMATION LOOP
+   ───────────────────────────────────────────────────────────── */
+let lastFrameTime = performance.now();
+
+function mainLoop(now) {
+  const dt = Math.min(0.1, (now - lastFrameTime) / 1000.0);
+  lastFrameTime = now;
+  
+  if (S.running) {
+    S.t += dt * S.simSpeed;
+    updatePhysics(dt);
+  }
+  
+  render3DPlant();
+  renderTelemetryGraph();
+  
+  requestAnimationFrame(mainLoop);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   EVENT LISTENERS & INTERACTION CONTROLS
+   ───────────────────────────────────────────────────────────── */
+
+// 1. Generation Slider Control
+genSlider.addEventListener('input', e => {
+  S.targetMW = parseFloat(e.target.value);
+  genVal.textContent = `${S.targetMW.toFixed(0)} MW`;
+});
+
+// Preset Buttons (30%, 70%, 100%)
+document.querySelectorAll('.btn-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mw = parseFloat(btn.dataset.mw);
+    genSlider.value = mw;
+    S.targetMW = mw;
+    genVal.textContent = `${mw.toFixed(0)} MW`;
+  });
+});
+
+// 2. Play / Pause & Reset Controls
+btnStart.addEventListener('click', () => {
+  S.running = !S.running;
+  btnStart.innerHTML = S.running ? '&#9616;&#9616; Pause' : '&#9654; Run';
+});
+
+btnReset.addEventListener('click', () => {
+  S.zoom = 1.0;
+  S.panX = 0; S.panY = 0;
+  S.targetMW = 210;
+  S.currentMW = 210;
+  genSlider.value = 210;
+  genVal.textContent = '210 MW';
+  S.running = true;
+  btnStart.innerHTML = '&#9616;&#9616; Pause';
+});
+
+// 3. Animation Speed Slider
+speedSlider.addEventListener('input', e => {
+  S.simSpeed = parseFloat(e.target.value);
+  speedVal.textContent = `${S.simSpeed.toFixed(1)}×`;
+});
+
+// 4. Trace Filter Buttons for Telemetry Graph
+document.querySelectorAll('.trace-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const trace = btn.dataset.trace;
+    S.traces[trace] = !S.traces[trace];
+    btn.classList.toggle('active', S.traces[trace]);
+  });
+});
+
+// 5. Mode Tabs (Simulate / Explore / Info)
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    S.mode = btn.dataset.mode;
+    
+    const note = document.getElementById('explore-note');
+    if (note) note.style.display = (S.mode === 'explore') ? 'block' : 'none';
+    if (S.mode !== 'explore' && expPanel) expPanel.classList.remove('visible');
+  });
+});
+
+// 6. Smooth Mouse Wheel Zoom (0.3x to 5.0x centered at cursor)
+plantCanvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const rect = plantCanvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (PW / rect.width);
+  const my = (e.clientY - rect.top)  * (PH / rect.height);
+  
+  S.panX = mx - (mx - S.panX) * factor;
+  S.panY = my - (my - S.panY) * factor;
+  S.zoom = Math.max(0.3, Math.min(5.0, S.zoom * factor));
+}, { passive: false });
+
+// 7. Mouse Drag Panning
+plantCanvas.addEventListener('mousedown', e => {
+  if (e.button === 0) {
+    S.dragStart = { x: e.clientX - S.panX, y: e.clientY - S.panY };
+  }
+});
+window.addEventListener('mousemove', e => {
+  if (S.dragStart) {
+    S.panX = e.clientX - S.dragStart.x;
+    S.panY = e.clientY - S.dragStart.y;
+  }
+});
+window.addEventListener('mouseup', () => { S.dragStart = null; });
+
+// 8. Tooltip Inspection & Explore Click
+plantCanvas.addEventListener('mousemove', e => {
+  if (S.dragStart) return;
+  const rect = plantCanvas.getBoundingClientRect();
+  const mx = ((e.clientX - rect.left) * (PW / rect.width) - S.panX) / S.zoom;
+  const my = ((e.clientY - rect.top)  * (PH / rect.height) - S.panY) / S.zoom;
+  
+  let found = null;
+  for (const hs of HOTSPOTS) {
+    if (Math.hypot(mx - hs.cx, my - hs.cy) < hs.r) {
+      found = hs;
+      break;
+    }
+  }
+  
+  if (found) {
+    S.hoveredId = found.id;
+    tooltip.innerHTML = found.html;
+    
+    // Inject real-time parameters into tooltip
+    const tipMw = document.getElementById('tip-gen-mw');
+    if (tipMw) tipMw.textContent = `${S.currentMW.toFixed(1)} MW`;
+    const tipTemp = document.getElementById('tip-boiler-temp');
+    if (tipTemp) tipTemp.textContent = `${S.boilerTemp.toFixed(0)} °C`;
+    const tipPres = document.getElementById('tip-steam-pres');
+    if (tipPres) tipPres.textContent = `${S.steamPres.toFixed(1)} bar`;
+    const tipCoal = document.getElementById('tip-coal-feed');
+    if (tipCoal) tipCoal.textContent = `${S.coalFeed.toFixed(1)} t/hr`;
+    
+    tooltip.classList.add('visible');
+    
+    const tx = Math.min(e.clientX + 16, window.innerWidth - 360);
+    const ty = Math.max(10, Math.min(e.clientY - 10, window.innerHeight - 280));
+    tooltip.style.left = `${tx}px`;
+    tooltip.style.top  = `${ty}px`;
+  } else {
+    S.hoveredId = null;
+    tooltip.classList.remove('visible');
+  }
+});
+
+plantCanvas.addEventListener('mouseleave', () => {
+  S.hoveredId = null;
+  tooltip.classList.remove('visible');
+});
+
+// Click in Explore Mode -> Display Spec Panel
+plantCanvas.addEventListener('click', e => {
+  if (S.mode !== 'explore') return;
+  const rect = plantCanvas.getBoundingClientRect();
+  const mx = ((e.clientX - rect.left) * (PW / rect.width) - S.panX) / S.zoom;
+  const my = ((e.clientY - rect.top)  * (PH / rect.height) - S.panY) / S.zoom;
+  
+  for (const hs of HOTSPOTS) {
+    if (Math.hypot(mx - hs.cx, my - hs.cy) < hs.r && hs.explore) {
+      showExplorePanel(hs);
+      return;
+    }
+  }
+});
+
+function showExplorePanel(hs) {
+  const ep = hs.explore;
+  const statsHtml = ep.stats.map(([k,v]) =>
+    `<div class="explore-stat"><span class="explore-stat-key">${k}</span><span class="explore-stat-val">${v}</span></div>`
+  ).join('');
+  const formulaHtml = ep.formula
+    ? `<div class="explore-formula"><strong>Key Formulae:</strong><br>${ep.formula.replace(/\n/g,'<br>')}</div>`
+    : '';
+  expPanel.innerHTML = `
+    <div class="explore-panel-header">
+      <div class="ep-num">${ep.num}</div>
+      <h3>${ep.title}</h3>
+    </div>
+    <div class="explore-body">
+      <div class="explore-desc">${ep.desc.replace(/\n/g,'<br>')}</div>
+      <div>
+        <div class="explore-stats">${statsHtml}</div>
+        ${formulaHtml}
+      </div>
+    </div>
+    <button class="explore-close" onclick="document.getElementById('explore-panel').classList.remove('visible')">✕ Close</button>
+  `;
+  expPanel.classList.add('visible');
+  expPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   START APPLICATION
+   ───────────────────────────────────────────────────────────── */
+requestAnimationFrame(mainLoop);
+
+})();

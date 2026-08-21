@@ -4,7 +4,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # category pages, in display order
 CATS = ['testing', 'measuring', 'mechanics', 'mechanisms', 'strength',
-        'thermal', 'electrical', 'workshop', 'calculators',
+        'thermal', 'power-plant', 'electrical', 'workshop', 'calculators',
         'basic-science', 'maths']
 
 
