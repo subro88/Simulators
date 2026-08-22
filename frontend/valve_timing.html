@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Valve Timing Diagram Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Valve Timing Diagram Simulator (IVO, IVC, EVO, EVC &amp; Valve Overlap) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Automobile Engineering</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Valve Timing Diagram V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Valve Timing Diagram &amp; Camshaft Kinematics</h1>
+    <p class="subtitle">Python Camshaft Engine &bull; Real-Time WebGL 3D Visualization &bull; IVO, IVC, EVO, EVC &bull; Valve Overlap &bull; Volumetric Efficiency</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="stock_economy">Stock Commuter Cam (Low Overlap)</option>
+        <option value="race_cam">High-Overlap Race Camshaft</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="four_stroke.html" title="Open Four-Stroke Simulator">Four-Stroke V2</a>
+      <a class="btn-secondary" href="steering.html" title="Open Steering Simulator">Steering Geometry V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode camshaft components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Polar Valve Timing Diagram</div>
+          <canvas id="valve-2d-canvas" style="width:100%;height:220px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Timing Parameters</span>
+          <span id="st-tuning" style="font-size:0.75rem;font-weight:700;color:var(--accent);">Stock Economy</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Intake Opens (IVO)</span>
+            <span class="control-value" id="val-ivo">12° BTDC</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-ivo" min="0" max="45" step="1" value="12" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Intake Closes (IVC)</span>
+            <span class="control-value" id="val-ivc">45° ABDC</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-ivc" min="15" max="75" step="1" value="45" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Exhaust Opens (EVO)</span>
+            <span class="control-value" id="val-evo">48° BBDC</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-evo" min="15" max="75" step="1" value="48" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Exhaust Closes (EVC)</span>
+            <span class="control-value" id="val-evc">14° ATDC</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-evc" min="0" max="45" step="1" value="14" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Engine Speed</span>
+            <span class="control-value" id="val-rpm">3000 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="1000" max="8000" step="200" value="3000" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Intake Duration:</span>
+            <span class="telemetry-val" id="st-intake-dur" style="color:var(--accent);">237°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Exhaust Duration:</span>
+            <span class="telemetry-val" id="st-exhaust-dur" style="color:var(--orange);">242°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Valve Overlap Angle:</span>
+            <span class="telemetry-val" id="st-overlap" style="color:var(--green);">26.0°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Volumetric Efficiency:</span>
+            <span class="telemetry-val" id="st-ve" style="color:var(--yellow);">88.5%</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Stock Economy Camshaft: Overlap Angle = 26.0° (Intake Duration: 237°, Exhaust Duration: 242°).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Valve Overlap</h3>
+        <p>The brief period near Top Dead Center (TDC) when both intake and exhaust valves remain open simultaneously to utilize exhaust gas momentum for fresh charge scavenging.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Volumetric Efficiency</h3>
+        <p>Higher valve lift and longer durations increase volumetric efficiency at high RPMs but reduce low-end idle stability.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Stock vs Race Camshaft Overlap</h3>
+      <p>1. Switch from <strong>Stock Commuter Cam</strong> (26° overlap) to <strong>High-Overlap Race Camshaft</strong> (66° overlap).<br>
+         2. Observe how high overlap increases volumetric efficiency at 7000 RPM!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is Valve Overlap?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; The crank angle period near TDC when both intake and exhaust valves are open simultaneously (IV0 + EVC).
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="js/valve_timing_3d.js"></script>
+<script src="js/valve_timing_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

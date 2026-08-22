@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Cam &amp; Follower Kinematics Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Cam &amp; Follower Kinematics Simulator (S.H.M., Cycloidal, U.A.R.M. Motion &amp; Pressure Angle) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Theory of Machines</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Cam &amp; Follower V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Cam &amp; Follower Kinematics &amp; Profile Synthesis</h1>
+    <p class="subtitle">Python Kinematics Engine &bull; Real-Time WebGL 3D Visualization &bull; S.H.M. &amp; Cycloidal Curves &bull; Pressure Angle Analysis</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="shm_smooth">S.H.M. Smooth Motion (High Speed)</option>
+        <option value="cycloidal_zero_jerk">Cycloidal Low-Jerk Motion</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="four_bar.html" title="Open Four-Bar Simulator">Four-Bar V2</a>
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode cam components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Cam Profile &amp; Displacement Graph y(θ)</div>
+          <canvas id="cam-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Cam Motion Curve</span>
+          <span id="st-motion" style="font-size:0.75rem;font-weight:700;color:var(--accent);">SHM Motion</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row"><span>Follower Motion Law</span></div>
+          <div style="display:flex;gap:4px;">
+            <button class="btn-choice active" data-motion="shm" style="flex:1;">S.H.M.</button>
+            <button class="btn-choice" data-motion="cycloidal" style="flex:1;">Cycloidal</button>
+            <button class="btn-choice" data-motion="uniform_velocity" style="flex:1;">Uniform V</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Follower Stroke (S)</span>
+            <span class="control-value" id="val-stroke">40 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-stroke" min="15" max="100" step="5" value="40" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Base Circle Radius (r0)</span>
+            <span class="control-value" id="val-r0">60 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-r0" min="30" max="120" step="5" value="60" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Camshaft Speed</span>
+            <span class="control-value" id="val-rpm">300 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="50" max="1500" step="50" value="300" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Follower Displacement y(θ):</span>
+            <span class="telemetry-val" id="st-disp" style="color:var(--accent);">20.0 mm</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Follower Velocity (v):</span>
+            <span class="telemetry-val" id="st-vel" style="color:var(--green);">0.94 m/s</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Follower Acceleration (a):</span>
+            <span class="telemetry-val" id="st-acc" style="color:var(--yellow);">0.0 m/s²</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Max Pressure Angle (α):</span>
+            <span class="telemetry-val" id="st-press-ang">16.4°</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            SHM Motion: Displacement = 20.0 mm | Velocity = 0.94 m/s | Pressure Angle = 16.4°.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Cycloidal Motion</h3>
+        <p>Provides continuous velocity, acceleration, and zero jerk at terminal stroke ends, making it ideal for high-speed precision machinery.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Pressure Angle (α)</h3>
+        <p>The angle between the direction of follower motion and the normal to the pitch curve. Should not exceed 30° to prevent follower binding in guide bushes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Pressure Angle Reduction</h3>
+      <p>1. Increase cam base circle radius $r_0$ from 30 mm to 80 mm.<br>
+         2. Observe how larger base circles reduce the maximum pressure angle $\alpha$, preventing mechanical jamming!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is the maximum recommended pressure angle for high-speed cams?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 30°
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="js/cam_follower_3d.js"></script>
+<script src="js/cam_follower_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

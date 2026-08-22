@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Stress-Strain &amp; Elasticity Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Tensile Stress-Strain &amp; Elastic Constants Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Strength of Materials</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Stress-Strain V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Stress-Strain &amp; Elastic Constants (Hooke's Law)</h1>
+    <p class="subtitle">Python Mechanics Engine &bull; Real-Time WebGL 3D Visualization &bull; Tensile Stress, Strain, E, G, K &bull; Strain Energy</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Material Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Material Preset --</option>
+        <option value="structural_steel">Structural Steel (ASTM A36)</option>
+        <option value="aluminum_alloy">Aluminum Alloy (6061-T6)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="beam_bending.html" title="Open Beam Bending Simulator">Beam Bending V2</a>
+      <a class="btn-secondary" href="shaft_torsion.html" title="Open Shaft Torsion Simulator">Shaft Torsion V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode tensile grips outward">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Tensile Curve &amp; Specimen Schematic</div>
+          <canvas id="2d-schematic-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Test Specimen Parameters</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Applied Tensile Force (F)</span>
+            <span class="control-value" id="val-force">50 kN</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-force" min="5" max="200" step="5" value="50" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Specimen Diameter (d)</span>
+            <span class="control-value" id="val-d">12.5 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-d" min="5" max="30" step="0.5" value="12.5" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Young's Modulus (E)</span>
+            <span class="control-value" id="val-e">200 GPa</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-e" min="20" max="400" step="10" value="200" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Poisson's Ratio (&nu;)</span>
+            <span class="control-value" id="val-nu">0.30</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-nu" min="0.10" max="0.45" step="0.01" value="0.30" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Axial Tensile Stress (&sigma;):</span>
+            <span class="telemetry-val" id="st-stress" style="color:var(--accent);">407.4 MPa</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Axial Strain (&epsilon;):</span>
+            <span class="telemetry-val" id="st-strain" style="color:var(--green);">2037 &micro;&epsilon;</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Elongation (&Delta;L):</span>
+            <span class="telemetry-val" id="st-elong" style="color:var(--yellow);">0.1019 mm</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Shear Modulus (G):</span>
+            <span class="telemetry-val" id="st-g">76.9 GPa</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Elastic Analysis: Stress σ = 407.4 MPa | Strain ε = 2037 µε | Elongation ΔL = 0.1019 mm (G = 76.9 GPa, K = 166.7 GPa).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Hooke's Law &amp; Elasticity</h3>
+        <p>Within the elastic limit, normal stress ($\sigma$) is directly proportional to normal strain ($\varepsilon$), governed by Young's Modulus ($E = \sigma / \varepsilon$).</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Interrelation of Elastic Constants</h3>
+        <p>For isotropic materials: $G = \frac{E}{2(1+\nu)}$ and $K = \frac{E}{3(1-2\nu)}$. Knowledge of any two constants defines the remaining two!</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Elongation vs Diameter Relation</h3>
+      <p>1. Keep Tensile Load $F = 50\text{ kN}$ and $E = 200\text{ GPa}$.<br>
+         2. Double specimen diameter $d$ from $12.5\text{ mm}$ to $25\text{ mm}$.<br>
+         3. Observe cross-sectional area quadruples, dropping stress and elongation by <strong>4x</strong>!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is the theoretical maximum Poisson's ratio for an incompressible material?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 0.50 (e.g., rubber, where Bulk Modulus K approaches infinity)
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="js/stress_strain_3d.js"></script>
+<script src="js/stress_strain_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

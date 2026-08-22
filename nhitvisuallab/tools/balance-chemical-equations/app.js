@@ -1,0 +1,1056 @@
+/* Balancing Chemical Equations Simulator — NHIT VisualLab
+   Vanilla JS, IIFE. Formula parser + integer nullspace balancer +
+   Simulate / Explore / Practice / Quiz modes + balance-beam canvas. */
+(function () {
+  'use strict';
+
+  /* ─────────────────────────── DOM helpers ─────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, txt) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt != null) e.textContent = txt;
+    return e;
+  }
+
+  /* ─────────────────────────── Chemistry data ──────────────────────── */
+  // CPK-inspired element colours (fallback assigned by hashing for the rest).
+  var EL_COLOR = {
+    H: '#e8edf2', O: '#ff4d4d', C: '#3a3f4b', N: '#4d6bff', S: '#ffd400',
+    Na: '#8f5bd6', Cl: '#39d353', Fe: '#d98a4b', Ca: '#4fd0c0', K: '#a05be0',
+    Mg: '#57e389', Al: '#c0c6cf', P: '#ff9800', Zn: '#8fa3b0', Cu: '#e0803a',
+    Ag: '#c7cdd6', Pb: '#5a6b7a', Ba: '#57c785', Br: '#a04a2a', I: '#7a3fbf',
+    Li: '#c85bd6', Mn: '#b06fd0', F: '#7fe0c0', Si: '#c9a06a', Sn: '#889aa8',
+    Ni: '#6fb08f', Cr: '#7fb0d0', Hg: '#b0b6c0', Co: '#4f7fd0'
+  };
+  function elColor(sym) {
+    if (EL_COLOR[sym]) return EL_COLOR[sym];
+    var h = 0;
+    for (var i = 0; i < sym.length; i++) h = (h * 31 + sym.charCodeAt(i)) % 360;
+    return 'hsl(' + h + ',55%,60%)';
+  }
+  // Approximate covalent radius weighting for atom-circle size (visual only).
+  function elRadius(sym) {
+    var big = { Na: 1.5, K: 1.7, Ca: 1.6, Fe: 1.35, Cl: 1.15, S: 1.15, P: 1.15,
+      Al: 1.3, Mg: 1.4, Zn: 1.3, Cu: 1.3, Ba: 1.8, Br: 1.25, I: 1.4, Pb: 1.6 };
+    if (sym === 'H') return 0.62;
+    if (sym === 'O' || sym === 'N' || sym === 'C' || sym === 'F') return 0.9;
+    return big[sym] || 1.1;
+  }
+
+  /* ── Formula parser ──────────────────────────────────────────────────
+     parseFormula("Al2(SO4)3") → { Al:2, S:3, O:12 }. Supports multi-letter
+     symbols, subscripts, and nested parentheses/brackets. Returns null on a
+     malformed formula. Ignores an optional leading numeric coefficient. */
+  function parseFormula(raw) {
+    if (raw == null) return null;
+    var s = String(raw).replace(/\s+/g, '')
+      .replace(/[·•]/g, '.')   // middle dot → hydrate separator '.'
+      .replace(/[\[\{]/g, '(').replace(/[\]\}]/g, ')');
+    if (!s) return null;
+    // Split off hydrate parts like "CuSO4.5H2O"
+    var parts = s.split('.');
+    var total = {};
+    for (var p = 0; p < parts.length; p++) {
+      var seg = parts[p];
+      if (!seg) continue;
+      var lead = seg.match(/^(\d+)(?=[A-Z(])/);
+      var mult = 1;
+      if (lead) { mult = parseInt(lead[1], 10); seg = seg.slice(lead[1].length); }
+      var one = parseSegment(seg);
+      if (one == null) return null;
+      for (var k in one) if (one.hasOwnProperty(k)) total[k] = (total[k] || 0) + one[k] * mult;
+    }
+    return Object.keys(total).length ? total : null;
+  }
+  function parseSegment(s) {
+    var i = 0, n = s.length;
+    function parseGroup() {
+      var counts = {};
+      while (i < n) {
+        var c = s[i];
+        if (c === '(') {
+          i++;
+          var inner = parseGroup();
+          if (inner == null) return null;
+          if (s[i] !== ')') return null;
+          i++;
+          var m = readNum();
+          for (var e in inner) if (inner.hasOwnProperty(e)) counts[e] = (counts[e] || 0) + inner[e] * m;
+        } else if (c === ')') {
+          break;
+        } else if (c >= 'A' && c <= 'Z') {
+          var sym = c; i++;
+          while (i < n && s[i] >= 'a' && s[i] <= 'z') { sym += s[i]; i++; }
+          var num = readNum();
+          counts[sym] = (counts[sym] || 0) + num;
+        } else {
+          return null; // unexpected char
+        }
+      }
+      return counts;
+    }
+    function readNum() {
+      var d = '';
+      while (i < n && s[i] >= '0' && s[i] <= '9') { d += s[i]; i++; }
+      return d ? parseInt(d, 10) : 1;
+    }
+    var r = parseGroup();
+    if (r == null || i !== n) return null;
+    return r;
+  }
+
+  /* ── Rational arithmetic + integer nullspace balancer ─────────────── */
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = b; b = a % b; a = t; } return a || 1; }
+  function lcm(a, b) { return Math.abs(a / gcd(a, b) * b); }
+  // Fraction as [num, den], den > 0, reduced.
+  function fr(n, d) {
+    d = d || 1;
+    if (d < 0) { n = -n; d = -d; }
+    var g = gcd(n, d);
+    return [n / g, d / g];
+  }
+  function fadd(a, b) { return fr(a[0] * b[1] + b[0] * a[1], a[1] * b[1]); }
+  function fsub(a, b) { return fr(a[0] * b[1] - b[0] * a[1], a[1] * b[1]); }
+  function fmul(a, b) { return fr(a[0] * b[0], a[1] * b[1]); }
+  function fdiv(a, b) { return fr(a[0] * b[1], a[1] * b[0]); }
+
+  /* Balance: species = array of { counts, side } where side = +1 reactant,
+     -1 product. Returns array of positive integer coefficients, or null if
+     unbalanceable (no valid positive solution / not a 1-D solution family). */
+  function balance(species) {
+    var elems = {};
+    species.forEach(function (sp) { for (var e in sp.counts) elems[e] = true; });
+    var E = Object.keys(elems);
+    var nCols = species.length;
+    if (nCols < 2) return null;
+    // Matrix rows = elements, cols = species. reactants +, products -.
+    var M = E.map(function (e) {
+      return species.map(function (sp) {
+        var v = (sp.counts[e] || 0) * sp.side;
+        return fr(v, 1);
+      });
+    });
+    // Gaussian elimination to reduced row echelon (fractions).
+    var rows = M.length, cols = nCols;
+    var pivotCols = [], r = 0;
+    for (var c = 0; c < cols && r < rows; c++) {
+      // find pivot
+      var piv = -1;
+      for (var rr = r; rr < rows; rr++) if (M[rr][c][0] !== 0) { piv = rr; break; }
+      if (piv === -1) continue;
+      var tmp = M[r]; M[r] = M[piv]; M[piv] = tmp;
+      var pv = M[r][c];
+      for (var cc = 0; cc < cols; cc++) M[r][cc] = fdiv(M[r][cc], pv);
+      for (var r2 = 0; r2 < rows; r2++) {
+        if (r2 === r) continue;
+        var factor = M[r2][c];
+        if (factor[0] === 0) continue;
+        for (var c2 = 0; c2 < cols; c2++) M[r2][c2] = fsub(M[r2][c2], fmul(factor, M[r][c2]));
+      }
+      pivotCols.push(c); r++;
+    }
+    var freeCols = [];
+    for (var c3 = 0; c3 < cols; c3++) if (pivotCols.indexOf(c3) === -1) freeCols.push(c3);
+    if (freeCols.length !== 1) return null; // need exactly one free variable
+    var freeCol = freeCols[0];
+    // Set free var = 1, back out pivots.
+    var sol = new Array(cols);
+    for (var i = 0; i < cols; i++) sol[i] = fr(0, 1);
+    sol[freeCol] = fr(1, 1);
+    for (var pr = 0; pr < pivotCols.length; pr++) {
+      var pc = pivotCols[pr];
+      // pivot row pr: sol[pc] + M[pr][freeCol]*1 = 0  → sol[pc] = -M[pr][freeCol]
+      sol[pc] = fr(-M[pr][freeCol][0], M[pr][freeCol][1]);
+    }
+    // Scale to positive integers.
+    var denom = 1;
+    sol.forEach(function (f) { denom = lcm(denom, f[1]); });
+    var ints = sol.map(function (f) { return f[0] * (denom / f[1]); });
+    var g = 0;
+    ints.forEach(function (v) { g = gcd(g, v); });
+    if (g === 0) return null;
+    ints = ints.map(function (v) { return v / g; });
+    // All must share the same sign; flip so all positive.
+    var anyNeg = ints.some(function (v) { return v < 0; });
+    var anyPos = ints.some(function (v) { return v > 0; });
+    if (anyNeg && anyPos) return null;
+    if (anyNeg) ints = ints.map(function (v) { return -v; });
+    if (ints.some(function (v) { return v <= 0; })) return null;
+    return ints;
+  }
+
+  /* ── Equation library ────────────────────────────────────────────────
+     Each entry: level (gcse | alevel | apib), reaction type, reactant r[] and
+     product p[] formulas. Coefficients are computed by the balancer, so the
+     data can never drift out of sync. Every entry below is validated to have a
+     unique positive-integer solution. */
+  function E(level, type, r, p) { return { level: level, type: type, r: r, p: p }; }
+  var LIB = [
+    /* ── GCSE / Foundation (approachable, small coefficients) ── */
+    E('gcse', 'synthesis',     ['H2', 'O2'], ['H2O']),
+    E('gcse', 'synthesis',     ['N2', 'H2'], ['NH3']),
+    E('gcse', 'synthesis',     ['Fe', 'O2'], ['Fe2O3']),
+    E('gcse', 'synthesis',     ['Mg', 'O2'], ['MgO']),
+    E('gcse', 'synthesis',     ['H2', 'Cl2'], ['HCl']),
+    E('gcse', 'synthesis',     ['Na', 'Cl2'], ['NaCl']),
+    E('gcse', 'synthesis',     ['C', 'O2'], ['CO2']),
+    E('gcse', 'synthesis',     ['S', 'O2'], ['SO2']),
+    E('gcse', 'synthesis',     ['Ca', 'O2'], ['CaO']),
+    E('gcse', 'combustion',    ['CH4', 'O2'], ['CO2', 'H2O']),
+    E('gcse', 'combustion',    ['C2H6', 'O2'], ['CO2', 'H2O']),
+    E('gcse', 'combustion',    ['C3H8', 'O2'], ['CO2', 'H2O']),
+    E('gcse', 'decomposition', ['CaCO3'], ['CaO', 'CO2']),
+    E('gcse', 'decomposition', ['H2O2'], ['H2O', 'O2']),
+    E('gcse', 'decomposition', ['NaHCO3'], ['Na2CO3', 'H2O', 'CO2']),
+    E('gcse', 'replacement',   ['Zn', 'HCl'], ['ZnCl2', 'H2']),
+    E('gcse', 'replacement',   ['Mg', 'HCl'], ['MgCl2', 'H2']),
+    E('gcse', 'replacement',   ['Fe', 'CuSO4'], ['FeSO4', 'Cu']),
+    E('gcse', 'replacement',   ['Zn', 'CuSO4'], ['ZnSO4', 'Cu']),
+    E('gcse', 'double',        ['HCl', 'NaOH'], ['NaCl', 'H2O']),
+    E('gcse', 'double',        ['H2SO4', 'NaOH'], ['Na2SO4', 'H2O']),
+    E('gcse', 'double',        ['CaCO3', 'HCl'], ['CaCl2', 'H2O', 'CO2']),
+    /* ── A-Level / Intermediate ── */
+    E('alevel', 'combustion',    ['C4H10', 'O2'], ['CO2', 'H2O']),
+    E('alevel', 'combustion',    ['C8H18', 'O2'], ['CO2', 'H2O']),
+    E('alevel', 'combustion',    ['C2H5OH', 'O2'], ['CO2', 'H2O']),
+    E('alevel', 'combustion',    ['C6H12O6', 'O2'], ['CO2', 'H2O']),
+    E('alevel', 'decomposition', ['C6H12O6'], ['C2H5OH', 'CO2']),
+    E('alevel', 'synthesis',     ['Al', 'O2'], ['Al2O3']),
+    E('alevel', 'replacement',   ['Al', 'HCl'], ['AlCl3', 'H2']),
+    E('alevel', 'replacement',   ['Fe', 'HCl'], ['FeCl2', 'H2']),
+    E('alevel', 'replacement',   ['Na', 'H2O'], ['NaOH', 'H2']),
+    E('alevel', 'replacement',   ['K', 'H2O'], ['KOH', 'H2']),
+    E('alevel', 'replacement',   ['Ca', 'H2O'], ['Ca(OH)2', 'H2']),
+    E('alevel', 'redox',         ['Fe2O3', 'CO'], ['Fe', 'CO2']),
+    E('alevel', 'replacement',   ['Fe2O3', 'Al'], ['Al2O3', 'Fe']),
+    E('alevel', 'decomposition', ['KClO3'], ['KCl', 'O2']),
+    E('alevel', 'double',        ['AgNO3', 'NaCl'], ['AgCl', 'NaNO3']),
+    E('alevel', 'double',        ['BaCl2', 'Na2SO4'], ['BaSO4', 'NaCl']),
+    E('alevel', 'double',        ['Pb(NO3)2', 'KI'], ['PbI2', 'KNO3']),
+    E('alevel', 'redox',         ['NH3', 'O2'], ['NO', 'H2O']),
+    E('alevel', 'synthesis',     ['SO2', 'O2'], ['SO3']),
+    E('alevel', 'double',        ['CaCO3', 'HNO3'], ['Ca(NO3)2', 'H2O', 'CO2']),
+    E('alevel', 'double',        ['Al2(SO4)3', 'NaOH'], ['Al(OH)3', 'Na2SO4']),
+    E('alevel', 'decomposition', ['Fe(OH)3'], ['Fe2O3', 'H2O']),
+    E('alevel', 'synthesis',     ['P4', 'O2'], ['P4O10']),
+    /* ── AP / IB / Advanced (redox, big coefficients) ── */
+    E('apib', 'redox',       ['KMnO4', 'HCl'], ['KCl', 'MnCl2', 'H2O', 'Cl2']),
+    E('apib', 'redox',       ['K2Cr2O7', 'HCl'], ['KCl', 'CrCl3', 'H2O', 'Cl2']),
+    E('apib', 'redox',       ['Cu', 'HNO3'], ['Cu(NO3)2', 'NO2', 'H2O']),
+    E('apib', 'redox',       ['Cu', 'HNO3'], ['Cu(NO3)2', 'NO', 'H2O']),
+    E('apib', 'redox',       ['FeS2', 'O2'], ['Fe2O3', 'SO2']),
+    E('apib', 'combustion',  ['C7H6O2', 'O2'], ['CO2', 'H2O']),
+    E('apib', 'combustion',  ['C57H110O6', 'O2'], ['CO2', 'H2O']),
+    E('apib', 'combustion',  ['C12H22O11', 'O2'], ['CO2', 'H2O']),
+    E('apib', 'decomposition', ['NH4NO3'], ['N2O', 'H2O']),
+    E('apib', 'decomposition', ['NH4NO3'], ['N2', 'O2', 'H2O']),
+    E('apib', 'redox',       ['MnO2', 'HCl'], ['MnCl2', 'Cl2', 'H2O']),
+    E('apib', 'redox',       ['Ag', 'HNO3'], ['AgNO3', 'NO', 'H2O']),
+    E('apib', 'redox',       ['HNO3', 'H2S'], ['NO', 'S', 'H2O']),
+    E('apib', 'redox',       ['KO2', 'CO2'], ['K2CO3', 'O2']),
+    E('apib', 'redox',       ['As2S3', 'HNO3', 'H2O'], ['H3AsO4', 'H2SO4', 'NO']),
+    E('apib', 'redox',       ['Ca3(PO4)2', 'SiO2', 'C'], ['CaSiO3', 'CO', 'P4'])
+  ];
+  var TYPE_LABEL = {
+    synthesis: 'Synthesis', decomposition: 'Decomposition', combustion: 'Combustion',
+    replacement: 'Single Replacement', double: 'Double Replacement', redox: 'Redox'
+  };
+  var LEVEL_LABEL = { gcse: 'GCSE', alevel: 'A-Level', apib: 'AP & IB' };
+
+  // Attach parsed species + solved coefficients + a stable id to every entry.
+  function buildEntry(entry, idx) {
+    var species = [];
+    var bad = false;
+    entry.r.forEach(function (f) { var c = parseFormula(f); if (!c) bad = true; species.push({ formula: f, counts: c || {}, side: 1 }); });
+    entry.p.forEach(function (f) { var c = parseFormula(f); if (!c) bad = true; species.push({ formula: f, counts: c || {}, side: -1 }); });
+    entry.species = species;
+    entry.answer = bad ? null : balance(species);
+    if (idx != null && entry.id == null) entry.id = 'eq' + idx;
+    return entry;
+  }
+  LIB.forEach(buildEntry);
+
+  /* ─────────────────────────── State ───────────────────────────────── */
+  var state = {
+    mode: 'simulate',
+    level: 'gcse',        // curriculum-level filter for the preset chips
+    entry: null,          // current equation entry (built)
+    coeffs: [],           // current user coefficients (per species)
+    solved: false,        // simulate: revealed as balanced
+    audioCtx: null, muted: false,
+    // practice
+    pIndex: -1, pScore: 0, pTotal: 0, pRevealed: false,
+    // quiz
+    qOrder: [], qPos: 0, qScore: 0, qCoeffs: [], qResults: [], qActive: false
+  };
+
+  /* ─────────────────────────── Sound ───────────────────────────────── */
+  function actx() { if (!state.audioCtx) { try { state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } } return state.audioCtx; }
+  function tone(freq, dur, type, vol) {
+    if (state.muted) return;
+    var c = actx(); if (!c) return;
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.value = vol || 0.05;
+    o.connect(g); g.connect(c.destination);
+    var t = c.currentTime;
+    g.gain.setValueAtTime(vol || 0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.start(t); o.stop(t + dur);
+  }
+  function playClick()  { tone(760, 0.05, 'square', 0.035); }
+  function playTick()   { tone(1050, 0.03, 'sine', 0.03); }
+  function playSuccess(){ tone(740, 0.12, 'sine', 0.09); setTimeout(function () { tone(990, 0.16, 'sine', 0.09); }, 110); setTimeout(function () { tone(1240, 0.18, 'sine', 0.08); }, 240); }
+  function playError()  { tone(240, 0.22, 'sawtooth', 0.05); }
+
+  /* ─────────────────────────── Canvas ──────────────────────────────── */
+  var canvas = $('bce-canvas');
+  var ctx = canvas.getContext('2d');
+  var DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  var VW = 1000, VH = 560;                 // logical drawing size
+  var beamAnim = { tilt: 0, target: 0, raf: 0 };
+
+  function fitCanvas() {
+    var cssW = canvas.clientWidth || VW;
+    var cssH = cssW * (VH / VW);
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * DPR);
+    canvas.height = Math.round(cssH * DPR);
+    draw();
+  }
+
+  // Build a flat list of atoms {sym} for one species scaled by coefficient.
+  function atomsFor(counts, coeff) {
+    var list = [];
+    for (var k = 0; k < coeff; k++) {
+      for (var e in counts) {
+        if (!counts.hasOwnProperty(e)) continue;
+        for (var i = 0; i < counts[e]; i++) list.push(e);
+      }
+    }
+    return list;
+  }
+  // Per-element totals for one side.
+  function sideTotals(side) {
+    var t = {};
+    state.entry.species.forEach(function (sp, i) {
+      if (sp.side !== side) return;
+      var co = state.coeffs[i];
+      for (var e in sp.counts) t[e] = (t[e] || 0) + sp.counts[e] * co;
+    });
+    return t;
+  }
+  function isBalanced() {
+    if (!state.entry) return false;
+    var L = sideTotals(1), R = sideTotals(-1);
+    var keys = {};
+    Object.keys(L).forEach(function (k) { keys[k] = 1; });
+    Object.keys(R).forEach(function (k) { keys[k] = 1; });
+    for (var e in keys) if ((L[e] || 0) !== (R[e] || 0)) return false;
+    return true;
+  }
+  function draw() {
+    if (!ctx) return;
+    var w = canvas.width, h = canvas.height;
+    ctx.save();
+    ctx.scale(DPR, DPR);
+    var W = w / DPR, H = h / DPR;
+    // background
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#11161f'); bg.addColorStop(1, '#0c1017');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+    if (!state.entry) { ctx.restore(); return; }
+
+    var balanced = isBalanced();
+    // balance beam geometry — beam sits high, pans hang well below on long
+    // strings so tall atom stacks have room and never reach the beam.
+    var cx = W / 2, pivotY = H * 0.22, beamLen = W * 0.80, armY = pivotY;
+    var HANG = H * 0.30;              // hanger length (beam → pan)
+    var tilt = beamAnim.tilt;         // radians
+    var lx = -beamLen / 2 + 40, rx = beamLen / 2 - 40;
+    // fulcrum post
+    ctx.fillStyle = '#2a3050';
+    ctx.beginPath();
+    ctx.moveTo(cx - 26, H * 0.74); ctx.lineTo(cx + 26, H * 0.74);
+    ctx.lineTo(cx + 10, pivotY + 6); ctx.lineTo(cx - 10, pivotY + 6); ctx.closePath();
+    ctx.fill();
+    // beam
+    ctx.save();
+    ctx.translate(cx, armY);
+    ctx.rotate(tilt);
+    var grad = ctx.createLinearGradient(-beamLen / 2, 0, beamLen / 2, 0);
+    grad.addColorStop(0, '#7f8896'); grad.addColorStop(0.5, '#aab2bf'); grad.addColorStop(1, '#7f8896');
+    ctx.fillStyle = grad;
+    roundRect(ctx, -beamLen / 2, -7, beamLen, 14, 7); ctx.fill();
+    ctx.fillStyle = balanced ? '#cddc39' : '#4a5163';
+    ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+    // pan hanger strings
+    ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, HANG); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, HANG); ctx.stroke();
+    ctx.restore();
+
+    // pan world positions + the beam-attachment y (ceiling for atom stacks)
+    var lAtt = rot(lx, 0, tilt, cx, armY), lPan = rot(lx, HANG, tilt, cx, armY);
+    var rAtt = rot(rx, 0, tilt, cx, armY), rPan = rot(rx, HANG, tilt, cx, armY);
+
+    drawPan(lPan.x, lPan.y, 1, lAtt.y);
+    drawPan(rPan.x, rPan.y, -1, rAtt.y);
+
+    // header labels
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 15px "Segoe UI",system-ui,sans-serif';
+    var L = sideTotals(1), R = sideTotals(-1);
+    ctx.fillStyle = '#8b95b3';
+    ctx.fillText('REACTANTS  ·  ' + sumStr(L) + ' atoms', W * 0.25, 26);
+    ctx.fillText('PRODUCTS  ·  ' + sumStr(R) + ' atoms', W * 0.75, 26);
+
+    // balanced banner
+    if (balanced) {
+      ctx.fillStyle = 'rgba(205,220,57,0.14)';
+      roundRect(ctx, cx - 120, H - 52, 240, 36, 18); ctx.fill();
+      ctx.fillStyle = '#cddc39';
+      ctx.font = '800 17px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText('✓  BALANCED', cx, H - 34);
+    } else {
+      ctx.fillStyle = 'rgba(255,120,120,0.10)';
+      roundRect(ctx, cx - 130, H - 52, 260, 36, 18); ctx.fill();
+      ctx.fillStyle = '#ff8a8a';
+      ctx.font = '700 14px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText('Not balanced — adjust the coefficients', cx, H - 34);
+    }
+    ctx.restore();
+  }
+  function sumStr(t) { var s = 0; for (var e in t) s += t[e]; return s; }
+  function rot(x, y, a, ox, oy) {
+    return { x: ox + x * Math.cos(a) - y * Math.sin(a), y: oy + x * Math.sin(a) + y * Math.cos(a) };
+  }
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+  // ceilY = world y of this pan's beam attachment. Atoms stack upward from the
+  // dish but the grid is sized so the top row always stays clear of the beam.
+  function drawPan(px, py, side, ceilY) {
+    // pan dish
+    ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(px - 72, py); ctx.quadraticCurveTo(px, py + 46, px + 72, py);
+    ctx.stroke();
+    // atoms
+    var totals = sideTotals(side);
+    var atoms = [];
+    for (var e in totals) for (var i = 0; i < totals[e]; i++) atoms.push(e);
+    var n = atoms.length; if (!n) return;
+    // For very large equations, individual circles are unreadable — switch to
+    // one labelled token per element with a ×count instead.
+    if (n > 48) { drawGroupedPan(px, py, totals); return; }
+    var colGap = 20, rGap = 19;
+    var bottomY = py - 12;                 // bottom row just above the dish rim
+    var topLimit = (ceilY || 0) + 30;      // keep 30px clear of the beam
+    var availH = Math.max(rGap, bottomY - topLimit);
+    var rowsFit = Math.max(1, Math.floor(availH / rGap) + 1);
+    var perRow = Math.min(9, Math.max(1, Math.ceil(n / rowsFit)));
+    var rows = Math.ceil(n / perRow);
+    var gap = rows > 1 ? Math.min(rGap, availH / (rows - 1)) : rGap; // compress if needed
+    for (var idx = 0; idx < n; idx++) {
+      var row = Math.floor(idx / perRow), col = idx % perRow;
+      var inRow = Math.min(perRow, n - row * perRow);
+      var ax = px - (inRow - 1) * colGap / 2 + col * colGap;
+      var ay = bottomY - row * gap;        // grow upward from the dish
+      drawAtom(ax, ay, atoms[idx]);
+    }
+  }
+  // Compact view for large atom counts: one atom circle per element + ×count.
+  function drawGroupedPan(px, py, totals) {
+    var elems = Object.keys(totals).sort();
+    var m = elems.length;
+    var perRow = m > 3 ? 2 : 1, tokenW = 76, tokenH = 34;
+    var rows = Math.ceil(m / perRow);
+    var bottomY = py - 20;
+    ctx.textBaseline = 'middle';
+    for (var idx = 0; idx < m; idx++) {
+      var row = Math.floor(idx / perRow), col = idx % perRow;
+      var inRow = Math.min(perRow, m - row * perRow);
+      var tx = px - (inRow - 1) * tokenW / 2 + col * tokenW;
+      var ty = bottomY - (rows - 1 - row) * tokenH;
+      drawAtom(tx - 16, ty, elems[idx]);
+      ctx.fillStyle = '#dde3f0';
+      ctx.font = '700 14px "Segoe UI",system-ui,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('×' + totals[elems[idx]], tx - 1, ty + 0.5);
+    }
+  }
+  function drawAtom(x, y, sym) {
+    var r = 7 + 5 * (elRadius(sym) - 0.6);
+    r = Math.max(6, Math.min(15, r));
+    var col = elColor(sym);
+    var g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.2, x, y, r);
+    g.addColorStop(0, lighten(col, 0.35)); g.addColorStop(1, col);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.stroke();
+    ctx.fillStyle = pickText(col);
+    ctx.font = '700 ' + Math.round(r * 0.95) + 'px "Segoe UI",system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sym, x, y + 0.5);
+  }
+  function lighten(hex, amt) {
+    if (hex[0] !== '#') return hex;
+    var n = parseInt(hex.slice(1), 16);
+    var r = Math.min(255, ((n >> 16) & 255) + amt * 255);
+    var g = Math.min(255, ((n >> 8) & 255) + amt * 255);
+    var b = Math.min(255, (n & 255) + amt * 255);
+    return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+  }
+  function pickText(hex) {
+    if (hex[0] !== '#') return '#0b0e14';
+    var n = parseInt(hex.slice(1), 16);
+    var lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    return lum > 150 ? '#0b0e14' : '#f4f7fb';
+  }
+
+  function animateBeam() {
+    if (beamAnim.raf) cancelAnimationFrame(beamAnim.raf);
+    function step() {
+      var d = beamAnim.target - beamAnim.tilt;
+      if (Math.abs(d) < 0.0008) { beamAnim.tilt = beamAnim.target; draw(); beamAnim.raf = 0; return; }
+      beamAnim.tilt += d * 0.18;
+      draw();
+      beamAnim.raf = requestAnimationFrame(step);
+    }
+    beamAnim.raf = requestAnimationFrame(step);
+  }
+  function updateBeamTarget() {
+    if (!state.entry) return;
+    var L = sumStr(sideTotals(1)), R = sumStr(sideTotals(-1));
+    var diff = L - R;
+    var max = Math.max(L, R, 1);
+    var t = Math.max(-1, Math.min(1, diff / max)) * 0.16; // radians, +ve = left heavy
+    beamAnim.target = t;
+    animateBeam();
+  }
+
+  /* ─────────────────────────── Equation UI ─────────────────────────── */
+  // Renders the interactive coefficient equation into container `host`.
+  // opts.editable → steppers (simulate) ; opts.inputs → blank number inputs
+  // (practice/quiz). Returns nothing; reads/writes state.coeffs (or qCoeffs).
+  function renderEquation(host, opts) {
+    host.innerHTML = '';
+    opts = opts || {};
+    var entry = opts.entry || state.entry;
+    var coeffs = opts.coeffs;
+    entry.species.forEach(function (sp, i) {
+      if (i === entry.r.length) {
+        host.appendChild(arrowNode());
+      }
+      var term = el('span', 'eq-term');
+      // coefficient control
+      if (opts.inputs) {
+        var inp = el('input', 'coeff-input');
+        inp.type = 'text'; inp.inputMode = 'numeric'; inp.autocomplete = 'off';
+        inp.setAttribute('aria-label', 'Coefficient for ' + sp.formula);
+        inp.value = coeffs[i] != null && coeffs[i] !== '' ? coeffs[i] : '';
+        inp.placeholder = '?';
+        inp.addEventListener('input', function () {
+          var v = inp.value.replace(/[^0-9]/g, '').slice(0, 2);
+          inp.value = v;
+          coeffs[i] = v === '' ? '' : parseInt(v, 10);
+        });
+        term.appendChild(inp);
+      } else if (opts.editable) {
+        var stp = el('span', 'coeff-stepper');
+        var minus = el('button', 'coeff-btn', '−'); minus.type = 'button';
+        var val = el('span', 'coeff-val', String(state.coeffs[i]));
+        var plus = el('button', 'coeff-btn', '+'); plus.type = 'button';
+        minus.addEventListener('click', function () { setCoeff(i, state.coeffs[i] - 1); });
+        plus.addEventListener('click', function () { setCoeff(i, state.coeffs[i] + 1); });
+        stp.appendChild(minus); stp.appendChild(val); stp.appendChild(plus);
+        stp.dataset.idx = i;
+        term.appendChild(stp);
+      } else {
+        var c = coeffs ? coeffs[i] : 1;
+        if (c !== 1) term.appendChild(el('span', 'coeff-fixed', String(c)));
+      }
+      term.appendChild(formulaNode(sp.formula));
+      host.appendChild(term);
+      var isLastReactant = (i === entry.r.length - 1);
+      var isLastProduct = (i === entry.species.length - 1);
+      if (!isLastReactant && !isLastProduct) host.appendChild(plusNode());
+    });
+  }
+  function plusNode() { return el('span', 'eq-op', '+'); }
+  function arrowNode() { var a = el('span', 'eq-arrow'); a.innerHTML = '→'; return a; }
+  // Render a formula with subscripts and parentheses.
+  function formulaNode(f) {
+    var span = el('span', 'eq-formula');
+    var html = String(f).replace(/([A-Za-z\)\]])(\d+)/g, '$1<sub>$2</sub>');
+    span.innerHTML = html;
+    return span;
+  }
+
+  function setCoeff(i, v) {
+    v = Math.max(1, Math.min(30, v));
+    if (v === state.coeffs[i]) { return; }
+    state.coeffs[i] = v;
+    var host = $('sim-equation');
+    var stp = host.querySelector('.coeff-stepper[data-idx="' + i + '"] .coeff-val');
+    if (stp) stp.textContent = String(v);
+    playTick();
+    refreshSimReadout();
+  }
+
+  /* ── Element balance table ─────────────────────────────────────────── */
+  function renderBalanceTable() {
+    var host = $('balance-table'); if (!host) return;
+    var L = sideTotals(1), R = sideTotals(-1);
+    var keys = {};
+    Object.keys(L).forEach(function (k) { keys[k] = 1; });
+    Object.keys(R).forEach(function (k) { keys[k] = 1; });
+    var order = Object.keys(keys).sort();
+    host.innerHTML = '';
+    var head = el('div', 'bt-row bt-head');
+    head.appendChild(el('span', 'bt-cell', 'Element'));
+    head.appendChild(el('span', 'bt-cell', 'Reactants'));
+    head.appendChild(el('span', 'bt-cell', 'Products'));
+    head.appendChild(el('span', 'bt-cell', ''));
+    host.appendChild(head);
+    order.forEach(function (e) {
+      var lv = L[e] || 0, rv = R[e] || 0, ok = lv === rv;
+      var row = el('div', 'bt-row' + (ok ? ' ok' : ' bad'));
+      var name = el('span', 'bt-cell bt-el');
+      var dot = el('span', 'bt-dot'); dot.style.background = elColor(e);
+      name.appendChild(dot); name.appendChild(document.createTextNode(e));
+      row.appendChild(name);
+      row.appendChild(el('span', 'bt-cell', String(lv)));
+      row.appendChild(el('span', 'bt-cell', String(rv)));
+      row.appendChild(el('span', 'bt-cell bt-mark', ok ? '✓' : '≠'));
+      host.appendChild(row);
+    });
+  }
+
+  function refreshSimReadout() {
+    renderBalanceTable();
+    updateBeamTarget();
+    var badge = $('sim-status');
+    if (badge) {
+      var b = isBalanced();
+      badge.textContent = b ? '✓ Balanced' : 'Unbalanced';
+      badge.className = 'sim-status ' + (b ? 'ok' : 'bad');
+      if (b && !state.solved) { state.solved = true; playSuccess(); }
+      if (!b) state.solved = false;
+    }
+  }
+
+  /* ─────────────────────────── Simulate mode ───────────────────────── */
+  function loadEntry(entry) {
+    state.entry = entry;
+    state.coeffs = entry.species.map(function () { return 1; });
+    state.solved = false;
+    renderEquation($('sim-equation'), { editable: true });
+    refreshSimReadout();
+    // reflect active chip
+    var chips = $('eq-chips');
+    if (chips) Array.prototype.forEach.call(chips.children, function (c) {
+      c.classList.toggle('active', c.dataset.id === entry.id);
+    });
+  }
+  function levelPool() {
+    return LIB.filter(function (e) { return e.answer && (state.level === 'all' || e.level === state.level); });
+  }
+  function buildLibraryChips() {
+    var host = $('eq-chips'); if (!host) return;
+    host.innerHTML = '';
+    levelPool().forEach(function (entry) {
+      var chip = el('button', 'eq-chip'); chip.type = 'button'; chip.dataset.id = entry.id;
+      chip.title = TYPE_LABEL[entry.type] || '';
+      chip.appendChild(formulaNode(previewFormula(entry)));
+      chip.addEventListener('click', function () { playClick(); loadEntry(entry); });
+      if (state.entry && entry.id === state.entry.id) chip.classList.add('active');
+      host.appendChild(chip);
+    });
+  }
+  // Switch the curriculum-level filter, rebuild chips, and load the first
+  // equation of that level so the change is immediately visible.
+  function setLevel(level) {
+    state.level = level;
+    var pills = $('level-pills');
+    if (pills) Array.prototype.forEach.call(pills.children, function (b) {
+      b.classList.toggle('active', b.dataset.level === level);
+    });
+    buildLibraryChips();
+    var pool = levelPool();
+    if (pool.length) loadEntry(pool[0]);
+  }
+  function previewFormula(entry) {
+    return entry.r.join(' + ') + ' → ' + entry.p.join(' + ');
+  }
+
+  function autoBalance() {
+    if (!state.entry || !state.entry.answer) return;
+    var ans = state.entry.answer;
+    // Interpolate over a fixed number of frames so equations with very large
+    // coefficients (e.g. 163 O₂ for tristearin) animate in the same ~0.7 s.
+    var host = $('sim-equation');
+    var start = state.coeffs.slice();
+    var FRAMES = 16, f = 0;
+    function apply(vals) {
+      vals.forEach(function (v, i) {
+        state.coeffs[i] = v;
+        var val = host.querySelector('.coeff-stepper[data-idx="' + i + '"] .coeff-val');
+        if (val) val.textContent = String(v);
+      });
+      refreshSimReadout();
+    }
+    function tick() {
+      f++;
+      var t = f / FRAMES;
+      apply(ans.map(function (a, i) { return Math.round(start[i] + (a - start[i]) * t); }));
+      if (f < FRAMES) { playTick(); setTimeout(tick, 45); }
+      else apply(ans.slice()); // snap to exact answer
+    }
+    tick();
+  }
+
+  /* ── Custom equation solver (the calculator) ──────────────────────── */
+  function parseUserEquation(text) {
+    // Accept "H2 + O2 -> H2O" or "=" or "→". Strips any existing coefficients.
+    var t = String(text).replace(/→/g, '->').replace(/=/g, '->');
+    var sides = t.split('->');
+    if (sides.length !== 2) return { error: 'Use the form  reactants -> products  (e.g. H2 + O2 -> H2O).' };
+    function splitSide(s, side) {
+      return s.split('+').map(function (x) { return x.trim(); }).filter(Boolean).map(function (f) {
+        // drop a leading coefficient the user may have typed
+        f = f.replace(/^\s*\d+\s*/, '');
+        var counts = parseFormula(f);
+        return { formula: f, counts: counts, side: side };
+      });
+    }
+    var r = splitSide(sides[0], 1), p = splitSide(sides[1], -1);
+    if (!r.length || !p.length) return { error: 'Both sides need at least one formula.' };
+    var all = r.concat(p);
+    for (var i = 0; i < all.length; i++) if (!all[i].counts) return { error: 'Could not read the formula "' + all[i].formula + '". Check capitalisation (e.g. CO2, not co2).' };
+    var coeffs = balance(all);
+    if (!coeffs) return { error: 'This equation cannot be balanced as written — check the formulas and that every element appears on both sides.' };
+    return { r: r.map(function (x) { return x.formula; }), p: p.map(function (x) { return x.formula; }), species: all, answer: coeffs, id: 'custom', type: 'custom' };
+  }
+  function solveCustom() {
+    var out = $('custom-result');
+    var entry = parseUserEquation($('custom-input').value);
+    if (entry.error) { out.className = 'custom-result err'; out.textContent = entry.error; playError(); return; }
+    out.className = 'custom-result ok';
+    out.innerHTML = '';
+    var eqLine = el('div', 'custom-eq');
+    entry.species.forEach(function (sp, i) {
+      if (i === entry.r.length) eqLine.appendChild(arrowNode());
+      var term = el('span', 'eq-term');
+      if (entry.answer[i] !== 1) term.appendChild(el('span', 'coeff-fixed', String(entry.answer[i])));
+      term.appendChild(formulaNode(sp.formula));
+      eqLine.appendChild(term);
+      var lastR = (i === entry.r.length - 1), lastP = (i === entry.species.length - 1);
+      if (!lastR && !lastP) eqLine.appendChild(plusNode());
+    });
+    out.appendChild(eqLine);
+    var load = el('button', 'btn btn-ghost', 'Load into simulator ↗'); load.type = 'button';
+    load.style.marginTop = '10px';
+    load.addEventListener('click', function () {
+      buildEntry(entry); loadEntry(entry);
+      $('mode-tabs').querySelector('[data-value="simulate"]').click();
+      // also add a chip
+    });
+    out.appendChild(load);
+    playSuccess();
+  }
+
+  /* ─────────────────────────── Practice mode ───────────────────────── */
+  function pickPractice() {
+    var pool = LIB.filter(function (e) { return e.answer; });
+    var idx;
+    do { idx = Math.floor(Math.random() * pool.length); } while (pool.length > 1 && idx === state.pIndex);
+    state.pIndex = idx;
+    var entry = pool[idx];
+    state.pEntry = entry;
+    state.pCoeffs = entry.species.map(function () { return ''; });
+    state.pRevealed = false;
+    renderEquation($('prac-equation'), { entry: entry, coeffs: state.pCoeffs, inputs: true, reactantEndIndex: entry.r.length });
+    $('prac-feedback').className = 'prac-feedback'; $('prac-feedback').textContent = '';
+    $('prac-type').textContent = TYPE_LABEL[entry.type] || '';
+    $('btn-prac-check').disabled = false;
+    $('btn-prac-next').style.display = 'none';
+  }
+  function coeffsEqual(user, answer) {
+    // A blank box means a coefficient of 1 (the conventional shorthand).
+    for (var i = 0; i < answer.length; i++) {
+      var u = user[i];
+      var val = (u === '' || u == null) ? 1 : parseInt(u, 10);
+      if (isNaN(val) || val !== answer[i]) return false;
+    }
+    return true;
+  }
+  function checkPractice() {
+    var entry = state.pEntry;
+    var fb = $('prac-feedback');
+    // allow any correct positive-integer multiple? Standard answer = lowest terms.
+    var ok = coeffsEqual(state.pCoeffs, entry.answer);
+    state.pTotal++;
+    if (ok) {
+      state.pScore++;
+      fb.className = 'prac-feedback ok';
+      fb.innerHTML = '✓ Correct! Perfectly balanced — lowest whole-number ratio.';
+      playSuccess();
+    } else {
+      fb.className = 'prac-feedback bad';
+      fb.innerHTML = '✗ Not balanced yet. Answer: <strong>' + formulaHTML(answerString(entry)) + '</strong>';
+      playError();
+    }
+    $('prac-score').textContent = state.pScore;
+    $('prac-attempts').textContent = state.pTotal;
+    $('btn-prac-check').disabled = true;
+    $('btn-prac-next').style.display = '';
+  }
+  function practiceHint() {
+    var entry = state.pEntry;
+    // reveal the first still-incorrect coefficient
+    for (var i = 0; i < entry.answer.length; i++) {
+      if (parseInt(state.pCoeffs[i], 10) !== entry.answer[i]) {
+        state.pCoeffs[i] = entry.answer[i];
+        renderEquation($('prac-equation'), { entry: entry, coeffs: state.pCoeffs, inputs: true, reactantEndIndex: entry.r.length });
+        var fb = $('prac-feedback'); fb.className = 'prac-feedback hint';
+        fb.textContent = 'Hint: one coefficient filled in for you.';
+        playTick();
+        return;
+      }
+    }
+  }
+  function answerString(entry) {
+    var terms = entry.species.map(function (sp, i) {
+      var c = entry.answer[i];
+      return (c === 1 ? '' : c) + sp.formula;
+    });
+    var r = terms.slice(0, entry.r.length).join(' + ');
+    var p = terms.slice(entry.r.length).join(' + ');
+    return r + ' → ' + p;
+  }
+
+  /* ─────────────────────────── Quiz mode ───────────────────────────── */
+  var QUIZ_SIZE = 5;
+  function startQuiz() {
+    var pool = LIB.filter(function (e) { return e.answer; }).slice();
+    // shuffle
+    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+    state.qOrder = pool.slice(0, QUIZ_SIZE);
+    state.qPos = 0; state.qScore = 0; state.qResults = []; state.qActive = true;
+    $('quiz-start').classList.add('hidden');
+    $('quiz-result').classList.add('hidden');
+    $('quiz-question').classList.remove('hidden');
+    renderQuizQuestion();
+  }
+  function renderQuizQuestion() {
+    var entry = state.qOrder[state.qPos];
+    state.qCoeffs = entry.species.map(function () { return ''; });
+    $('qz-index').textContent = (state.qPos + 1);
+    $('qz-count').textContent = QUIZ_SIZE;
+    $('qz-score').textContent = state.qScore;
+    $('qz-progress-bar').style.width = (state.qPos / QUIZ_SIZE * 100) + '%';
+    $('qz-type').textContent = TYPE_LABEL[entry.type] || '';
+    renderEquation($('qz-equation'), { entry: entry, coeffs: state.qCoeffs, inputs: true, reactantEndIndex: entry.r.length });
+    var fb = $('qz-feedback'); fb.className = 'qz-feedback hidden'; fb.textContent = '';
+    $('btn-qz-submit').style.display = ''; $('btn-qz-submit').disabled = false;
+    $('btn-qz-next').style.display = 'none';
+    $('btn-qz-next').textContent = state.qPos === QUIZ_SIZE - 1 ? 'See Results →' : 'Next →';
+  }
+  function submitQuiz() {
+    var entry = state.qOrder[state.qPos];
+    var ok = coeffsEqual(state.qCoeffs, entry.answer);
+    if (ok) state.qScore++;
+    state.qResults.push({ entry: entry, ok: ok });
+    var fb = $('qz-feedback');
+    fb.className = 'qz-feedback ' + (ok ? 'ok' : 'bad');
+    fb.innerHTML = (ok ? '✓ Correct!' : '✗ Correct answer: <strong>' + formulaHTML(answerString(entry)) + '</strong>');
+    $('qz-score').textContent = state.qScore;
+    $('btn-qz-submit').style.display = 'none';
+    $('btn-qz-next').style.display = '';
+    ok ? playSuccess() : playError();
+  }
+  function nextQuiz() {
+    state.qPos++;
+    if (state.qPos >= QUIZ_SIZE) { showQuizResult(); return; }
+    renderQuizQuestion();
+  }
+  function showQuizResult() {
+    state.qActive = false;
+    $('quiz-question').classList.add('hidden');
+    $('quiz-result').classList.remove('hidden');
+    $('qz-progress-bar').style.width = '100%';
+    var pct = state.qScore / QUIZ_SIZE;
+    var stars = pct === 1 ? 3 : pct >= 0.6 ? 2 : pct >= 0.4 ? 1 : 0;
+    var starStr = '';
+    for (var i = 0; i < 3; i++) starStr += (i < stars ? '★' : '☆');
+    $('qr-stars').textContent = starStr;
+    $('qr-score').textContent = 'You scored ' + state.qScore + ' / ' + QUIZ_SIZE;
+    var rows = $('qr-rows'); rows.innerHTML = '';
+    state.qResults.forEach(function (r) {
+      var row = el('div', 'qr-row ' + (r.ok ? 'ok' : 'bad'));
+      row.appendChild(el('span', 'qr-mark', r.ok ? '✓' : '✗'));
+      var eq = el('span', 'qr-eq');
+      eq.innerHTML = formulaHTML(answerString(r.entry));
+      row.appendChild(eq);
+      rows.appendChild(row);
+    });
+    if (stars === 3) playSuccess();
+  }
+  function formulaHTML(s) { return s.replace(/([A-Za-z\)\]])(\d+)/g, '$1<sub>$2</sub>').replace(/->|→/g, '→'); }
+
+  /* ─────────────────────────── Explore mode ────────────────────────── */
+  var EXPLORE = {
+    basics: [
+      { title: 'Law of Conservation of Mass', body: 'Atoms are never created or destroyed in a chemical reaction — they only rearrange. So every element must have the <em>same number of atoms</em> on the reactant and product sides. That is exactly what "balancing" enforces.', note: 'Antoine Lavoisier, 1789 — the founding law of chemistry.' },
+      { title: 'Coefficient vs Subscript', body: 'A <strong>coefficient</strong> (the big number in front, e.g. <strong>2</strong>H₂O) multiplies the whole molecule. A <strong>subscript</strong> (the small number, H<sub>2</sub>O) counts atoms inside one molecule. You balance by changing coefficients only.', note: 'Golden rule: NEVER change a subscript — that would change the substance.' },
+      { title: 'Reactants → Products', body: 'The arrow "→" means "reacts to form". Substances on the left (reactants) are consumed; substances on the right (products) are made. 2H₂ + O₂ → 2H₂O reads: two hydrogen molecules react with one oxygen molecule to make two water molecules.', note: '' },
+      { title: 'Counting Atoms', body: 'To count an element, multiply its subscript by the coefficient. In 2Al₂(SO₄)₃ there are 2×2 = 4 Al, 2×3 = 6 S, and 2×12 = 24 O atoms. Treat bracketed groups as a unit before multiplying.', note: '' }
+    ],
+    steps: [
+      { title: 'Step 1 — Count Every Element', body: 'Make a table of each element and how many atoms appear on each side with the current coefficients (all start at 1). This tool shows that table live for you.', note: '' },
+      { title: 'Step 2 — Balance Metals First', body: 'Balance elements that appear in only one compound on each side first — usually metals, then non-metals. Leave <strong>hydrogen and oxygen for last</strong> because they show up in many compounds.', note: 'H and O are the "clean-up" elements — do them at the end.' },
+      { title: 'Step 3 — Use the Odd/Even Trick', body: 'If an element appears an odd number of times on one side but you need an even number, place a 2 in front of that molecule, then rebalance. For O₂, you can temporarily use a fraction like 7⁄2 O₂, then multiply the whole equation by 2.', note: 'Combustion of C₈H₁₈ uses this trick heavily.' },
+      { title: 'Step 4 — Reduce to Lowest Terms', body: 'Once balanced, divide all coefficients by their greatest common factor so the ratio is the smallest whole numbers. 4H₂ + 2O₂ → 4H₂O is wrong style; 2H₂ + O₂ → 2H₂O is the accepted answer.', note: '' }
+    ],
+    types: [
+      { title: 'Synthesis (Combination)', body: 'Two or more simple substances combine into one product. General form A + B → AB. Example: N₂ + 3H₂ → 2NH₃ (the Haber process).', note: 'Look for a single product.' },
+      { title: 'Decomposition', body: 'One compound breaks into two or more simpler substances — the reverse of synthesis. AB → A + B. Example: 2H₂O₂ → 2H₂O + O₂.', note: 'Look for a single reactant.' },
+      { title: 'Combustion', body: 'A hydrocarbon (C, H, sometimes O) burns in O₂ to give CO₂ and H₂O. Example: CH₄ + 2O₂ → CO₂ + 2H₂O. Balance C first, then H, then O last.', note: 'Products are almost always CO₂ + H₂O.' },
+      { title: 'Single & Double Replacement', body: 'Single: one element displaces another, A + BC → AC + B (Zn + 2HCl → ZnCl₂ + H₂). Double: ions swap partners, AB + CD → AD + CB (AgNO₃ + NaCl → AgCl + NaNO₃).', note: 'Keep polyatomic ions (SO₄, NO₃, OH) as intact groups.' },
+      { title: 'Redox (Oxidation–Reduction)', body: 'Reactions where atoms change oxidation number — one species loses electrons (is oxidised) while another gains them (is reduced). They rarely fit the four patterns above, especially when acids like HNO₃ or oxidisers like KMnO₄ are involved. Example: 2KMnO₄ + 16HCl → 2KCl + 2MnCl₂ + 8H₂O + 5Cl₂ — manganese drops from +7 to +2 while chlorine rises from −1 to 0.', note: 'AP & IB presets tagged "Redox" in this tool are balanced by atom conservation, which for a valid redox reaction always matches electron-transfer balance too.' }
+    ],
+    tips: [
+      { title: 'Never Change Subscripts', body: 'Changing H₂O to H₂O₂ "balances" the maths but turns water into hydrogen peroxide — a different chemical. Only coefficients may change.', note: 'The #1 beginner mistake.' },
+      { title: 'Treat Polyatomic Ions as Units', body: 'If a group like SO₄²⁻, NO₃⁻ or OH⁻ stays intact on both sides, balance it as one item instead of separate S, O, N atoms. It is much faster.', note: 'Example: balance "SO₄" as a block in Na₂SO₄ ↔ BaSO₄.' },
+      { title: 'Fractions Are Allowed (Temporarily)', body: 'It is fine to use a fraction like ½ O₂ while working. At the end, multiply every coefficient by the denominator to clear it. C₂H₆ needs 7⁄2 O₂ → multiply through by 2.', note: '' },
+      { title: 'Balance, Then Sanity-Check', body: 'After balancing, recount every element on both sides. The total atom count and the total charge (for ionic equations) must match. This tool’s live table does the recount automatically.', note: '' }
+    ]
+  };
+  function renderExplore(cat) {
+    var host = $('explore-cards'); if (!host) return;
+    host.innerHTML = '';
+    (EXPLORE[cat] || []).forEach(function (card) {
+      var c = el('div', 'explore-card');
+      c.appendChild(el('h3', 'ec-title', card.title));
+      var body = el('p', 'ec-body'); body.innerHTML = card.body; c.appendChild(body);
+      if (card.note) { var nt = el('div', 'ec-note'); nt.innerHTML = card.note; c.appendChild(nt); }
+      host.appendChild(c);
+    });
+  }
+
+  /* ─────────────────────────── Mode switching ──────────────────────── */
+  function switchMode(mode) {
+    state.mode = mode;
+    ['simulate', 'explore', 'practice', 'quiz'].forEach(function (m) {
+      var sec = $('sec-' + m);
+      if (sec) sec.classList.toggle('hidden', m !== mode);
+    });
+    Array.prototype.forEach.call($('mode-tabs').children, function (b) {
+      b.classList.toggle('active', b.dataset.value === mode);
+    });
+    if (mode === 'simulate') { fitCanvas(); refreshSimReadout(); }
+    if (mode === 'explore') { var a = $('explore-tabs').querySelector('.active'); renderExplore(a ? a.dataset.value : 'basics'); }
+    if (mode === 'practice' && !state.pEntry) pickPractice();
+  }
+
+  /* ─────────────────────────── Context menu ────────────────────────── */
+  function setupCtxMenu() {
+    var menu = $('ctx-menu');
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var rect = canvas.parentElement.getBoundingClientRect();
+      menu.style.left = (e.clientX - rect.left) + 'px';
+      menu.style.top = (e.clientY - rect.top) + 'px';
+      menu.style.display = 'block';
+    });
+    document.addEventListener('click', function () { menu.style.display = 'none'; });
+    menu.addEventListener('click', function (e) {
+      var a = e.target.getAttribute('data-action'); if (!a) return;
+      if (a === 'save-img') saveImage();
+      if (a === 'copy-data') copyReading();
+      if (a === 'reset') { if (state.entry) loadEntry(state.entry); }
+      if (a === 'auto') autoBalance();
+    });
+  }
+  function saveImage() {
+    var tmp = document.createElement('canvas');
+    tmp.width = canvas.width; tmp.height = canvas.height;
+    var tc = tmp.getContext('2d');
+    tc.drawImage(canvas, 0, 0);
+    var fs = Math.round(tmp.width * 0.022); if (fs < 10) fs = 10;
+    tc.font = '600 ' + fs + 'px "Segoe UI", system-ui, sans-serif';
+    tc.textAlign = 'right'; tc.textBaseline = 'bottom';
+    tc.fillStyle = 'rgba(255,255,255,0.25)';
+    tc.fillText('NHIT VisualLab', tmp.width - 12, tmp.height - 8);
+    var a = document.createElement('a');
+    a.href = tmp.toDataURL('image/png');
+    a.download = 'balanced_equation.png'; a.click();
+  }
+  function copyReading() {
+    if (!state.entry) return;
+    var s = answerString(state.entry);
+    try { navigator.clipboard.writeText(s); } catch (e) {}
+  }
+
+  /* ─────────────────────────── Wire-up / init ──────────────────────── */
+  function init() {
+    // mode tabs
+    Array.prototype.forEach.call($('mode-tabs').children, function (b) {
+      b.addEventListener('click', function () { playClick(); switchMode(b.dataset.value); });
+    });
+    // explore tabs
+    Array.prototype.forEach.call($('explore-tabs').children, function (b) {
+      b.addEventListener('click', function () {
+        Array.prototype.forEach.call($('explore-tabs').children, function (x) { x.classList.remove('active'); });
+        b.classList.add('active'); playClick(); renderExplore(b.dataset.value);
+      });
+    });
+    // curriculum-level pills filter the preset chips
+    var lp = $('level-pills');
+    if (lp) Array.prototype.forEach.call(lp.children, function (b) {
+      b.addEventListener('click', function () { playClick(); setLevel(b.dataset.level); });
+    });
+    buildLibraryChips();
+
+    // simulate buttons
+    $('btn-auto').addEventListener('click', function () { playClick(); autoBalance(); });
+    $('btn-reset').addEventListener('click', function () { playClick(); if (state.entry) loadEntry(state.entry); });
+    $('btn-solve-custom').addEventListener('click', function () { playClick(); solveCustom(); });
+    $('custom-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); solveCustom(); } });
+    $('btn-sound').addEventListener('click', function () {
+      state.muted = !state.muted;
+      $('btn-sound').textContent = state.muted ? '🔇' : '🔊';
+      $('btn-sound').title = state.muted ? 'Unmute' : 'Mute';
+    });
+
+    // practice buttons
+    $('btn-prac-check').addEventListener('click', function () { checkPractice(); });
+    $('btn-prac-next').addEventListener('click', function () { playClick(); pickPractice(); });
+    $('btn-prac-hint').addEventListener('click', function () { practiceHint(); });
+
+    // quiz buttons
+    $('btn-quiz-start').addEventListener('click', function () { playClick(); startQuiz(); });
+    $('btn-qz-submit').addEventListener('click', function () { submitQuiz(); });
+    $('btn-qz-next').addEventListener('click', function () { playClick(); nextQuiz(); });
+    $('btn-quiz-retry').addEventListener('click', function () { playClick(); startQuiz(); });
+
+    setupCtxMenu();
+    window.addEventListener('resize', function () { if (state.mode === 'simulate') fitCanvas(); });
+
+    // default equation
+    loadEntry(LIB[0]);
+    renderExplore('basics');
+    switchMode('simulate');
+    fitCanvas();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();

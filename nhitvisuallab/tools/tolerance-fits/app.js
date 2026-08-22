@@ -1,0 +1,2609 @@
+(function(){ 'use strict';
+// ════════════════════════════════════════════════════════════════════
+//  Tolerance & Fits Calculator — app.js  (v4 — extreme graphical upgrade)
+//  ISO 286-1 / 286-2 limits, fits & tolerances
+//  Learn • Explore • Practice • Quiz modes
+//  Engineering-drawing styled cross-section, classical tolerance-zone
+//  chart, true-proportional end-view, KaTeX learning panels, calc modal,
+//  HiDPI canvas, exports (CSV/PNG), URL deep-links, undo/redo.
+// ════════════════════════════════════════════════════════════════════
+
+const QUIZ_TOTAL = 5;
+
+// ── ISO 286-1 Standard Data ────────────────────────────────────────
+// Size ranges [min, max] in mm (13 ranges per ISO 286-1)
+const RANGES = [
+  [0,3],[3,6],[6,10],[10,18],[18,30],[30,50],
+  [50,80],[80,120],[120,180],[180,250],[250,315],[315,400],[400,500]
+];
+
+// IT grade tolerances in μm — columns IT5 … IT16
+const IT = [
+  [4,6,10,14,25,40,60,100,140,250,400,600],
+  [5,8,12,18,30,48,75,120,180,300,480,750],
+  [6,9,15,22,36,58,90,150,220,360,580,900],
+  [8,11,18,27,43,70,110,180,270,430,700,1100],
+  [9,13,21,33,52,84,130,210,330,520,840,1300],
+  [11,16,25,39,62,100,160,250,390,620,1000,1600],
+  [13,19,30,46,74,120,190,300,460,740,1200,1900],
+  [15,22,35,54,87,140,220,350,540,870,1400,2200],
+  [18,25,40,63,100,160,250,400,630,1000,1600,2500],
+  [20,29,46,72,115,185,290,460,720,1150,1850,2900],
+  [23,32,52,81,130,210,320,520,810,1300,2100,3200],
+  [25,36,57,89,140,230,360,570,890,1400,2300,3600],
+  [27,40,63,97,155,250,400,630,970,1550,2500,4000],
+];
+
+// Shaft UPPER deviations (es) in μm — letters a … h (ISO 286-2)
+const SHAFT_UPPER = {
+  a: [-270,-270,-280,-290,-300,-310,-320,-340,-360,-380,-420,-480,-540],
+  b: [-140,-140,-150,-150,-160,-170,-180,-200,-220,-240,-260,-280,-310],
+  c: [-60,-70,-80,-95,-110,-120,-140,-170,-200,-230,-260,-290,-320],
+  d: [-20,-30,-40,-50,-65,-80,-100,-120,-145,-170,-190,-210,-230],
+  e: [-14,-20,-25,-32,-40,-50,-60,-72,-85,-100,-110,-125,-135],
+  f: [-6,-10,-13,-16,-20,-25,-30,-36,-43,-50,-56,-62,-68],
+  g: [-2,-4,-5,-6,-7,-9,-10,-12,-14,-15,-17,-18,-20],
+  h: [0,0,0,0,0,0,0,0,0,0,0,0,0],
+};
+
+// Shaft LOWER deviations (ei) in μm — letters k … s (ISO 286-2, IT≤7 baseline)
+// NOTE: the r and s rows here are DEAD for value lookups — shaftLowerEi()
+// always resolves r/s via SHAFT_LOWER_FINE. They stay in this object only so
+// `letter in SHAFT_LOWER` keeps routing K–S hole letters; do not read them.
+const SHAFT_LOWER = {
+  k: [0,1,1,1,2,2,2,3,3,4,4,4,5],
+  m: [2,4,6,7,8,9,11,13,15,17,20,21,23],
+  n: [4,8,10,12,15,17,20,23,27,31,34,37,40],
+  p: [6,12,15,18,22,26,32,37,43,50,56,62,68],
+  r: [10,15,19,23,28,34,41,48,55,63,72,78,86],
+  s: [14,19,23,28,35,43,53,59,68,79,88,98,108],
+};
+
+// ISO 286-2 finer sub-ranges for shaft r and s above Ø50. Each entry is
+// [maxSize, ei]; the first row whose maxSize ≥ requested size wins.
+const SHAFT_LOWER_FINE = {
+  r: [
+    [3,10],[6,15],[10,19],[18,23],[30,28],[50,34],
+    [65,41],[80,43],[100,51],[120,54],[140,63],[160,65],[180,68],
+    [200,77],[225,80],[250,84],[280,94],[315,98],[355,108],[400,114],[450,126],[500,132]
+  ],
+  s: [
+    [3,14],[6,19],[10,23],[18,28],[30,35],[50,43],
+    [65,53],[80,59],[100,71],[120,79],[140,92],[160,100],[180,108],
+    [200,122],[225,130],[250,140],[280,158],[315,170],[355,190],[400,208],[450,232],[500,252]
+  ],
+};
+
+// ISO 286-2 finer sub-ranges for shaft a, b, c (upper deviation es). Like r/s,
+// these letters change value INSIDE the 13 coarse ranges above ~30 mm, so the
+// coarse SHAFT_UPPER rows are wrong there. Each entry is [maxSize, es]; first
+// row with maxSize ≥ size wins. Verified against ISO 286-2:1988 Table 17.
+const SHAFT_UPPER_FINE = {
+  a: [
+    [3,-270],[6,-270],[10,-280],[18,-290],[30,-300],[40,-310],[50,-320],
+    [65,-340],[80,-360],[100,-380],[120,-410],[140,-460],[160,-520],[180,-580],
+    [200,-660],[225,-740],[250,-820],[280,-920],[315,-1050],[355,-1200],[400,-1350],[450,-1500],[500,-1650]
+  ],
+  b: [
+    [3,-140],[6,-140],[10,-150],[18,-150],[30,-160],[40,-170],[50,-180],
+    [65,-190],[80,-200],[100,-220],[120,-240],[140,-260],[160,-280],[180,-310],
+    [200,-340],[225,-380],[250,-420],[280,-480],[315,-540],[355,-600],[400,-680],[450,-760],[500,-840]
+  ],
+  c: [
+    [3,-60],[6,-70],[10,-80],[18,-95],[30,-110],[40,-120],[50,-130],
+    [65,-140],[80,-150],[100,-170],[120,-180],[140,-200],[160,-210],[180,-230],
+    [200,-240],[225,-260],[250,-280],[280,-300],[315,-330],[355,-360],[400,-400],[450,-440],[500,-480]
+  ],
+};
+
+function shaftUpperEs(letter, size, ri) {
+  const fine = SHAFT_UPPER_FINE[letter];
+  if (fine) {
+    for (const [maxSz, es] of fine) {
+      if (size <= maxSz) return es;
+    }
+    return fine[fine.length-1][1];
+  }
+  return SHAFT_UPPER[letter][ri];
+}
+
+function shaftLowerEi(letter, size, ri) {
+  const fine = SHAFT_LOWER_FINE[letter];
+  if (fine) {
+    for (const [maxSz, ei] of fine) {
+      if (size <= maxSz) return ei;
+    }
+    return fine[fine.length-1][1];
+  }
+  return SHAFT_LOWER[letter][ri];
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ANSI / ASME B4.1-1967 (R2009) — inch, basic-hole system
+//  Preferred Limits & Fits for Cylindrical Parts. Tables 5–9.
+//  Data transcribed from the standard; all values in THOUSANDTHS of an inch
+//  (0.001 in). { ES, EI, es, ei } = hole upper, hole lower, shaft upper,
+//  shaft lower deviations relative to basic size. Verified cell-by-cell
+//  against the standard's printed "Limits of Clearance/Interference" column
+//  (max cl = ES − ei, min cl = EI − es).
+// ════════════════════════════════════════════════════════════════════
+
+// Standard inch size ranges (Over–To) used by RC, LC, LT, LN. 13 ranges → 20 in.
+const ANSI_RANGES = [
+  [0,0.12],[0.12,0.24],[0.24,0.40],[0.40,0.71],[0.71,1.19],[1.19,1.97],
+  [1.97,3.15],[3.15,4.73],[4.73,7.09],[7.09,9.85],[9.85,12.41],[12.41,15.75],[15.75,19.69]
+];
+
+// FN (force & shrink) uses a finer size-range set.
+const ANSI_RANGES_FN = [
+  [0,0.12],[0.12,0.24],[0.24,0.40],[0.40,0.56],[0.56,0.71],[0.71,0.95],[0.95,1.19],
+  [1.19,1.58],[1.58,1.97],[1.97,2.56],[2.56,3.15],[3.15,3.94],[3.94,4.73],[4.73,5.52],
+  [5.52,6.30],[6.30,7.09],[7.09,7.88],[7.88,8.86],[8.86,9.85],[9.85,11.03],[11.03,12.41],
+  [12.41,13.98],[13.98,15.75],[15.75,17.72],[17.72,19.69]
+];
+
+// Fit-class metadata: ABC hole/shaft symbol, fit family, one-line description.
+const ANSI_META = {
+  RC1:{sym:'H5/g4',fam:'RC',desc:'Close sliding'},   RC2:{sym:'H6/g5',fam:'RC',desc:'Sliding'},
+  RC3:{sym:'H7/f6',fam:'RC',desc:'Precision running'}, RC4:{sym:'H8/f7',fam:'RC',desc:'Close running'},
+  RC5:{sym:'H8/e7',fam:'RC',desc:'Medium running'},  RC6:{sym:'H9/e8',fam:'RC',desc:'Medium running'},
+  RC7:{sym:'H9/d8',fam:'RC',desc:'Free running'},    RC8:{sym:'H10/c9',fam:'RC',desc:'Loose running'},
+  RC9:{sym:'H11/—',fam:'RC',desc:'Loose running'},
+  LC1:{sym:'H6/h5',fam:'LC',desc:'Locational clearance'}, LC2:{sym:'H7/h6',fam:'LC',desc:'Locational clearance'},
+  LC3:{sym:'H8/h7',fam:'LC',desc:'Locational clearance'}, LC4:{sym:'H10/h9',fam:'LC',desc:'Locational clearance'},
+  LC5:{sym:'H7/g6',fam:'LC',desc:'Locational clearance'}, LC6:{sym:'H9/f8',fam:'LC',desc:'Locational clearance'},
+  LC7:{sym:'H10/e9',fam:'LC',desc:'Locational clearance'},LC8:{sym:'H10/d9',fam:'LC',desc:'Locational clearance'},
+  LC9:{sym:'H11/c10',fam:'LC',desc:'Locational clearance'},LC10:{sym:'H12/—',fam:'LC',desc:'Locational clearance'},
+  LC11:{sym:'H13/—',fam:'LC',desc:'Locational clearance'},
+  LT1:{sym:'H7/js6',fam:'LT',desc:'Locational transition'}, LT2:{sym:'H8/js7',fam:'LT',desc:'Locational transition'},
+  LT3:{sym:'H7/k6',fam:'LT',desc:'Locational transition'},  LT4:{sym:'H8/k7',fam:'LT',desc:'Locational transition'},
+  LT5:{sym:'H7/n6',fam:'LT',desc:'Locational transition'},  LT6:{sym:'H7/n7',fam:'LT',desc:'Locational transition'},
+  LN1:{sym:'H6/n5',fam:'LN',desc:'Locational interference'}, LN2:{sym:'H7/p6',fam:'LN',desc:'Locational interference'},
+  LN3:{sym:'H7/r6',fam:'LN',desc:'Locational interference'},
+  FN1:{sym:'H6/—',fam:'FN',desc:'Light drive'},   FN2:{sym:'H7/s6',fam:'FN',desc:'Medium drive'},
+  FN3:{sym:'H7/t6',fam:'FN',desc:'Heavy drive'},  FN4:{sym:'H7/u6',fam:'FN',desc:'Force fit'},
+  FN5:{sym:'H8/x7',fam:'FN',desc:'Heavy force / shrink'},
+};
+
+// Each entry: [ES, EI, es, ei] in thou, indexed by ANSI_RANGES (RC: 13 rows).
+const ANSI_FITS = {
+  RC1:[[0.2,0,-0.1,-0.25],[0.2,0,-0.15,-0.3],[0.25,0,-0.2,-0.35],[0.3,0,-0.25,-0.45],[0.4,0,-0.3,-0.55],[0.4,0,-0.4,-0.7],[0.5,0,-0.4,-0.7],[0.6,0,-0.5,-0.9],[0.7,0,-0.6,-1.1],[0.8,0,-0.6,-1.2],[0.9,0,-0.8,-1.4],[1.0,0,-1.0,-1.7],[1.0,0,-1.2,-2.0]],
+  RC2:[[0.25,0,-0.1,-0.3],[0.3,0,-0.15,-0.35],[0.4,0,-0.2,-0.45],[0.4,0,-0.25,-0.55],[0.5,0,-0.3,-0.7],[0.6,0,-0.4,-0.8],[0.7,0,-0.4,-0.9],[0.9,0,-0.5,-1.1],[1.0,0,-0.6,-1.3],[1.2,0,-0.6,-1.4],[1.2,0,-0.7,-1.6],[1.4,0,-0.7,-1.7],[1.6,0,-0.8,-1.8]],
+  RC3:[[0.4,0,-0.3,-0.55],[0.5,0,-0.4,-0.7],[0.6,0,-0.5,-0.9],[0.7,0,-0.6,-1.0],[0.8,0,-0.8,-1.3],[1.0,0,-1.0,-1.6],[1.2,0,-1.2,-1.9],[1.4,0,-1.4,-2.3],[1.6,0,-1.6,-2.6],[1.8,0,-2.0,-3.2],[2.0,0,-2.5,-3.7],[2.2,0,-3.0,-4.4],[2.5,0,-4.0,-5.6]],
+  RC4:[[0.6,0,-0.3,-0.7],[0.7,0,-0.4,-0.9],[0.9,0,-0.5,-1.1],[1.0,0,-0.6,-1.3],[1.2,0,-0.8,-1.6],[1.6,0,-1.0,-2.0],[1.8,0,-1.2,-2.4],[2.2,0,-1.4,-2.8],[2.5,0,-1.6,-3.2],[2.8,0,-2.0,-3.8],[3.0,0,-2.2,-4.2],[3.5,0,-2.5,-4.7],[4.0,0,-2.8,-5.3]],
+  RC5:[[0.6,0,-0.6,-1.0],[0.7,0,-0.8,-1.3],[0.9,0,-1.0,-1.6],[1.0,0,-1.2,-1.9],[1.2,0,-1.6,-2.4],[1.6,0,-2.0,-3.0],[1.8,0,-2.5,-3.7],[2.2,0,-3.0,-4.4],[2.5,0,-3.5,-5.1],[2.8,0,-4.0,-5.8],[3.0,0,-5.0,-7.0],[3.5,0,-6.0,-8.2],[4.0,0,-8.0,-10.5]],
+  RC6:[[1.0,0,-0.6,-1.2],[1.2,0,-0.8,-1.5],[1.4,0,-1.0,-1.9],[1.6,0,-1.2,-2.2],[2.0,0,-1.6,-2.8],[2.5,0,-2.0,-3.6],[3.0,0,-2.5,-4.3],[3.5,0,-3.0,-5.2],[4.0,0,-3.5,-6.0],[4.5,0,-4.0,-6.8],[5.0,0,-5.0,-8.0],[6.0,0,-6.0,-9.5],[6.0,0,-8.0,-12.0]],
+  RC7:[[1.0,0,-1.0,-1.6],[1.2,0,-1.2,-1.9],[1.4,0,-1.6,-2.5],[1.6,0,-2.0,-3.0],[2.0,0,-2.5,-3.7],[2.5,0,-3.0,-4.6],[3.0,0,-4.0,-5.8],[3.5,0,-5.0,-7.2],[4.0,0,-6.0,-8.5],[4.5,0,-7.0,-9.8],[5.0,0,-8.0,-11.0],[6.0,0,-10.0,-13.5],[6.0,0,-12.0,-16.0]],
+  RC8:[[1.6,0,-2.5,-3.5],[1.8,0,-2.8,-4.0],[2.2,0,-3.0,-4.4],[2.8,0,-3.5,-5.1],[3.5,0,-4.5,-6.5],[4.0,0,-5.0,-7.5],[4.5,0,-6.0,-9.0],[5.0,0,-7.0,-10.5],[6.0,0,-8.0,-12.0],[7.0,0,-10.0,-14.5],[8.0,0,-12.0,-17.0],[9.0,0,-14.0,-20.0],[10.0,0,-16.0,-22.0]],
+  RC9:[[2.5,0,-4.0,-5.6],[3.0,0,-4.5,-6.0],[3.5,0,-5.0,-7.2],[4.0,0,-6.0,-8.8],[5.0,0,-7.0,-10.5],[6.0,0,-8.0,-12.0],[7.0,0,-9.0,-13.5],[9.0,0,-10.0,-15.0],[10.0,0,-12.0,-18.0],[12.0,0,-15.0,-22.0],[12.0,0,-18.0,-26.0],[14.0,0,-22.0,-31.0],[16.0,0,-25.0,-35.0]],
+
+  // Locational Clearance (LC) — Table 6
+  LC1:[[0.25,0,0,-0.2],[0.3,0,0,-0.2],[0.4,0,0,-0.25],[0.4,0,0,-0.3],[0.5,0,0,-0.4],[0.6,0,0,-0.4],[0.7,0,0,-0.5],[0.9,0,0,-0.6],[1.0,0,0,-0.7],[1.2,0,0,-0.8],[1.2,0,0,-0.9],[1.4,0,0,-1.0],[1.6,0,0,-1.0]],
+  LC2:[[0.4,0,0,-0.25],[0.5,0,0,-0.3],[0.6,0,0,-0.4],[0.7,0,0,-0.4],[0.8,0,0,-0.5],[1.0,0,0,-0.6],[1.2,0,0,-0.7],[1.4,0,0,-0.9],[1.6,0,0,-1.0],[1.8,0,0,-1.2],[2.0,0,0,-1.2],[2.2,0,0,-1.4],[2.5,0,0,-1.6]],
+  LC3:[[0.6,0,0,-0.4],[0.7,0,0,-0.5],[0.9,0,0,-0.6],[1.0,0,0,-0.7],[1.2,0,0,-0.8],[1.6,0,0,-1.0],[1.8,0,0,-1.2],[2.2,0,0,-1.4],[2.5,0,0,-1.6],[2.8,0,0,-1.8],[3.0,0,0,-2.0],[3.5,0,0,-2.2],[4.0,0,0,-2.5]],
+  LC4:[[1.6,0,0,-1.0],[1.8,0,0,-1.2],[2.2,0,0,-1.4],[2.8,0,0,-1.6],[3.5,0,0,-2.0],[4.0,0,0,-2.5],[4.5,0,0,-3.0],[5.0,0,0,-3.5],[6.0,0,0,-4.0],[7.0,0,0,-4.5],[8.0,0,0,-5.0],[9.0,0,0,-6.0],[10.0,0,0,-6.0]],
+  LC5:[[0.4,0,-0.1,-0.35],[0.5,0,-0.15,-0.45],[0.6,0,-0.2,-0.6],[0.7,0,-0.25,-0.65],[0.8,0,-0.3,-0.8],[1.0,0,-0.4,-1.0],[1.2,0,-0.4,-1.1],[1.4,0,-0.5,-1.4],[1.6,0,-0.6,-1.6],[1.8,0,-0.6,-1.8],[2.0,0,-0.7,-1.9],[2.2,0,-0.7,-2.1],[2.5,0,-0.8,-2.4]],
+  LC6:[[1.0,0,-0.3,-0.9],[1.2,0,-0.4,-1.1],[1.4,0,-0.5,-1.4],[1.6,0,-0.6,-1.6],[2.0,0,-0.8,-2.0],[2.5,0,-1.0,-2.6],[3.0,0,-1.2,-3.0],[3.5,0,-1.4,-3.6],[4.0,0,-1.6,-4.1],[4.5,0,-2.0,-4.8],[5.0,0,-2.2,-5.2],[6.0,0,-2.5,-6.0],[6.0,0,-2.8,-6.8]],
+  LC7:[[1.6,0,-0.6,-1.6],[1.8,0,-0.8,-2.0],[2.2,0,-1.0,-2.4],[2.8,0,-1.2,-2.8],[3.5,0,-1.6,-3.6],[4.0,0,-2.0,-4.5],[4.5,0,-2.5,-5.5],[5.0,0,-3.0,-6.5],[6.0,0,-3.5,-7.5],[7.0,0,-4.0,-8.5],[8.0,0,-4.5,-9.5],[9.0,0,-5.0,-11.0],[10.0,0,-5.0,-11.0]],
+  LC8:[[1.6,0,-1.0,-2.0],[1.8,0,-1.2,-2.4],[2.2,0,-1.6,-3.0],[2.8,0,-2.0,-3.6],[3.5,0,-2.5,-4.5],[4.0,0,-3.0,-5.5],[4.5,0,-4.0,-7.0],[5.0,0,-5.0,-8.5],[6.0,0,-6.0,-10.0],[7.0,0,-7.0,-11.5],[8.0,0,-7.0,-12.0],[9.0,0,-9.0,-14.0],[10.0,0,-9.0,-15.0]],
+  LC9:[[2.5,0,-2.5,-4.1],[3.0,0,-2.8,-4.6],[3.5,0,-3.0,-5.2],[4.0,0,-3.5,-6.3],[5.0,0,-4.5,-8.0],[6.0,0,-5.0,-9.0],[7.0,0,-6.0,-10.5],[9.0,0,-7.0,-12.0],[10.0,0,-8.0,-14.0],[12.0,0,-10.0,-17.0],[12.0,0,-12.0,-20.0],[14.0,0,-14.0,-23.0],[16.0,0,-16.0,-26.0]],
+  LC10:[[4,0,-4,-8],[5,0,-4.5,-9.5],[6,0,-5,-11],[7,0,-6,-13],[8,0,-7,-15],[10,0,-8,-18],[12,0,-10,-22],[14,0,-11,-25],[16,0,-12,-28],[18,0,-16,-34],[20,0,-20,-40],[22,0,-22,-44],[25,0,-25,-50]],
+  LC11:[[6,0,-5,-11],[7,0,-6,-13],[9,0,-7,-16],[10,0,-8,-18],[12,0,-10,-22],[16,0,-12,-28],[18,0,-14,-32],[22,0,-16,-38],[25,0,-18,-43],[28,0,-22,-50],[30,0,-28,-58],[35,0,-30,-65],[40,0,-35,-75]],
+
+  // Locational Transition (LT) — Table 7 (null = not tabulated for that size range)
+  LT1:[[0.4,0,0.1,-0.1],[0.5,0,0.15,-0.15],[0.6,0,0.2,-0.2],[0.7,0,0.2,-0.2],[0.8,0,0.25,-0.25],[1.0,0,0.3,-0.3],[1.2,0,0.3,-0.3],[1.4,0,0.4,-0.4],[1.6,0,0.5,-0.5],[1.8,0,0.6,-0.6],[2.0,0,0.6,-0.6],[2.2,0,0.7,-0.7],[2.5,0,0.8,-0.8]],
+  LT2:[[0.6,0,0.2,-0.2],[0.7,0,0.25,-0.25],[0.9,0,0.3,-0.3],[1.0,0,0.35,-0.35],[1.2,0,0.4,-0.4],[1.6,0,0.5,-0.5],[1.8,0,0.6,-0.6],[2.2,0,0.7,-0.7],[2.5,0,0.8,-0.8],[2.8,0,0.9,-0.9],[3.0,0,1.0,-1.0],[3.5,0,1.0,-1.0],[4.0,0,1.2,-1.2]],
+  LT3:[null,null,[0.6,0,0.5,0.1],[0.7,0,0.5,0.1],[0.8,0,0.6,0.1],[1.0,0,0.7,0.1],[1.2,0,0.8,0.1],[1.4,0,1.0,0.1],[1.6,0,1.1,0.1],[1.8,0,1.4,0.2],[2.0,0,1.4,0.2],[2.2,0,1.6,0.2],[2.5,0,1.8,0.2]],
+  LT4:[null,null,[0.9,0,0.7,0.1],[1.0,0,0.8,0.1],[1.2,0,0.9,0.1],[1.6,0,1.1,0.1],[1.8,0,1.3,0.1],[2.2,0,1.5,0.1],[2.5,0,1.7,0.1],[2.8,0,2.0,0.2],[3.0,0,2.2,0.2],[3.5,0,2.4,0.2],[4.0,0,2.7,0.2]],
+  LT5:[[0.4,0,0.5,0.25],[0.5,0,0.6,0.3],[0.6,0,0.8,0.4],[0.7,0,0.9,0.5],[0.8,0,1.1,0.6],[1.0,0,1.3,0.7],[1.2,0,1.5,0.8],[1.4,0,1.9,1.0],[1.6,0,2.2,1.2],[1.8,0,2.6,1.4],[2.0,0,2.6,1.4],[2.2,0,3.0,1.6],[2.5,0,3.4,1.8]],
+  LT6:[[0.4,0,0.65,0.25],[0.5,0,0.8,0.3],[0.6,0,1.0,0.4],[0.7,0,1.2,0.5],[0.8,0,1.4,0.6],[1.0,0,1.7,0.7],[1.2,0,2.0,0.8],[1.4,0,2.4,1.0],[1.6,0,2.8,1.2],[1.8,0,3.2,1.4],[2.0,0,3.4,1.4],[2.2,0,3.8,1.6],[2.5,0,4.3,1.8]],
+
+  // Locational Interference (LN) — Table 8
+  LN1:[[0.25,0,0.45,0.25],[0.3,0,0.5,0.3],[0.4,0,0.65,0.4],[0.4,0,0.8,0.4],[0.5,0,1.0,0.5],[0.6,0,1.1,0.6],[0.7,0,1.3,0.8],[0.9,0,1.6,1.0],[1.0,0,1.9,1.2],[1.2,0,2.2,1.4],[1.2,0,2.3,1.4],[1.4,0,2.6,1.6],[1.6,0,2.8,1.8]],
+  LN2:[[0.4,0,0.65,0.4],[0.5,0,0.8,0.5],[0.6,0,1.0,0.6],[0.7,0,1.1,0.7],[0.8,0,1.3,0.8],[1.0,0,1.6,1.0],[1.2,0,2.1,1.4],[1.4,0,2.5,1.6],[1.6,0,2.8,1.8],[1.8,0,3.2,2.0],[2.0,0,3.4,2.2],[2.2,0,3.9,2.5],[2.5,0,4.4,2.8]],
+  LN3:[[0.4,0,0.75,0.5],[0.5,0,0.9,0.6],[0.6,0,1.2,0.8],[0.7,0,1.4,1.0],[0.8,0,1.7,1.2],[1.0,0,2.0,1.4],[1.2,0,2.3,1.6],[1.4,0,2.9,2.0],[1.6,0,3.5,2.5],[1.8,0,4.2,3.0],[2.0,0,4.7,3.5],[2.2,0,5.9,4.5],[2.5,0,6.6,5.0]],
+
+  // Force & Shrink (FN) — Table 9, FINER ranges (ANSI_RANGES_FN, 25 rows)
+  FN1:[[0.25,0,0.5,0.3],[0.3,0,0.6,0.4],[0.4,0,0.75,0.5],[0.4,0,0.8,0.5],[0.4,0,0.9,0.6],[0.5,0,1.1,0.7],[0.5,0,1.2,0.8],[0.6,0,1.3,0.9],[0.6,0,1.4,1.0],[0.7,0,1.8,1.3],[0.7,0,1.9,1.4],[0.9,0,2.4,1.8],[0.9,0,2.6,2.0],[1.0,0,2.9,2.2],[1.0,0,3.2,2.5],[1.0,0,3.5,2.8],[1.2,0,3.8,3.0],[1.2,0,4.3,3.5],[1.2,0,4.3,3.5],[1.2,0,4.9,4.0],[1.2,0,4.9,4.0],[1.4,0,5.5,4.5],[1.4,0,6.1,5.0],[1.6,0,7.0,6.0],[1.6,0,7.0,6.0]],
+  FN2:[[0.4,0,0.85,0.6],[0.5,0,1.0,0.7],[0.6,0,1.4,1.0],[0.7,0,1.6,1.2],[0.7,0,1.6,1.2],[0.8,0,1.9,1.4],[0.8,0,1.9,1.4],[1.0,0,2.4,1.8],[1.0,0,2.4,1.8],[1.2,0,2.7,2.0],[1.2,0,2.9,2.2],[1.4,0,3.7,2.8],[1.4,0,3.9,3.0],[1.6,0,4.5,3.5],[1.6,0,5.0,4.0],[1.6,0,5.5,4.5],[1.8,0,6.2,5.0],[1.8,0,6.2,5.0],[1.8,0,7.2,6.0],[2.0,0,7.2,6.0],[2.0,0,8.2,7.0],[2.2,0,9.4,8.0],[2.2,0,9.4,8.0],[2.5,0,10.6,9.0],[2.5,0,11.6,10.0]],
+  FN3:[null,null,null,null,null,null,[0.8,0,2.1,1.6],[1.0,0,2.6,2.0],[1.0,0,2.8,2.2],[1.2,0,3.2,2.5],[1.2,0,3.7,3.0],[1.4,0,4.4,3.5],[1.4,0,4.9,4.0],[1.6,0,6.0,5.0],[1.6,0,6.0,5.0],[1.6,0,7.0,6.0],[1.8,0,8.2,7.0],[1.8,0,8.2,7.0],[1.8,0,9.2,8.0],[2.0,0,10.2,9.0],[2.0,0,10.2,9.0],[2.2,0,11.4,10.0],[2.2,0,13.4,12.0],[2.5,0,13.6,12.0],[2.5,0,15.6,14.0]],
+  FN4:[[0.4,0,0.95,0.7],[0.5,0,1.2,0.9],[0.6,0,1.6,1.2],[0.7,0,1.8,1.4],[0.7,0,1.8,1.4],[0.8,0,2.1,1.6],[0.8,0,2.3,1.8],[1.0,0,3.1,2.5],[1.0,0,3.4,2.8],[1.2,0,4.2,3.5],[1.2,0,4.7,4.0],[1.4,0,5.9,5.0],[1.4,0,6.9,6.0],[1.6,0,8.0,7.0],[1.6,0,8.0,7.0],[1.6,0,9.0,8.0],[1.8,0,10.2,9.0],[1.8,0,11.2,10.0],[1.8,0,13.2,12.0],[2.0,0,13.2,12.0],[2.0,0,15.2,14.0],[2.2,0,17.4,16.0],[2.2,0,19.4,18.0],[2.5,0,21.6,20.0],[2.5,0,23.6,22.0]],
+  FN5:[[0.6,0,1.3,0.9],[0.7,0,1.7,1.2],[0.9,0,2.0,1.4],[1.0,0,2.3,1.6],[1.0,0,2.5,1.8],[1.2,0,3.0,2.2],[1.2,0,3.3,2.5],[1.6,0,4.0,3.0],[1.6,0,5.0,4.0],[1.8,0,6.2,5.0],[1.8,0,7.2,6.0],[2.2,0,8.4,7.0],[2.2,0,9.4,8.0],[2.5,0,11.6,10.0],[2.5,0,13.6,12.0],[2.5,0,13.6,12.0],[2.8,0,15.8,14.0],[2.8,0,17.8,16.0],[2.8,0,17.8,16.0],[3.0,0,20.0,18.0],[3.0,0,22.0,20.0],[3.5,0,24.2,22.0],[3.5,0,27.2,25.0],[4.0,0,30.5,28.0],[4.0,0,32.5,30.0]],
+};
+
+function ansiRangesFor(cls) {
+  return (ANSI_META[cls] && ANSI_META[cls].fam === 'FN') ? ANSI_RANGES_FN : ANSI_RANGES;
+}
+function ansiRangeIdx(sizeInch, cls) {
+  const R = ansiRangesFor(cls);
+  const s = Math.max(R[0][0] + 1e-9, Math.min(R[R.length-1][1], isFinite(sizeInch) ? sizeInch : 1));
+  for (let i = 0; i < R.length; i++) if (s > R[i][0] && s <= R[i][1]) return i;
+  return R.length - 1;
+}
+
+const IN_TO_MM = 25.4;
+// Compute an ANSI/ASME B4.1 fit. Internally converts inch/thou → mm/µm so the
+// result object matches calcFit() and reuses every renderer & the classifier.
+function calcFitANSI(bSizeInch, cls) {
+  const sizeInch = Math.max(0.04, Math.min(19.69, isFinite(bSizeInch) ? bSizeInch : 1));
+  let ri = ansiRangeIdx(sizeInch, cls);
+  const R = ansiRangesFor(cls);
+  const tbl = ANSI_FITS[cls] || ANSI_FITS.RC1;
+  // Some classes (LT3/LT4, FN3) are not tabulated for the smallest sizes.
+  // Fall forward to the first tabulated range and flag it, rather than crash.
+  let notTabulated = false;
+  if (!tbl[ri]) {
+    notTabulated = true;
+    let j = ri; while (j < tbl.length && !tbl[j]) j++;
+    if (j >= tbl.length) { j = tbl.length - 1; while (j >= 0 && !tbl[j]) j--; }
+    ri = j;
+  }
+  const cell = tbl[ri];
+  // thou → µm
+  const ES = cell[0] * IN_TO_MM, EI = cell[1] * IN_TO_MM, es = cell[2] * IN_TO_MM, ei = cell[3] * IN_TO_MM;
+  const sizeMm = sizeInch * IN_TO_MM;
+  const hMax = sizeMm + ES/1000, hMin = sizeMm + EI/1000;
+  const sMax = sizeMm + es/1000, sMin = sizeMm + ei/1000;
+  const maxCl = hMax - sMin, minCl = hMin - sMax;
+  let fitType;
+  if (minCl >= 0)      fitType = 'clearance';
+  else if (maxCl <= 0) fitType = 'interference';
+  else                 fitType = 'transition';
+  return {
+    size: sizeMm, sizeInch, ri, range: [R[ri][0]*IN_TO_MM, R[ri][1]*IN_TO_MM],
+    rangeInch: R[ri], hTol: ES - EI, sTol: es - ei,
+    ES, EI, es, ei, hMax, hMin, sMax, sMin, maxCl, minCl, fitType,
+    standard: 'ANSI', ansiClass: cls, ansiSym: (ANSI_META[cls]||{}).sym || '',
+    notTabulated,
+  };
+}
+
+// Preset fits
+const PRESETS = [
+  { hole:'H', hg:11, shaft:'c', sg:11, name:'Loose Running' },
+  { hole:'H', hg:9,  shaft:'d', sg:9,  name:'Free Running' },
+  { hole:'H', hg:8,  shaft:'f', sg:7,  name:'Close Running' },
+  { hole:'H', hg:7,  shaft:'g', sg:6,  name:'Sliding' },
+  { hole:'H', hg:7,  shaft:'h', sg:6,  name:'Locational Clearance' },
+  { hole:'H', hg:7,  shaft:'k', sg:6,  name:'Locational Transition' },
+  { hole:'H', hg:7,  shaft:'n', sg:6,  name:'Transition / Interference' },
+  { hole:'H', hg:7,  shaft:'p', sg:6,  name:'Press Fit' },
+  { hole:'H', hg:7,  shaft:'s', sg:6,  name:'Drive Fit' },
+];
+
+const PRACTICE_SIZES = [10,15,20,25,30,40,50,60,80,100,120,150,200,250];
+const PRACTICE_FITS  = [
+  // Sliding / close clearance
+  {h:'H',hg:7,s:'g',sg:6},{h:'H',hg:7,s:'f',sg:6},{h:'H',hg:7,s:'h',sg:6},
+  {h:'H',hg:6,s:'g',sg:5},{h:'H',hg:8,s:'h',sg:7},
+  // Transition
+  {h:'H',hg:7,s:'k',sg:6},{h:'H',hg:7,s:'m',sg:6},{h:'H',hg:7,s:'n',sg:6},
+  {h:'H',hg:6,s:'k',sg:5},
+  // Interference
+  {h:'H',hg:7,s:'p',sg:6},{h:'H',hg:7,s:'r',sg:6},{h:'H',hg:7,s:'s',sg:6},
+  // Free / loose running
+  {h:'H',hg:8,s:'f',sg:7},{h:'H',hg:8,s:'e',sg:8},{h:'H',hg:9,s:'d',sg:9},
+  {h:'H',hg:11,s:'c',sg:11},
+  // Close running varieties
+  {h:'H',hg:7,s:'e',sg:6},{h:'H',hg:7,s:'d',sg:6},
+];
+
+// Recommended surface finish (Ra μm) per IT grade — typical workshop values
+const RA_BY_IT = { 5:0.4, 6:0.8, 7:1.6, 8:1.6, 9:3.2, 10:3.2, 11:6.3, 12:12.5 };
+// Typical machining process per IT grade
+const PROCESS_BY_IT = {
+  5: 'Cylindrical grinding / honing',
+  6: 'Precision grinding / fine boring',
+  7: 'Precision turning, reaming, grinding',
+  8: 'Turning, boring, milling, reaming',
+  9: 'Milling, broaching, drilling',
+  10:'Drilling, rough turning',
+  11:'Sand casting, rough turning',
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function clampSize(s) { return Math.max(1, Math.min(500, isFinite(s) ? s : 50)); }
+
+function getRangeIdx(size) {
+  const s = clampSize(size);
+  for (let i = 0; i < RANGES.length; i++) {
+    if (s > RANGES[i][0] && s <= RANGES[i][1]) return i;
+  }
+  return RANGES.length - 1;
+}
+
+function getIT(ri, grade) {
+  const idx = grade - 5;
+  if (idx < 0 || idx > 11) return 0;
+  return IT[ri][idx];
+}
+
+// IT4 values (µm) per size range — ISO 286-1 Table 1. Only needed to compute
+// the Δ correction at grade 5 (Δ = IT5 − IT4); IT4 itself is not selectable.
+const IT4 = [3,4,4,5,6,7,8,10,12,14,16,18,20];
+// Δ = ITn − IT(n−1), valid down to grade 5 (uses IT4 for the n−1 term).
+function deltaFor(ri, grade) {
+  const below = (grade === 5) ? IT4[ri] : getIT(ri, grade - 1);
+  return getIT(ri, grade) - below;
+}
+
+// ── Unit System ─────────────────────────────────────────────────────
+// All internal calculations stay in mm / μm. Display-only conversion.
+const MM_TO_IN = 0.0393701;
+const UM_TO_THOU = 0.0393701;       // 1 μm = 0.0393701 thou (1 thou = 25.4 μm) — FIX for S6
+let imperial = false;
+
+function uLabel()    { return imperial ? 'in' : 'mm'; }
+function uDevLabel() { return imperial ? 'thou' : 'µm'; }
+function fmt3(v)     {
+  if (imperial) return (v * MM_TO_IN).toFixed(4);
+  // Preserve sub-µm precision when deviation has half-integer values (js odd IT).
+  const r3 = +v.toFixed(3);
+  return (Math.abs(v - r3) > 5e-5) ? v.toFixed(4) : v.toFixed(3);
+}
+function fmtDev(um)  { return imperial ? (um * UM_TO_THOU).toFixed(2) : String(um); }
+function fmtSign(v)  { return (v > 0 ? '+' : '') + (imperial ? (v * UM_TO_THOU).toFixed(2) : String(v)); }
+
+// Switch active standard. ISO 286 → metric display; ANSI/ASME B4.1 → inch.
+// `imperial` is derived here (not a user toggle) so display units always match
+// the active standard. UI control swapping (ISO letter/grade selects vs ANSI
+// fit-class select) is wired here as the ANSI engine lands.
+function applyStandard(std) {
+  const next = (std === 'ANSI') ? 'ANSI' : 'ISO';
+  if (next === state.standard) return;
+  // Remember the Ø per standard so an ISO→ANSI→ISO round-trip restores it.
+  if (state.standard === 'ISO') state._sizeIso = state.basicSize;
+  else                          state._sizeAnsi = state.basicSize;
+  state.standard = next;
+  imperial = (state.standard === 'ANSI');
+
+  // Swap the inch/mm basic size so the size field reads naturally.
+  state.basicSize = (state.standard === 'ANSI')
+    ? (state._sizeAnsi || 1.0)
+    : (state._sizeIso  || 50);
+
+  // Show ISO designation controls vs the ANSI fit-class selector.
+  const isoEls  = document.querySelectorAll('.iso-only');
+  const ansiEls = document.querySelectorAll('.ansi-only');
+  isoEls.forEach(e => e.style.display  = (state.standard === 'ANSI') ? 'none' : '');
+  ansiEls.forEach(e => e.style.display = (state.standard === 'ANSI') ? '' : 'none');
+  // ISO preset chips are meaningless under ANSI.
+  const presets = document.querySelector('.cc-row-presets');
+  if (presets) presets.style.display = (state.standard === 'ANSI') ? 'none' : '';
+
+  // Size input: range + step + unit suffix follow the standard.
+  const sizeInput = $('size-input');
+  if (sizeInput) {
+    if (state.standard === 'ANSI') { sizeInput.min = '0.04'; sizeInput.max = '19.69'; sizeInput.step = '0.05'; }
+    else                           { sizeInput.min = '1';    sizeInput.max = '500';   sizeInput.step = '0.1';  }
+    sizeInput.value = state.basicSize;
+  }
+  const suf = document.querySelector('.cc-field .cc-suf');
+  if (suf) suf.textContent = uLabel();
+  document.querySelectorAll('.pi-unit').forEach(u => u.textContent = uLabel());
+
+  // Practice/quiz answer inputs: inch answers need 4 dp (0.0001 in step).
+  ['p-hole-max','p-hole-min','p-shaft-max','p-shaft-min','q-value-input'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.step = (state.standard === 'ANSI') ? '0.0001' : '0.001';
+    el.placeholder = (state.standard === 'ANSI') ? '?.????' : '?.???';
+  });
+
+  // If a standard is switched mid-mode, restart Practice/Quiz so the question
+  // pool matches the active standard (Learn is ISO-only and handled in setMode).
+  if (state.mode === 'practice') { state.pChecked = false; newPractice(); return; }
+  if (state.mode === 'quiz')     { startQuiz(); return; }
+  if (state.mode === 'learn')    { state.learnIdx = 0; }
+
+  if (typeof render === 'function') render();
+}
+
+// ── Calculation Engine ──────────────────────────────────────────────
+function calcShaftDev(letter, grade, ri, size) {
+  if (letter === 'js') {
+    // ISO 286-1: js is symmetric about zero; for odd IT, published values
+    // are HALF-integer (e.g. js6 at Ø10, IT6=9, gives ±4.5 µm). Do NOT round.
+    const t = getIT(ri, grade);
+    const h = t / 2;
+    return { es: h, ei: -h };
+  }
+  const t = getIT(ri, grade);
+  if (letter in SHAFT_UPPER) {
+    const es = shaftUpperEs(letter, size, ri);
+    return { es, ei: es - t };
+  }
+  if (letter in SHAFT_LOWER) {
+    // ISO 286-2: shaft k reverts to ei = 0 at grades ≤ 3 AND ≥ 8.
+    // m, n, p, r, s keep the tabled ei across all grades.
+    let ei = (letter === 'k' && (grade <= 3 || grade >= 8)) ? 0 : shaftLowerEi(letter, size, ri);
+    return { es: ei + t, ei };
+  }
+  return { es: 0, ei: -t };
+}
+
+function calcHoleDev(letter, grade, ri, size) {
+  if (letter === 'JS') {
+    // ISO 286-1: JS is symmetric about zero; odd IT → half-integer (±IT/2).
+    const t = getIT(ri, grade);
+    const h = t / 2;
+    return { ES: h, EI: -h };
+  }
+  const t  = getIT(ri, grade);
+  const lc = letter.toLowerCase();
+  if (lc === 'h') return { ES: t, EI: 0 };
+  if (lc in SHAFT_UPPER) {
+    // Hole letters A–H mirror shaft a–h about zero: EI = −es
+    const EI = -shaftUpperEs(lc, size, ri);
+    return { ES: EI + t, EI };
+  }
+  if (lc in SHAFT_LOWER) {
+    // Hole letters K, M, N, P, R, S — ISO 286-1 general formulae.
+    // Special: N at grades ≥ 9 → ES = 0, but ONLY for basic sizes > 3 mm.
+    // Verified against ISO 286-2:1988 Table 9: at ≤3 mm, N9 = −4/−29 (no
+    // reversion); the ES=0 reversion begins at the 3–6 mm range.
+    if (lc === 'n' && grade >= 9 && ri >= 1) {
+      return { ES: 0, EI: -t };
+    }
+    // Shaft basic deviation ei for the same letter — use the standard tabled
+    // value. The "shaft k ei = 0 at IT ≥ 8" revert in ISO 286-2 applies only
+    // when computing the shaft tolerance zone, NOT when computing the hole K
+    // basic deviation via ES = -ei + Δ (ISO 286-1).
+    const sEi = shaftLowerEi(lc, size, ri);
+    // Δ correction (ISO 286-1): K, M, N for grades ≤ 8 and P–ZC for grades ≤ 7,
+    // Δ = IT_n − IT_(n−1). BUT in the first size range (≤3 mm, ri=0) Δ = 0 —
+    // verified against ISO 286-2:1988 Tables 8–12, where every K/M/N/P/R/S hole
+    // at ≤3 mm has ES = −ei (e.g. M7 = −2/−12, N7 = −4/−14, P7 = −6/−16,
+    // R7 = −10/−20, S7 = −14/−24, K7 = 0/−10).
+    const needsDelta =
+      ((lc === 'k' || lc === 'm' || lc === 'n') && grade <= 8) ||
+      ((lc === 'p' || lc === 'r' || lc === 's') && grade <= 7);
+    // Δ applies from grade 5 up (ISO 286-1 tabulates Δ for IT3–IT8; the
+    // n−1 term for grade 5 is IT4, held in the IT4 array above).
+    let delta = 0;
+    if (needsDelta && grade >= 5 && ri >= 1) {
+      delta = deltaFor(ri, grade);
+    }
+    const ES = -sEi + delta;
+    return { ES, EI: ES - t };
+  }
+  return { ES: t, EI: 0 };
+}
+
+function calcFit(bSize, hLetter, hGrade, sLetter, sGrade) {
+  const size = clampSize(bSize);
+  const ri = getRangeIdx(size);
+  const hTol = getIT(ri, hGrade);
+  const sTol = getIT(ri, sGrade);
+  const hole  = calcHoleDev(hLetter, hGrade, ri, size);
+  const shaft = calcShaftDev(sLetter, sGrade, ri, size);
+  const hMax = size + hole.ES  / 1000;
+  const hMin = size + hole.EI  / 1000;
+  const sMax = size + shaft.es / 1000;
+  const sMin = size + shaft.ei / 1000;
+  const maxCl = hMax - sMin;
+  const minCl = hMin - sMax;
+  let fitType;
+  if (minCl >= 0)        fitType = 'clearance';
+  else if (maxCl <= 0)   fitType = 'interference';
+  else                   fitType = 'transition';
+  return {
+    size, ri, range: RANGES[ri], hTol, sTol,
+    ES: hole.ES, EI: hole.EI, es: shaft.es, ei: shaft.ei,
+    hMax, hMin, sMax, sMin, maxCl, minCl, fitType,
+  };
+}
+
+// ── Canvas Setup (HiDPI) ────────────────────────────────────────────
+const canvas = $('tz-canvas');
+const ctx    = canvas.getContext('2d');
+const W = 900, H = 432;   // logical coords — FIXED (height tightened to remove dead band)
+let CW = W, CH = H;       // legacy aliases for old code paths still referenced
+
+// Responsive typography: when the canvas renders narrow (mobile/tablet), scale
+// label fonts up so they stay legible, and drop low-value annotations.
+let UI_SCALE = 1;        // main-canvas font multiplier
+let COMPACT  = false;    // true on narrow viewports — thins clutter
+function fs(px) { return (px * UI_SCALE).toFixed(1); }   // scaled font px → string
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const cssW = rect.width || W;
+  const cssH = cssW * (H / W);
+  canvas.style.height = cssH + 'px';
+  canvas.width  = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(canvas.width / W, canvas.height / H);
+  if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+  ctx.imageSmoothingQuality = 'high';
+  CW = W; CH = H;
+  // Keep effective text readable: target ≥ ~7.5 px CSS for the 8 px base font.
+  UI_SCALE = Math.min(2.1, Math.max(1, 520 / cssW));
+  COMPACT  = cssW < 540;
+  if (typeof render === 'function') render();
+}
+
+// Secondary canvas — Tolerance Zone Chart (deviation vs zero line)
+const tzcCanvas = $('tzchart-canvas');
+const tzcCtx    = tzcCanvas ? tzcCanvas.getContext('2d') : null;
+const TZW = 900, TZH = 320;
+let TZ_SCALE = 1;        // tolerance-zone-chart font multiplier
+function ts(px) { return (px * TZ_SCALE).toFixed(1); }
+function resizeTzChart() {
+  if (!tzcCanvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = tzcCanvas.getBoundingClientRect();
+  const cssW = rect.width || TZW;
+  const cssH = cssW * (TZH / TZW);
+  tzcCanvas.style.height = cssH + 'px';
+  tzcCanvas.width  = Math.round(cssW * dpr);
+  tzcCanvas.height = Math.round(cssH * dpr);
+  tzcCtx.setTransform(1,0,0,1,0,0);
+  tzcCtx.scale(tzcCanvas.width / TZW, tzcCanvas.height / TZH);
+  if ('textRendering' in tzcCtx) tzcCtx.textRendering = 'geometricPrecision';
+  TZ_SCALE = Math.min(2.0, Math.max(1, 540 / cssW));
+}
+
+// ── Cross-Section Drawing (ISO 128/129 styled) ──────────────────────
+const CX = 390, CY = 215;
+const BORE_HALF = 72;
+const WALL = 28;
+const HOLE_L = 80;
+const HOLE_R = 720;
+const SHAFT_LEN = 560;
+
+// Theme — variable-family colour palette
+const COL = {
+  hole: '#4fc3f7', holeFill: 'rgba(79,195,247,0.10)', holeHatch: 'rgba(79,195,247,0.32)',
+  shaft: '#81c784', shaftFill: 'rgba(129,199,132,0.18)',
+  clearance: '#3ddc84', transition: '#ffb74d', interference: '#ff5555',
+  dim: '#9fb0d6', center: 'rgba(255,255,255,0.55)',
+  bg: '#0d1117',
+  eq_F: '#ff8a65', eq_D: '#42a5f5', eq_C: '#3ddc84', eq_EQ: '#ffd54f',
+  surfFinish: '#ffd54f', datum: '#ce93d8',
+};
+
+// ── Standard ISO drawing primitives ────────────────────────────────
+function isoCenterline(x1, y1, x2, y2) {
+  // long-dash short-dash per ISO 128 (type G — center line)
+  ctx.save();
+  ctx.strokeStyle = COL.center;
+  ctx.lineWidth = 0.6;
+  ctx.setLineDash([14, 3, 3, 3]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.restore();
+}
+
+function isoSectionHatch(x, y, w, h, color) {
+  // ISO 128 part 50 / ISO 6433 — 45° hatching, 4–6 mm typical spacing scaled
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.55;
+  const sp = 5;
+  const total = w + h;
+  for (let d = -h; d < total; d += sp) {
+    ctx.beginPath();
+    ctx.moveTo(x + d, y);
+    ctx.lineTo(x + d + h, y + h);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Dimension arrow with witness lines, ISO 129 style
+function isoDimVertical(x, y1, y2, color, label, side, opts) {
+  opts = opts || {};
+  if (Math.abs(y2 - y1) < 1.5) return;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 0.9; ctx.fillStyle = color;
+  // main line
+  ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+  // closed solid arrowheads
+  const dir = y2 > y1 ? 1 : -1;
+  function head(cx, cy, dy) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx - 2.6, cy + dy);
+    ctx.lineTo(cx + 2.6, cy + dy);
+    ctx.closePath(); ctx.fill();
+  }
+  head(x, y1,  dir * 7);
+  head(x, y2, -dir * 7);
+  // witness extension lines (small ticks outside)
+  if (opts.witness) {
+    ctx.beginPath();
+    ctx.moveTo(opts.witness[0], y1); ctx.lineTo(opts.witness[1], y1);
+    ctx.moveTo(opts.witness[0], y2); ctx.lineTo(opts.witness[1], y2);
+    ctx.stroke();
+  }
+  // label
+  if (label) {
+    ctx.font = fs(10) + 'px "Cambria Math", "Times New Roman", serif';
+    ctx.textBaseline = 'middle';
+    const mid = (y1 + y2) / 2;
+    if (side === 'left') { ctx.textAlign = 'right'; ctx.fillText(label, x - 6, mid); }
+    else                 { ctx.textAlign = 'left';  ctx.fillText(label, x + 6, mid); }
+  }
+  ctx.restore();
+}
+
+function isoDimHorizontal(y, x1, x2, color, label, above) {
+  if (Math.abs(x2 - x1) < 1.5) return;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 0.9; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+  const dir = x2 > x1 ? 1 : -1;
+  function head(cx, cy, dx) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + dx, cy - 2.6);
+    ctx.lineTo(cx + dx, cy + 2.6);
+    ctx.closePath(); ctx.fill();
+  }
+  head(x1, y,  dir * 7);
+  head(x2, y, -dir * 7);
+  if (label) {
+    ctx.font = fs(10) + 'px "Cambria Math", "Times New Roman", serif';
+    ctx.textBaseline = above ? 'bottom' : 'top';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, (x1 + x2) / 2, above ? y - 5 : y + 5);
+  }
+  ctx.restore();
+}
+
+// Surface-finish (Ra) symbol — simple v-mark with value
+function drawRaSymbol(x, y, value, color) {
+  ctx.save();
+  ctx.strokeStyle = color || COL.surfFinish;
+  ctx.fillStyle = color || COL.surfFinish;
+  ctx.lineWidth = 1;
+  // V shape
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y); ctx.lineTo(x, y + 8); ctx.lineTo(x + 9, y - 6);
+  ctx.stroke();
+  if (value != null) {
+    ctx.font = fs(9) + 'px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('Ra ' + value, x + 11, y - 4);
+  }
+  ctx.restore();
+}
+
+// Datum-feature symbol (boxed letter on triangle)
+function drawDatumSymbol(x, y, letter, color) {
+  ctx.save();
+  ctx.strokeStyle = color || COL.datum;
+  ctx.fillStyle = color || COL.datum;
+  ctx.lineWidth = 1;
+  // triangle pointing up
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 8); ctx.lineTo(x + 5, y + 8); ctx.closePath(); ctx.stroke();
+  // connecting line
+  ctx.beginPath(); ctx.moveTo(x, y + 8); ctx.lineTo(x, y + 16); ctx.stroke();
+  // box
+  ctx.strokeRect(x - 8, y + 16, 16, 14);
+  ctx.font = 'bold 10px "Cambria Math", "Times New Roman", serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(letter, x, y + 23);
+  ctx.restore();
+}
+
+// Grounded scene background — studio gradient + soft accent spotlight +
+// drawing-sheet frame. Kept faint so hatching and dimension text stay legible.
+function drawSceneBackground(c, w, h, glowX, glowY) {
+  const g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#10141f');
+  g.addColorStop(0.55, '#0d1117');
+  g.addColorStop(1, '#0a0d14');
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  const sp = c.createRadialGradient(glowX, glowY, 20, glowX, glowY, Math.max(w, h) * 0.55);
+  sp.addColorStop(0, 'rgba(92,107,192,0.10)');
+  sp.addColorStop(1, 'rgba(92,107,192,0)');
+  c.fillStyle = sp; c.fillRect(0, 0, w, h);
+}
+// Thin double-line sheet frame (ISO drawing-sheet look)
+function drawSheetFrame() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(159,176,214,0.14)'; ctx.lineWidth = 1;
+  ctx.strokeRect(6.5, 6.5, W - 13, H - 13);
+  ctx.strokeStyle = 'rgba(159,176,214,0.06)'; ctx.lineWidth = 0.6;
+  ctx.strokeRect(10.5, 10.5, W - 21, H - 21);
+  ctx.restore();
+}
+
+// ── Main cross-section ─────────────────────────────────────────────
+function drawCrossSection(res, showValues) {
+  drawSceneBackground(ctx, W, H, CX, CY);
+  drawSheetFrame();
+  if (!res) return;
+
+  // Exaggeration scale: map max abs half-deviation to ~22 px
+  const allHalf = [Math.abs(res.ES / 2), Math.abs(res.EI / 2), Math.abs(res.es / 2), Math.abs(res.ei / 2)];
+  const maxHalf = Math.max(...allHalf, 1);
+  const SC = Math.min(22 / maxHalf, 4);
+
+  // Surface positions (mean of min/max for nicer drawing)
+  const hTopMean = CY - BORE_HALF - ((res.ES + res.EI) / 2 / 2) * SC;
+  const hBotMean = CY + BORE_HALF + ((res.ES + res.EI) / 2 / 2) * SC;
+  const sTopMean = CY - BORE_HALF - ((res.es + res.ei) / 2 / 2) * SC;
+  const sBotMean = CY + BORE_HALF + ((res.es + res.ei) / 2 / 2) * SC;
+  const hTopMax  = CY - BORE_HALF - (res.ES / 2) * SC;
+  const hTopMin  = CY - BORE_HALF - (res.EI / 2) * SC;
+
+  const hOuterTop = hTopMean - WALL;
+  const hOuterBot = hBotMean + WALL;
+  const shaftL = HOLE_L + 10 + state.shaftX;
+  const shaftR = shaftL + SHAFT_LEN;
+
+  // ── Centerline (ISO type G) ──
+  isoCenterline(HOLE_L - 30, CY, HOLE_R + 30, CY);
+
+  // ── Hole body (top wall, bottom wall, left cap) ──
+  // Wall shading — slightly brighter toward the bore surface so the housing
+  // reads as a solid with a machined inner face. Coords unchanged.
+  function holeWallGrad(yFar, yBore) {
+    const g = ctx.createLinearGradient(0, yFar, 0, yBore);
+    g.addColorStop(0, 'rgba(79,195,247,0.06)');
+    g.addColorStop(1, 'rgba(79,195,247,0.16)');
+    return g;
+  }
+  ctx.fillStyle = holeWallGrad(hOuterTop, hTopMean);
+  ctx.fillRect(HOLE_L, hOuterTop, HOLE_R - HOLE_L, hTopMean - hOuterTop);
+  ctx.fillStyle = holeWallGrad(hOuterBot, hBotMean);
+  ctx.fillRect(HOLE_L, hBotMean, HOLE_R - HOLE_L, hOuterBot - hBotMean);
+  ctx.fillStyle = COL.holeFill;
+  ctx.fillRect(HOLE_L, hTopMean, 14, hBotMean - hTopMean);
+  if (state.showHatch) {
+    isoSectionHatch(HOLE_L, hOuterTop, HOLE_R - HOLE_L, hTopMean - hOuterTop, COL.holeHatch);
+    isoSectionHatch(HOLE_L, hBotMean, HOLE_R - HOLE_L, hOuterBot - hBotMean, COL.holeHatch);
+    isoSectionHatch(HOLE_L, hTopMean, 14, hBotMean - hTopMean, COL.holeHatch);
+  }
+  // Hole outline — thick (ISO 128 type A, 0.7 mm scale)
+  ctx.strokeStyle = COL.hole; ctx.lineWidth = 1.6;
+  ctx.strokeRect(HOLE_L, hOuterTop, HOLE_R - HOLE_L, hOuterBot - hOuterTop);
+  // Bore edges
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(HOLE_L + 14, hTopMean); ctx.lineTo(HOLE_R, hTopMean);
+  ctx.moveTo(HOLE_L + 14, hBotMean); ctx.lineTo(HOLE_R, hBotMean);
+  ctx.stroke();
+
+  // Hidden line — far edge of bore as ISO type E (dashed)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(79,195,247,0.35)';
+  ctx.lineWidth = 0.7; ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(HOLE_L + 14, hTopMax); ctx.lineTo(HOLE_R, hTopMax);
+  ctx.moveTo(HOLE_L + 14, hTopMin); ctx.lineTo(HOLE_R, hTopMin);
+  ctx.stroke(); ctx.restore();
+
+  // ── Shaft body ──
+  // Cylindrical shading — brighter along the axis, darker at the walls, so the
+  // section reads as a round bar. Same rect coords; hatch/outline unchanged.
+  function shaftFillGrad(top, bot) {
+    const g = ctx.createLinearGradient(0, top, 0, bot);
+    g.addColorStop(0,    'rgba(129,199,132,0.10)');
+    g.addColorStop(0.45, 'rgba(129,199,132,0.30)');
+    g.addColorStop(0.55, 'rgba(129,199,132,0.30)');
+    g.addColorStop(1,    'rgba(129,199,132,0.10)');
+    return g;
+  }
+  const clipShaftL = Math.max(shaftL, HOLE_L + 15);
+  const insideR = Math.min(shaftR, HOLE_R - 1);
+  if (insideR > clipShaftL) {
+    ctx.fillStyle = shaftFillGrad(sTopMean, sBotMean);
+    ctx.fillRect(clipShaftL, sTopMean, insideR - clipShaftL, sBotMean - sTopMean);
+    if (state.showHatch) {
+      isoSectionHatch(clipShaftL, sTopMean, insideR - clipShaftL, sBotMean - sTopMean, 'rgba(129,199,132,0.36)');
+    }
+    ctx.strokeStyle = COL.shaft; ctx.lineWidth = 1.6;
+    ctx.strokeRect(clipShaftL, sTopMean, insideR - clipShaftL, sBotMean - sTopMean);
+  }
+  // shaft outside (right)
+  if (shaftR > HOLE_R) {
+    ctx.fillStyle = shaftFillGrad(sTopMean, sBotMean);
+    ctx.fillRect(HOLE_R, sTopMean, shaftR - HOLE_R, sBotMean - sTopMean);
+    ctx.strokeStyle = COL.shaft; ctx.lineWidth = 1.6;
+    ctx.strokeRect(HOLE_R, sTopMean, shaftR - HOLE_R, sBotMean - sTopMean);
+    // chamfer line on free end (typical workshop detail)
+    ctx.beginPath();
+    ctx.moveTo(shaftR - 4, sTopMean); ctx.lineTo(shaftR, sTopMean + 4);
+    ctx.moveTo(shaftR - 4, sBotMean); ctx.lineTo(shaftR, sBotMean - 4);
+    ctx.stroke();
+  }
+  // shaft outside (left)
+  if (shaftL < HOLE_L + 14) {
+    const extL = Math.max(shaftL, HOLE_L - 40);
+    ctx.fillStyle = shaftFillGrad(sTopMean, sBotMean);
+    ctx.fillRect(extL, sTopMean, HOLE_L + 14 - extL, sBotMean - sTopMean);
+    ctx.strokeStyle = COL.shaft; ctx.lineWidth = 1.6;
+    ctx.strokeRect(extL, sTopMean, HOLE_L + 14 - extL, sBotMean - sTopMean);
+  }
+  // Shaft text (only when fully visible)
+  if (insideR - clipShaftL > 60) {
+    ctx.fillStyle = COL.shaft; ctx.font = 'bold ' + fs(11) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('SHAFT', (clipShaftL + Math.min(shaftR, HOLE_R)) / 2, CY);
+  }
+
+  // ── Gap / overlap shading + animated press feedback ──
+  if (showValues) {
+    const fitCol = COL[res.fitType] || COL.clearance;
+    const topGap = sTopMean - hTopMean;
+    const botGap = hBotMean - sBotMean;
+
+    // Press-fit visual feedback during drag
+    const pressPulse = (res.fitType === 'interference' && dragging) ? 0.25 + 0.15 * Math.sin(performance.now() / 80) : 0;
+    if (topGap > 1.5) {
+      ctx.fillStyle = withAlpha(fitCol, 0.18);
+      ctx.fillRect(clipShaftL, hTopMean, insideR - clipShaftL, topGap);
+    } else if (topGap < -1.5) {
+      ctx.fillStyle = withAlpha(COL.interference, 0.22 + pressPulse);
+      ctx.fillRect(clipShaftL, sTopMean, insideR - clipShaftL, -topGap);
+    }
+    if (botGap > 1.5) {
+      ctx.fillStyle = withAlpha(fitCol, 0.18);
+      ctx.fillRect(clipShaftL, sBotMean, insideR - clipShaftL, botGap);
+    } else if (botGap < -1.5) {
+      ctx.fillStyle = withAlpha(COL.interference, 0.22 + pressPulse);
+      ctx.fillRect(clipShaftL, hBotMean, insideR - clipShaftL, -botGap);
+    }
+
+    // ── Dimension lines (ISO 129 style with witness extensions) ──
+    // The decorative outer wall (OD) is not dimensioned — in a limits-and-fits
+    // drawing only the mating Ø of bore and shaft carry tolerance, and an OD
+    // line here collided with the bore label. Keep the two meaningful Ø dims.
+    if (state.showDims) {
+      // Hole bore Ø — left
+      isoDimVertical(HOLE_L - 22, hTopMean, hBotMean, COL.hole,
+        'Ø' + fmt3((res.hMax + res.hMin) / 2), 'left',
+        { witness: [HOLE_L - 26, HOLE_L + 14] });
+      // Shaft Ø — right
+      isoDimVertical(HOLE_R + 24, sTopMean, sBotMean, COL.shaft,
+        'Ø' + fmt3((res.sMax + res.sMin) / 2), 'right',
+        { witness: [HOLE_R + 2, HOLE_R + 28] });
+
+      // Gap dimensions
+      if (Math.abs(topGap) > 1.5 || Math.abs(botGap) > 1.5) {
+        const gapX = HOLE_R - 24;
+        if (Math.abs(topGap) > 1.5) isoDimVertical(gapX, hTopMean, sTopMean, fitCol, '', 'right');
+        if (Math.abs(botGap) > 1.5) isoDimVertical(gapX, sBotMean, hBotMean, fitCol, '', 'right');
+      }
+    }
+
+    // ── Surface-finish symbols (G8) — ISO IT-grade based; skip for ANSI and on narrow screens ──
+    if (state.showFinish && !COMPACT && state.standard !== 'ANSI') {
+      const ra = RA_BY_IT[state.holeGrade] || 1.6;
+      const raS = RA_BY_IT[state.shaftGrade] || 1.6;
+      drawRaSymbol(HOLE_L + 80, hTopMean - 4, ra, COL.surfFinish);
+      drawRaSymbol(HOLE_L + 80, sBotMean + 14, raS, COL.surfFinish);
+    }
+
+    // ── Datum A on bore axis (GD&T reference) — desktop only ──
+    if (state.showDims && !COMPACT) {
+      drawDatumSymbol(HOLE_R - 60, hOuterBot + 6, 'A', COL.datum);
+    }
+
+    // ── End-on mini view (upgraded G4) ──
+    if (state.showEndView) drawEndView(res, SC);
+
+    // ── Classical equation overlay (G5) — desktop only (clutters mobile) ──
+    if (state.showEquation && !COMPACT) drawEquationOverlay(res);
+  } else {
+    // Practice/quiz hidden mode
+    ctx.fillStyle = '#6b7a99'; ctx.font = 'bold ' + fs(14) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', HOLE_R + 35, (hTopMean + sTopMean) / 2);
+    ctx.fillText('?', HOLE_R + 35, (sBotMean + hBotMean) / 2);
+  }
+
+  // ── Title block (top centre) ──
+  ctx.fillStyle = '#e8eef9'; ctx.font = 'bold ' + fs(14) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const desig = (state.standard === 'ANSI')
+    ? 'Ø' + state.basicSize + ' in  ·  ' + state.fitClass +
+      ((ANSI_META[state.fitClass] && ANSI_META[state.fitClass].sym) ? ' (' + ANSI_META[state.fitClass].sym + ')' : '')
+    : 'Ø' + state.basicSize + ' ' +
+      state.holeLetter + state.holeGrade + ' / ' +
+      state.shaftLetter + state.shaftGrade;
+  ctx.fillText(desig, W / 2, 8);
+  if (showValues && res.fitType) {
+    ctx.fillStyle = COL[res.fitType] || '#fff';
+    ctx.font = '600 ' + fs(11) + 'px sans-serif';
+    ctx.fillText(res.fitType.toUpperCase() + ' FIT', W / 2, 28);
+  }
+
+  // ── Bottom captions ──
+  ctx.font = 'bold ' + fs(10) + 'px sans-serif';
+  ctx.fillStyle = COL.hole; ctx.textAlign = 'center';
+  ctx.fillText('HOLE — Sectional view (ISO 128)', (HOLE_L + HOLE_R) / 2, hOuterBot + 18);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = fs(8) + 'px sans-serif';
+  ctx.fillText('Deviations exaggerated for visibility — ' +
+    'Scale factor ×' + SC.toFixed(0) + ' on radius', W / 2, H - 7);
+
+  // Grid (D4-style)
+  if (state.showGrid) drawGrid();
+}
+
+function withAlpha(hex, a) {
+  // hex like #rrggbb
+  if (!hex || hex[0] !== '#') return hex;
+  const r = parseInt(hex.substr(1,2),16);
+  const g = parseInt(hex.substr(3,2),16);
+  const b = parseInt(hex.substr(5,2),16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+}
+
+function drawGrid() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 0.4;
+  for (let x = 50; x < W; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, H - 30); ctx.stroke();
+  }
+  for (let y = 50; y < H - 30; y += 50) {
+    ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(W - 30, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Upgraded End-View (G4) — true proportional concentric circles ──
+function drawEndView(res, SC) {
+  const ex = 820, ey = CY + 86, baseR = 44;
+  const fitCol = COL[res.fitType] || COL.clearance;
+
+  // Both rings are referenced to the BASIC size (Rmean), so each is offset by
+  // its own deviation from basic — NOT by its own mean. This makes the radial
+  // relationship faithful: for clearance the shaft sits wholly inside the bore;
+  // for interference the shaft crosses outside it. Independent exaggeration
+  // scale picked so the largest deviation maps to a visible offset.
+  const Rmean = baseR;
+  const maxDev = Math.max(Math.abs(res.ES), Math.abs(res.EI), Math.abs(res.es), Math.abs(res.ei), 1);
+  const k = Math.min(22 / maxDev, 1.4);   // px per µm, capped to fit the backing
+  const dev = um => um * k;               // signed deviation (µm) → radial px
+  const rHmax = Rmean + dev(res.ES);
+  const rHmin = Rmean + dev(res.EI);
+  const rSmax = Rmean + dev(res.es);
+  const rSmin = Rmean + dev(res.ei);
+  const backR = baseR + 26;
+
+  // Backing — subtle radial depth (bore recedes toward centre)
+  ctx.save();
+  const bg = ctx.createRadialGradient(ex - backR * 0.25, ey - backR * 0.25, backR * 0.1, ex, ey, backR);
+  bg.addColorStop(0, 'rgba(24,30,44,0.94)');
+  bg.addColorStop(1, 'rgba(10,13,20,0.94)');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(ex, ey, backR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.arc(ex, ey, backR, 0, Math.PI * 2); ctx.stroke();
+
+  // Basic-size reference circle (thin dotted at Rmean)
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.5;
+  ctx.setLineDash([2, 3]);
+  ctx.beginPath(); ctx.arc(ex, ey, Rmean, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fit band — the radial gap between hole-min and shaft-max tells the story
+  ctx.fillStyle = withAlpha(fitCol, 0.22);
+  ctx.beginPath();
+  ctx.arc(ex, ey, Math.max(rHmin, rSmax), 0, Math.PI * 2);
+  ctx.arc(ex, ey, Math.min(rHmin, rSmax), 0, Math.PI * 2, true);
+  ctx.fill();
+
+  // Hole max (outer) and min (inner) — concentric pair
+  ctx.strokeStyle = COL.hole; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(ex, ey, rHmax, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([3, 2]);
+  ctx.beginPath(); ctx.arc(ex, ey, rHmin, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Shaft max and min — concentric pair
+  ctx.strokeStyle = COL.shaft; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(ex, ey, rSmax, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([3, 2]);
+  ctx.beginPath(); ctx.arc(ex, ey, rSmin, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Center cross
+  ctx.strokeStyle = COL.center; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(ex - baseR - 5, ey); ctx.lineTo(ex + baseR + 5, ey);
+  ctx.moveTo(ex, ey - baseR - 5); ctx.lineTo(ex, ey + baseR + 5);
+  ctx.stroke();
+
+  // Label — kept short so it never clips the canvas right edge when scaled
+  ctx.fillStyle = '#9fb0d6'; ctx.font = fs(8) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('END VIEW (tol ×' + k.toFixed(1) + ')', ex, ey + backR + 6);
+  if (!COMPACT) ctx.fillText('solid = max · dashed = min', ex, ey + backR + 6 + Number(fs(11)));
+
+  ctx.restore();
+}
+
+// ── Classical Equation Overlay (G5) — Pattern 3 ────────────────────
+function drawEquationOverlay(res) {
+  ctx.save();
+  // Bottom-left placement — fills the area below the section view and stays
+  // clear of the page's fixed brand logo (which overlaps the canvas top-left).
+  const xStart = 20;
+  const yTop = H - 52;
+  const sVar = 13, sVal = 10, sEq = 14;
+
+  const varF = 'italic 700 ' + sVar + 'px "Cambria Math","Times New Roman",serif';
+  const valF = '600 ' + sVal + 'px "JetBrains Mono","Courier New",monospace';
+  const eqF  = '700 ' + sEq  + 'px "Cambria Math","Times New Roman",serif';
+
+  ctx.textBaseline = 'middle';
+  // Compose two stacked lines:  C_max = ES − ei       (top)
+  //                             C_min = EI − es       (bottom)
+  // Colours from variable family
+  const C_C = res.fitType === 'interference' ? COL.interference : COL.clearance;
+  const eqColor = COL.eq_EQ;
+
+  function pieceWidth(parts) {
+    let w = 0;
+    parts.forEach(p => { ctx.font = p.f; w += ctx.measureText(p.t).width; });
+    return w;
+  }
+  const topParts = [
+    { t: 'C', f: varF, c: C_C },
+    { t: 'ₘₐₓ ', f: '700 ' + (sVar*0.7) + 'px sans-serif', c: C_C },
+    { t: ' = ', f: eqF, c: eqColor },
+    { t: 'ES', f: varF, c: COL.hole },
+    { t: ' − ', f: eqF, c: eqColor },
+    { t: 'ei', f: varF, c: COL.shaft },
+    { t: ' = ' + fmtSign(res.ES) + ' − (' + fmtSign(res.ei) + ') = ', f: valF, c: '#e8eef9' },
+    { t: fmtDev(res.ES - res.ei) + ' ' + uDevLabel(), f: '700 ' + (sVal+1) + 'px monospace', c: C_C },
+  ];
+  const botParts = [
+    { t: 'C', f: varF, c: C_C },
+    { t: 'ₘᵢₙ ', f: '700 ' + (sVar*0.7) + 'px sans-serif', c: C_C },
+    { t: ' = ', f: eqF, c: eqColor },
+    { t: 'EI', f: varF, c: COL.hole },
+    { t: ' − ', f: eqF, c: eqColor },
+    { t: 'es', f: varF, c: COL.shaft },
+    { t: ' = ' + fmtSign(res.EI) + ' − (' + fmtSign(res.es) + ') = ', f: valF, c: '#e8eef9' },
+    { t: fmtDev(res.EI - res.es) + ' ' + uDevLabel(), f: '700 ' + (sVal+1) + 'px monospace', c: C_C },
+  ];
+
+  function draw(parts, y) {
+    let x = xStart;
+    parts.forEach(p => {
+      ctx.font = p.f; ctx.fillStyle = p.c; ctx.textAlign = 'left';
+      ctx.fillText(p.t, x, y);
+      x += ctx.measureText(p.t).width;
+    });
+  }
+  // Subtle backing chip so text reads on hatched background
+  const maxW = Math.max(pieceWidth(topParts), pieceWidth(botParts));
+  ctx.fillStyle = 'rgba(13,17,23,0.55)';
+  ctx.fillRect(xStart - 8, yTop - 14, maxW + 16, 38);
+  ctx.strokeStyle = 'rgba(139,157,195,0.25)'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(xStart - 8, yTop - 14, maxW + 16, 38);
+  draw(topParts, yTop);
+  draw(botParts, yTop + 16);
+  ctx.restore();
+}
+
+// ── Tolerance Zone Chart (G3) — classical deviation-vs-zero diagram ─
+function drawToleranceZoneChart(res) {
+  if (!tzcCtx) return;
+  const c = tzcCtx;
+  drawSceneBackground(c, TZW, TZH, TZW / 2, TZH / 2 + 10);
+  if (!res) return;
+
+  // Zero line position
+  const zeroY = TZH / 2 + 10;
+  const padL = 80, padR = 80;
+  const chartW = TZW - padL - padR;
+  const halfRange = Math.max(Math.abs(res.ES), Math.abs(res.EI), Math.abs(res.es), Math.abs(res.ei), 20) * 1.3;
+  // pixel per μm
+  const k = Math.min((TZH / 2 - 30) / halfRange, 4);
+
+  // Halo helper — dark outline so light text reads over the white zero line.
+  function haloText(txt, x, y) {
+    c.save();
+    c.shadowColor = 'rgba(13,17,23,0.95)'; c.shadowBlur = 3;
+    c.lineWidth = 2.5; c.strokeStyle = 'rgba(13,17,23,0.9)';
+    c.strokeText(txt, x, y);
+    c.shadowBlur = 0;
+    c.restore();
+    c.fillText(txt, x, y);
+  }
+
+  // Title
+  c.fillStyle = '#e8eef9'; c.font = 'bold ' + ts(13) + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  const tzSizeLbl = (res.standard === 'ANSI') ? ('Ø' + res.sizeInch + ' in') : ('Ø' + res.size + ' mm');
+  c.fillText('Tolerance Zone Diagram — deviations from basic size (' + tzSizeLbl + ')', TZW / 2, 8);
+
+  // Scale bar on left (μm)
+  c.strokeStyle = 'rgba(255,255,255,0.1)';
+  c.lineWidth = 0.5;
+  // Grid step chosen in DISPLAY units (thou under ANSI) so labels stay round.
+  const grid = imperial ? niceStep(halfRange * UM_TO_THOU) / UM_TO_THOU : niceStep(halfRange);
+  c.font = ts(9) + 'px sans-serif'; c.fillStyle = '#7a8aa5';
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (let v = -Math.floor(halfRange / grid) * grid; v <= halfRange; v += grid) {
+    const y = zeroY - v * k;
+    c.beginPath(); c.moveTo(padL, y); c.lineTo(TZW - padR, y); c.stroke();
+    if (Math.abs(v) > 1e-6) c.fillText(fmtDev(v), padL - 6, y);  // skip 0 — drawn by zero line
+  }
+
+  // Zero line — bold
+  c.strokeStyle = '#fff'; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(padL - 8, zeroY); c.lineTo(TZW - padR + 8, zeroY); c.stroke();
+  c.fillStyle = '#fff'; c.font = 'bold ' + ts(10) + 'px sans-serif';
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  c.fillText('0 (basic)', padL - 12, zeroY);
+
+  // Units label
+  c.fillStyle = '#7a8aa5'; c.font = ts(9) + 'px sans-serif';
+  c.textAlign = 'left';
+  c.fillText(uDevLabel(), 8, zeroY);
+
+  // Direction hints — clarify ISO sign convention near the right edge
+  c.fillStyle = '#9fb0d6'; c.font = 'italic ' + ts(9.5) + 'px sans-serif';
+  c.textAlign = 'right'; c.textBaseline = 'top';
+  c.fillText('↑ + (larger than basic)', TZW - padR + 8, TZH - 40);
+  c.textBaseline = 'bottom';
+  c.fillText('↓ − (smaller than basic)', TZW - padR + 8, TZH - 8);
+
+  // Hole band
+  const holeX = padL + chartW * 0.30, holeW = chartW * 0.18;
+  const yHoleTop = zeroY - res.ES * k;
+  const yHoleBot = zeroY - res.EI * k;
+  c.fillStyle = withAlpha(COL.hole, 0.28);
+  c.fillRect(holeX, Math.min(yHoleTop, yHoleBot), holeW, Math.abs(yHoleBot - yHoleTop));
+  c.strokeStyle = COL.hole; c.lineWidth = 1.4;
+  c.strokeRect(holeX, Math.min(yHoleTop, yHoleBot), holeW, Math.abs(yHoleBot - yHoleTop));
+  c.fillStyle = COL.hole; c.font = 'bold ' + ts(11) + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'bottom';
+  const holeBandLbl = (res.standard === 'ANSI') ? 'HOLE ' + (res.ansiClass || state.fitClass) : 'HOLE ' + state.holeLetter + state.holeGrade;
+  c.fillText(holeBandLbl, holeX + holeW / 2, Math.min(yHoleTop, yHoleBot) - 6);
+  // ES/EI labels with arrows — halo so they read where they cross the zero line
+  c.font = ts(10) + 'px "Cambria Math",serif'; c.textBaseline = 'middle';
+  c.textAlign = 'right'; c.fillStyle = COL.hole;
+  haloText('ES = ' + fmtSign(res.ES) + ' ' + uDevLabel(), holeX - 8, yHoleTop);
+  haloText('EI = ' + fmtSign(res.EI) + ' ' + uDevLabel(), holeX - 8, yHoleBot);
+  // Tick lines
+  c.strokeStyle = COL.hole; c.lineWidth = 0.5; c.setLineDash([3,2]);
+  c.beginPath(); c.moveTo(holeX - 6, yHoleTop); c.lineTo(holeX, yHoleTop); c.stroke();
+  c.beginPath(); c.moveTo(holeX - 6, yHoleBot); c.lineTo(holeX, yHoleBot); c.stroke();
+  c.setLineDash([]);
+
+  // Shaft band
+  const shaftX = padL + chartW * 0.55, shaftW = chartW * 0.18;
+  const yShaftTop = zeroY - res.es * k;
+  const yShaftBot = zeroY - res.ei * k;
+  c.fillStyle = withAlpha(COL.shaft, 0.32);
+  c.fillRect(shaftX, Math.min(yShaftTop, yShaftBot), shaftW, Math.abs(yShaftBot - yShaftTop));
+  c.strokeStyle = COL.shaft; c.lineWidth = 1.4;
+  c.strokeRect(shaftX, Math.min(yShaftTop, yShaftBot), shaftW, Math.abs(yShaftBot - yShaftTop));
+  c.fillStyle = COL.shaft; c.font = 'bold ' + ts(11) + 'px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  const shaftBandLbl = (res.standard === 'ANSI') ? 'SHAFT ' + (res.ansiClass || state.fitClass) : 'SHAFT ' + state.shaftLetter + state.shaftGrade;
+  c.fillText(shaftBandLbl, shaftX + shaftW / 2, Math.max(yShaftTop, yShaftBot) + 6);
+  c.font = ts(10) + 'px "Cambria Math",serif'; c.textBaseline = 'middle';
+  c.textAlign = 'left'; c.fillStyle = COL.shaft;
+  haloText('es = ' + fmtSign(res.es) + ' ' + uDevLabel(), shaftX + shaftW + 8, yShaftTop);
+  haloText('ei = ' + fmtSign(res.ei) + ' ' + uDevLabel(), shaftX + shaftW + 8, yShaftBot);
+  c.strokeStyle = COL.shaft; c.lineWidth = 0.5; c.setLineDash([3,2]);
+  c.beginPath(); c.moveTo(shaftX + shaftW, yShaftTop); c.lineTo(shaftX + shaftW + 6, yShaftTop); c.stroke();
+  c.beginPath(); c.moveTo(shaftX + shaftW, yShaftBot); c.lineTo(shaftX + shaftW + 6, yShaftBot); c.stroke();
+  c.setLineDash([]);
+
+  // Fit-relationship bracket on the right
+  const fitCol = COL[res.fitType] || COL.clearance;
+  const brX = padL + chartW * 0.86;
+  // Show max clearance/interference = ES − ei (top), min = EI − es (bottom)
+  const yTopFit = Math.min(yHoleTop, yShaftBot);
+  const yBotFit = Math.max(yHoleBot, yShaftTop);
+  c.strokeStyle = fitCol; c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(brX, yTopFit); c.lineTo(brX + 10, yTopFit);
+  c.lineTo(brX + 10, yBotFit); c.lineTo(brX, yBotFit);
+  c.stroke();
+  c.fillStyle = fitCol; c.font = 'bold ' + ts(11) + 'px sans-serif';
+  c.textAlign = 'left'; c.textBaseline = 'middle';
+  const fitLabel = res.fitType.charAt(0).toUpperCase() + res.fitType.slice(1) + ' Fit';
+  c.fillText(fitLabel, brX + 14, (yTopFit + yBotFit) / 2);
+  c.font = ts(9) + 'px "JetBrains Mono",monospace'; c.fillStyle = '#cfd6e4';
+  if (res.fitType === 'clearance') {
+    c.fillText('C_max = ' + fmtDev(res.ES - res.ei) + ' ' + uDevLabel(), brX + 14, (yTopFit + yBotFit) / 2 + 14);
+    c.fillText('C_min = ' + fmtDev(res.EI - res.es) + ' ' + uDevLabel(), brX + 14, (yTopFit + yBotFit) / 2 + 26);
+  } else if (res.fitType === 'interference') {
+    c.fillText('I_max = ' + fmtDev(Math.abs(res.EI - res.es)) + ' ' + uDevLabel(), brX + 14, (yTopFit + yBotFit) / 2 + 14);
+    c.fillText('I_min = ' + fmtDev(Math.abs(res.ES - res.ei)) + ' ' + uDevLabel(), brX + 14, (yTopFit + yBotFit) / 2 + 26);
+  } else {
+    c.fillText('C_max = ' + fmtDev(res.ES - res.ei) + ' ' + uDevLabel(), brX + 14, (yTopFit + yBotFit) / 2 + 14);
+    c.fillText('I_max = ' + fmtDev(Math.abs(res.EI - res.es)) + ' ' + uDevLabel(), brX + 14, (yTopFit + yBotFit) / 2 + 26);
+  }
+
+  // Axis label (deviation, μm)
+  c.save();
+  c.translate(12, TZH / 2);
+  c.rotate(-Math.PI / 2);
+  c.fillStyle = '#9fb0d6'; c.font = ts(10) + 'px sans-serif';
+  c.textAlign = 'center';
+  c.fillText('Deviation (' + uDevLabel() + ')', 0, 0);
+  c.restore();
+}
+
+function niceStep(range) {
+  const target = range / 5;
+  const pow = Math.pow(10, Math.floor(Math.log10(target)));
+  const norm = target / pow;
+  let nice;
+  if (norm < 1.5) nice = 1;
+  else if (norm < 3) nice = 2;
+  else if (norm < 7) nice = 5;
+  else nice = 10;
+  return nice * pow;
+}
+
+// ── Learn Mode Drawing (kept from original; simplified entry) ──────
+const LESSONS = [
+  {
+    title: 'What is Tolerance?',
+    body: `<p>In manufacturing, it is <strong>impossible</strong> to make a part at an exact size. Every machined part has slight variations.</p>
+<p><strong>Tolerance</strong> is the <strong>permissible variation</strong> in the size of a part.</p>
+<ul>
+  <li><strong>Basic Size</strong> — the nominal (designed) dimension, e.g. Ø50 mm</li>
+  <li><strong>Upper Limit</strong> — the maximum allowed size</li>
+  <li><strong>Lower Limit</strong> — the minimum allowed size</li>
+  <li><strong>Tolerance = Upper Limit − Lower Limit</strong></li>
+</ul>
+<p>Example: A shaft with Ø50 mm basic size, upper limit 50.025, lower limit 50.000 has a tolerance of <strong>0.025 mm (25 µm)</strong>.</p>`
+  },
+  {
+    title: 'Types of Tolerances',
+    body: `<p>Three common notations:</p>
+<p><strong>Unilateral</strong> — variation in one direction only.</p>
+<p><strong>Bilateral</strong> — variation in both directions.</p>
+<p><strong>Limit Dimension</strong> — explicit max and min sizes.</p>
+<p>In <strong>ISO 286</strong>, tolerances are specified using <strong>letter codes</strong> (position) and <strong>IT grades</strong> (magnitude).</p>`
+  },
+  {
+    title: 'What is a Fit?',
+    body: `<p>A <strong>fit</strong> describes the relationship between a <span class="lb-key lb-hole">Hole</span> and a <span class="lb-key lb-shaft">Shaft</span> assembled together.</p>
+<ul>
+  <li>Hole always larger than shaft → <span class="lb-key lb-cl">Clearance Fit</span></li>
+  <li>Shaft always larger than hole → <span class="lb-key lb-int">Interference Fit</span></li>
+  <li>Could go either way → <span class="lb-key lb-tr">Transition Fit</span></li>
+</ul>
+<p>Drag the shaft on the canvas to see how it slides in or out!</p>`
+  },
+  {
+    title: 'Three Types of Fits',
+    body: `<p><span class="lb-key lb-cl">Clearance Fit</span> — shaft always smaller than hole. Used for rotating parts, bearings, sliding mechanisms.</p>
+<p><span class="lb-key lb-int">Interference Fit</span> — shaft always larger than hole; press or force required. Used for permanent assemblies, press-fit bearings, dowel pins.</p>
+<p><span class="lb-key lb-tr">Transition Fit</span> — may yield slight clearance OR slight interference. Used for accurate locational fits.</p>`
+  },
+  {
+    title: 'Reading ISO 286 Designations',
+    body: `<p>An ISO 286 designation looks like:</p>
+<p style="text-align:center;font-family:monospace;font-size:1.3rem;font-weight:700;color:#fff;margin:10px 0;">Ø50 H7 / g6</p>
+<ul>
+  <li><strong>Ø50</strong> — Basic size (50 mm diameter)</li>
+  <li><strong>H7</strong> — Hole letter + IT grade</li>
+  <li><strong>g6</strong> — Shaft letter + IT grade</li>
+</ul>
+<p><strong>Capital letters</strong> (A–Z) for <span class="lb-key lb-hole">holes</span>; lowercase (a–z) for <span class="lb-key lb-shaft">shafts</span>.</p>
+<p>Letters before h (c, d, e, f, g) → <strong>clearance</strong>. Letters after h (k, m, n, p, r, s) → <strong>transition / interference</strong>.</p>`
+  },
+  {
+    title: 'Δ (Delta) Correction — Transition / Interference Holes',
+    body: `<p>Hole letters split into two families:</p>
+<ul>
+  <li><strong>A–H</strong> (clearance side): <code>ES = EI + IT</code> (no correction)</li>
+  <li><strong>K, M, N</strong> (transition) at IT ≤ 8 and <strong>P–ZC</strong> (interference) at IT ≤ 7 use a <strong>Δ correction</strong> per ISO 286-1:</li>
+</ul>
+<p style="text-align:center;font-family:monospace;font-size:1.05rem;font-weight:700;color:#fff;margin:8px 0;">ES = −ei + Δ, &nbsp; Δ = IT<sub>n</sub> − IT<sub>n−1</sub></p>
+<p><strong>Worked example — Hole M7 at Ø50 mm:</strong></p>
+<ul>
+  <li>Shaft m basic deviation: ei = +9 µm (ISO 286-2)</li>
+  <li>IT7 = 25 µm, IT6 = 16 µm → Δ = 9 µm</li>
+  <li>ES = −9 + 9 = <strong>0 µm</strong></li>
+  <li>EI = ES − IT7 = 0 − 25 = <strong>−25 µm</strong></li>
+</ul>
+<p>Without Δ, transition fits would shift unfavourably as the IT grade changed. Special: <strong>N at IT ≥ 9</strong> reverts to ES = 0 regardless.</p>`
+  },
+];
+
+// ANSI/ASME B4.1 orientation lessons (shown when the ANSI standard is active).
+const ANSI_LESSONS = [
+  {
+    title: 'ISO 286 vs ANSI/ASME B4.1',
+    body: `<p>Both standards describe <strong>limits and fits for cylindrical parts</strong> on a <strong>basic-hole system</strong> — but they are <strong>different systems</strong>, not unit conversions of each other.</p>
+<ul>
+  <li><span class="lb-key lb-hole">ISO 286</span> — <strong>metric</strong>. Fits are written as a hole/shaft letter + IT grade, e.g. <code>H7/g6</code>. Values in µm.</li>
+  <li><span class="lb-key lb-shaft">ANSI/ASME B4.1</span> — <strong>inch</strong>. Fits are chosen from named <strong>classes</strong> (RC, LC, LT, LN, FN). Values in thousandths of an inch.</li>
+</ul>
+<p>An inch shop does not "convert" an ISO H7/g6 — it picks the matching B4.1 class. This tool gives you both, each in its own native units.</p>`
+  },
+  {
+    title: 'The Five B4.1 Fit Families',
+    body: `<p>ANSI B4.1 groups all fits into five families, by purpose:</p>
+<ul>
+  <li><strong>RC</strong> — Running &amp; Sliding (clearance): RC1…RC9</li>
+  <li><strong>LC</strong> — Locational Clearance: LC1…LC11</li>
+  <li><strong>LT</strong> — Locational Transition: LT1…LT6</li>
+  <li><strong>LN</strong> — Locational Interference: LN1…LN3</li>
+  <li><strong>FN</strong> — Force &amp; Shrink (interference): FN1…FN5</li>
+</ul>
+<p>A higher number = a looser running fit (RC/LC) or a tighter press (FN). Each class maps approximately to an ISO symbol — e.g. <code>RC4 ≈ H8/f7</code>, <code>FN2 ≈ H7/s6</code>.</p>`
+  },
+  {
+    title: 'Reading a B4.1 Designation',
+    body: `<p>A B4.1 fit is written as a family + class number:</p>
+<p style="text-align:center;font-family:monospace;font-size:1.3rem;font-weight:700;color:#fff;margin:10px 0;">Ø1.00 in &nbsp; RC4</p>
+<ul>
+  <li><strong>Ø1.00 in</strong> — basic size (inches)</li>
+  <li><strong>RC</strong> — fit family (Running &amp; Sliding)</li>
+  <li><strong>4</strong> — class (close running)</li>
+</ul>
+<p>You don't write hole/shaft letters on the drawing — you specify the size limits. The class only selects which row of the B4.1 table to read. The tool shows the ABC-equivalent symbol (e.g. RC4 ≈ H8/f7) for cross-reference.</p>`
+  },
+  {
+    title: 'Three Types of Fit',
+    body: `<p>Just like ISO, every B4.1 fit is one of three kinds — decided by the sign of the clearance:</p>
+<ul>
+  <li><span class="lb-key lb-cl">Clearance</span> — shaft always smaller (RC, LC).</li>
+  <li><span class="lb-key lb-tr">Transition</span> — may clear or interfere (LT).</li>
+  <li><span class="lb-key lb-int">Interference</span> — shaft always larger; press/shrink (LN, FN).</li>
+</ul>
+<p>Min clearance ≥ 0 → clearance; Max clearance ≤ 0 → interference; mixed → transition.</p>`
+  },
+  {
+    title: 'How B4.1 Tables Work',
+    body: `<p>B4.1 is <strong>table-driven</strong> (no IT formula). For a class and inch size range, the standard prints the hole and shaft limits directly, in thousandths of an inch:</p>
+<p style="text-align:center;font-family:monospace;color:#fff;margin:8px 0;">limit of size = basic size + deviation</p>
+<p><strong>Example — RC4 at Ø1.00 in</strong> (0.71–1.19 in range):</p>
+<ul>
+  <li>Hole: +1.2 / 0 thou → 1.0012 / 1.0000 in</li>
+  <li>Shaft: −0.8 / −1.6 thou → 0.9992 / 0.9984 in</li>
+  <li>Clearance 0.8–2.8 thou → <strong>clearance fit</strong></li>
+</ul>
+<p>Switch to <strong>Explore</strong> to try any class, or <strong>Practice / Quiz</strong> to test yourself in inches.</p>`
+  },
+];
+
+function currentLessons() { return state.standard === 'ANSI' ? ANSI_LESSONS : LESSONS; }
+
+function drawLessonView() {
+  // Render a canonical cross-section that matches the current lesson, for the
+  // active standard. Drawing-only state is swapped in then restored.
+  const saved = {
+    basicSize: state.basicSize, holeLetter: state.holeLetter, holeGrade: state.holeGrade,
+    shaftLetter: state.shaftLetter, shaftGrade: state.shaftGrade, fitClass: state.fitClass,
+  };
+  let r;
+  if (state.standard === 'ANSI') {
+    const p = [
+      { cls:'RC4', size:1.0 },  // L1 ISO vs B4.1
+      { cls:'LC2', size:1.0 },  // L2 five families
+      { cls:'RC2', size:1.0 },  // L3 reading a designation
+      { cls:'LT3', size:1.0 },  // L4 three fit types (transition)
+      { cls:'FN2', size:1.0 },  // L5 how tables work (interference)
+    ][state.learnIdx] || { cls:'RC4', size:1.0 };
+    state.basicSize = p.size; state.fitClass = p.cls;
+    r = calcFitANSI(p.size, p.cls);
+  } else {
+    const p = [
+      { h:'H',hg:7,s:'h',sg:6, size:50 },   // L1 What is Tolerance
+      { h:'H',hg:7,s:'js',sg:6, size:50 },  // L2 Types of Tolerances
+      { h:'H',hg:7,s:'g',sg:6, size:50 },   // L3 What is a Fit
+      { h:'H',hg:7,s:'k',sg:6, size:50 },   // L4 Three Types of Fits
+      { h:'H',hg:7,s:'g',sg:6, size:50 },   // L5 Reading ISO 286 designations
+      { h:'M',hg:7,s:'h',sg:6, size:50 },   // L6 Δ correction — M7@50
+    ][state.learnIdx] || { h:'H',hg:7,s:'g',sg:6, size:50 };
+    state.basicSize = p.size; state.holeLetter = p.h; state.holeGrade = p.hg;
+    state.shaftLetter = p.s; state.shaftGrade = p.sg;
+    r = calcFit(p.size, p.h, p.hg, p.s, p.sg);
+  }
+  drawCrossSection(r, true);
+  drawToleranceZoneChart(r);
+  Object.assign(state, saved);
+}
+
+// ── State ──────────────────────────────────────────────────────────
+const state = {
+  standard: 'ISO',          // 'ISO' (286, metric) | 'ANSI' (B4.1, inch) — ANSI engine in progress
+  basicSize: 50,
+  holeLetter: 'H', holeGrade: 7,
+  shaftLetter: 'g', shaftGrade: 6,
+  fitClass: 'RC4',          // active ANSI/ASME B4.1 fit class (used only in ANSI mode)
+  mode: 'explore',
+  result: null,
+  shaftX: 0,
+  learnIdx: 0,
+  pScore: 0, pAttempts: 0, pChecked: false,
+  quizQs: [], quizIdx: 0, quizAnswers: [], quizAnswered: false,
+  // Canvas feature toggles (G6)
+  showDims: true, showEndView: true, showEquation: true,
+  showHatch: true, showFinish: true, showGrid: false,
+};
+
+// ── Undo / Redo (U4) ───────────────────────────────────────────────
+const undoStack = [], redoStack = [];
+function snap() {
+  return {
+    standard: state.standard, fitClass: state.fitClass,
+    basicSize: state.basicSize,
+    holeLetter: state.holeLetter, holeGrade: state.holeGrade,
+    shaftLetter: state.shaftLetter, shaftGrade: state.shaftGrade,
+    sd: state.showDims, sev: state.showEndView, seq: state.showEquation,
+    sh: state.showHatch, sf: state.showFinish, sg: state.showGrid,
+  };
+}
+function loadSnap(s) {
+  if (!s) return;
+  // Restore the standard first (swaps UI controls / units), then override the
+  // fields applyStandard resets — so an undo across an ISO↔ANSI switch lands
+  // on a fully consistent state.
+  if (s.standard && s.standard !== state.standard) applyStandard(s.standard);
+  if (s.fitClass) state.fitClass = s.fitClass;
+  state.basicSize = s.basicSize;
+  state.holeLetter = s.holeLetter; state.holeGrade = s.holeGrade;
+  state.shaftLetter = s.shaftLetter; state.shaftGrade = s.shaftGrade;
+  state.showDims = s.sd; state.showEndView = s.sev; state.showEquation = s.seq;
+  state.showHatch = s.sh; state.showFinish = s.sf; state.showGrid = s.sg;
+  syncSelectorsFromState();
+  syncToggleCheckboxes();
+  render();
+}
+function saveUndo() {
+  undoStack.push(snap());
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack.length = 0;
+}
+function doUndo() { if (!undoStack.length) return; redoStack.push(snap()); loadSnap(undoStack.pop()); }
+function doRedo() { if (!redoStack.length) return; undoStack.push(snap()); loadSnap(redoStack.pop()); }
+
+// ── Rendering ──────────────────────────────────────────────────────
+function recalc() {
+  if (state.standard === 'ANSI') {
+    // ANSI/ASME B4.1 — size held in inches in state.basicSize while ANSI active.
+    state.result = calcFitANSI(state.basicSize, state.fitClass);
+  } else {
+    state.result = calcFit(
+      state.basicSize, state.holeLetter, state.holeGrade,
+      state.shaftLetter, state.shaftGrade
+    );
+  }
+}
+
+function render() {
+  recalc();
+  const r = state.result;
+  if (state.mode === 'learn') {
+    drawLessonView();
+    renderLearn();
+    return;
+  }
+  const showVals = state.mode === 'explore' ||
+    (state.mode === 'practice' && state.pChecked) ||
+    (state.mode === 'quiz' && state.quizAnswered);
+  drawCrossSection(r, showVals);
+  if (showVals) drawToleranceZoneChart(r); else { if (tzcCtx) { tzcCtx.fillStyle = COL.bg; tzcCtx.fillRect(0,0,TZW,TZH); } }
+
+  if (state.mode === 'explore') {
+    renderExplore(r);
+    updateLearnPanels(r);
+  }
+
+  // Animation loop while dragging (for press-fit pulse). Re-enter render()
+  // so the pulse keeps beating even when the pointer is held still; the loop
+  // dies naturally on mouseup (dragging=false → no re-schedule).
+  if (dragging && r && r.fitType === 'interference') {
+    requestAnimationFrame(() => { if (dragging) render(); });
+  }
+}
+
+function renderExplore(r) {
+  $('desig-display').textContent = (state.standard === 'ANSI')
+    ? 'Ø' + state.basicSize + ' in · ' + state.fitClass +
+      ((ANSI_META[state.fitClass] && ANSI_META[state.fitClass].sym) ? ' (' + ANSI_META[state.fitClass].sym + ')' : '') +
+      (r.notTabulated ? ' · ⚠ not tabulated at this size — showing nearest range' : '')
+    : 'Ø' + state.basicSize + ' ' +
+      state.holeLetter + state.holeGrade + ' / ' +
+      state.shaftLetter + state.shaftGrade;
+
+  const badge = $('fit-badge');
+  badge.className = 'fit-badge fit-' + r.fitType;
+  badge.textContent = r.fitType.charAt(0).toUpperCase() + r.fitType.slice(1) + ' Fit';
+
+  $('res-hole-max').textContent = fmt3(r.hMax);
+  $('res-hole-min').textContent = fmt3(r.hMin);
+  $('res-hole-tol').textContent = fmt3(r.hTol / 1000);
+  $('res-hole-es').textContent  = fmtSign(r.ES) + ' ' + uDevLabel();
+  $('res-hole-ei').textContent  = fmtSign(r.EI) + ' ' + uDevLabel();
+
+  $('res-shaft-max').textContent = fmt3(r.sMax);
+  $('res-shaft-min').textContent = fmt3(r.sMin);
+  $('res-shaft-tol').textContent = fmt3(r.sTol / 1000);
+  $('res-shaft-es').textContent  = fmtSign(r.es) + ' ' + uDevLabel();
+  $('res-shaft-ei').textContent  = fmtSign(r.ei) + ' ' + uDevLabel();
+
+  const u = ' ' + uLabel();
+  if (r.fitType === 'clearance') {
+    $('fit-row1-label').textContent = 'Max clearance';
+    $('fit-row1-val').textContent   = fmt3(r.maxCl) + u;
+    $('fit-row2-label').textContent = 'Min clearance';
+    $('fit-row2-val').textContent   = fmt3(r.minCl) + u;
+  } else if (r.fitType === 'interference') {
+    $('fit-row1-label').textContent = 'Max interference';
+    $('fit-row1-val').textContent   = fmt3(Math.abs(r.minCl)) + u;
+    $('fit-row2-label').textContent = 'Min interference';
+    $('fit-row2-val').textContent   = fmt3(Math.abs(r.maxCl)) + u;
+  } else {
+    $('fit-row1-label').textContent = 'Max clearance';
+    $('fit-row1-val').textContent   = fmt3(r.maxCl) + u;
+    $('fit-row2-label').textContent = 'Max interference';
+    $('fit-row2-val').textContent   = fmt3(Math.abs(r.minCl)) + u;
+  }
+
+  renderSteps(r);
+}
+
+function renderStepsANSI(r) {
+  const cls = state.fitClass;
+  const sym = r.ansiSym ? ' ≈ ' + r.ansiSym : '';
+  const fam = (ANSI_META[cls] || {}).fam || '';
+  const lo = r.rangeInch ? r.rangeInch[0] : 0, hi = r.rangeInch ? r.rangeInch[1] : 0;
+  let html = '';
+  html += step(1, 'Find size range (ANSI/ASME B4.1)',
+    `Ø${state.basicSize} in → Range: ${lo}–${hi} in`);
+  html += step(2, `Look up ${cls} limits${sym}`,
+    `<strong>${cls}</strong> (${(ANSI_META[cls]||{}).desc || ''}, ${fam} family) — B4.1 tabulates hole &amp; shaft limits directly on a basic-hole system.<br>` +
+    `Hole: ES = ${fmtSign(r.ES)} ${uDevLabel()}, EI = ${fmtSign(r.EI)} ${uDevLabel()}<br>` +
+    `Shaft: es = ${fmtSign(r.es)} ${uDevLabel()}, ei = ${fmtSign(r.ei)} ${uDevLabel()}`);
+  html += step(3, 'Apply limits to basic size',
+    `Hole: Max = ${state.basicSize} + ${fmt3(r.ES/1000)} = <strong>${fmt3(r.hMax)}</strong> in<br>` +
+    `Hole: Min = ${state.basicSize} + ${fmt3(r.EI/1000)} = <strong>${fmt3(r.hMin)}</strong> in<br>` +
+    `Shaft: Max = ${state.basicSize} + ${fmt3(r.es/1000)} = <strong>${fmt3(r.sMax)}</strong> in<br>` +
+    `Shaft: Min = ${state.basicSize} + ${fmt3(r.ei/1000)} = <strong>${fmt3(r.sMin)}</strong> in`);
+  let fitExpl;
+  if (r.fitType === 'clearance') {
+    fitExpl = `Min clearance = ${fmt3(r.minCl)} in, Max clearance = ${fmt3(r.maxCl)} in → both ≥ 0 → <strong class="fit-clearance">CLEARANCE FIT</strong>`;
+  } else if (r.fitType === 'interference') {
+    fitExpl = `Max interference = ${fmt3(Math.abs(r.minCl))} in, Min interference = ${fmt3(Math.abs(r.maxCl))} in → <strong class="fit-interference">INTERFERENCE FIT</strong>`;
+  } else {
+    fitExpl = `Max clearance = ${fmt3(r.maxCl)} in (+), Min clearance = ${fmt3(r.minCl)} in (−) → mixed sign → <strong class="fit-transition">TRANSITION FIT</strong>`;
+  }
+  html += step(4, 'Determine fit type', fitExpl);
+  $('step-content').innerHTML = html;
+}
+
+function renderSteps(r) {
+  if (state.standard === 'ANSI') { renderStepsANSI(r); return; }
+  const rangeStr = r.range[0] + '–' + r.range[1];
+  const hLetter = state.holeLetter, hG = state.holeGrade;
+  const sLetter = state.shaftLetter, sG = state.shaftGrade;
+
+  let html = '';
+  html += step(1, 'Find size range',
+    `Ø${state.basicSize} mm → Range: ${rangeStr} mm`);
+  html += step(2, 'IT tolerances',
+    `IT${hG} (Hole) = ${r.hTol} µm = ${fmt3(r.hTol/1000)} mm<br>` +
+    `IT${sG} (Shaft) = ${r.sTol} µm = ${fmt3(r.sTol/1000)} mm`);
+
+  let holeExpl;
+  const lcH = hLetter.toLowerCase();
+  const usesDelta =
+    (['k','m','n'].indexOf(lcH) >= 0 && hG <= 8 && hG >= 5) ||
+    (['p','r','s'].indexOf(lcH) >= 0 && hG <= 7 && hG >= 5);
+  if (hLetter === 'H') {
+    holeExpl = `<strong>${hLetter}</strong> → EI = 0 (by definition)<br>` +
+      `ES = EI + IT${hG} = 0 + ${r.hTol} = <strong>${fmtSign(r.ES)} µm</strong>`;
+  } else if (hLetter === 'N' && hG >= 9 && r.ri >= 1) {
+    holeExpl = `<strong>N${hG}</strong> → ES = 0 (ISO 286-1 special rule: N at IT≥9 reverts to ES = 0 for sizes &gt; 3 mm)<br>` +
+      `EI = ES − IT${hG} = 0 − ${r.hTol} = <strong>${fmtSign(r.EI)} µm</strong>`;
+  } else if (usesDelta) {
+    const shaftEi = shaftLowerEi(lcH, r.size, r.ri);
+    const delta = (r.ri >= 1) ? deltaFor(r.ri, hG) : 0;
+    const itBelow = (hG === 5) ? IT4[r.ri] : getIT(r.ri, hG - 1);
+    const deltaLine = (r.ri >= 1)
+      ? `Δ = IT${hG} − IT${hG-1} = ${getIT(r.ri, hG)} − ${itBelow} = <strong>${delta} µm</strong>`
+      : `Δ = 0 <em>(first size range ≤3 mm — no Δ correction per ISO 286-1)</em>`;
+    holeExpl = `<strong>${hLetter}</strong> — transition/interference hole (ISO 286-1)<br>` +
+      `Shaft ${lcH} basic deviation ei = ${fmtSign(shaftEi)} µm (ISO 286-2)<br>` +
+      `${deltaLine}<br>` +
+      `ES = −ei + Δ = ${-shaftEi} + ${delta} = <strong>${fmtSign(r.ES)} µm</strong><br>` +
+      `EI = ES − IT${hG} = ${r.ES} − ${r.hTol} = <strong>${fmtSign(r.EI)} µm</strong>`;
+  } else if (hLetter in SHAFT_UPPER || lcH in SHAFT_UPPER) {
+    // Clearance-side hole letters A–G — EI = −es of corresponding shaft
+    holeExpl = `<strong>${hLetter}</strong> (clearance hole) → EI = −es of shaft ${lcH} = ${fmtSign(r.EI)} µm<br>` +
+      `ES = EI + IT${hG} = ${r.EI} + ${r.hTol} = <strong>${fmtSign(r.ES)} µm</strong>`;
+  } else if (hLetter === 'JS') {
+    holeExpl = `<strong>JS</strong> → Symmetric about zero<br>` +
+      `ES = +IT${hG}/2 = <strong>${fmtSign(r.ES)} µm</strong>; EI = −IT${hG}/2 = <strong>${fmtSign(r.EI)} µm</strong>`;
+  } else {
+    holeExpl = `<strong>${hLetter}</strong> → EI = ${fmtSign(r.EI)} µm<br>` +
+      `ES = EI + IT${hG} = ${r.EI} + ${r.hTol} = <strong>${fmtSign(r.ES)} µm</strong>`;
+  }
+  html += step(3, `Hole ${hLetter}${hG} deviations`, holeExpl);
+
+  let shaftExpl;
+  const kRevert = (sLetter === 'k' && (sG <= 3 || sG >= 8));
+  if (sLetter === 'h') {
+    shaftExpl = `<strong>h</strong> → es = 0 (reference shaft)<br>` +
+      `ei = es − IT${sG} = 0 − ${r.sTol} = <strong>${fmtSign(r.ei)} µm</strong>`;
+  } else if (sLetter in SHAFT_UPPER) {
+    shaftExpl = `<strong>${sLetter}</strong> → es = ${fmtSign(r.es)} µm (ISO 286-2 table)<br>` +
+      `ei = es − IT${sG} = ${r.es} − ${r.sTol} = <strong>${fmtSign(r.ei)} µm</strong>`;
+  } else if (sLetter === 'js') {
+    shaftExpl = `<strong>js</strong> → Symmetric about zero<br>` +
+      `es = +IT${sG}/2 = <strong>${fmtSign(r.es)} µm</strong><br>` +
+      `ei = −IT${sG}/2 = <strong>${fmtSign(r.ei)} µm</strong>`;
+  } else if (kRevert) {
+    shaftExpl = `<strong>${sLetter}${sG}</strong> → ei = 0 ` +
+      `<em>(ISO 286-2 special rule: shaft k reverts to ei = 0 at IT ≤ 3 and IT ≥ 8)</em><br>` +
+      `es = ei + IT${sG} = 0 + ${r.sTol} = <strong>${fmtSign(r.es)} µm</strong>`;
+  } else {
+    shaftExpl = `<strong>${sLetter}</strong> → ei = ${fmtSign(r.ei)} µm (ISO 286-2 table)<br>` +
+      `es = ei + IT${sG} = ${r.ei} + ${r.sTol} = <strong>${fmtSign(r.es)} µm</strong>`;
+  }
+  html += step(4, `Shaft ${sLetter}${sG} deviations`, shaftExpl);
+
+  html += step(5, 'Calculate limits',
+    `Hole: Max = ${state.basicSize} + ${fmt3(r.ES/1000)} = <strong>${fmt3(r.hMax)}</strong> mm<br>` +
+    `Hole: Min = ${state.basicSize} + ${fmt3(r.EI/1000)} = <strong>${fmt3(r.hMin)}</strong> mm<br>` +
+    `Shaft: Max = ${state.basicSize} + ${fmt3(r.es/1000)} = <strong>${fmt3(r.sMax)}</strong> mm<br>` +
+    `Shaft: Min = ${state.basicSize} + ${fmt3(r.ei/1000)} = <strong>${fmt3(r.sMin)}</strong> mm`);
+
+  let fitExpl;
+  if (r.fitType === 'clearance') {
+    fitExpl = `Min clearance = Hole min − Shaft max = ${fmt3(r.hMin)} − ${fmt3(r.sMax)} = <strong>${fmt3(r.minCl)} mm</strong><br>` +
+      `Max clearance = Hole max − Shaft min = ${fmt3(r.hMax)} − ${fmt3(r.sMin)} = <strong>${fmt3(r.maxCl)} mm</strong><br>` +
+      `Both positive → <strong class="fit-clearance">CLEARANCE FIT</strong>`;
+  } else if (r.fitType === 'interference') {
+    fitExpl = `Max interference = Shaft max − Hole min = ${fmt3(r.sMax)} − ${fmt3(r.hMin)} = <strong>${fmt3(Math.abs(r.minCl))} mm</strong><br>` +
+      `Min interference = Shaft min − Hole max = ${fmt3(r.sMin)} − ${fmt3(r.hMax)} = <strong>${fmt3(Math.abs(r.maxCl))} mm</strong><br>` +
+      `Both negative → <strong class="fit-interference">INTERFERENCE FIT</strong>`;
+  } else {
+    fitExpl = `Max clearance = ${fmt3(r.hMax)} − ${fmt3(r.sMin)} = <strong>${fmt3(r.maxCl)} mm</strong> (positive)<br>` +
+      `Min clearance = ${fmt3(r.hMin)} − ${fmt3(r.sMax)} = <strong>${fmt3(r.minCl)} mm</strong> (negative)<br>` +
+      `Mixed sign → <strong class="fit-transition">TRANSITION FIT</strong>`;
+  }
+  html += step(6, 'Determine fit type', fitExpl);
+
+  $('step-content').innerHTML = html;
+}
+
+function step(n, title, body) {
+  return `<div class="calc-step"><div class="cs-num">${n}</div><div class="cs-body"><div class="cs-title">${title}</div><div class="cs-text">${body}</div></div></div>`;
+}
+
+// ── Learning Panels — Live equations + Coach (KaTeX) ───────────────
+const _learnCache = { eq: '', coach: '' };
+function updateLearnPanels(r) {
+  const eqBody = $('lp-eq-body');
+  if (eqBody) {
+    const uD = imperial ? '\\mathrm{thou}' : '\\mu\\mathrm{m}';
+    const uL = imperial ? '\\mathrm{in}' : '\\mathrm{mm}';
+    let html = '';
+    html += '<div class="eq-line">\\[ D_{\\max} = D + ES, \\quad D_{\\min} = D + EI \\]</div>';
+    html += '<div class="eq-line">\\[ d_{\\max} = D + es, \\quad d_{\\min} = D + ei \\]</div>';
+    const holeLbl = (state.standard === 'ANSI') ? state.fitClass + ' hole' : 'Hole ' + state.holeLetter + state.holeGrade;
+    const shaftLbl = (state.standard === 'ANSI') ? state.fitClass + ' shaft' : 'Shaft ' + state.shaftLetter + state.shaftGrade;
+    html += '<div class="eq-line"><strong>'+holeLbl+':</strong> \\(D_{\\max} = '+state.basicSize+' + ('+fmt3(r.ES/1000)+') = \\mathbf{'+fmt3(r.hMax)+'\\;'+uL+'}\\)</div>';
+    html += '<div class="eq-line"><strong>'+shaftLbl+':</strong> \\(d_{\\min} = '+state.basicSize+' + ('+fmt3(r.ei/1000)+') = \\mathbf{'+fmt3(r.sMin)+'\\;'+uL+'}\\)</div>';
+    html += '<div class="eq-line">\\[ C_{\\max} = ES - ei = '+fmtDev(r.ES)+' - ('+fmtDev(r.ei)+') = \\mathbf{'+fmtDev(r.ES - r.ei)+'\\;'+uD+'} \\]</div>';
+    html += '<div class="eq-line">\\[ C_{\\min} = EI - es = '+fmtDev(r.EI)+' - ('+fmtDev(r.es)+') = \\mathbf{'+fmtDev(r.EI - r.es)+'\\;'+uD+'} \\]</div>';
+    if (html !== _learnCache.eq) { eqBody.innerHTML = html; _learnCache.eq = html; }
+  }
+
+  const coachBody = $('lp-coach-body');
+  if (coachBody) {
+    let bullets = '';
+    if (state.standard === 'ANSI') {
+      const m = ANSI_META[state.fitClass] || {};
+      bullets += '<li><strong>'+state.fitClass+'</strong> — '+(m.desc||'')+' ('+(m.fam||'')+' family)'+(m.sym?'; ABC ≈ '+m.sym:'')+'.</li>';
+      bullets += '<li>ANSI/ASME B4.1, inch, basic-hole system; limits read directly from the standard table.</li>';
+    } else {
+    const proc = PROCESS_BY_IT[state.holeGrade] || 'standard machining';
+    const procS = PROCESS_BY_IT[state.shaftGrade] || 'standard machining';
+    const ra = RA_BY_IT[state.holeGrade] || 1.6;
+    const raS = RA_BY_IT[state.shaftGrade] || 1.6;
+    bullets += '<li><strong>Hole IT'+state.holeGrade+':</strong> typical process — '+proc+'; Ra ≈ '+ra+' µm</li>';
+    bullets += '<li><strong>Shaft IT'+state.shaftGrade+':</strong> typical process — '+procS+'; Ra ≈ '+raS+' µm</li>';
+    }
+    if (r.fitType === 'clearance') {
+      bullets += '<li>Clearance range '+fmt3(r.minCl)+'–'+fmt3(r.maxCl)+' '+uLabel()+' → free rotation/sliding possible.</li>';
+    } else if (r.fitType === 'interference') {
+      bullets += '<li>Interference '+fmt3(Math.abs(r.maxCl))+'–'+fmt3(Math.abs(r.minCl))+' '+uLabel()+' → press or shrink fit required.</li>';
+      bullets += '<li>Estimate radial pressure with Lamé equations; verify hoop stress ≤ yield.</li>';
+    } else {
+      bullets += '<li>Transition: may be either clearance ('+fmt3(r.maxCl)+') or interference ('+fmt3(Math.abs(r.minCl))+') depending on actuals.</li>';
+      bullets += '<li>Best for accurate location with light tap to assemble.</li>';
+    }
+    const html = '<ul class="coach-list">'+bullets+'</ul>';
+    if (html !== _learnCache.coach) { coachBody.innerHTML = html; _learnCache.coach = html; }
+  }
+}
+
+// ── Show Calculation Modal (P2) — KaTeX-rich ───────────────────────
+function calcStep(num, title, formula, calculation, result) {
+  let html = '<div class="cs-step">';
+  html += '<div class="cs-step-hd"><span class="cs-num-pill">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+  if (formula)     html += '<div class="cs-formula">' + formula + '</div>';
+  if (calculation) html += '<div class="cs-calc">' + calculation + '</div>';
+  if (result != null) html += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+  html += '</div>';
+  return html;
+}
+
+function buildCalcStepsANSI(r) {
+  const cls = state.fitClass, m = ANSI_META[cls] || {};
+  const lo = r.rangeInch ? r.rangeInch[0] : 0, hi = r.rangeInch ? r.rangeInch[1] : 0;
+  let html = '';
+  html += '<div class="cs-inputs"><span class="cs-badge">Given — ANSI/ASME B4.1</span>';
+  html += '<div class="cs-given">';
+  html += '<span>D = ' + state.basicSize + ' in</span>';
+  html += '<span>Class: ' + cls + (m.sym ? ' (' + m.sym + ')' : '') + '</span>';
+  html += '<span>' + (m.desc || '') + '</span>';
+  html += '<span>Range: ' + lo + '–' + hi + ' in</span>';
+  html += '</div>';
+  html += '<p class="cs-si-note">ℹ ANSI B4.1 is inch / basic-hole. Limits are tabulated directly (thousandths of an inch).</p></div>';
+
+  html += calcStep(1, 'Size range (ANSI/ASME B4.1)',
+    '\\[ ' + lo + ' < D \\le ' + hi + '\\ \\mathrm{in} \\]',
+    'Basic size \\(D = ' + state.basicSize + '\\;\\mathrm{in}\\) falls in the ' + lo + '–' + hi + ' in range.',
+    lo + '–' + hi + ' in');
+  html += calcStep(2, 'Table limits for ' + cls,
+    '\\[ \\text{hole } ES/EI,\\ \\text{shaft } es/ei\\ \\text{(B4.1 table)} \\]',
+    'Hole \\(ES = ' + fmtSign(r.ES) + '\\;\\mathrm{thou},\\ EI = ' + fmtSign(r.EI) + '\\;\\mathrm{thou}\\)<br>' +
+    'Shaft \\(es = ' + fmtSign(r.es) + '\\;\\mathrm{thou},\\ ei = ' + fmtSign(r.ei) + '\\;\\mathrm{thou}\\)',
+    fmtSign(r.ES) + '/' + fmtSign(r.EI) + ' · ' + fmtSign(r.es) + '/' + fmtSign(r.ei) + ' thou');
+  html += calcStep(3, 'Limits of size',
+    '\\[ D_{\\max}=D+ES,\\ D_{\\min}=D+EI,\\ d_{\\max}=D+es,\\ d_{\\min}=D+ei \\]',
+    'Hole \\(' + fmt3(r.hMin) + '\\) / \\(' + fmt3(r.hMax) + '\\) in<br>Shaft \\(' + fmt3(r.sMin) + '\\) / \\(' + fmt3(r.sMax) + '\\) in',
+    'Hole ' + fmt3(r.hMin) + '/' + fmt3(r.hMax) + ' in, Shaft ' + fmt3(r.sMin) + '/' + fmt3(r.sMax) + ' in');
+  const cls2 = r.fitType === 'clearance' ? 'C_{\\min}\\ge 0 → CLEARANCE'
+    : r.fitType === 'interference' ? 'C_{\\max}\\le 0 → INTERFERENCE' : 'mixed → TRANSITION';
+  html += calcStep(4, 'Classify the fit',
+    '\\[ C_{\\max}=ES-ei,\\quad C_{\\min}=EI-es \\]',
+    '\\(C_{\\max} = ' + fmtDev(r.ES - r.ei) + '\\;\\mathrm{thou},\\ C_{\\min} = ' + fmtDev(r.EI - r.es) + '\\;\\mathrm{thou}\\) — ' + cls2,
+    r.fitType.toUpperCase() + ' FIT');
+  return html;
+}
+
+function buildCalcSteps() {
+  const r = state.result || (recalc(), state.result);
+  if (state.standard === 'ANSI') return buildCalcStepsANSI(r);
+  const uD = imperial ? '\\mathrm{thou}' : '\\mu\\mathrm{m}';
+  const uL = imperial ? '\\mathrm{in}' : '\\mathrm{mm}';
+  let html = '';
+  html += '<div class="cs-inputs"><span class="cs-badge">Given — Current State</span>';
+  html += '<div class="cs-given">';
+  html += '<span>D = ' + state.basicSize + ' mm</span>';
+  html += '<span>Hole: ' + state.holeLetter + state.holeGrade + '</span>';
+  html += '<span>Shaft: ' + state.shaftLetter + state.shaftGrade + '</span>';
+  html += '<span>Range: ' + r.range[0] + '–' + r.range[1] + ' mm</span>';
+  html += '</div>';
+  html += '<p class="cs-si-note">ℹ Internal calculations in SI (mm / µm). Display follows the unit toggle.</p></div>';
+
+  html += calcStep(1, 'Size range from ISO 286-1',
+    '\\[ ' + r.range[0] + ' < D \\le ' + r.range[1] + ' \\]',
+    'Basic size \\(D = ' + state.basicSize + '\\;\\mathrm{mm}\\) falls in range '+r.range[0]+'–'+r.range[1]+' mm.',
+    'Range '+r.range[0]+'–'+r.range[1]+' mm');
+
+  html += calcStep(2, 'IT grade tolerances',
+    '\\[ IT_{n} = \\text{table lookup (ISO 286-1)} \\]',
+    '\\(IT'+state.holeGrade+' = '+r.hTol+'\\;'+uD+'\\), \\(IT'+state.shaftGrade+' = '+r.sTol+'\\;'+uD+'\\)',
+    'Hole tol = '+r.hTol+' µm, Shaft tol = '+r.sTol+' µm');
+
+  const _L = state.holeLetter, _G = state.holeGrade;
+  const _lc = _L.toLowerCase();
+  const _usesDelta =
+    (['k','m','n'].indexOf(_lc) >= 0 && _G <= 8 && _G >= 5) ||
+    (['p','r','s'].indexOf(_lc) >= 0 && _G <= 7 && _G >= 5);
+  let _holeFormula, _holeCalc;
+  if (_L === 'H') {
+    _holeFormula = '\\[ EI = 0,\\quad ES = EI + IT'+_G+' \\]';
+    _holeCalc = '\\(ES = '+fmtSign(r.ES)+'\\;'+uD+'\\), \\(EI = '+fmtSign(r.EI)+'\\;'+uD+'\\)';
+  } else if (_L === 'N' && _G >= 9 && r.ri >= 1) {
+    _holeFormula = '\\[ ES = 0\\quad\\text{(N at IT}\\ge 9,\\ \\text{sizes} > 3\\,\\mathrm{mm}\\text{ — ISO 286-1)},\\quad EI = ES - IT'+_G+' \\]';
+    _holeCalc = '\\(ES = 0\\;'+uD+',\\;\\; EI = '+fmtSign(r.EI)+'\\;'+uD+'\\)';
+  } else if (_usesDelta) {
+    const _shaftEi = shaftLowerEi(_lc, r.size, r.ri);
+    const _delta = (r.ri >= 1) ? deltaFor(r.ri, _G) : 0;
+    const _itBelow = (_G === 5) ? IT4[r.ri] : getIT(r.ri, _G-1);
+    if (r.ri >= 1) {
+      _holeFormula = '\\[ ES = -ei_{\\,'+_lc+'} + \\Delta,\\quad \\Delta = IT'+_G+' - IT'+(_G-1)+',\\quad EI = ES - IT'+_G+' \\]';
+      _holeCalc = '\\(\\Delta = '+getIT(r.ri,_G)+' - '+_itBelow+' = '+_delta+'\\;'+uD+'\\) <br>'+
+                  '\\(ES = -('+_shaftEi+') + '+_delta+' = '+fmtSign(r.ES)+'\\;'+uD+'\\) <br>'+
+                  '\\(EI = '+r.ES+' - '+r.hTol+' = '+fmtSign(r.EI)+'\\;'+uD+'\\)';
+    } else {
+      _holeFormula = '\\[ ES = -ei_{\\,'+_lc+'}\\quad(\\Delta = 0\\text{ for sizes} \\le 3\\,\\mathrm{mm}),\\quad EI = ES - IT'+_G+' \\]';
+      _holeCalc = '\\(ES = -('+_shaftEi+') = '+fmtSign(r.ES)+'\\;'+uD+'\\),\\;\\; \\(EI = '+fmtSign(r.EI)+'\\;'+uD+'\\)';
+    }
+  } else if (_L === 'JS') {
+    _holeFormula = '\\[ ES = +\\tfrac{IT'+_G+'}{2},\\quad EI = -\\tfrac{IT'+_G+'}{2} \\]';
+    _holeCalc = '\\(ES = '+fmtSign(r.ES)+'\\;'+uD+',\\;\\; EI = '+fmtSign(r.EI)+'\\;'+uD+'\\)';
+  } else {
+    _holeFormula = '\\[ EI = -es_{\\,'+_lc+'},\\quad ES = EI + IT'+_G+' \\]';
+    _holeCalc = '\\(ES = '+fmtSign(r.ES)+'\\;'+uD+'\\), \\(EI = '+fmtSign(r.EI)+'\\;'+uD+'\\)';
+  }
+  html += calcStep(3, 'Hole '+_L+_G+' deviations',
+    _holeFormula, _holeCalc,
+    fmtSign(r.ES)+' / '+fmtSign(r.EI)+' '+uDevLabel());
+
+  html += calcStep(4, 'Shaft '+state.shaftLetter+state.shaftGrade+' deviations',
+    state.shaftLetter === 'h'
+      ? '\\[ es = 0,\\quad ei = es - IT'+state.shaftGrade+' \\]'
+      : (state.shaftLetter in SHAFT_UPPER
+          ? '\\[ es = \\text{table},\\quad ei = es - IT'+state.shaftGrade+' \\]'
+          : '\\[ ei = \\text{table},\\quad es = ei + IT'+state.shaftGrade+' \\]'),
+    '\\(es = '+fmtSign(r.es)+'\\;'+uD+'\\), \\(ei = '+fmtSign(r.ei)+'\\;'+uD+'\\)',
+    fmtSign(r.es)+' / '+fmtSign(r.ei)+' '+uDevLabel());
+
+  html += calcStep(5, 'Limits of size',
+    '\\[ D_{\\max} = D + ES,\\quad D_{\\min} = D + EI \\] \\[ d_{\\max} = D + es,\\quad d_{\\min} = D + ei \\]',
+    '\\(D_{\\max} = '+state.basicSize+' + '+fmt3(r.ES/1000)+' = '+fmt3(r.hMax)+'\\;'+uL+'\\) <br>'+
+    '\\(D_{\\min} = '+state.basicSize+' + '+fmt3(r.EI/1000)+' = '+fmt3(r.hMin)+'\\;'+uL+'\\) <br>'+
+    '\\(d_{\\max} = '+state.basicSize+' + '+fmt3(r.es/1000)+' = '+fmt3(r.sMax)+'\\;'+uL+'\\) <br>'+
+    '\\(d_{\\min} = '+state.basicSize+' + '+fmt3(r.ei/1000)+' = '+fmt3(r.sMin)+'\\;'+uL+'\\)',
+    'Hole '+fmt3(r.hMin)+'/'+fmt3(r.hMax)+' '+uLabel()+', Shaft '+fmt3(r.sMin)+'/'+fmt3(r.sMax)+' '+uLabel());
+
+  html += calcStep(6, 'Fit limits',
+    '\\[ C_{\\max} = ES - ei,\\quad C_{\\min} = EI - es \\]',
+    '\\(C_{\\max} = '+fmtDev(r.ES)+' - ('+fmtDev(r.ei)+') = '+fmtDev(r.ES - r.ei)+'\\;'+uD+'\\) <br>'+
+    '\\(C_{\\min} = '+fmtDev(r.EI)+' - ('+fmtDev(r.es)+') = '+fmtDev(r.EI - r.es)+'\\;'+uD+'\\)',
+    fmt3(r.minCl)+' / '+fmt3(r.maxCl)+' '+uLabel());
+
+  const classRule = r.fitType === 'clearance'
+    ? '\\(C_{\\min} \\ge 0\\) → CLEARANCE fit'
+    : r.fitType === 'interference'
+      ? '\\(C_{\\max} \\le 0\\) → INTERFERENCE fit'
+      : 'mixed sign → TRANSITION fit';
+  html += calcStep(7, 'Classify the fit',
+    '\\[ \\begin{cases} C_{\\min} \\ge 0 & \\text{Clearance} \\\\ C_{\\max} \\le 0 & \\text{Interference} \\\\ \\text{otherwise} & \\text{Transition} \\end{cases} \\]',
+    classRule,
+    r.fitType.toUpperCase() + ' FIT');
+
+  // Real-world context
+  const ra = RA_BY_IT[state.holeGrade] || 1.6;
+  const proc = PROCESS_BY_IT[state.holeGrade] || 'precision turning';
+  html += calcStep(8, 'Manufacturing context',
+    null,
+    'IT'+state.holeGrade+' grade is typically achieved by <em>'+proc+'</em>, surface finish Ra ≈ '+ra+' µm. ' +
+    'For a '+r.fitType+' fit, this combination is suitable for applications like '+
+    (r.fitType === 'clearance' ? 'sliding bearings, free-rotating shafts' :
+     r.fitType === 'interference' ? 'press-fit bushings, gear hubs, permanent assemblies' :
+     'accurately located parts (keyed hubs, coupling halves)') + '.',
+    null);
+
+  return html;
+}
+
+function openCalcModal() {
+  const m = $('calc-modal'), b = $('calc-modal-body');
+  if (!m || !b) return;
+  b.innerHTML = buildCalcSteps();
+  m.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  const cls = $('calc-modal-close'); if (cls) cls.focus();
+}
+function closeCalcModal() {
+  const m = $('calc-modal'); if (!m) return;
+  m.classList.remove('active');
+  document.body.style.overflow = '';
+  const btn = $('btn-calc'); if (btn) btn.focus();
+}
+
+// ── Learn Mode ─────────────────────────────────────────────────────
+function renderLearn() {
+  const lessons = currentLessons();
+  if (state.learnIdx >= lessons.length) state.learnIdx = lessons.length - 1;
+  const lesson = lessons[state.learnIdx];
+  $('learn-title').textContent = lesson.title;
+  $('learn-body').innerHTML = lesson.body;
+  let dots = '';
+  for (let i = 0; i < lessons.length; i++) {
+    dots += `<button class="learn-dot${i === state.learnIdx ? ' active' : ''}" data-idx="${i}"></button>`;
+  }
+  $('learn-dots').innerHTML = dots;
+  $('btn-learn-prev').disabled = state.learnIdx === 0;
+  $('btn-learn-next').disabled = state.learnIdx === lessons.length - 1;
+}
+
+// ── Mode Switching ─────────────────────────────────────────────────
+function setMode(mode) {
+  // All four modes now support both ISO 286 and ANSI/ASME B4.1.
+  // Reset the lesson index when entering Learn so the index is valid for the
+  // active standard's lesson set (the two sets differ in length).
+  if (mode === 'learn') state.learnIdx = 0;
+  state.mode = mode;
+  $('learn-panel').style.display    = mode === 'learn'    ? '' : 'none';
+  $('explore-panel').style.display  = mode === 'explore'  ? '' : 'none';
+  $('practice-panel').style.display = mode === 'practice' ? '' : 'none';
+  $('quiz-panel').style.display     = mode === 'quiz'     ? '' : 'none';
+  $('quiz-result').style.display    = 'none';
+  // In-canvas controls only meaningful in Explore
+  const cc = document.querySelector('.cc-controls');
+  if (cc) cc.style.display = mode === 'explore' ? '' : 'none';
+  $('shaft-btns').style.display = mode !== 'learn' ? '' : 'none';
+  if (mode === 'practice') {
+    state.pChecked = false; newPractice();
+  } else if (mode === 'quiz') {
+    startQuiz();
+  } else {
+    state.shaftX = 0; render();
+  }
+}
+
+// ── Practice / Quiz — standard-aware (ISO 286 or ANSI/ASME B4.1) ────
+// ANSI question pools. Sizes ≥ 0.5 in and FN3 excluded so no class hits a
+// non-tabulated small-size gap (LT3/LT4 ≥ 0.24 in, FN3 ≥ 0.95 in).
+const ANSI_PRACTICE_CLASSES = ['RC2','RC4','RC6','RC8','LC1','LC2','LC5','LC8','LT1','LT3','LT5','LN1','LN2','FN1','FN2','FN4'];
+const ANSI_PRACTICE_SIZES   = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0];
+
+function randomFitQuestion() {
+  if (state.standard === 'ANSI') {
+    const sz  = ANSI_PRACTICE_SIZES[Math.floor(Math.random() * ANSI_PRACTICE_SIZES.length)];
+    const cls = ANSI_PRACTICE_CLASSES[Math.floor(Math.random() * ANSI_PRACTICE_CLASSES.length)];
+    return { standard: 'ANSI', basicSize: sz, fitClass: cls };
+  }
+  const sz  = PRACTICE_SIZES[Math.floor(Math.random() * PRACTICE_SIZES.length)];
+  const fit = PRACTICE_FITS[Math.floor(Math.random() * PRACTICE_FITS.length)];
+  return { standard: 'ISO', basicSize: sz, holeLetter: fit.h, holeGrade: fit.hg,
+           shaftLetter: fit.s, shaftGrade: fit.sg };
+}
+
+// Designation string for a practice/quiz question (handles both standards).
+function questionDesig(q) {
+  if (q.standard === 'ANSI') {
+    const m = ANSI_META[q.fitClass] || {};
+    return 'Ø' + q.basicSize + ' in · ' + q.fitClass + (m.sym ? ' (' + m.sym + ')' : '');
+  }
+  return 'Ø' + q.basicSize + ' ' + q.holeLetter + q.holeGrade + ' / ' + q.shaftLetter + q.shaftGrade;
+}
+
+function newPractice() {
+  const q = randomFitQuestion();
+  state.basicSize = q.basicSize;
+  if (q.standard === 'ANSI') {
+    state.fitClass = q.fitClass;
+  } else {
+    state.holeLetter = q.holeLetter;   state.holeGrade = q.holeGrade;
+    state.shaftLetter = q.shaftLetter; state.shaftGrade = q.shaftGrade;
+  }
+  state.pChecked = false; state.shaftX = 0;
+  syncSelectorsFromState();
+  $('p-question').innerHTML =
+    'Calculate the limits for <strong>' + questionDesig(q) + '</strong>';
+  ['p-hole-max','p-hole-min','p-shaft-max','p-shaft-min'].forEach(id => {
+    $(id).value = ''; $(id).className = 'pi-input';
+  });
+  $('p-fit-type').value = ''; $('p-fit-type').className = 'pi-select';
+  $('p-feedback').innerHTML = ''; $('p-feedback').className = 'feedback';
+  $('btn-p-check').disabled = false;
+  $('p-solution').style.display = 'none';
+  $('p-score').textContent = state.pScore;
+  $('p-attempts').textContent = state.pAttempts;
+  recalc();
+  drawCrossSection(state.result, false);
+}
+
+// Read a number input as mm, converting from inches if imperial toggle is on.
+function readInputMm(elId) {
+  const raw = parseFloat($(elId).value);
+  if (isNaN(raw)) return NaN;
+  return imperial ? raw / MM_TO_IN : raw;
+}
+
+// Proportional tolerance for answer checking (returned in mm). ANSI answers
+// are entered in inches to 4 dp (0.0001 in ≈ 2.5 µm), so allow a wider window
+// there to absorb rounding. ISO: 1 µm for tiny values, 2 µm otherwise.
+function answerTolerance(correctMm) {
+  if (imperial) return 0.003;   // ≈ 0.00012 in
+  return Math.abs(correctMm) < 0.05 ? 0.001 : 0.002;
+}
+
+function checkPractice() {
+  if (state.pChecked) return;
+  state.pChecked = true; state.pAttempts++;
+  const r = state.result;
+  const checks = [
+    { id: 'p-hole-max',  correct: r.hMax },
+    { id: 'p-hole-min',  correct: r.hMin },
+    { id: 'p-shaft-max', correct: r.sMax },
+    { id: 'p-shaft-min', correct: r.sMin },
+  ];
+  let allOk = true;
+  checks.forEach(c => {
+    const val = readInputMm(c.id);
+    const tol = answerTolerance(c.correct);
+    const ok  = !isNaN(val) && Math.abs(val - c.correct) < tol;
+    $(c.id).className = 'pi-input ' + (ok ? 'pi-ok' : 'pi-err');
+    if (!ok) allOk = false;
+  });
+  const fitVal = $('p-fit-type').value;
+  const fitOk  = fitVal === r.fitType;
+  $('p-fit-type').className = 'pi-select ' + (fitOk ? 'pi-ok' : 'pi-err');
+  if (!fitOk) allOk = false;
+  if (allOk) {
+    state.pScore++;
+    $('p-feedback').innerHTML = '✔ Perfect! All values correct.';
+    $('p-feedback').className = 'feedback ok';
+  } else {
+    $('p-feedback').innerHTML = '✘ Some values incorrect. See solution below.';
+    $('p-feedback').className = 'feedback err';
+  }
+  $('p-score').textContent = state.pScore;
+  $('p-attempts').textContent = state.pAttempts;
+  $('btn-p-check').disabled = true;
+  // Only reveal solution panel when answer is imperfect — encourages learners
+  // to derive correct answers themselves first.
+  if (!allOk) {
+    renderPracticeSolution(r);
+    $('p-solution').style.display = '';
+  } else {
+    $('p-solution').style.display = 'none';
+  }
+  render();
+}
+
+function renderPracticeSolution(r) {
+  const fitColors = { clearance: '#3ddc84', transition: '#ffb74d', interference: '#ff5555' };
+  const u = uLabel();
+  let html = '';
+  if (r.standard === 'ANSI') {
+    html += `<div class="sol-row"><span>Class</span><span>${r.ansiClass}${r.ansiSym ? ' ('+r.ansiSym+')' : ''}</span></div>`;
+    html += `<div class="sol-row"><span>Size range</span><span>${r.rangeInch ? r.rangeInch[0]+'–'+r.rangeInch[1] : ''} in</span></div>`;
+    html += `<div class="sol-row"><span>Hole limits</span><span>ES ${fmtSign(r.ES)} / EI ${fmtSign(r.EI)} ${uDevLabel()}</span></div>`;
+    html += `<div class="sol-row"><span>Shaft limits</span><span>es ${fmtSign(r.es)} / ei ${fmtSign(r.ei)} ${uDevLabel()}</span></div>`;
+  } else {
+    const hG = state.holeGrade, sG = state.shaftGrade;
+    html += `<div class="sol-row"><span>Size range</span><span>${r.range[0]}–${r.range[1]} mm</span></div>`;
+    html += `<div class="sol-row"><span>IT${hG} (Hole)</span><span>${r.hTol} µm</span></div>`;
+    html += `<div class="sol-row"><span>IT${sG} (Shaft)</span><span>${r.sTol} µm</span></div>`;
+  }
+  html += `<div class="sol-divider"></div>`;
+  html += `<div class="sol-row"><span>Hole max</span><span><strong>${fmt3(r.hMax)}</strong> ${u}</span></div>`;
+  html += `<div class="sol-row"><span>Hole min</span><span><strong>${fmt3(r.hMin)}</strong> ${u}</span></div>`;
+  html += `<div class="sol-row"><span>Shaft max</span><span><strong>${fmt3(r.sMax)}</strong> ${u}</span></div>`;
+  html += `<div class="sol-row"><span>Shaft min</span><span><strong>${fmt3(r.sMin)}</strong> ${u}</span></div>`;
+  html += `<div class="sol-divider"></div>`;
+  html += `<div class="sol-row"><span>Fit type</span><span style="color:${fitColors[r.fitType]}"><strong>${r.fitType.toUpperCase()}</strong></span></div>`;
+  // Why-this-fit reasoning — make the classification rule visible.
+  const why = (r.minCl >= 0)
+    ? `Min clearance = ${fmt3(r.minCl)} ${u} ≥ 0 → all assemblies have positive clearance → <strong>CLEARANCE</strong>`
+    : (r.maxCl <= 0)
+      ? `Max clearance = ${fmt3(r.maxCl)} ${u} ≤ 0 → all assemblies overlap → <strong>INTERFERENCE</strong>`
+      : `Min clearance (${fmt3(r.minCl)}) &lt; 0 &lt; Max clearance (${fmt3(r.maxCl)}) → assembly may go either way → <strong>TRANSITION</strong>`;
+  html += `<div class="sol-row" style="display:block;padding:8px 0;border-top:1px dashed rgba(255,255,255,0.12);margin-top:6px;"><span style="color:#9fb0d6;font-size:0.85rem;">Why:</span> ${why}</div>`;
+  $('p-solution-content').innerHTML = html;
+}
+
+function startQuiz() {
+  const used = new Set();
+  const qs = [];
+  while (qs.length < QUIZ_TOTAL) {
+    const q = randomFitQuestion();
+    const key = (q.standard === 'ANSI')
+      ? q.basicSize + q.fitClass
+      : q.basicSize + q.shaftLetter + q.shaftGrade;
+    if (used.has(key)) continue;
+    used.add(key);
+    const r = (q.standard === 'ANSI')
+      ? calcFitANSI(q.basicSize, q.fitClass)
+      : calcFit(q.basicSize, q.holeLetter, q.holeGrade, q.shaftLetter, q.shaftGrade);
+    qs.push({ ...q, result: r });
+  }
+  state.quizQs = qs; state.quizIdx = 0; state.quizAnswers = []; state.quizAnswered = false;
+  $('quiz-result').style.display = 'none'; $('quiz-panel').style.display = '';
+  showQuizQ(0);
+}
+
+function showQuizQ(idx) {
+  const q = state.quizQs[idx];
+  state.basicSize = q.basicSize;
+  if (q.standard === 'ANSI') {
+    state.fitClass = q.fitClass;
+  } else {
+    state.holeLetter = q.holeLetter; state.holeGrade = q.holeGrade;
+    state.shaftLetter = q.shaftLetter; state.shaftGrade = q.shaftGrade;
+  }
+  state.quizAnswered = false; state.shaftX = 0;
+  syncSelectorsFromState();
+  recalc();
+  drawCrossSection(state.result, false);
+  $('quiz-q-num').textContent = idx + 1;
+  $('quiz-q-total').textContent = QUIZ_TOTAL;
+  $('q-designation').innerHTML = questionDesig(q);
+  document.querySelectorAll('.q-fit-btn').forEach(b => {
+    b.classList.remove('selected','q-ok','q-err'); b.disabled = false;
+  });
+  $('q-value-input').value = ''; $('q-value-input').className = 'qi-input'; $('q-value-input').disabled = false;
+  $('quiz-feedback').innerHTML = ''; $('quiz-feedback').className = 'quiz-feedback';
+  $('btn-quiz-submit').style.display = ''; $('btn-quiz-next').style.display = 'none';
+  const r = q.result;
+  const u = '(' + uLabel() + ')';
+  let qLabel;
+  if (r.fitType === 'clearance') qLabel = 'Maximum clearance ' + u;
+  else if (r.fitType === 'interference') qLabel = 'Maximum interference ' + u;
+  else qLabel = 'Maximum clearance ' + u;
+  $('q-value-label').textContent = qLabel;
+}
+
+function submitQuiz() {
+  if (state.quizAnswered) return;
+  state.quizAnswered = true;
+  const q = state.quizQs[state.quizIdx];
+  const r = q.result;
+  const selBtn = document.querySelector('.q-fit-btn.selected');
+  const givenType = selBtn ? selBtn.dataset.value : '';
+  const typeOk = givenType === r.fitType;
+  const givenVal = readInputMm('q-value-input');
+  let correctVal;
+  if (r.fitType === 'clearance') correctVal = r.maxCl;
+  else if (r.fitType === 'interference') correctVal = Math.abs(r.minCl);
+  else correctVal = r.maxCl;
+  const valOk = !isNaN(givenVal) && Math.abs(givenVal - correctVal) < answerTolerance(correctVal);
+  document.querySelectorAll('.q-fit-btn').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.value === r.fitType) b.classList.add('q-ok');
+    else if (b.classList.contains('selected') && !typeOk) b.classList.add('q-err');
+  });
+  $('q-value-input').className = 'qi-input ' + (valOk ? 'pi-ok' : 'pi-err');
+  $('q-value-input').disabled = true;
+  const ok = typeOk && valOk;
+  state.quizAnswers.push({ given: givenVal, givenType, correct: correctVal, correctType: r.fitType, typeOk, valOk, ok });
+  if (ok) { $('quiz-feedback').innerHTML = '✔ Correct!'; $('quiz-feedback').className = 'quiz-feedback ok'; }
+  else {
+    let fb = '✘ ';
+    if (!typeOk) fb += `Fit type: ${r.fitType}. `;
+    if (!valOk) fb += `Value: ${fmt3(correctVal)} ${uLabel()}.`;
+    $('quiz-feedback').innerHTML = fb;
+    $('quiz-feedback').className = 'quiz-feedback err';
+  }
+  $('btn-quiz-submit').style.display = 'none';
+  $('btn-quiz-next').style.display = '';
+  $('btn-quiz-next').innerHTML = state.quizIdx + 1 >= QUIZ_TOTAL ? 'See Results' : 'Next →';
+  render();
+}
+
+function nextQuiz() {
+  if (state.quizIdx + 1 >= QUIZ_TOTAL) showQuizResult();
+  else { state.quizIdx++; showQuizQ(state.quizIdx); }
+}
+
+function showQuizResult() {
+  $('quiz-panel').style.display = 'none';
+  $('quiz-result').style.display = '';
+  const total = state.quizAnswers.length;
+  const correct = state.quizAnswers.filter(a => a.ok).length;
+  $('qr-score').textContent = correct + ' / ' + total;
+  $('qr-score').className = 'qr-score ' + (correct === total ? 'perfect' : correct >= 3 ? 'good' : 'poor');
+  const stars = correct === total ? 3 : correct >= 4 ? 2 : correct >= 2 ? 1 : 0;
+  $('qr-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  $('qr-verdict').textContent = ['Keep practising!', 'Getting there!', 'Good effort!', 'Excellent!'][stars];
+  let rows = '';
+  state.quizAnswers.forEach((a, i) => {
+    const q = state.quizQs[i];
+    const cls = a.ok ? 'ok' : 'err';
+    rows += `<div class="qr-row ${cls}"><div class="qr-q">${i + 1}</div>`;
+    rows += `<div class="qr-desig">${q.standard === 'ANSI' ? 'Ø'+q.basicSize+' in '+q.fitClass : 'Ø'+q.basicSize+' '+q.holeLetter+q.holeGrade+'/'+q.shaftLetter+q.shaftGrade}</div>`;
+    rows += `<div class="qr-given">${a.givenType || '—'}${!isNaN(a.given) ? ', ' + fmt3(a.given) : ''}</div>`;
+    rows += `<div class="qr-correct">${a.correctType}, ${fmt3(a.correct)}</div>`;
+    rows += `<div class="qr-icon">${a.ok ? '✔' : '✘'}</div></div>`;
+  });
+  $('qr-rows').innerHTML = rows;
+}
+
+// ── Selector Sync ──────────────────────────────────────────────────
+function syncSelectorsFromState() {
+  $('size-input').value       = state.basicSize;
+  $('hole-letter-sel').value  = state.holeLetter;
+  $('hole-grade-sel').value   = state.holeGrade;
+  $('shaft-letter-sel').value = state.shaftLetter;
+  $('shaft-grade-sel').value  = state.shaftGrade;
+  const af = $('ansi-fit-sel'); if (af) af.value = state.fitClass;
+}
+function syncStateFromSelectors() {
+  if (state.standard === 'ANSI') {
+    // Basic size is in inches; clamp to the B4.1 range, allow decimals.
+    const v = parseFloat($('size-input').value);
+    state.basicSize = Math.max(0.04, Math.min(19.69, isFinite(v) ? v : 1));
+    const af = $('ansi-fit-sel'); if (af && af.value) state.fitClass = af.value;
+    $('size-input').value = state.basicSize;
+    return;
+  }
+  state.basicSize   = clampSize(parseFloat($('size-input').value) || 50);
+  state.holeLetter  = $('hole-letter-sel').value || state.holeLetter;
+  state.shaftLetter = $('shaft-letter-sel').value || state.shaftLetter;
+  // Guard: a blank/foreign select value would parse to NaN and cascade into
+  // every readout; keep the previous grade instead.
+  const hg = parseInt($('hole-grade-sel').value);
+  const sg = parseInt($('shaft-grade-sel').value);
+  if (hg >= 5 && hg <= 16) state.holeGrade = hg;
+  if (sg >= 5 && sg <= 16) state.shaftGrade = sg;
+  $('size-input').value = state.basicSize;  // reflect clamp
+}
+function syncToggleCheckboxes() {
+  const map = {
+    'chk-dims': 'showDims', 'chk-endview': 'showEndView', 'chk-equation': 'showEquation',
+    'chk-hatch': 'showHatch', 'chk-finish': 'showFinish', 'chk-grid': 'showGrid',
+  };
+  Object.keys(map).forEach(id => { const el = $(id); if (el) el.checked = !!state[map[id]]; });
+}
+
+// ── Shaft drag + animation ─────────────────────────────────────────
+let dragging = false, dragStartX = 0, dragStartShaftX = 0;
+function canvasToLocal(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (W / rect.width),
+    y: (e.clientY - rect.top)  * (H / rect.height),
+  };
+}
+function isOnShaft(mx, my) {
+  if (state.mode === 'learn') return false;
+  const r = state.result; if (!r) return false;
+  const allHalf = [Math.abs(r.ES / 2), Math.abs(r.EI / 2), Math.abs(r.es / 2), Math.abs(r.ei / 2)];
+  const maxH = Math.max(...allHalf, 1);
+  const sc = Math.min(22 / maxH, 4);
+  const sTopMean = CY - BORE_HALF - ((r.es + r.ei) / 2 / 2) * sc;
+  const sBotMean = CY + BORE_HALF + ((r.es + r.ei) / 2 / 2) * sc;
+  const shaftL = HOLE_L + 10 + state.shaftX;
+  const shaftR = shaftL + SHAFT_LEN;
+  return mx >= shaftL - 20 && mx <= shaftR + 20 && my >= sTopMean - 14 && my <= sBotMean + 14;
+}
+
+canvas.addEventListener('mousedown', e => {
+  const p = canvasToLocal(e);
+  if (isOnShaft(p.x, p.y)) {
+    dragging = true; dragStartX = p.x; dragStartShaftX = state.shaftX;
+    canvas.style.cursor = 'grabbing'; e.preventDefault();
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  const p = canvasToLocal(e);
+  if (dragging) {
+    state.shaftX = Math.max(-200, Math.min(100, dragStartShaftX + (p.x - dragStartX)));
+    render();
+  } else {
+    canvas.style.cursor = isOnShaft(p.x, p.y) ? 'grab' : 'default';
+  }
+});
+window.addEventListener('mouseup', () => { if (dragging) { dragging = false; canvas.style.cursor = 'default'; render(); } });
+
+canvas.addEventListener('touchstart', e => {
+  const t = e.touches[0]; const p = canvasToLocal(t);
+  if (isOnShaft(p.x, p.y)) { dragging = true; dragStartX = p.x; dragStartShaftX = state.shaftX; e.preventDefault(); }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (dragging) {
+    const t = e.touches[0]; const p = canvasToLocal(t);
+    state.shaftX = Math.max(-200, Math.min(100, dragStartShaftX + (p.x - dragStartX)));
+    render(); e.preventDefault();
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { dragging = false; render(); });
+
+// Slide buttons — a token cancels any in-flight animation so rapid clicks
+// don't run two rAF loops fighting over shaftX.
+let shaftAnimToken = 0;
+function animateShaft(targetX) {
+  const token = ++shaftAnimToken;
+  const startX = state.shaftX;
+  const duration = 400; const start = performance.now();
+  function frame(now) {
+    if (token !== shaftAnimToken) return;
+    const t = Math.min((now - start) / duration, 1);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    state.shaftX = startX + (targetX - startX) * ease;
+    render();
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+$('btn-slide-out').addEventListener('click', () => animateShaft(Math.max(state.shaftX - 80, -200)));
+$('btn-slide-in').addEventListener('click', () => animateShaft(Math.min(state.shaftX + 80, 100)));
+
+// ── Event Binding ──────────────────────────────────────────────────
+document.querySelectorAll('#mode-tabs .pill').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    setMode(btn.dataset.value);
+  })
+);
+// Standard selector — ISO 286 (metric) ⇄ ANSI/ASME B4.1 (inch). The display
+// unit follows the active standard (ISO → mm/µm, ANSI → in/thou); there is no
+// separate units toggle, because converting an ISO fit to inches is not a
+// real inch standard — inch shops use ANSI B4.1's own RC/LC/LT/LN/FN classes.
+document.querySelectorAll('#standard-tabs .pill').forEach(btn =>
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('#standard-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyStandard(btn.dataset.standard);
+  })
+);
+
+['size-input','hole-letter-sel','hole-grade-sel','shaft-letter-sel','shaft-grade-sel','ansi-fit-sel'].forEach(id =>
+  ($(id)) && $(id).addEventListener('change', () => {
+    if (state.mode !== 'explore') return;
+    saveUndo();
+    syncStateFromSelectors();
+    state.shaftX = 0;
+    updateUrl();
+    render();
+  })
+);
+
+document.querySelectorAll('.cc-chip').forEach(btn =>
+  btn.addEventListener('click', () => {
+    saveUndo();
+    const idx = parseInt(btn.dataset.idx);
+    const p = PRESETS[idx];
+    state.holeLetter = p.hole; state.holeGrade = p.hg;
+    state.shaftLetter = p.shaft; state.shaftGrade = p.sg;
+    state.shaftX = 0;
+    syncSelectorsFromState();
+    document.querySelectorAll('.cc-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateUrl();
+    render();
+  })
+);
+
+$('btn-p-check').addEventListener('click', checkPractice);
+$('btn-p-new').addEventListener('click', newPractice);
+$('btn-quiz-submit').addEventListener('click', submitQuiz);
+$('btn-quiz-next').addEventListener('click', nextQuiz);
+$('btn-quiz-retry').addEventListener('click', () => { $('quiz-result').style.display = 'none'; startQuiz(); });
+document.querySelectorAll('.q-fit-btn').forEach(btn =>
+  btn.addEventListener('click', () => {
+    if (state.quizAnswered) return;
+    document.querySelectorAll('.q-fit-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  })
+);
+document.querySelectorAll('.pi-input, .pi-select').forEach(el =>
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' && !state.pChecked) checkPractice(); })
+);
+$('q-value-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !state.quizAnswered) submitQuiz(); });
+$('btn-learn-prev').addEventListener('click', () => { if (state.learnIdx > 0) { state.learnIdx--; state.shaftX = 0; render(); } });
+$('btn-learn-next').addEventListener('click', () => { if (state.learnIdx < currentLessons().length - 1) { state.learnIdx++; state.shaftX = 0; render(); } });
+$('learn-dots').addEventListener('click', e => {
+  const dot = e.target.closest('.learn-dot');
+  if (dot) { state.learnIdx = parseInt(dot.dataset.idx); state.shaftX = 0; render(); }
+});
+
+// ── Canvas feature toggles (G6) ────────────────────────────────────
+[['chk-dims','showDims'],['chk-endview','showEndView'],['chk-equation','showEquation'],
+ ['chk-hatch','showHatch'],['chk-finish','showFinish'],['chk-grid','showGrid']
+].forEach(([id, key]) => {
+  const el = $(id); if (!el) return;
+  el.addEventListener('change', () => { saveUndo(); state[key] = el.checked; render(); });
+});
+
+// ── Learning panels expand/collapse ────────────────────────────────
+const expAll = $('learn-expand-all'), colAll = $('learn-collapse-all');
+const cards = Array.prototype.slice.call(document.querySelectorAll('.learn-card-collapsible'));
+if (expAll) expAll.addEventListener('click', () => cards.forEach(c => c.open = true));
+if (colAll) colAll.addEventListener('click', () => cards.forEach(c => c.open = false));
+
+// ── Calc modal wiring (P2) ─────────────────────────────────────────
+const calcBtn = $('btn-calc'); if (calcBtn) calcBtn.addEventListener('click', openCalcModal);
+const calcClose = $('calc-modal-close'); if (calcClose) calcClose.addEventListener('click', closeCalcModal);
+const calcModalEl = $('calc-modal');
+if (calcModalEl) calcModalEl.addEventListener('click', e => { if (e.target === calcModalEl) closeCalcModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && calcModalEl && calcModalEl.classList.contains('active')) closeCalcModal();
+  // Undo / Redo — explore only; in practice/quiz it would silently change
+  // state.result out from under the active question's grading.
+  if (state.mode !== 'explore') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    if (e.shiftKey) { doRedo(); e.preventDefault(); }
+    else { doUndo(); e.preventDefault(); }
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+    doRedo(); e.preventDefault();
+  }
+});
+
+// ── Exports (U1, U2) ───────────────────────────────────────────────
+// Standard-aware designation + filename slug shared by CSV/PNG/copy.
+function designationText() {
+  return (state.standard === 'ANSI')
+    ? 'Ø' + state.basicSize + ' in ' + state.fitClass
+    : 'Ø' + state.basicSize + ' ' + state.holeLetter + state.holeGrade + '/' + state.shaftLetter + state.shaftGrade;
+}
+function fileSlug() {
+  return (state.standard === 'ANSI')
+    ? state.basicSize + 'in_' + state.fitClass
+    : state.basicSize + '_' + state.holeLetter + state.holeGrade + '_' + state.shaftLetter + state.shaftGrade;
+}
+function exportCSV() {
+  const r = state.result;
+  const lines = [];
+  lines.push('Field,Value,Unit');
+  if (state.standard === 'ANSI') {
+    const thou = um => (um * UM_TO_THOU).toFixed(2);
+    const inch = mm => (mm * MM_TO_IN).toFixed(4);
+    lines.push('Standard,ANSI/ASME B4.1,');
+    lines.push('Designation,'+designationText()+',');
+    lines.push('Basic size,'+state.basicSize+',in');
+    lines.push('Size range,'+r.rangeInch[0]+'-'+r.rangeInch[1]+',in');
+    lines.push('Hole tolerance,'+thou(r.hTol)+',thou');
+    lines.push('Shaft tolerance,'+thou(r.sTol)+',thou');
+    lines.push('ES,'+thou(r.ES)+',thou');
+    lines.push('EI,'+thou(r.EI)+',thou');
+    lines.push('es,'+thou(r.es)+',thou');
+    lines.push('ei,'+thou(r.ei)+',thou');
+    lines.push('Hole max,'+inch(r.hMax)+',in');
+    lines.push('Hole min,'+inch(r.hMin)+',in');
+    lines.push('Shaft max,'+inch(r.sMax)+',in');
+    lines.push('Shaft min,'+inch(r.sMin)+',in');
+    lines.push('Max clearance,'+inch(r.maxCl)+',in');
+    lines.push('Min clearance,'+inch(r.minCl)+',in');
+  } else {
+    lines.push('Standard,ISO 286,');
+    lines.push('Designation,'+designationText()+',');
+    lines.push('Basic size,'+state.basicSize+',mm');
+    lines.push('Size range,'+r.range[0]+'-'+r.range[1]+',mm');
+    lines.push('Hole IT,'+r.hTol+',um');
+    lines.push('Shaft IT,'+r.sTol+',um');
+    lines.push('ES,'+r.ES+',um');
+    lines.push('EI,'+r.EI+',um');
+    lines.push('es,'+r.es+',um');
+    lines.push('ei,'+r.ei+',um');
+    lines.push('Hole max,'+r.hMax.toFixed(3)+',mm');
+    lines.push('Hole min,'+r.hMin.toFixed(3)+',mm');
+    lines.push('Shaft max,'+r.sMax.toFixed(3)+',mm');
+    lines.push('Shaft min,'+r.sMin.toFixed(3)+',mm');
+    lines.push('Max clearance,'+r.maxCl.toFixed(3)+',mm');
+    lines.push('Min clearance,'+r.minCl.toFixed(3)+',mm');
+  }
+  lines.push('Fit type,'+r.fitType+',');
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'tolerance_fit_'+fileSlug()+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportPNG() {
+  // Stamp a watermark then download
+  const out = document.createElement('canvas');
+  out.width = canvas.width; out.height = canvas.height;
+  const o = out.getContext('2d');
+  o.drawImage(canvas, 0, 0);
+  o.fillStyle = 'rgba(255,255,255,0.45)';
+  o.font = (12 * (window.devicePixelRatio||1)) + 'px sans-serif';
+  o.textAlign = 'right'; o.textBaseline = 'bottom';
+  o.fillText('NHIT VisualLab', out.width - 10, out.height - 8);
+  out.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'tolerance_fit_'+fileSlug()+'.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+}
+
+// ── Right-click context menu (U3) ──────────────────────────────────
+const ctxMenu = $('canvas-ctxmenu');
+function showCtxMenu(x, y) {
+  if (!ctxMenu) return;
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top  = y + 'px';
+  ctxMenu.style.display = 'block';
+  // keep inside viewport
+  const r = ctxMenu.getBoundingClientRect();
+  if (r.right > window.innerWidth) ctxMenu.style.left = (window.innerWidth - r.width - 8) + 'px';
+  if (r.bottom > window.innerHeight) ctxMenu.style.top  = (window.innerHeight - r.height - 8) + 'px';
+}
+function hideCtxMenu() { if (ctxMenu) ctxMenu.style.display = 'none'; }
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY);
+});
+document.addEventListener('click', hideCtxMenu);
+if (ctxMenu) ctxMenu.addEventListener('click', e => {
+  const act = e.target.dataset && e.target.dataset.act;
+  if (!act) return;
+  hideCtxMenu();
+  if (act === 'copy') {
+    navigator.clipboard && navigator.clipboard.writeText(designationText());
+  } else if (act === 'png')  exportPNG();
+  else if (act === 'csv')   exportCSV();
+  else if (act === 'reset') {
+    saveUndo();
+    // Full reset: back to the ISO defaults (also swaps the UI out of ANSI).
+    if (state.standard === 'ANSI') applyStandard('ISO');
+    state.basicSize = 50; state.holeLetter = 'H'; state.holeGrade = 7;
+    state.shaftLetter = 'g'; state.shaftGrade = 6; state.shaftX = 0;
+    state.fitClass = 'RC4';
+    state.showDims = true; state.showEndView = true; state.showEquation = true;
+    state.showHatch = true; state.showFinish = true; state.showGrid = false;
+    syncSelectorsFromState(); syncToggleCheckboxes(); updateUrl(); render();
+  }
+});
+
+// Toolbar buttons (also wired)
+const btnExpCsv = $('btn-export-csv'); if (btnExpCsv) btnExpCsv.addEventListener('click', exportCSV);
+const btnExpPng = $('btn-export-png'); if (btnExpPng) btnExpPng.addEventListener('click', exportPNG);
+
+// ── URL deep-link (U5) ─────────────────────────────────────────────
+function updateUrl() {
+  if (!window.history || !window.history.replaceState) return;
+  const u = new URL(window.location);
+  if (state.standard === 'ANSI') {
+    u.searchParams.set('std', 'ansi');
+    u.searchParams.set('d', state.basicSize);
+    u.searchParams.set('fit', state.fitClass);
+    u.searchParams.delete('hole'); u.searchParams.delete('shaft');
+  } else {
+    u.searchParams.delete('std'); u.searchParams.delete('fit');
+    u.searchParams.set('d', state.basicSize);
+    u.searchParams.set('hole', state.holeLetter + state.holeGrade);
+    u.searchParams.set('shaft', state.shaftLetter + state.shaftGrade);
+  }
+  window.history.replaceState(null, '', u.toString());
+}
+// Letters/grades accepted from a deep link — must match the select options,
+// otherwise a bad param would leave a blank select and NaN grades downstream.
+const URL_HOLE_LETTERS  = ['A','B','C','D','E','F','G','H','JS','K','M','N','P','R','S'];
+const URL_SHAFT_LETTERS = ['a','b','c','d','e','f','g','h','js','k','m','n','p','r','s'];
+function readUrl() {
+  const u = new URL(window.location);
+  const std = (u.searchParams.get('std') || '').toLowerCase();
+  const d = parseFloat(u.searchParams.get('d'));
+  if (std === 'ansi') {
+    applyStandard('ANSI');
+    const fit = (u.searchParams.get('fit') || '').toUpperCase();
+    if (ANSI_FITS[fit]) state.fitClass = fit;
+    if (isFinite(d) && d > 0) state.basicSize = Math.max(0.04, Math.min(19.69, d));
+    return;
+  }
+  const h = u.searchParams.get('hole');
+  const s = u.searchParams.get('shaft');
+  if (isFinite(d) && d > 0) state.basicSize = clampSize(d);
+  function parseDesig(str, type) {
+    if (!str) return null;
+    const m = /^([A-Za-z]+)(\d+)$/.exec(str);
+    if (!m) return null;
+    const letter = type === 'hole' ? m[1].toUpperCase() : m[1].toLowerCase();
+    const grade = parseInt(m[2]);
+    const ok = (type === 'hole' ? URL_HOLE_LETTERS : URL_SHAFT_LETTERS).indexOf(letter) >= 0
+      && grade >= 5 && grade <= 11;
+    return ok ? { letter, grade } : null;
+  }
+  const ph = parseDesig(h, 'hole'); if (ph) { state.holeLetter = ph.letter; state.holeGrade = ph.grade; }
+  const ps = parseDesig(s, 'shaft'); if (ps) { state.shaftLetter = ps.letter; state.shaftGrade = ps.grade; }
+}
+
+// ── Resize observer for HiDPI ──────────────────────────────────────
+// resizeCanvas() calls render() (which redraws BOTH canvases), so after
+// resizing the tz-chart bitmap we re-render to repaint it — otherwise the
+// tolerance-zone diagram stays blank until the next input change.
+function handleResize() { resizeTzChart(); resizeCanvas(); }
+window.addEventListener('resize', handleResize);
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(handleResize).observe(canvas);
+  if (tzcCanvas) new ResizeObserver(() => { resizeTzChart(); if (typeof render === 'function') render(); }).observe(tzcCanvas);
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+readUrl();
+syncSelectorsFromState();
+syncToggleCheckboxes();
+resizeCanvas();
+resizeTzChart();
+render();
+
+})();

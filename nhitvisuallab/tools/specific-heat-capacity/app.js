@@ -1,0 +1,2170 @@
+(function () {
+  'use strict';
+
+  /* ── roundRect polyfill ────────────────────────────────── */
+  if (typeof CanvasRenderingContext2D.prototype.roundRect !== 'function') {
+    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, radii) {
+      if (typeof radii === 'number') radii = [radii, radii, radii, radii];
+      if (Array.isArray(radii)) { while (radii.length < 4) radii.push(radii[radii.length - 1] || 0); }
+      var tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
+      this.moveTo(x + tl, y); this.lineTo(x + w - tr, y);
+      this.quadraticCurveTo(x + w, y, x + w, y + tr);
+      this.lineTo(x + w, y + h - br);
+      this.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+      this.lineTo(x + bl, y + h);
+      this.quadraticCurveTo(x, y + h, x, y + h - bl);
+      this.lineTo(x, y + tl);
+      this.quadraticCurveTo(x, y, x + tl, y);
+      this.closePath(); return this;
+    };
+  }
+
+  /* ================================================================
+     MATERIALS
+     ================================================================ */
+  // Physical properties:
+  //   c      — specific heat, J/(kg·K) — handbook values (CRC / NIST / engineering references)
+  //   startC — recommended ambient start temperature, °C (ice below freezing; everything else room temp)
+  //   phaseC — upper bound of the CURRENT phase at the start temp (melt for solids, boil for liquids).
+  //            Above this, Q = mcΔT ceases to be valid (latent heat ignored). null = no clean limit (e.g. glass softens gradually, oil decomposes).
+  //   phaseName — label for the upper boundary (for warnings)
+  var BUILTIN_MATERIALS = [
+    { name: 'Water',    c: 4186, color: '#4fc3f7', fill: 'rgba(79,195,247,.35)',  kind: 'liquid', startC: 20,  phaseC: 100,  phaseName: 'boiling' },
+    { name: 'Aluminum', c: 897,  color: '#b0bec5', fill: 'rgba(176,190,197,.35)', kind: 'solid',  startC: 20,  phaseC: 660,  phaseName: 'melting' },
+    { name: 'Copper',   c: 385,  color: '#ffb74d', fill: 'rgba(255,183,77,.35)',  kind: 'solid',  startC: 20,  phaseC: 1085, phaseName: 'melting' },
+    { name: 'Iron',     c: 449,  color: '#90a4ae', fill: 'rgba(144,164,174,.35)', kind: 'solid',  startC: 20,  phaseC: 1538, phaseName: 'melting' },
+    { name: 'Oil',      c: 2000, color: '#a1887f', fill: 'rgba(161,136,127,.35)', kind: 'liquid', startC: 20,  phaseC: 300,  phaseName: 'decomposition' },
+    { name: 'Glass',    c: 840,  color: '#ce93d8', fill: 'rgba(206,147,216,.35)', kind: 'solid',  startC: 20,  phaseC: 700,  phaseName: 'softening' },
+    { name: 'Lead',     c: 128,  color: '#7986cb', fill: 'rgba(121,134,203,.35)', kind: 'solid',  startC: 20,  phaseC: 327,  phaseName: 'melting' },
+    { name: 'Brass',    c: 380,  color: '#d4a017', fill: 'rgba(212,160,23,.35)',  kind: 'solid',  startC: 20,  phaseC: 930,  phaseName: 'melting' },
+    { name: 'Ice',      c: 2090, color: '#81d4fa', fill: 'rgba(129,212,250,.35)', kind: 'solid',  startC: -10, phaseC: 0,    phaseName: 'melting' },
+    { name: 'Ethanol',  c: 2440, color: '#f06292', fill: 'rgba(240,98,146,.35)',  kind: 'liquid', startC: 20,  phaseC: 78,   phaseName: 'boiling' }
+  ];
+  var MATERIALS = BUILTIN_MATERIALS.slice();
+
+  /* Expose the live material list to the Q = mcDT solver below.
+     A getter, not a reference: MATERIALS is reassigned when custom
+     materials are restored, so a captured array would go stale. */
+  window.SHC_getMaterials = function () { return MATERIALS; };
+
+  var PRESETS = [
+    { id: 'default',   label: 'Water vs Copper',      a: 0, b: 2, q: 10, m: 1.0 },
+    { id: 'metals',    label: 'Aluminium vs Copper',  a: 1, b: 2, q: 10, m: 1.0 },
+    { id: 'oilvswat',  label: 'Oil vs Water',         a: 4, b: 0, q: 20, m: 1.0 },
+    { id: 'coolant',   label: 'Engine Coolant',       a: 0, b: 3, q: 40, m: 2.0 },
+    { id: 'cookware',  label: 'Cookware (Al vs Fe)',  a: 1, b: 3, q: 15, m: 0.5 },
+    { id: 'climate',   label: 'Climate Buffer',       a: 0, b: 5, q: 100, m: 10 },
+    { id: 'heavymtl',  label: 'Lead vs Copper',       a: 6, b: 2, q: 10, m: 1.0 },
+    { id: 'alloy',     label: 'Brass vs Copper',      a: 7, b: 2, q: 10, m: 1.0 },
+    { id: 'icevswat',  label: 'Ice vs Water',         a: 8, b: 0, q: 60, m: 1.0 },
+    { id: 'spirits',   label: 'Ethanol vs Water',     a: 9, b: 0, q: 20, m: 1.0 }
+  ];
+
+  /* ================================================================
+     CONCEPTS (Explore)
+     ================================================================ */
+  var CONCEPTS = [
+    { id: 'heat-energy', name: 'Heat Energy', symbol: 'Q (J)',
+      formula: 'Q = mc\u0394T', unit: 'J', cat: 'heat',
+      desc: 'Heat energy (Q) is the thermal energy transferred between objects due to a temperature difference. It is measured in joules (J) or kilojoules (kJ). Heat always flows from a hotter object to a cooler one until thermal equilibrium is reached. The amount of heat transferred depends on mass, specific heat capacity, and temperature change: Q = mc\u0394T.',
+      example: { problem: '2 kg of water is heated from 20\u00B0C to 70\u00B0C. Find Q. (c = 4186 J/kg\u00B7K)', steps: ['Q = mc\u0394T', 'Q = 2 \u00D7 4186 \u00D7 (70 \u2212 20)', 'Q = 2 \u00D7 4186 \u00D7 50', 'Q = 418600 J = 418.6 kJ'], answer: 418600, unit: 'J' }
+    },
+    { id: 'temp-vs-heat', name: 'Temperature vs Heat', symbol: 'T \u2260 Q',
+      formula: 'T = avg KE; Q = energy transfer', unit: '\u00B0C / J', cat: 'heat',
+      desc: 'Temperature (T) measures the average kinetic energy of molecules. Heat (Q) is the energy transferred between objects due to a temperature difference. A swimming pool at 25\u00B0C contains far more heat energy than a cup of coffee at 80\u00B0C, because it has much more mass.',
+      example: { problem: 'Which contains more thermal energy: 100 kg of water at 30\u00B0C or 0.5 kg of water at 90\u00B0C? (Both from 0\u00B0C)', steps: ['Q\u2081 = 100 \u00D7 4186 \u00D7 30 = 12,558,000 J', 'Q\u2082 = 0.5 \u00D7 4186 \u00D7 90 = 188,370 J', 'The 100 kg at 30\u00B0C has \u224867\u00D7 more energy'], answer: 12558000, unit: 'J' }
+    },
+    { id: 'thermal-equilibrium', name: 'Thermal Equilibrium', symbol: 'T\u2081 = T\u2082',
+      formula: 'Q_lost = Q_gained', unit: '\u00B0C', cat: 'heat',
+      desc: 'Thermal equilibrium is reached when two objects in contact reach the same temperature. The Zeroth Law of Thermodynamics states that if A is in equilibrium with B, and B with C, then A is with C. In calorimetry, Q_lost by the hot object equals Q_gained by the cold object.',
+      example: { problem: '0.5 kg iron at 200\u00B0C is placed in 2 kg water at 20\u00B0C. Find equilibrium T.', steps: ['Q_lost = Q_gained', '0.5 \u00D7 449 \u00D7 (200 \u2212 T) = 2 \u00D7 4186 \u00D7 (T \u2212 20)', '224.5(200 \u2212 T) = 8372(T \u2212 20)', 'T \u2248 25.2\u00B0C'], answer: 25.2, unit: '\u00B0C' }
+    },
+    { id: 'calorimetry', name: 'Calorimetry', symbol: 'Q = mc\u0394T',
+      formula: 'Q_hot + Q_cold = 0', unit: 'J', cat: 'heat',
+      desc: 'Calorimetry is the science of measuring heat changes in chemical or physical processes. A calorimeter is insulated to prevent heat loss. By measuring temperature changes in a known mass of water, scientists determine the specific heat of unknown materials. The principle: Q_hot + Q_cold = 0.',
+      example: { problem: '0.2 kg of metal at 100\u00B0C is placed in 0.5 kg water at 20\u00B0C. Final T = 23.5\u00B0C. Find c.', steps: ['0.2 \u00D7 c \u00D7 (100 \u2212 23.5) = 0.5 \u00D7 4186 \u00D7 (23.5 \u2212 20)', '15.3c = 7325.5', 'c = 478.8 J/(kg\u00B7K)'], answer: 478.8, unit: 'J/(kg\u00B7K)' }
+    },
+    { id: 'definition-c', name: 'Definition of c', symbol: 'c (J/kg\u00B7K)',
+      formula: 'c = Q / (m\u0394T)', unit: 'J/(kg\u00B7K)', cat: 'specific',
+      desc: 'Specific heat capacity (c) is the heat required to raise 1 kg of a substance by 1 K. It is an intensive property \u2014 independent of amount. High-c materials heat up slowly; low-c materials quickly.',
+      example: { problem: '5000 J raises 0.5 kg of a substance by 12\u00B0C. Find c.', steps: ['c = Q/(m\u0394T)', 'c = 5000/(0.5 \u00D7 12)', 'c = 833.3 J/(kg\u00B7K)'], answer: 833.3, unit: 'J/(kg\u00B7K)' }
+    },
+    { id: 'units-c', name: 'Units of c', symbol: 'J/(kg\u00B7K)',
+      formula: 'Also cal/(g\u00B7\u00B0C), BTU/(lb\u00B7\u00B0F)', unit: 'varies', cat: 'specific',
+      desc: 'SI unit: J/(kg\u00B7K). Others: cal/(g\u00B7\u00B0C) where 1 cal = 4.184 J, and BTU/(lb\u00B7\u00B0F). Water = 1 cal/(g\u00B7\u00B0C) = 1 BTU/(lb\u00B7\u00B0F) = 4186 J/(kg\u00B7K).',
+      example: { problem: 'Convert 4186 J/(kg\u00B7K) to BTU/(lb\u00B7\u00B0F).', steps: ['\u00D7 2.388\u00D710\u207B\u2074', '4186 \u00D7 2.388\u00D710\u207B\u2074', '\u2248 1.00 BTU/(lb\u00B7\u00B0F)'], answer: 1.0, unit: 'BTU/(lb\u00B7\u00B0F)' }
+    },
+    { id: 'water-shc', name: "Water's High c", symbol: 'c = 4186',
+      formula: 'Water: 4186 J/(kg\u00B7K)', unit: 'J/(kg\u00B7K)', cat: 'specific',
+      desc: 'Water has an exceptionally high c (4186 J/kg\u00B7K) due to hydrogen bonding. Energy goes into breaking bonds rather than raising kinetic energy, making it ideal for coolants and thermal storage.',
+      example: { problem: 'Heat 3 kg water from 15\u00B0C to 100\u00B0C. Find Q.', steps: ['Q = 3 \u00D7 4186 \u00D7 85', 'Q = 1,067,430 J \u2248 1067.4 kJ'], answer: 1067430, unit: 'J' }
+    },
+    { id: 'material-comparison', name: 'Material Comparison', symbol: 'c varies',
+      formula: 'Water > Oil > Al > Glass > Fe > Cu', unit: 'J/(kg\u00B7K)', cat: 'specific',
+      desc: 'Water (4186), Oil (2000), Al (897), Glass (840), Fe (449), Cu (385). Metals transfer energy fast through metallic bonds (low c). For the same Q and m, lower c = higher \u0394T.',
+      example: { problem: '10 kJ into 1 kg of each. Compare \u0394T.', steps: ['\u0394T_Cu = 10000/385 = 26.0\u00B0C', '\u0394T_Al = 10000/897 = 11.1\u00B0C', '\u0394T_water = 10000/4186 = 2.4\u00B0C'], answer: 26.0, unit: '\u00B0C' }
+    },
+    { id: 'latent-heat', name: 'Latent Heat', symbol: 'Q = mL',
+      formula: 'Q = mL at phase change', unit: 'J', cat: 'thermal',
+      desc: 'Latent heat (L) is energy absorbed/released during a phase change at constant temperature. Water: L_f = 334 kJ/kg, L_v = 2260 kJ/kg. Unlike sensible heat, it does not change temperature.',
+      example: { problem: 'Melt 2 kg ice at 0\u00B0C. (L_f = 334 kJ/kg)', steps: ['Q = 2 \u00D7 334000', 'Q = 668,000 J = 668 kJ'], answer: 668000, unit: 'J' }
+    },
+    { id: 'phase-changes', name: 'Phase Changes', symbol: 'S \u2194 L \u2194 G',
+      formula: 'Melt, boil, freeze, condense', unit: '\u2014', cat: 'thermal',
+      desc: 'Temperature stays constant during phase changes while latent heat is absorbed or released. Heating ice to steam requires Q = mc\u0394T for each phase plus mL_f and mL_v.',
+      example: { problem: 'Heat 1 kg ice from \u221210\u00B0C to water at 50\u00B0C.', steps: ['Q\u2081 = 1 \u00D7 2090 \u00D7 10 = 20,900 J', 'Q\u2082 = 1 \u00D7 334000 = 334,000 J', 'Q\u2083 = 1 \u00D7 4186 \u00D7 50 = 209,300 J', 'Total = 564.2 kJ'], answer: 564200, unit: 'J' }
+    },
+    { id: 'thermal-mass', name: 'Thermal Mass', symbol: 'C = mc',
+      formula: 'C = mc (J/K)', unit: 'J/K', cat: 'thermal',
+      desc: 'Thermal mass C = mc is how much heat an object can store per degree. Used in passive solar, thermal batteries, and building temperature regulation.',
+      example: { problem: 'Thermal mass of 50 kg aluminium block (c = 897)?', steps: ['C = 50 \u00D7 897', 'C = 44,850 J/K'], answer: 44850, unit: 'J/K' }
+    },
+    { id: 'heat-cap-vs-shc', name: 'Heat Capacity vs SHC', symbol: 'C vs c',
+      formula: 'C = mc vs c = C/m', unit: 'J/K vs J/(kg\u00B7K)', cat: 'thermal',
+      desc: 'Heat capacity C is extensive (depends on amount): J/K. Specific heat c is intensive: J/(kg\u00B7K). Two identical blocks share c but double C.',
+      example: { problem: 'Compare C for 2 kg and 5 kg iron (c = 449).', steps: ['C\u2081 = 2 \u00D7 449 = 898 J/K', 'C\u2082 = 5 \u00D7 449 = 2245 J/K'], answer: 2245, unit: 'J/K' }
+    },
+    { id: 'cooking', name: 'Cooking', symbol: 'Oil vs Water',
+      formula: 'Lower c \u2192 faster heating', unit: '\u00B0C', cat: 'applications',
+      desc: 'Oils (c \u2248 2000) heat faster than water (4186). Frying faster than boiling. Cast iron (high thermal mass) holds temperature; thin aluminium heats quickly.',
+      example: { problem: '1 kg oil vs 1 kg water, 20 kJ each.', steps: ['\u0394T_oil = 20000/2000 = 10.0\u00B0C', '\u0394T_water = 20000/4186 = 4.8\u00B0C'], answer: 10.0, unit: '\u00B0C' }
+    },
+    { id: 'engine-cooling', name: 'Engine Cooling', symbol: 'Q_coolant',
+      formula: 'Q = m\u0307c\u0394T (coolant flow)', unit: 'kW', cat: 'applications',
+      desc: 'Water\u2019s high c lets a small volume of coolant absorb large waste-heat rates (30\u201360 kW) with modest \u0394T (10\u201320\u00B0C) per pass through the engine.',
+      example: { problem: '40 kW engine, 1 kg/s coolant flow. \u0394T?', steps: ['\u0394T = 40000/(1 \u00D7 4186)', '\u0394T = 9.6\u00B0C'], answer: 9.6, unit: '\u00B0C' }
+    },
+    { id: 'climate', name: 'Climate Regulation', symbol: 'Ocean buffer',
+      formula: 'Large water bodies moderate T', unit: '\u00B0C', cat: 'applications',
+      desc: 'Oceans act as thermal buffers thanks to water\u2019s high c. Coastal climates are milder (smaller diurnal and seasonal swings) than inland climates.',
+      example: { problem: '1000 kg water absorbs 100 MJ.', steps: ['\u0394T = 100e6/(1000 \u00D7 4186)', '\u0394T \u2248 23.9\u00B0C'], answer: 23.9, unit: '\u00B0C' }
+    },
+    { id: 'industrial-heating', name: 'Industrial Heating', symbol: 'P = Q/t',
+      formula: 'P = mc\u0394T/t', unit: 'W', cat: 'applications',
+      desc: 'Industrial heating requires knowing c to size heaters. Heat treatment, pasteurisation, and chemical reactors all depend on precise thermal calculation.',
+      example: { problem: 'Heat 200 kg Al from 25 to 500\u00B0C in 30 min.', steps: ['Q = 200 \u00D7 897 \u00D7 475 = 85,215 kJ', 'P = Q/t = 85,215,000/1800', 'P \u2248 47.3 kW'], answer: 47342, unit: 'W' }
+    }
+  ];
+
+  /* ================================================================
+     PROBLEM GENERATORS
+     ================================================================ */
+  function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function randFloat(a, b, d) { var v = a + Math.random() * (b - a); return +v.toFixed(d || 1); }
+  function pickMat() { return BUILTIN_MATERIALS[randInt(0, BUILTIN_MATERIALS.length - 1)]; }
+
+  var PROBLEM_GEN = [
+    function () {
+      var mat = pickMat(); var m = randFloat(0.5, 5, 1); var dT = randInt(10, 80);
+      var Q = +(m * mat.c * dT).toFixed(1);
+      return { prompt: m + ' kg of ' + mat.name + ' (c = ' + mat.c + ' J/kg\u00B7K) is heated by ' + dT + '\u00B0C. Find Q (J).',
+        steps: ['Q = mc\u0394T', 'Q = ' + m + ' \u00D7 ' + mat.c + ' \u00D7 ' + dT, 'Q = ' + Q + ' J'], answer: Q, unit: 'J', tol: 1 };
+    },
+    function () {
+      var mat = pickMat(); var m = randFloat(0.5, 5, 1); var Q = randInt(5000, 80000);
+      var dT = +(Q / (m * mat.c)).toFixed(1);
+      return { prompt: Q + ' J of heat is added to ' + m + ' kg of ' + mat.name + ' (c = ' + mat.c + '). Find \u0394T (\u00B0C).',
+        steps: ['\u0394T = Q/(mc)', '\u0394T = ' + Q + '/(' + m + ' \u00D7 ' + mat.c + ')', '\u0394T = ' + dT + '\u00B0C'], answer: dT, unit: '\u00B0C', tol: 0.2 };
+    },
+    function () {
+      var mat = pickMat(); var m = randFloat(1, 4, 1); var dT = randInt(15, 60);
+      var Q = +(m * mat.c * dT).toFixed(0);
+      return { prompt: Q + ' J heats ' + m + ' kg of a material by ' + dT + '\u00B0C. Find c (J/kg\u00B7K).',
+        steps: ['c = Q/(m\u0394T)', 'c = ' + Q + '/(' + m + ' \u00D7 ' + dT + ')', 'c = ' + mat.c + ' J/(kg\u00B7K)'], answer: mat.c, unit: 'J/(kg\u00B7K)', tol: 5 };
+    },
+    function () {
+      var mat = pickMat(); var dT = randInt(10, 50); var m = randFloat(0.5, 5, 1);
+      var Q = +(m * mat.c * dT).toFixed(0);
+      return { prompt: Q + ' J of heat raises ' + mat.name + ' (c = ' + mat.c + ') by ' + dT + '\u00B0C. Find mass (kg).',
+        steps: ['m = Q/(c\u0394T)', 'm = ' + Q + '/(' + mat.c + ' \u00D7 ' + dT + ')', 'm = ' + m + ' kg'], answer: m, unit: 'kg', tol: 0.1 };
+    },
+    function () {
+      var m1 = randFloat(0.5, 3, 1), T1 = randInt(60, 95), m2 = randFloat(0.5, 3, 1), T2 = randInt(5, 25);
+      var Tf = +((m1 * T1 + m2 * T2) / (m1 + m2)).toFixed(1);
+      return { prompt: m1 + ' kg of water at ' + T1 + '\u00B0C mixed with ' + m2 + ' kg of water at ' + T2 + '\u00B0C. Find T_f (\u00B0C).',
+        steps: ['T_f = (m\u2081T\u2081 + m\u2082T\u2082)/(m\u2081+m\u2082)', 'T_f = ' + Tf + '\u00B0C'], answer: Tf, unit: '\u00B0C', tol: 0.5 };
+    },
+    function () {
+      var mat = pickMat(); var m = randFloat(1, 10, 1); var dT = randInt(20, 100);
+      var Q_kJ = +(m * mat.c * dT / 1000).toFixed(1);
+      return { prompt: 'kJ needed to heat ' + m + ' kg of ' + mat.name + ' (c=' + mat.c + ') by ' + dT + '\u00B0C?',
+        steps: ['Q = mc\u0394T', 'Q = ' + Q_kJ + ' kJ'], answer: Q_kJ, unit: 'kJ', tol: 0.5 };
+    },
+    function () {
+      var i1 = randInt(0, 5); var i2 = (i1 + randInt(1, 5)) % 6;
+      var a = BUILTIN_MATERIALS[i1], b = BUILTIN_MATERIALS[i2];
+      var m = randFloat(1, 3, 1); var Q = randInt(10000, 50000);
+      var d1 = +(Q / (m * a.c)).toFixed(1), d2 = +(Q / (m * b.c)).toFixed(1);
+      var diff = +Math.abs(d1 - d2).toFixed(1);
+      return { prompt: m + ' kg of ' + a.name + ' vs ' + m + ' kg of ' + b.name + ', ' + Q + ' J each. Difference in \u0394T?',
+        steps: ['\u0394T\u2081 = ' + d1 + '\u00B0C', '\u0394T\u2082 = ' + d2 + '\u00B0C', 'Diff = ' + diff + '\u00B0C'], answer: diff, unit: '\u00B0C', tol: 0.5 };
+    },
+    function () {
+      var mat = pickMat(); var m = randFloat(2, 20, 1); var dT = randInt(30, 200); var t = randInt(5, 30);
+      var P = +(m * mat.c * dT / (t * 60)).toFixed(1);
+      return { prompt: 'Heat ' + m + ' kg of ' + mat.name + ' (c=' + mat.c + ') by ' + dT + '\u00B0C in ' + t + ' min. Power (W)?',
+        steps: ['Q = mc\u0394T = ' + (m * mat.c * dT).toFixed(0) + ' J', 'P = Q/t', 'P = ' + P + ' W'], answer: P, unit: 'W', tol: 1 };
+    },
+    function () {
+      var mat = pickMat(); var m = randFloat(0.5, 5, 1); var T0 = randInt(15, 30); var Q = randInt(5000, 60000);
+      var Tf = +(T0 + Q / (m * mat.c)).toFixed(1);
+      return { prompt: m + ' kg of ' + mat.name + ' (c=' + mat.c + ') at ' + T0 + '\u00B0C + ' + Q + ' J. Final T (\u00B0C)?',
+        steps: ['\u0394T = ' + (Q / (m * mat.c)).toFixed(1) + '\u00B0C', 'T_f = ' + Tf + '\u00B0C'], answer: Tf, unit: '\u00B0C', tol: 0.5 };
+    },
+    function () {
+      var mat = pickMat(); var m = randFloat(1, 20, 1); var C = +(m * mat.c).toFixed(0);
+      return { prompt: 'Heat capacity of ' + m + ' kg of ' + mat.name + ' (c = ' + mat.c + ')?',
+        steps: ['C = mc', 'C = ' + C + ' J/K'], answer: C, unit: 'J/K', tol: 1 };
+    },
+    function () {
+      var Q_kJ = randInt(5, 50); var m = randFloat(0.5, 3, 1);
+      var dT = +(Q_kJ * 1000 / (m * 4186)).toFixed(1);
+      return { prompt: Q_kJ + ' kJ heats ' + m + ' kg water (c=4186). \u0394T (\u00B0C)?',
+        steps: ['\u0394T = Q/(mc)', '\u0394T = ' + dT + '\u00B0C'], answer: dT, unit: '\u00B0C', tol: 0.2 };
+    },
+    function () {
+      var met = [BUILTIN_MATERIALS[1], BUILTIN_MATERIALS[2], BUILTIN_MATERIALS[3]][randInt(0, 2)];
+      var mm = randFloat(0.2, 2, 1), Tm = randInt(100, 300), mw = randFloat(1, 4, 1), Tw = randInt(15, 25);
+      var Tf = +((mm * met.c * Tm + mw * 4186 * Tw) / (mm * met.c + mw * 4186)).toFixed(1);
+      return { prompt: mm + ' kg of ' + met.name + ' (c=' + met.c + ') at ' + Tm + '\u00B0C + ' + mw + ' kg water at ' + Tw + '\u00B0C. Equilibrium T?',
+        steps: ['Q_lost = Q_gained', 'T = ' + Tf + '\u00B0C'], answer: Tf, unit: '\u00B0C', tol: 0.5 };
+    }
+  ];
+
+  /* ================================================================
+     QUIZ POOL
+     ================================================================ */
+  var QUIZ_POOL = [
+    { q: 'SI unit of specific heat capacity?', opts: ['J/(kg\u00B7K)', 'W/(m\u00B7K)', 'J/K', 'cal/g'], correct: 0 },
+    { q: 'Which has the highest c?', opts: ['Copper', 'Water', 'Iron', 'Aluminum'], correct: 1 },
+    { q: 'What is \u0394T in Q = mc\u0394T?', opts: ['Final T', 'Initial T', 'Temp change', 'Absolute T'], correct: 2 },
+    { q: 'Double the mass, same Q and c \u2192 \u0394T?', opts: ['Doubles', 'Halves', 'Same', 'Quadruples'], correct: 1 },
+    { q: 'Why is water\u2019s c so high?', opts: ['High density', 'Hydrogen bonds', 'Low viscosity', 'Liquid phase'], correct: 1 },
+    { q: 'c of water?', opts: ['385', '897', '4186', '2000'], correct: 2 },
+    { q: 'Which heats up fastest (same Q, m)?', opts: ['Water', 'Oil', 'Aluminum', 'Copper'], correct: 3 },
+    { q: 'Calorimetry measures\u2026', opts: ['Pressure', 'Heat transfer', 'Resistance', 'Sound'], correct: 1 },
+    { q: '5000 J, 1 kg, \u0394T \u2248 5.58\u00B0C \u2192 material?', opts: ['Water', 'Oil', 'Aluminum', 'Glass'], correct: 2 },
+    { q: 'At thermal equilibrium...', opts: ['Heat flows faster', 'Temperatures equal', 'Masses equal', 'Freezes'], correct: 1 },
+    { q: 'C of 3 kg iron (c=449)?', opts: ['449 J/K', '1347 J/K', '150 J/K', '898 J/K'], correct: 1 },
+    { q: 'Which is intensive?', opts: ['Q', 'C', 'c', 'm'], correct: 2 },
+    { q: 'Temperature during phase change?', opts: ['Rises', 'Falls', 'Constant', 'Fluctuates'], correct: 2 },
+    { q: 'Why water coolant in engines?', opts: ['Cheap', 'High c absorbs heat', 'Dense', 'Freezes at 0\u00B0C'], correct: 1 },
+    { q: 'Q for 2 kg Cu (c=385) by 10\u00B0C?', opts: ['385 J', '3850 J', '7700 J', '770 J'], correct: 2 }
+  ];
+
+  /* ================================================================
+     UNIT SYSTEM
+     ================================================================ */
+  var unitSystem = 'si'; // 'si' or 'imp'
+  function U() {
+    if (unitSystem === 'imp') return {
+      tempLabel: '\u00B0F', dTempLabel: '\u00B0F', heatLabel: 'BTU', massLabel: 'lb', cLabel: 'BTU/(lb\u00B7\u00B0F)',
+      fromTempC: function (c) { return c * 1.8 + 32; },
+      fromDTempC: function (d) { return d * 1.8; },
+      fromHeatKJ: function (kJ) { return kJ * 0.947817; },
+      toHeatKJ:   function (v) { return v / 0.947817; },
+      fromMassKg: function (kg) { return kg * 2.20462; },
+      toMassKg:   function (v) { return v / 2.20462; },
+      fromCSI:    function (c) { return c * 2.388459e-4; },
+      hDigits: 2, mDigits: 2, tDigits: 1, dtDigits: 1, cDigits: 3
+    };
+    return {
+      tempLabel: '\u00B0C', dTempLabel: '\u00B0C', heatLabel: 'kJ', massLabel: 'kg', cLabel: 'J/(kg\u00B7K)',
+      fromTempC: function (c) { return c; },
+      fromDTempC: function (d) { return d; },
+      fromHeatKJ: function (kJ) { return kJ; },
+      toHeatKJ:   function (v) { return v; },
+      fromMassKg: function (kg) { return kg; },
+      toMassKg:   function (v) { return v; },
+      fromCSI:    function (c) { return c; },
+      hDigits: 1, mDigits: 1, tDigits: 1, dtDigits: 1, cDigits: 0
+    };
+  }
+
+  /* ================================================================
+     DOM REFS
+     ================================================================ */
+  var canvas = document.getElementById('sim-canvas');
+  var ctx    = canvas.getContext('2d');
+  var selMatA = document.getElementById('sel-mat-a');
+  var selMatB = document.getElementById('sel-mat-b');
+  var slHeat  = document.getElementById('sl-heat');
+  var slMass  = document.getElementById('sl-mass');
+  var inHeat  = document.getElementById('in-heat');
+  var inMass  = document.getElementById('in-mass');
+  var badgeHeat = document.getElementById('badge-heat');
+  var badgeMass = document.getElementById('badge-mass');
+  var rTempA  = document.getElementById('r-temp-a');
+  var rTempB  = document.getElementById('r-temp-b');
+  var rDtA    = document.getElementById('r-dt-a');
+  var rDtB    = document.getElementById('r-dt-b');
+  var rHeat   = document.getElementById('r-heat');
+  var rUnitTa = document.getElementById('r-unit-ta');
+  var rUnitTb = document.getElementById('r-unit-tb');
+  var rUnitDta = document.getElementById('r-unit-dta');
+  var rUnitDtb = document.getElementById('r-unit-dtb');
+  var rUnitHeat = document.getElementById('r-unit-heat');
+
+  var simPanel      = document.getElementById('sim-panel');
+  var catRow        = document.getElementById('cat-row');
+  var itemSelector  = document.getElementById('item-selector');
+  var conceptGrid   = document.getElementById('concept-grid');
+  var itemInfo      = document.getElementById('item-info');
+  var practicePanel = document.getElementById('practice-panel');
+  var practiceBar   = document.getElementById('practice-bar');
+  var ppPrompt      = document.getElementById('pp-prompt');
+  var ppInput       = document.getElementById('pp-input');
+  var ppUnit        = document.getElementById('pp-unit');
+  var ppCheck       = document.getElementById('pp-check');
+  var ppShow        = document.getElementById('pp-show');
+  var ppNext        = document.getElementById('pp-next');
+  var ppFeedback    = document.getElementById('pp-feedback');
+  var ppSolution    = document.getElementById('pp-solution');
+  var pbarScoreVal  = document.getElementById('pbar-score-val');
+  var quizPanel     = document.getElementById('quiz-panel');
+  var quizBar       = document.getElementById('quiz-bar');
+  var qbarNum       = document.getElementById('qbar-num');
+  var quizResult    = document.getElementById('quiz-result');
+  var learnPanels   = document.getElementById('learn-panels');
+  var canvasActionBar = document.getElementById('canvas-action-bar');
+  var presetRow     = document.getElementById('preset-row');
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var mode = 'simulate';
+  var matAIdx = 0;
+  var matBIdx = 2;
+  var heatInput = 10; // kJ (SI)
+  var mass = 1.0;     // kg (SI)
+  var T0 = 20;        // ambient / starting temp, °C — recomputed from chosen materials
+  function updateAmbientT0() {
+    // Pick the coldest of the two materials' recommended start temps so every phase is valid
+    var mA = MATERIALS[matAIdx] || MATERIALS[0];
+    var mB = MATERIALS[matBIdx] || MATERIALS[0];
+    var sA = (typeof mA.startC === 'number') ? mA.startC : 20;
+    var sB = (typeof mB.startC === 'number') ? mB.startC : 20;
+    T0 = Math.min(sA, sB);
+  }
+  // Phase-change check for on-canvas warning
+  function phaseWarning(mat, Tf) {
+    if (!mat || typeof mat.phaseC !== 'number') return null;
+    if (Tf > mat.phaseC) {
+      return { phase: mat.phaseName || 'phase change', limit: mat.phaseC };
+    }
+    return null;
+  }
+
+  // Canvas feature toggles
+  var showFlames = true, showParticles = true, showGraph = true, showEquation = true;
+  var keepTraces = false;
+  var traces = [];          // { label, color, c, Q, m, poly: [{x,y}...] }
+  var tracedThisRun = false;
+  var hoverTrace = null;    // { trace, mx, my }
+
+  // Animation — time-based simulation engine
+  var SIM_DURATION_S = 12.0; // seconds for full heating cycle
+  var anim = { running: false, forceScale: 0, speed: 1.0, targetScale: 0, lastMs: 0 };
+  var animId = null;
+  var animTime = 0;
+  var particlesA = [], particlesB = [];
+  var NUM_PARTICLES = 30;
+
+  // Canvas logical size
+  var W = 900, H = 500;
+
+  // Undo/redo
+  var history = [];
+  var histIdx = -1;
+  var HIST_MAX = 50;
+  var pushTimer = null;
+
+  // Practice / quiz
+  var practiceScore = 0, practiceTotal = 0, currentProblem = null, practiceAnswered = false;
+  var QUIZ_SIZE = 5, quizSet = [], quizIdx = 0, quizScore = 0, quizAnswered = false, quizAnswers = [];
+  var exploreCat = 'heat', selectedConcept = null;
+
+  /* ================================================================
+     PARTICLES
+     ================================================================ */
+  function initParticles(arr, cx, cy, w, h, kind) {
+    arr.length = 0;
+    if (kind === 'solid') {
+      // Packed lattice — molecules vibrate around fixed anchor positions.
+      // Also seed a velocity so the particle can "drift" once a phase change begins (ice → water).
+      var cols = 6, rows = 5; // 30 particles
+      var stepX = w / cols, stepY = h / rows;
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var ax = cx - w / 2 + stepX * (c + 0.5);
+          var ay = cy - h / 2 + stepY * (r + 0.5);
+          arr.push({
+            x: ax, y: ay, ax: ax, ay: ay,
+            vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+            phX: Math.random() * Math.PI * 2, phY: Math.random() * Math.PI * 2,
+            fX: 5 + Math.random() * 3, fY: 5 + Math.random() * 3,
+            r: 2.6 + Math.random() * 0.6, kind: 'solid'
+          });
+        }
+      }
+    } else {
+      // Liquid — free bouncing particles
+      for (var i = 0; i < NUM_PARTICLES; i++) {
+        arr.push({
+          x: cx - w / 2 + Math.random() * w,
+          y: cy - h / 2 + Math.random() * h,
+          vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+          r: 3 + Math.random() * 2, kind: 'liquid'
+        });
+      }
+    }
+  }
+  function updateParticles(arr, cx, cy, w, h, dTrolling, meltProgress) {
+    if (typeof meltProgress !== 'number') meltProgress = 0;
+    meltProgress = Math.max(0, Math.min(1, meltProgress));
+    var speed = 0.5 + dTrolling * 0.08;
+    speed = Math.min(speed, 6);
+    var amp = Math.min(6, 0.4 + dTrolling * 0.18);
+    var left = cx - w / 2, right = cx + w / 2, top = cy - h / 2, bottom = cy + h / 2;
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      if (p.kind === 'solid') {
+        // Vibration always applies; amplitude scales slightly down when fully melted
+        p.phX += 0.05 + dTrolling * 0.01;
+        p.phY += 0.055 + dTrolling * 0.011;
+        var vibAmp = amp * (1 - 0.35 * meltProgress);
+        // During melting, anchor drifts with its velocity — the lattice "relaxes" into a liquid
+        if (meltProgress > 0) {
+          var drift = speed * meltProgress * 0.6;
+          p.ax += p.vx * drift; p.ay += p.vy * drift;
+          if (p.ax - p.r < left)  { p.ax = left  + p.r; p.vx =  Math.abs(p.vx); }
+          if (p.ax + p.r > right) { p.ax = right - p.r; p.vx = -Math.abs(p.vx); }
+          if (p.ay - p.r < top)   { p.ay = top   + p.r; p.vy =  Math.abs(p.vy); }
+          if (p.ay + p.r > bottom){ p.ay = bottom- p.r; p.vy = -Math.abs(p.vy); }
+        }
+        p.x = p.ax + Math.sin(p.phX * p.fX * 0.25) * vibAmp;
+        p.y = p.ay + Math.cos(p.phY * p.fY * 0.25) * vibAmp;
+      } else {
+        p.x += p.vx * speed; p.y += p.vy * speed;
+        if (p.x - p.r < left)  { p.x = left  + p.r; p.vx =  Math.abs(p.vx); }
+        if (p.x + p.r > right) { p.x = right - p.r; p.vx = -Math.abs(p.vx); }
+        if (p.y - p.r < top)   { p.y = top   + p.r; p.vy =  Math.abs(p.vy); }
+        if (p.y + p.r > bottom){ p.y = bottom- p.r; p.vy = -Math.abs(p.vy); }
+      }
+    }
+  }
+  // Colour blend helper for phase transition (ice → water etc.)
+  function blendHex(a, b, t) {
+    function hx(s) { return parseInt(s.slice(1), 16); }
+    var ha = hx(a), hb = hx(b);
+    var ar = (ha >> 16) & 255, ag = (ha >> 8) & 255, ab = ha & 255;
+    var br = (hb >> 16) & 255, bg = (hb >> 8) & 255, bb = hb & 255;
+    var r = Math.round(ar + (br - ar) * t);
+    var g = Math.round(ag + (bg - ag) * t);
+    var b2 = Math.round(ab + (bb - ab) * t);
+    return 'rgb(' + r + ',' + g + ',' + b2 + ')';
+  }
+  function blendFillAlpha(hexA, hexB, t, alpha) {
+    function hx(s) { return parseInt(s.slice(1), 16); }
+    var ha = hx(hexA), hb = hx(hexB);
+    var ar = (ha >> 16) & 255, ag = (ha >> 8) & 255, ab = ha & 255;
+    var br = (hb >> 16) & 255, bg = (hb >> 8) & 255, bb = hb & 255;
+    var r = Math.round(ar + (br - ar) * t);
+    var g = Math.round(ag + (bg - ag) * t);
+    var b2 = Math.round(ab + (bb - ab) * t);
+    return 'rgba(' + r + ',' + g + ',' + b2 + ',' + alpha + ')';
+  }
+  // Returns melt progress in [0,1] if this material is Ice and is being heated toward 0°C+; else 0.
+  // Transition window: −2 °C (starting to soften) → +15 °C (fully liquid) — wide band for a
+  // clearly *slow* visual shift, eased with smoothstep so the midpoint reads as active melting.
+  function meltProgressFor(mat, tempC) {
+    if (!mat || mat.name !== 'Ice') return 0;
+    var t = (tempC - (-2)) / 17; // span 17°C from -2 to +15
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    // smoothstep: 3t² − 2t³
+    return t * t * (3 - 2 * t);
+  }
+  function drawParticles(arr, color, alpha) {
+    ctx.globalAlpha = alpha;
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ================================================================
+     CALCULATIONS
+     ================================================================ */
+  function calcDT(Q_kJ, m, c) {
+    if (m <= 0 || c <= 0) return 0;
+    return (Q_kJ * 1000) / (m * c);
+  }
+
+  /* ================================================================
+     CANVAS — HiDPI sizing
+     ================================================================ */
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    var cssW = rect.width || W;
+    var cssH = cssW * (H / W);
+    if (Math.abs((rect.height || 0) - cssH) > 1) canvas.style.height = cssH + 'px';
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(canvas.width / W, canvas.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+  }
+
+  /* ================================================================
+     DRAW HELPERS
+     ================================================================ */
+  /* drawGrid removed — grid toggle replaced by "Keep traces" */
+  function drawFlame(x, y, w, intensity) {
+    // Ambient glow (behind flames)
+    var grd = ctx.createRadialGradient(x, y - 10, 2, x, y - 10, w * 0.7);
+    grd.addColorStop(0, 'rgba(255,140,0,' + (0.22 + intensity * 0.15) + ')');
+    grd.addColorStop(0.6, 'rgba(255,80,0,' + (0.08 + intensity * 0.08) + ')');
+    grd.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(x - w * 0.75, y - w * 0.75, w * 1.5, w * 0.85);
+
+    var numFlames = 6, flameW = w / numFlames;
+    for (var i = 0; i < numFlames; i++) {
+      var fx = x - w / 2 + flameW * i + flameW / 2;
+      // Multi-frequency flicker: big slow sway + fast flicker
+      var sway    = Math.sin(animTime * 2.4 + i * 0.8) * 2.5;
+      var flicker = Math.sin(animTime * 12 + i * 1.7) * 3
+                  + Math.sin(animTime * 19 + i * 2.3) * 1.5;
+      var fh = 22 + intensity * 34 + flicker + Math.sin(animTime * 3 + i) * 3;
+      var tipX = fx + sway + Math.sin(animTime * 8 + i * 2.1) * 1.5;
+      // Outer orange flame — asymmetric Bezier for organic shape
+      var ctlL = fx - flameW * 0.55 - Math.sin(animTime * 3 + i) * 1.2;
+      var ctlR = fx + flameW * 0.55 + Math.cos(animTime * 3 + i * 1.3) * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(fx - flameW * 0.42, y);
+      ctx.bezierCurveTo(ctlL, y - fh * 0.35,
+                        tipX - flameW * 0.12, y - fh * 0.8,
+                        tipX, y - fh);
+      ctx.bezierCurveTo(tipX + flameW * 0.12, y - fh * 0.8,
+                        ctlR, y - fh * 0.35,
+                        fx + flameW * 0.42, y);
+      var outerGrd = ctx.createLinearGradient(fx, y, fx, y - fh);
+      outerGrd.addColorStop(0,   'rgba(255,' + Math.floor(60 + intensity * 40) + ',0,' + (0.88 + intensity * 0.1) + ')');
+      outerGrd.addColorStop(0.5, 'rgba(255,' + Math.floor(140 + intensity * 60) + ',0,' + (0.75 + intensity * 0.1) + ')');
+      outerGrd.addColorStop(1,   'rgba(255,200,40,' + (0.35 + intensity * 0.15) + ')');
+      ctx.fillStyle = outerGrd;
+      ctx.fill();
+      // Inner yellow/white hot core
+      var fh2 = fh * 0.55;
+      var tipX2 = fx + sway * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(fx - flameW * 0.22, y);
+      ctx.bezierCurveTo(fx - flameW * 0.28, y - fh2 * 0.4,
+                        tipX2 - flameW * 0.06, y - fh2 * 0.8,
+                        tipX2, y - fh2);
+      ctx.bezierCurveTo(tipX2 + flameW * 0.06, y - fh2 * 0.8,
+                        fx + flameW * 0.28, y - fh2 * 0.4,
+                        fx + flameW * 0.22, y);
+      var innerGrd = ctx.createLinearGradient(fx, y, fx, y - fh2);
+      innerGrd.addColorStop(0, 'rgba(255,230,60,' + (0.75 + intensity * 0.2) + ')');
+      innerGrd.addColorStop(1, 'rgba(255,255,220,' + (0.55 + intensity * 0.2) + ')');
+      ctx.fillStyle = innerGrd;
+      ctx.fill();
+      // Occasional spark
+      if (Math.random() < 0.06 + intensity * 0.08) {
+        ctx.fillStyle = 'rgba(255,200,80,' + (0.4 + Math.random() * 0.4) + ')';
+        ctx.beginPath();
+        ctx.arc(tipX + (Math.random() - 0.5) * flameW * 0.4,
+                y - fh - Math.random() * 12,
+                0.6 + Math.random() * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  function drawThermometer(x, y, h, temp, maxTemp, color) {
+    var bulbR = 12, tubeW = 8, tubeH = h - bulbR * 2;
+    var tubeTop = y, tubeBottom = y + tubeH;
+    var fraction = Math.min(1, Math.max(0, (temp - T0) / Math.max(1, maxTemp - T0)));
+    var fillH = fraction * tubeH;
+    ctx.fillStyle = '#1a1a2e'; ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(x - tubeW / 2, tubeTop, tubeW, tubeH, 4); ctx.fill(); ctx.stroke();
+    if (fillH > 0) {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - tubeW / 2 + 1.5, tubeBottom - fillH, tubeW - 3, fillH, 2); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(x, tubeBottom + bulbR, bulbR, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.strokeStyle = '#444'; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'center';
+    var u = U();
+    ctx.fillText(u.fromTempC(temp).toFixed(u.tDigits) + u.tempLabel, x, tubeTop - 8);
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 0.5;
+    for (var i = 0; i <= 4; i++) {
+      var my = tubeBottom - (tubeH * i / 4);
+      ctx.beginPath(); ctx.moveTo(x + tubeW / 2 + 2, my); ctx.lineTo(x + tubeW / 2 + 6, my); ctx.stroke();
+    }
+  }
+  function drawContainer(cx, cy, w, h, mat, meltProgress) {
+    if (typeof meltProgress !== 'number') meltProgress = 0;
+    ctx.fillStyle = '#1c2333'; ctx.strokeStyle = '#3a4a6a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); ctx.fill(); ctx.stroke();
+    var fillH = h * 0.7, fillTop = cy + h / 2 - fillH;
+    // Blend fill/stroke colour between ice and water during melt transition
+    var waterColor = '#4fc3f7', waterHex = '#4fc3f7', iceHex = '#81d4fa';
+    var fillColor = mat.fill;
+    var strokeColor = mat.color;
+    if (mat.name === 'Ice' && meltProgress > 0) {
+      fillColor = blendFillAlpha(iceHex, waterHex, meltProgress, 0.35);
+      strokeColor = blendHex(iceHex, waterHex, meltProgress);
+    }
+    ctx.fillStyle = fillColor;
+    ctx.beginPath(); ctx.roundRect(cx - w / 2 + 2, fillTop, w - 4, fillH - 2, [0, 0, 6, 6]); ctx.fill();
+    ctx.strokeStyle = strokeColor; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    // Surface shape: liquid ⇒ wavy; solid ⇒ flat; during ice→water, wave amplitude grows with meltProgress
+    var liquidLike = (mat.kind === 'liquid') || (mat.name === 'Ice' && meltProgress > 0.3);
+    if (liquidLike) {
+      var waveAmp = (mat.kind === 'liquid') ? 2 : 2 * meltProgress;
+      for (var i = 0; i <= w - 4; i++) {
+        var sx = cx - w / 2 + 2 + i;
+        var sy = fillTop + Math.sin(animTime * 3 + i * 0.05) * waveAmp;
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+    } else {
+      ctx.moveTo(cx - w / 2 + 2, fillTop);
+      ctx.lineTo(cx + w / 2 - 2, fillTop);
+    }
+    ctx.stroke();
+  }
+  function drawMaterialLabel(cx, topY, mat, label, temp, meltProgress) {
+    if (typeof meltProgress !== 'number') meltProgress = 0;
+    var u = U();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    // Name may change during ice melting
+    var name = mat.name, displayColor = mat.color;
+    if (mat.name === 'Ice') {
+      if (meltProgress >= 1)       name = 'Water (melted)';
+      else if (meltProgress > 0)    name = 'Ice \u2192 Water';
+      // Blend colour to water during the transition
+      displayColor = blendHex('#81d4fa', '#4fc3f7', meltProgress);
+    }
+    // Row 1: material label + name, larger, coloured by material
+    ctx.fillStyle = displayColor; ctx.font = 'bold 15px "Segoe UI", sans-serif';
+    ctx.fillText(label + ': ' + name, cx, topY);
+    // Row 2: current temperature — big monospace for readability
+    ctx.fillStyle = '#ffd54f'; ctx.font = 'bold 17px "JetBrains Mono","Courier New",monospace';
+    ctx.fillText('T = ' + u.fromTempC(temp).toFixed(u.tDigits) + u.tempLabel, cx, topY + 20);
+    ctx.textBaseline = 'alphabetic';
+  }
+  function drawBurner(x, y, w) {
+    ctx.fillStyle = '#333'; ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x - w / 2, y, w, 12, [0, 0, 4, 4]); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#666';
+    for (var i = 1; i < 5; i++) {
+      var lx = x - w / 2 + (w * i / 5);
+      ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx, y + 12); ctx.stroke();
+    }
+  }
+  function drawGraphPanel(gx, gy, gw, gh, matA, matB, Q_kJ, m, rolling) {
+    ctx.fillStyle = '#111826'; ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#8899bb'; ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Temperature vs Heat Input', gx + gw / 2, gy + 16);
+    var pad = 40;
+    // Layout: title row (gy+16) → legend row (gy+30) → axes → x-ticks → x-title
+    var axLeft = gx + pad, axRight = gx + gw - 15, axTop = gy + 44, axBot = gy + gh - 34;
+    var plotW = axRight - axLeft, plotH = axBot - axTop;
+    ctx.strokeStyle = '#3a4a6a';
+    ctx.beginPath(); ctx.moveTo(axLeft, axTop); ctx.lineTo(axLeft, axBot); ctx.lineTo(axRight, axBot); ctx.stroke();
+    var u = U();
+    // Y-axis title (rotated)
+    ctx.save(); ctx.translate(gx + 12, (axTop + axBot) / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#bcc8df'; ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Temp (' + u.tempLabel + ')', 0, 0); ctx.restore();
+    // X-axis title — centered well below tick labels (no overlap with legend now at top)
+    ctx.fillStyle = '#bcc8df'; ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Heat (' + u.heatLabel + ')', (axLeft + axRight) / 2, gy + gh - 6);
+    var maxQ = Math.max(heatInput, 20);
+    var dtA_max = calcDT(maxQ, m, matA.c);
+    var dtB_max = calcDT(maxQ, m, matB.c);
+    var maxDT = Math.max(dtA_max, dtB_max, 10);
+    // Expand axes to fit stored traces so older runs remain on-graph
+    for (var tIx = 0; tIx < traces.length; tIx++) {
+      var tr = traces[tIx];
+      if (tr.Q > maxQ) maxQ = tr.Q;
+      var trDT = calcDT(tr.Q, tr.m, tr.c);
+      if (trDT > maxDT) maxDT = trDT;
+    }
+    // Y-axis tick labels (temperature) — brighter, larger for readability
+    ctx.fillStyle = '#d6deee'; ctx.font = 'bold 11px "JetBrains Mono","Courier New",monospace'; ctx.textAlign = 'right';
+    for (var i = 0; i <= 4; i++) {
+      var tv = T0 + (maxDT * i / 4); var ty = axBot - (plotH * i / 4);
+      ctx.fillText(u.fromTempC(tv).toFixed(0), axLeft - 6, ty + 3);
+      ctx.strokeStyle = '#263056';
+      ctx.beginPath(); ctx.moveTo(axLeft, ty); ctx.lineTo(axRight, ty); ctx.stroke();
+    }
+    // X-axis tick labels (heat) — brighter, larger
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#d6deee'; ctx.font = 'bold 11px "JetBrains Mono","Courier New",monospace';
+    for (var j = 0; j <= 4; j++) {
+      var qv = maxQ * j / 4; var qx = axLeft + (plotW * j / 4);
+      ctx.fillText(u.fromHeatKJ(qv).toFixed(0), qx, axBot + 14);
+    }
+    // Shaded historical traces (under active curves) — only plotted up to their own Q
+    if (traces.length) {
+      for (var tt = 0; tt < traces.length; tt++) {
+        var T = traces[tt];
+        T.poly = [];
+        var isHover = hoverTrace && hoverTrace.trace === T;
+        ctx.save();
+        ctx.strokeStyle = T.color;
+        ctx.lineWidth = isHover ? 2.4 : 1.6;
+        ctx.globalAlpha = isHover ? 0.95 : 0.35;
+        ctx.setLineDash(isHover ? [] : [5, 3]);
+        ctx.beginPath();
+        var Ntr = 80;
+        for (var s = 0; s <= Ntr; s++) {
+          var qs = T.Q * s / Ntr;
+          var ts = T0 + calcDT(qs, T.m, T.c);
+          var psx = axLeft + (qs / maxQ) * plotW;
+          var psy = axBot - ((ts - T0) / maxDT) * plotH;
+          T.poly.push({ x: psx, y: psy });
+          if (s === 0) ctx.moveTo(psx, psy); else ctx.lineTo(psx, psy);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+    }
+    // Progressive curves: solid up to current Q, faint preview beyond
+    var N = 200;
+    var qActive = Q_kJ * rolling;
+    function drawCurve(mat, color) {
+      // Ghost preview removed — user should discover the curve live, not see the target line in advance
+      // Active segment from Q=0 up to current qActive
+      if (qActive <= 0.0001) return;
+
+      /* Q = mcΔT describes SENSIBLE heat only. Once a material reaches its
+         melting/boiling point, further heat goes into latent heat at constant
+         temperature — the textbook heating curve flattens into a plateau. This
+         tool deliberately models sensible heat only (and flags the crossing
+         with a warning pill), but the straight line used to be drawn clean
+         THROUGH the phase temperature, running right past the tool's own
+         dashed "melting 0 °C" marker and claiming a temperature the material
+         cannot reach by this mechanism.
+
+         The segment beyond the crossing is now dashed and faded: the line stops
+         asserting, which is honest about where the simple model stops applying,
+         without changing the engine or any readout. */
+      var qPhase = (mat.phaseC != null && mat.phaseC > T0)
+        ? (mat.phaseC - T0) * m * mat.c / 1000
+        : Infinity;
+
+      function segment(qFrom, qTo, beyondPhase) {
+        if (!(qTo > qFrom)) return;
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.8;
+        if (beyondPhase) { ctx.setLineDash([6, 4]); ctx.globalAlpha = 0.5; }
+        ctx.beginPath();
+        for (var k = 0; k <= N; k++) {
+          var qk = qFrom + (qTo - qFrom) * k / N;
+          var tk = T0 + calcDT(qk, m, mat.c);
+          var px = axLeft + (qk / maxQ) * plotW;
+          var py = axBot - ((tk - T0) / maxDT) * plotH;
+          if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      var qSolidEnd = Math.min(qActive, qPhase);
+      segment(0, qSolidEnd, false);
+      segment(qSolidEnd, qActive, true);
+    }
+    drawCurve(matA, matA.color);
+    drawCurve(matB, matB.color);
+
+    // Phase-change indicator — horizontal dashed line at melting/boiling temperature.
+    // Shown whenever a material with a defined phaseC is on-graph and that temperature
+    // sits within the visible y-range. Ice gets priority (melting at 0 °C).
+    function drawPhaseLine(mat, color) {
+      if (!mat || mat.phaseC == null) return;
+      var Tphase = mat.phaseC;
+      // Must be within current y-axis range (T0 .. T0 + maxDT)
+      if (Tphase <= T0 + 0.5 || Tphase >= T0 + maxDT - 0.5) return;
+      var py = axBot - ((Tphase - T0) / maxDT) * plotH;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(axLeft, py); ctx.lineTo(axRight, py); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      // Label pill at left edge
+      // Ice is the only material whose melt is water-to-ice iconography; every
+      // other phase boundary (aluminium melting, water boiling) gets the warning glyph.
+      var lbl = (mat.name === 'Ice' ? '\u2744 \u2192 \u{1F4A7} ' : '\u26A0 ') +
+                mat.name + ' ' + mat.phaseName + ' ' + Tphase + '\u00B0C';
+      ctx.font = 'bold 9px "Segoe UI", sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      var tw = ctx.measureText(lbl).width;
+      ctx.fillStyle = 'rgba(13,17,30,0.9)';
+      ctx.strokeStyle = color; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(axLeft + 4, py - 7, tw + 10, 14, 3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(lbl, axLeft + 9, py + 1);
+      ctx.textBaseline = 'alphabetic';
+      // Marker on the curve at the crossing point (Q where T = T0 + Tphase−T0)
+      // qCross satisfies calcDT(qCross, m, mat.c) = Tphase − T0  →  qCross = (Tphase−T0) · m · c / 1000
+      var qCross = (Tphase - T0) * m * mat.c / 1000;
+      if (qCross > 0 && qCross <= qActive + 0.0001) {
+        var mx = axLeft + (qCross / maxQ) * plotW;
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(mx, py, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(mx, py, 4.5, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    /* Draw the phase line for ANY material whose phase temperature falls inside
+       the visible range — not just Ice. Water boiling at 100 °C is the most
+       familiar phase change there is, and the curve now visibly changes style
+       as it crosses, so the line is what explains why. drawPhaseLine already
+       guards against an off-range temperature. */
+    drawPhaseLine(matA, matA.color);
+    if (matB.name !== matA.name) drawPhaseLine(matB, matB.color);
+
+    // Current rolling Q dot
+    if (Q_kJ > 0) {
+      var qCur = Q_kJ * rolling;
+      var markerX = axLeft + (qCur / maxQ) * plotW;
+      ctx.strokeStyle = 'rgba(229,57,53,0.65)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(markerX, axTop); ctx.lineTo(markerX, axBot); ctx.stroke();
+      ctx.setLineDash([]);
+      function dot(mat, c) {
+        var ty = T0 + calcDT(qCur, m, mat.c);
+        var py = axBot - ((ty - T0) / maxDT) * plotH;
+        ctx.fillStyle = c; ctx.beginPath(); ctx.arc(markerX, py, 4, 0, Math.PI * 2); ctx.fill();
+      }
+      dot(matA, matA.color); dot(matB, matB.color);
+
+      // Final temperature label at tip of each curve when simulation completes
+      if (rolling >= 0.98) {
+        ctx.font = 'bold 10px "JetBrains Mono","Courier New",monospace';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        function tipLabel(mat, color) {
+          var tF_si = T0 + calcDT(Q_kJ, m, mat.c);
+          var tPx = axBot - ((tF_si - T0) / maxDT) * plotH;
+          var label = 'T\u2091 = ' + u.fromTempC(tF_si).toFixed(u.tDigits) + u.tempLabel;
+          var tw = ctx.measureText(label).width;
+          var lx = markerX + 8, ly = tPx;
+          if (lx + tw + 6 > axRight) lx = markerX - 8 - tw - 6; // flip left if overflowing
+          // Pill background for legibility
+          ctx.fillStyle = 'rgba(13,17,30,0.85)';
+          ctx.strokeStyle = color; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.roundRect(lx - 4, ly - 8, tw + 8, 16, 4); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = color;
+          ctx.fillText(label, lx, ly + 1);
+        }
+        tipLabel(matA, matA.color);
+        tipLabel(matB, matB.color);
+
+        // Phase-boundary warning: Q = mcΔT is only valid within a single phase.
+        // If the final temperature exceeds the material's phase limit, flag it.
+        var warnings = [];
+        var tfA = T0 + calcDT(Q_kJ, m, matA.c), tfB = T0 + calcDT(Q_kJ, m, matB.c);
+        var wA0 = phaseWarning(matA, tfA), wB0 = phaseWarning(matB, tfB);
+        if (wA0) warnings.push(matA.name + ' > ' + wA0.limit + '\u00B0C (' + wA0.phase + ') \u2014 latent heat ignored');
+        if (wB0) warnings.push(matB.name + ' > ' + wB0.limit + '\u00B0C (' + wB0.phase + ') \u2014 latent heat ignored');
+        if (warnings.length) {
+          ctx.font = 'bold 9px "Segoe UI", sans-serif';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          var wy = axTop + 8;
+          for (var wi = 0; wi < warnings.length; wi++) {
+            var msg = '\u26A0 ' + warnings[wi];
+            var ww = ctx.measureText(msg).width;
+            var wx = axLeft + 6;
+            ctx.fillStyle = 'rgba(255,170,40,0.15)';
+            ctx.strokeStyle = 'rgba(255,170,40,0.7)'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.roundRect(wx - 3, wy - 7, ww + 8, 14, 4); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#ffd54f';
+            ctx.fillText(msg, wx + 2, wy);
+            wy += 16;
+          }
+          ctx.textBaseline = 'alphabetic';
+        }
+      }
+    }
+    // Legend (top row, centered below the panel title) — no overlap with axis labels
+    ctx.font = 'bold 10px "Segoe UI", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    var legY = gy + 32;
+    var swW = 14, swGap = 6, nameGap = 14;
+    var wA = ctx.measureText(matA.name).width;
+    var wB = ctx.measureText(matB.name).width;
+    var totalLegW = swW + swGap + wA + nameGap + swW + swGap + wB;
+    var legX = gx + (gw - totalLegW) / 2;
+    ctx.fillStyle = matA.color; ctx.fillRect(legX, legY - 2, swW, 4);
+    ctx.fillStyle = '#cfd8e8'; ctx.fillText(matA.name, legX + swW + swGap, legY);
+    var legX2 = legX + swW + swGap + wA + nameGap;
+    ctx.fillStyle = matB.color; ctx.fillRect(legX2, legY - 2, swW, 4);
+    ctx.fillStyle = '#cfd8e8'; ctx.fillText(matB.name, legX2 + swW + swGap, legY);
+    ctx.textBaseline = 'alphabetic';
+
+    // Traces hint — tucked at top-left (doesn't collide with axis labels or legend)
+    if (keepTraces && traces.length) {
+      ctx.fillStyle = '#8b9dc3'; ctx.font = '9px "Segoe UI", sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('Traces: ' + (traces.length / 2) + ' run(s) — hover to identify', gx + 10, gy + 14);
+    }
+
+    // Hover tooltip on a trace
+    if (hoverTrace && hoverTrace.trace) {
+      var tr2 = hoverTrace.trace;
+      var u2 = U();
+      var lines = [
+        tr2.label,
+        'c = ' + u2.fromCSI(tr2.c).toFixed(u2.cDigits) + ' ' + u2.cLabel,
+        'Q = ' + u2.fromHeatKJ(tr2.Q).toFixed(u2.hDigits) + ' ' + u2.heatLabel +
+          ',  m = ' + u2.fromMassKg(tr2.m).toFixed(u2.mDigits) + ' ' + u2.massLabel
+      ];
+      ctx.font = 'bold 10px "Segoe UI", sans-serif';
+      var lw = 0;
+      for (var li = 0; li < lines.length; li++) lw = Math.max(lw, ctx.measureText(lines[li]).width);
+      var pw = lw + 14, ph = lines.length * 13 + 8;
+      var mx = hoverTrace.mx + 12, my = hoverTrace.my - ph - 6;
+      if (mx + pw > gx + gw - 4) mx = hoverTrace.mx - pw - 12;
+      if (my < gy + 4) my = hoverTrace.my + 14;
+      ctx.fillStyle = 'rgba(13,17,30,0.95)';
+      ctx.strokeStyle = tr2.color; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.roundRect(mx, my, pw, ph, 4); ctx.fill(); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = tr2.color; ctx.fillText(lines[0], mx + 7, my + 5);
+      ctx.fillStyle = '#cfd8e8'; ctx.font = '10px "Segoe UI", sans-serif';
+      ctx.fillText(lines[1], mx + 7, my + 18);
+      ctx.fillText(lines[2], mx + 7, my + 31);
+      ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  /* ── Rolling canvas equation (Q = m · c · ΔT) ── */
+  function drawEquation(fx, fy, matA, matB, rolling) {
+    var u = U();
+    var stale = rolling < 0.001 && !anim.running;
+    var Q_live_A = u.fromHeatKJ(heatInput) * rolling;
+    var Q_live_B = u.fromHeatKJ(heatInput) * rolling;
+    var m_disp = u.fromMassKg(mass);
+    var dtA = calcDT(heatInput, mass, matA.c) * rolling;
+    var dtB = calcDT(heatInput, mass, matB.c) * rolling;
+    ctx.save();
+    ctx.fillStyle = 'rgba(17,24,38,0.88)'; ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(fx, fy, 265, 78, 6); ctx.fill(); ctx.stroke();
+    // Title row
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    var tx = fx + 10, ty = fy + 16;
+    var varFont = 'italic 700 15px "Cambria Math","Times New Roman",serif';
+    var valFont = '700 12px "JetBrains Mono","Courier New",monospace';
+    function row(y, label, Q, dT, color) {
+      ctx.fillStyle = '#ffd54f'; ctx.font = 'bold 11px "Segoe UI", sans-serif';
+      ctx.fillText(label + ':', tx, y);
+      var xCur = tx + 40;
+      ctx.font = varFont; ctx.fillStyle = color; ctx.fillText('Q', xCur, y);
+      xCur += ctx.measureText('Q').width;
+      ctx.font = valFont; ctx.fillStyle = '#e6edf6';
+      var qTxt = stale ? '\u2014' : Q.toFixed(u.hDigits);
+      ctx.fillText(' = ' + m_disp.toFixed(u.mDigits) + ' \u00B7 ' + u.fromCSI(color === '#ff8a65' ? matA.c : matB.c).toFixed(u.cDigits) + ' \u00B7 ', xCur, y);
+      var w1 = ctx.measureText(' = ' + m_disp.toFixed(u.mDigits) + ' \u00B7 ' + u.fromCSI(color === '#ff8a65' ? matA.c : matB.c).toFixed(u.cDigits) + ' \u00B7 ').width;
+      ctx.fillStyle = '#3ddc84';
+      var dTtxt = stale ? '\u2014' : u.fromDTempC(dT).toFixed(u.dtDigits);
+      ctx.fillText(dTtxt + u.dTempLabel, xCur + w1, y);
+    }
+    // Heading
+    ctx.fillStyle = '#90caf9'; ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillText('Q = m \u00B7 c \u00B7 \u0394T', tx, ty);
+    row(ty + 22, 'A', Q_live_A, dtA, '#ff8a65');
+    row(ty + 44, 'B', Q_live_B, dtB, '#42a5f5');
+    ctx.restore();
+  }
+
+  /* ================================================================
+     MAIN RENDER
+     ================================================================ */
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    if (mode !== 'simulate') { drawStaticIllustration(); return; }
+
+    var matA = MATERIALS[matAIdx] || MATERIALS[0];
+    var matB = MATERIALS[matBIdx] || MATERIALS[0];
+    var rolling = Math.max(0, Math.min(1, anim.forceScale));
+    var dtA = calcDT(heatInput, mass, matA.c) * rolling;
+    var dtB = calcDT(heatInput, mass, matB.c) * rolling;
+    var tempA = T0 + dtA, tempB = T0 + dtB;
+    var maxTemp = T0 + Math.max(calcDT(Math.max(heatInput, 10), Math.max(mass, 0.2), Math.min(matA.c, matB.c)), 50);
+    var intensity = Math.min(1, heatInput / 50);
+
+    var contW = 130, contH = 150;
+    var contAX = 150, contBX = 380;
+    var contY = 195;
+    var burnerY = contY + contH / 2 + 22;
+
+    drawBurner(contAX, burnerY, contW + 20);
+    drawBurner(contBX, burnerY, contW + 20);
+    if (showFlames && heatInput > 0 && (anim.running || rolling > 0.001)) {
+      // Flame intensity ramps up while heating, full during sim, fades slightly when finished
+      var flameIntensity = intensity * (anim.running ? Math.max(0.35, rolling) : 0.9);
+      // Flames drawn between stove and container bottom (sit atop burner, rise toward container)
+      var flameBaseY = burnerY;
+      drawFlame(contAX, flameBaseY, contW, flameIntensity);
+      drawFlame(contBX, flameBaseY, contW, flameIntensity);
+    }
+    // Phase-transition progress (currently modelled for Ice → Water)
+    var meltA = meltProgressFor(matA, tempA);
+    var meltB = meltProgressFor(matB, tempB);
+    // Display colour blends ice → water during transition
+    var dispColorA = (matA.name === 'Ice' && meltA > 0) ? blendHex('#81d4fa', '#4fc3f7', meltA) : matA.color;
+    var dispColorB = (matB.name === 'Ice' && meltB > 0) ? blendHex('#81d4fa', '#4fc3f7', meltB) : matB.color;
+
+    drawContainer(contAX, contY, contW, contH, matA, meltA);
+    drawContainer(contBX, contY, contW, contH, matB, meltB);
+    if (showParticles) {
+      // Fluid region: fillTop = contY + contH/2 - fillH (fillH = contH*0.7)
+      var fillH = contH * 0.7;
+      var fluidTop = contY + contH / 2 - fillH + 6;   // 6px inset from fluid surface
+      var fluidBot = contY + contH / 2 - 6;           // 6px inset from container bottom
+      var pAreaH = fluidBot - fluidTop;
+      var pCenterY = (fluidTop + fluidBot) / 2;
+      var pAreaW = contW - 14;                        // 7px inset from each side wall
+      updateParticles(particlesA, contAX, pCenterY, pAreaW, pAreaH, dtA, meltA);
+      updateParticles(particlesB, contBX, pCenterY, pAreaW, pAreaH, dtB, meltB);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(contAX - pAreaW / 2, fluidTop, pAreaW, pAreaH);
+      ctx.rect(contBX - pAreaW / 2, fluidTop, pAreaW, pAreaH);
+      ctx.clip();
+      drawParticles(particlesA, dispColorA, 0.75);
+      drawParticles(particlesB, dispColorB, 0.75);
+      ctx.restore();
+    }
+    drawThermometer(contAX + contW / 2 + 28, contY - contH / 2 + 20, 130, tempA, maxTemp, dispColorA);
+    drawThermometer(contBX + contW / 2 + 28, contY - contH / 2 + 20, 130, tempB, maxTemp, dispColorB);
+
+    // Material labels below burners (name + current temp; shows Ice → Water during transition)
+    var labelY = burnerY + 20;
+    drawMaterialLabel(contAX, labelY, matA, 'Material A', tempA, meltA);
+    drawMaterialLabel(contBX, labelY, matB, 'Material B', tempB, meltB);
+
+    if (showGraph) drawGraphPanel(515, 55, 370, 290, matA, matB, heatInput, mass, rolling);
+    if (showEquation) drawEquation(20, 405, matA, matB, rolling);
+
+    // Watermark when exporting
+    if (_exportFlag) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(229,57,53,0.45)';
+      ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText('NHIT VisualLab \u00B7 Specific Heat Capacity', W - 12, H - 8);
+      ctx.restore();
+    }
+  }
+  var _exportFlag = false;
+
+  function drawStaticIllustration() {
+    ctx.fillStyle = '#111826';
+    ctx.beginPath(); ctx.roundRect(20, 20, W - 40, H - 40, 10); ctx.fill();
+    ctx.fillStyle = '#e53935'; ctx.font = 'bold 32px "Courier New", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('Q = mc\u0394T', W / 2, H / 2 - 30);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '16px "Segoe UI", sans-serif';
+    ctx.fillText('Specific Heat Capacity', W / 2, H / 2 + 15);
+    var cols = ['#4fc3f7', '#ffb74d', '#90a4ae', '#ce93d8'];
+    var labels = ['Water', 'Copper', 'Iron', 'Glass'];
+    var heights = [0.15, 0.65, 0.55, 0.4];
+    for (var i = 0; i < 4; i++) {
+      var bx = W / 2 - 120 + i * 80, by = H / 2 + 100, bh = 80;
+      ctx.fillStyle = '#1a1a2e'; ctx.fillRect(bx - 4, by - bh, 8, bh);
+      ctx.fillStyle = cols[i]; ctx.fillRect(bx - 3, by - bh * heights[i], 6, bh * heights[i]);
+      ctx.beginPath(); ctx.arc(bx, by + 6, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6b7a99'; ctx.font = '9px "Segoe UI", sans-serif';
+      ctx.fillText(labels[i], bx, by + 28);
+    }
+    ctx.fillStyle = '#444'; ctx.font = '10px "Segoe UI", sans-serif';
+    ctx.fillText('\u0394T for same Q: lower c \u2192 higher temperature rise', W / 2, H / 2 + 170);
+  }
+
+  /* ================================================================
+     READOUTS + PANELS
+     ================================================================ */
+  function updateReadouts() {
+    var matA = MATERIALS[matAIdx] || MATERIALS[0], matB = MATERIALS[matBIdx] || MATERIALS[0];
+    var rolling = Math.max(0, Math.min(1, anim.forceScale));
+    var dtA_si = calcDT(heatInput, mass, matA.c) * rolling;
+    var dtB_si = calcDT(heatInput, mass, matB.c) * rolling;
+    var u = U();
+    rTempA.textContent = u.fromTempC(T0 + dtA_si).toFixed(u.tDigits);
+    rTempB.textContent = u.fromTempC(T0 + dtB_si).toFixed(u.tDigits);
+    rDtA.textContent   = u.fromDTempC(dtA_si).toFixed(u.dtDigits);
+    rDtB.textContent   = u.fromDTempC(dtB_si).toFixed(u.dtDigits);
+    rHeat.textContent  = u.fromHeatKJ(heatInput).toFixed(u.hDigits);
+    rUnitTa.textContent = ' ' + u.tempLabel;
+    rUnitTb.textContent = ' ' + u.tempLabel;
+    rUnitDta.textContent = ' ' + u.dTempLabel;
+    rUnitDtb.textContent = ' ' + u.dTempLabel;
+    rUnitHeat.textContent = ' ' + u.heatLabel;
+    badgeHeat.textContent = u.heatLabel;
+    badgeMass.textContent = u.massLabel;
+    // Steppers (no event — direct value update; guard against focus)
+    if (document.activeElement !== inHeat) inHeat.value = u.fromHeatKJ(heatInput).toFixed(u.hDigits);
+    if (document.activeElement !== inMass) inMass.value = u.fromMassKg(mass).toFixed(u.mDigits);
+  }
+
+  function updateLearningPanels() {
+    if (mode !== 'simulate') return;
+    var matA = MATERIALS[matAIdx] || MATERIALS[0], matB = MATERIALS[matBIdx] || MATERIALS[0];
+    var u = U();
+    var Q_disp = u.fromHeatKJ(heatInput), m_disp = u.fromMassKg(mass);
+    var dtA_si = calcDT(heatInput, mass, matA.c), dtB_si = calcDT(heatInput, mass, matB.c);
+
+    // Live equations (LaTeX rendered via shared/latex-auto.js)
+    var eqBody = document.getElementById('lp-eq-body');
+    if (eqBody) {
+      var _newEqHtml =
+        '<div class="eq-line">\\[ Q = m \\cdot c \\cdot \\Delta T \\]</div>' +
+        '<div class="eq-line">Material A: \\(' + Q_disp.toFixed(u.hDigits) + '\\;\\mathrm{' + u.heatLabel.replace(/ /g, '\\,') + '} = ' +
+          m_disp.toFixed(u.mDigits) + '\\;\\mathrm{' + u.massLabel + '} \\cdot ' + u.fromCSI(matA.c).toFixed(u.cDigits) + ' \\cdot ' +
+          '\\mathbf{' + u.fromDTempC(dtA_si).toFixed(u.dtDigits) + '}\\;\\mathrm{' + u.dTempLabel + '}\\)</div>' +
+        '<div class="eq-line">Material B: \\(' + Q_disp.toFixed(u.hDigits) + '\\;\\mathrm{' + u.heatLabel.replace(/ /g, '\\,') + '} = ' +
+          m_disp.toFixed(u.mDigits) + '\\;\\mathrm{' + u.massLabel + '} \\cdot ' + u.fromCSI(matB.c).toFixed(u.cDigits) + ' \\cdot ' +
+          '\\mathbf{' + u.fromDTempC(dtB_si).toFixed(u.dtDigits) + '}\\;\\mathrm{' + u.dTempLabel + '}\\)</div>' +
+        '<div class="eq-line">Rearranged: \\(\\Delta T = \\dfrac{Q}{m \\cdot c}\\)</div>';
+      if (eqBody._lastHtml !== _newEqHtml) { eqBody.innerHTML = _newEqHtml; eqBody._lastHtml = _newEqHtml; }
+    }
+
+    // Comparison table across all materials
+    var cmp = document.getElementById('lp-cmp-body');
+    if (cmp) {
+      var html = '<table class="cmp-table"><thead><tr><th>Material</th><th>c (' + u.cLabel + ')</th><th>\u0394T (' + u.dTempLabel + ')</th></tr></thead><tbody>';
+      var rows = MATERIALS.map(function (M, idx) {
+        var dT = calcDT(heatInput, mass, M.c);
+        return { name: M.name, c: M.c, dT: dT, idx: idx };
+      });
+      // Mark min (cold) and max (hot) ΔT
+      var maxDT = Math.max.apply(null, rows.map(function(r){ return r.dT; }));
+      var minDT = Math.min.apply(null, rows.map(function(r){ return r.dT; }));
+      rows.forEach(function (r) {
+        var cls = (r.dT === maxDT) ? ' class="cmp-hot"' : (r.dT === minDT ? ' class="cmp-cold"' : '');
+        html += '<tr><td>' + r.name + '</td><td>' + u.fromCSI(r.c).toFixed(u.cDigits) + '</td>' +
+                '<td' + cls + '>' + u.fromDTempC(r.dT).toFixed(u.dtDigits) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      html += '<p style="margin-top:6px;font-size:0.74rem;color:#8b9dc3;">Highest \u0394T (fastest to heat) in <span class="cmp-hot">red</span>, lowest (slowest) in <span class="cmp-cold">blue</span>, for current Q and m.</p>';
+      cmp.innerHTML = html;
+    }
+
+    // Coach
+    var coach = document.getElementById('lp-coach-body');
+    if (coach) {
+      var tips = [];
+      var ratio = matA.c / matB.c;
+      if (matAIdx !== matBIdx) {
+        if (ratio > 1.3) tips.push('Material A (<b>' + matA.name + '</b>) needs ' + ratio.toFixed(1) + '\u00D7 more energy than B (<b>' + matB.name + '</b>) for the same \u0394T.');
+        else if (ratio < 0.77) tips.push('Material B (<b>' + matB.name + '</b>) needs ' + (1/ratio).toFixed(1) + '\u00D7 more energy than A (<b>' + matA.name + '</b>) for the same \u0394T.');
+        else tips.push('Materials A and B have similar specific heats \u2014 their \u0394T curves are close.');
+      } else {
+        tips.push('A and B are the same material \u2014 both curves overlap. Try picking different materials.');
+      }
+      var hotter = dtA_si > dtB_si ? matA : matB;
+      var cooler = dtA_si > dtB_si ? matB : matA;
+      tips.push('For Q = ' + Q_disp.toFixed(u.hDigits) + ' ' + u.heatLabel + ' and m = ' + m_disp.toFixed(u.mDigits) + ' ' + u.massLabel + ': <b>' + hotter.name + '</b> ends up hotter than <b>' + cooler.name + '</b>.');
+      if (mass > 5) tips.push('With m = ' + m_disp.toFixed(1) + ' ' + u.massLabel + ', \u0394T per unit energy is small \u2014 try lower mass to see faster heating.');
+      // Phase-boundary tips: per-material, covers melt/boil/softening/decomposition
+      if (heatInput > 0) {
+        var tfA_tip = T0 + dtA_si, tfB_tip = T0 + dtB_si;
+        var pwA = phaseWarning(matA, tfA_tip), pwB = phaseWarning(matB, tfB_tip);
+        if (pwA) tips.push('<b>' + matA.name + '</b> crosses its ' + pwA.phase + ' point (' + pwA.limit + '\u00B0C). Q = mc\u0394T is only valid within one phase \u2014 latent heat is not modeled here.');
+        if (pwB && (!pwA || matAIdx !== matBIdx)) tips.push('<b>' + matB.name + '</b> crosses its ' + pwB.phase + ' point (' + pwB.limit + '\u00B0C). Q = mc\u0394T is only valid within one phase \u2014 latent heat is not modeled here.');
+      }
+      var html2 = '<ul class="coach-list">';
+      tips.forEach(function (t) { html2 += '<li>' + t + '</li>'; });
+      html2 += '</ul>';
+      coach.innerHTML = html2;
+    }
+  }
+
+  /* ================================================================
+     CALC MODAL — step-by-step derivation
+     ================================================================ */
+  function calcStep(num, title, formula, calculation, result) {
+    var html = '<div class="cs-step">';
+    html += '<div class="cs-step-hd"><span class="cs-num">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+    if (formula)     html += '<div class="cs-formula">' + formula + '</div>';
+    if (calculation) html += '<div class="cs-calc">' + calculation.replace(/\n/g, '<br>') + '</div>';
+    if (result != null) html += '<div class="cs-result">\u2192 <strong>' + result + '</strong></div>';
+    html += '</div>';
+    return html;
+  }
+  function buildCalcSteps() {
+    var matA = MATERIALS[matAIdx] || MATERIALS[0], matB = MATERIALS[matBIdx] || MATERIALS[0];
+    var Q_J = heatInput * 1000;
+    var dtA = calcDT(heatInput, mass, matA.c), dtB = calcDT(heatInput, mass, matB.c);
+    var u = U();
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Given \u2014 Current State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>Q = ' + u.fromHeatKJ(heatInput).toFixed(u.hDigits) + ' ' + u.heatLabel + ' = ' + Q_J + ' J</span>';
+    html += '<span>m = ' + u.fromMassKg(mass).toFixed(u.mDigits) + ' ' + u.massLabel + ' = ' + mass.toFixed(2) + ' kg</span>';
+    html += '<span>c<sub>A</sub> (' + matA.name + ') = ' + matA.c + ' J/(kg\u00B7K)</span>';
+    html += '<span>c<sub>B</sub> (' + matB.name + ') = ' + matB.c + ' J/(kg\u00B7K)</span>';
+    html += '<span>T\u2080 = 20 \u00B0C</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">\u2139 All calculations in SI. Displayed units follow the SI / Imperial toggle.</p></div>';
+
+    html += calcStep(1, 'Identify the governing equation',
+      '\\\\[ Q = m \\\\cdot c \\\\cdot \\\\Delta T \\\\]',
+      'The specific-heat equation links heat energy (Q), mass (m), specific heat capacity (c), and temperature change (&Delta;T).',
+      'Rearrange for &Delta;T when Q is the known input:  &Delta;T = Q / (m &middot; c)');
+
+    html += calcStep(2, 'Compute &Delta;T for Material A (' + matA.name + ')',
+      '\\\\[ \\\\Delta T_A = \\\\dfrac{Q}{m \\\\cdot c_A} \\\\]',
+      Q_J + ' / (' + mass + ' &times; ' + matA.c + ')\n= ' + Q_J + ' / ' + (mass * matA.c).toFixed(1),
+      dtA.toFixed(2) + ' &deg;C &nbsp; (' + u.fromDTempC(dtA).toFixed(u.dtDigits) + ' ' + u.dTempLabel + ')');
+
+    html += calcStep(3, 'Compute &Delta;T for Material B (' + matB.name + ')',
+      '\\\\[ \\\\Delta T_B = \\\\dfrac{Q}{m \\\\cdot c_B} \\\\]',
+      Q_J + ' / (' + mass + ' &times; ' + matB.c + ')\n= ' + Q_J + ' / ' + (mass * matB.c).toFixed(1),
+      dtB.toFixed(2) + ' &deg;C &nbsp; (' + u.fromDTempC(dtB).toFixed(u.dtDigits) + ' ' + u.dTempLabel + ')');
+
+    html += calcStep(4, 'Final temperatures (ambient T\u2080 = 20 &deg;C)',
+      '\\\\[ T_f = T_0 + \\\\Delta T \\\\]',
+      'T<sub>A</sub> = 20 + ' + dtA.toFixed(2) + ' = ' + (20 + dtA).toFixed(2) + ' &deg;C\n' +
+      'T<sub>B</sub> = 20 + ' + dtB.toFixed(2) + ' = ' + (20 + dtB).toFixed(2) + ' &deg;C',
+      'A: ' + u.fromTempC(20 + dtA).toFixed(u.tDigits) + ' ' + u.tempLabel +
+      ' &nbsp;|&nbsp; B: ' + u.fromTempC(20 + dtB).toFixed(u.tDigits) + ' ' + u.tempLabel);
+
+    var ratio = matA.c / matB.c;
+    var faster = (dtA > dtB) ? matA : matB;
+    var slower = (dtA > dtB) ? matB : matA;
+    html += calcStep(5, 'Compare &mdash; why one heats faster',
+      '\\\\(\\\\text{Lower } c \\\\Rightarrow \\\\text{higher } \\\\Delta T \\\\text{ for the same } Q, m\\\\)',
+      matA.name + ' / ' + matB.name + ' specific-heat ratio = ' + ratio.toFixed(3) + '.\n' +
+      faster.name + ' has the lower c, so for the same energy input it ends up hotter.',
+      faster.name + ' heats ' + (dtA > dtB ? (dtA/dtB).toFixed(1) : (dtB/dtA).toFixed(1)) + '\u00D7 faster than ' + slower.name);
+
+    html += calcStep(6, 'Energy per &deg;C (thermal mass)',
+      '\\\\[ C = m \\\\cdot c \\\\quad \\\\mathrm{(J/K)} \\\\]',
+      'C<sub>A</sub> = ' + mass + ' &times; ' + matA.c + ' = ' + (mass * matA.c).toFixed(0) + ' J/K\n' +
+      'C<sub>B</sub> = ' + mass + ' &times; ' + matB.c + ' = ' + (mass * matB.c).toFixed(0) + ' J/K',
+      'Energy needed to raise the whole sample by 1 &deg;C');
+
+    html += calcStep(7, 'Real-world context',
+      'Engineering implication',
+      'If Q represents waste heat that must be absorbed (e.g. engine coolant), a high-c fluid (water) keeps the system\'s temperature rise small. If Q represents desired heating (e.g. cookware), a low-c material (copper, iron) reaches cooking temperature faster.\n' +
+      'This simulator assumes no phase change. Above boiling / below melting, latent heat (L<sub>f</sub>, L<sub>v</sub>) adds to Q at constant T.',
+      null);
+    return html;
+  }
+  function openCalcModal() {
+    var modal = document.getElementById('calc-modal');
+    var body  = document.getElementById('calc-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildCalcSteps();
+    modal.classList.add('active');
+    var cb = document.getElementById('calc-modal-close'); if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    var modal = document.getElementById('calc-modal'); if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = document.getElementById('btn-calc'); if (b) b.focus();
+  }
+
+  /* ================================================================
+     UNDO/REDO
+     ================================================================ */
+  function snapState() {
+    return { a: matAIdx, b: matBIdx, q: heatInput, m: mass,
+      sf: showFlames, sp: showParticles, sg: showGraph, se: showEquation, tr: keepTraces,
+      cust: MATERIALS.slice(BUILTIN_MATERIALS.length) };
+  }
+  function loadState(s) {
+    if (!s) return;
+    if (s.cust && s.cust.length) {
+      MATERIALS = BUILTIN_MATERIALS.concat(s.cust);
+      rebuildMaterialSelects();
+    }
+    matAIdx = Math.min(s.a, MATERIALS.length - 1);
+    matBIdx = Math.min(s.b, MATERIALS.length - 1);
+    heatInput = s.q; mass = s.m;
+    if (typeof resyncParticles === 'function') resyncParticles();
+    showFlames = s.sf === undefined ? true : !!s.sf;
+    showParticles = s.sp === undefined ? true : !!s.sp;
+    showGraph = s.sg === undefined ? true : !!s.sg;
+    showEquation = s.se === undefined ? true : !!s.se;
+    keepTraces = s.tr === undefined ? false : !!s.tr;
+    syncInputs();
+    updateReadouts();
+    updateLearningPanels();
+    invalidateOutput();
+    render();
+  }
+  function pushHistory(immediate) {
+    if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+    function doPush() {
+      // drop redo tail
+      history = history.slice(0, histIdx + 1);
+      history.push(snapState());
+      if (history.length > HIST_MAX) { history.shift(); }
+      histIdx = history.length - 1;
+    }
+    if (immediate) doPush(); else pushTimer = setTimeout(doPush, 220);
+  }
+  function undo() {
+    if (histIdx > 0) { histIdx--; loadState(history[histIdx]); }
+  }
+  function redo() {
+    if (histIdx < history.length - 1) { histIdx++; loadState(history[histIdx]); }
+  }
+
+  /* ================================================================
+     ANIMATION + INVALIDATION
+     ================================================================ */
+  function invalidateOutput() {
+    if (anim.running) return;
+    anim.forceScale = 0;
+    tracedThisRun = false;
+  }
+  function pushCurrentTraces() {
+    var matA = MATERIALS[matAIdx] || MATERIALS[0];
+    var matB = MATERIALS[matBIdx] || MATERIALS[0];
+    var stamp = traces.length / 2 + 1; // run number
+    traces.push({ label: matA.name + ' (run ' + stamp + ')', color: matA.color, c: matA.c, Q: heatInput, m: mass, poly: [] });
+    traces.push({ label: matB.name + ' (run ' + stamp + ')', color: matB.color, c: matB.c, Q: heatInput, m: mass, poly: [] });
+    // Cap to last 12 traces (6 runs) to keep graph readable
+    while (traces.length > 12) traces.shift();
+  }
+  function tick(nowMs) {
+    if (!nowMs) nowMs = performance.now();
+    var dt = anim.lastMs ? Math.min(0.1, (nowMs - anim.lastMs) / 1000) : 0.016;
+    anim.lastMs = nowMs;
+    animTime += dt;
+    if (anim.running) {
+      var target = anim.targetScale;
+      var step = (dt / SIM_DURATION_S) * anim.speed;
+      if (anim.forceScale < target) {
+        anim.forceScale = Math.min(target, anim.forceScale + step);
+      }
+      if (anim.forceScale >= target - 0.0005) {
+        anim.forceScale = target;
+        anim.running = false;
+        var btnHeat = document.getElementById('btn-heat');
+        var btnStop = document.getElementById('btn-stop');
+        if (btnHeat) btnHeat.disabled = false;
+        if (btnStop) btnStop.disabled = true;
+        // Save completed curves as trace if enabled (once per run)
+        if (keepTraces && !tracedThisRun && heatInput > 0) {
+          pushCurrentTraces();
+          tracedThisRun = true;
+        }
+      }
+      updateReadouts(); updateLearningPanels();
+    }
+    render();
+    animId = requestAnimationFrame(tick);
+  }
+
+  function startHeating() {
+    // If already at full, restart from 0 so user sees the animation again
+    if (anim.forceScale >= 0.999) anim.forceScale = 0;
+    anim.running = true;
+    anim.targetScale = 1;
+    anim.lastMs = 0;
+    var btnHeat = document.getElementById('btn-heat');
+    var btnStop = document.getElementById('btn-stop');
+    if (btnHeat) btnHeat.disabled = true;
+    if (btnStop) btnStop.disabled = false;
+  }
+  function stopHeating() {
+    anim.running = false;
+    var btnHeat = document.getElementById('btn-heat');
+    var btnStop = document.getElementById('btn-stop');
+    if (btnHeat) btnHeat.disabled = false;
+    if (btnStop) btnStop.disabled = true;
+  }
+  function resetState() {
+    matAIdx = 0; matBIdx = 2; heatInput = 10; mass = 1.0;
+    if (typeof resyncParticles === 'function') resyncParticles();
+    showFlames = true; showParticles = true; showGraph = true; showEquation = true; keepTraces = false;
+    traces = []; tracedThisRun = false; hoverTrace = null;
+    unitSystem = 'si';
+    document.querySelectorAll('#unit-tabs .pill').forEach(function(p){ p.classList.toggle('active', p.dataset.unit === 'si'); });
+    document.getElementById('chk-flames').checked = true;
+    document.getElementById('chk-particles').checked = true;
+    document.getElementById('chk-graph').checked = true;
+    document.getElementById('chk-equation').checked = true;
+    var chkTr = document.getElementById('chk-traces'); if (chkTr) chkTr.checked = false;
+    stopHeating();
+    invalidateOutput();
+    syncInputs(); updateReadouts(); updateLearningPanels(); render();
+    pushHistory(true);
+  }
+
+  /* ================================================================
+     INPUTS SYNC
+     ================================================================ */
+  function syncInputs() {
+    selMatA.value = matAIdx;
+    selMatB.value = matBIdx;
+    var u = U();
+    slHeat.value = heatInput;
+    slMass.value = mass;
+    if (document.activeElement !== inHeat) inHeat.value = u.fromHeatKJ(heatInput).toFixed(u.hDigits);
+    if (document.activeElement !== inMass) inMass.value = u.fromMassKg(mass).toFixed(u.mDigits);
+    updatePresetChips();
+  }
+
+  function updatePresetChips() {
+    var chips = document.querySelectorAll('.preset-chip');
+    chips.forEach(function (c) {
+      var id = c.dataset.preset;
+      var p = PRESETS.find(function(pp){ return pp.id === id; });
+      var match = !!p && p.a === matAIdx && p.b === matBIdx &&
+                  Math.abs(p.q - heatInput) < 0.1 && Math.abs(p.m - mass) < 0.05;
+      c.classList.toggle('active', match);
+    });
+  }
+
+  function rebuildMaterialSelects() {
+    function opts(sel, selectedIdx) {
+      sel.innerHTML = '';
+      MATERIALS.forEach(function (M, i) {
+        var o = document.createElement('option');
+        o.value = i; o.textContent = M.name + ' (' + M.c + ' J/kg\u00B7K)';
+        if (i === selectedIdx) o.selected = true;
+        sel.appendChild(o);
+      });
+    }
+    opts(selMatA, matAIdx);
+    opts(selMatB, matBIdx);
+  }
+
+  function buildPresetChips() {
+    var host = document.getElementById('preset-chips');
+    host.innerHTML = '';
+    PRESETS.forEach(function (p) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'preset-chip'; b.dataset.preset = p.id;
+      b.textContent = p.label;
+      b.addEventListener('click', function () {
+        matAIdx = p.a; matBIdx = p.b; heatInput = p.q; mass = p.m;
+        resyncParticles();
+        stopHeating(); invalidateOutput();
+        syncInputs(); updateReadouts(); updateLearningPanels(); render(); pushHistory(true);
+      });
+      host.appendChild(b);
+    });
+  }
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+  document.getElementById('mode-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    var newMode = e.target.dataset.mode;
+    if (newMode === mode) return;
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p === e.target);
+    });
+    switchMode(newMode);
+  });
+
+  function switchMode(m) {
+    mode = m;
+    simPanel.style.display = 'none';
+    catRow.style.display = 'none';
+    itemSelector.style.display = 'none';
+    itemInfo.style.display = 'none';
+    practicePanel.style.display = 'none';
+    practiceBar.style.display = 'none';
+    quizPanel.style.display = 'none';
+    quizBar.style.display = 'none';
+    quizResult.style.display = 'none';
+    learnPanels.style.display = 'none';
+    // Hide canvas toggles / action bar outside simulate
+    document.getElementById('canvas-toggles').style.display = (m === 'simulate' ? '' : 'none');
+    if (canvasActionBar) canvasActionBar.style.display = (m === 'simulate' ? '' : 'none');
+
+    if (m === 'simulate') {
+      simPanel.style.display = '';
+      learnPanels.style.display = '';
+      updateReadouts(); updateLearningPanels();
+    } else if (m === 'explore') {
+      catRow.style.display = '';
+      itemSelector.style.display = '';
+      buildExploreGrid();
+    } else if (m === 'practice') {
+      practicePanel.style.display = '';
+      practiceBar.style.display = '';
+      newPractice();
+    } else if (m === 'quiz') {
+      startQuiz();
+    }
+  }
+
+  /* ================================================================
+     EXPLORE MODE
+     ================================================================ */
+  function buildExploreGrid() {
+    conceptGrid.innerHTML = '';
+    CONCEPTS.filter(function(c){ return c.cat === exploreCat; }).forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn' + (selectedConcept && selectedConcept.id === c.id ? ' active' : '');
+      btn.innerHTML = '<span class="is-btn-name">' + c.name + '</span><span class="is-btn-sym">' + c.symbol + '</span>';
+      btn.addEventListener('click', function () { selectConcept(c); });
+      conceptGrid.appendChild(btn);
+    });
+  }
+  function selectConcept(c) {
+    selectedConcept = c;
+    buildExploreGrid();
+    itemInfo.style.display = '';
+    var catNames = { heat: 'Heat & Energy', specific: 'Specific Heat', thermal: 'Thermal Properties', applications: 'Applications' };
+    var html = '<div class="ii-top"><span class="ii-name">' + c.name + '</span>' +
+      '<span class="ii-cat-badge">' + (catNames[c.cat] || c.cat) + '</span></div>';
+    html += '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span>' +
+      '<span class="fb-unit">' + c.unit + '</span></div>';
+    html += '<p class="ii-desc">' + c.desc + '</p>';
+    if (c.example) {
+      html += '<div class="example-box"><h4>Worked Example</h4>';
+      html += '<p class="ex-problem">' + c.example.problem + '</p>';
+      c.example.steps.forEach(function (s, i) {
+        var isLast = i === c.example.steps.length - 1;
+        html += '<div class="ex-step">' + (isLast ? '<strong>' + s + '</strong>' : s) + '</div>';
+      });
+      html += '</div>';
+    }
+    itemInfo.innerHTML = html;
+  }
+  document.getElementById('cat-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    exploreCat = e.target.dataset.cat;
+    document.querySelectorAll('#cat-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p === e.target);
+    });
+    selectedConcept = null;
+    itemInfo.style.display = 'none';
+    buildExploreGrid();
+  });
+
+  /* ================================================================
+     PRACTICE + QUIZ (unchanged behaviour)
+     ================================================================ */
+  function newPractice() {
+    var gen = PROBLEM_GEN[randInt(0, PROBLEM_GEN.length - 1)];
+    currentProblem = gen();
+    practiceAnswered = false;
+    ppPrompt.textContent = currentProblem.prompt;
+    ppUnit.textContent = currentProblem.unit;
+    ppInput.value = ''; ppInput.disabled = false;
+    ppFeedback.textContent = ''; ppFeedback.className = 'feedback';
+    ppSolution.style.display = 'none';
+    ppCheck.style.display = ''; ppShow.style.display = ''; ppNext.style.display = 'none';
+    ppInput.focus();
+  }
+  ppCheck.addEventListener('click', function () {
+    if (practiceAnswered || !currentProblem) return;
+    var val = parseFloat(ppInput.value);
+    if (isNaN(val)) { ppFeedback.textContent = 'Enter a number'; ppFeedback.className = 'feedback err'; return; }
+    practiceAnswered = true; practiceTotal++;
+    var tol = currentProblem.tol || (Math.abs(currentProblem.answer) * 0.05);
+    if (Math.abs(val - currentProblem.answer) <= tol) {
+      practiceScore++; ppFeedback.textContent = '\u2714 Correct!'; ppFeedback.className = 'feedback ok';
+    } else {
+      ppFeedback.textContent = '\u2718 Incorrect. Answer: ' + currentProblem.answer + ' ' + currentProblem.unit;
+      ppFeedback.className = 'feedback err';
+    }
+    pbarScoreVal.textContent = practiceScore + ' / ' + practiceTotal;
+    ppInput.disabled = true; ppCheck.style.display = 'none'; ppShow.style.display = 'none'; ppNext.style.display = '';
+    showSolution();
+  });
+  ppShow.addEventListener('click', function () {
+    if (practiceAnswered || !currentProblem) return;
+    practiceAnswered = true; practiceTotal++;
+    ppFeedback.textContent = 'Solution revealed'; ppFeedback.className = 'feedback err';
+    pbarScoreVal.textContent = practiceScore + ' / ' + practiceTotal;
+    ppInput.disabled = true; ppCheck.style.display = 'none'; ppShow.style.display = 'none'; ppNext.style.display = '';
+    showSolution();
+  });
+  ppNext.addEventListener('click', newPractice);
+  ppInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') ppCheck.click(); });
+  function showSolution() {
+    if (!currentProblem) return;
+    ppSolution.style.display = '';
+    var html = '<h4>Solution</h4>';
+    currentProblem.steps.forEach(function (s, i) {
+      var isLast = i === currentProblem.steps.length - 1;
+      html += '<div class="sol-step">' + (isLast ? '<strong>' + s + '</strong>' : s) + '</div>';
+    });
+    ppSolution.innerHTML = html;
+  }
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) { var j = randInt(0, i); var t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+    return arr;
+  }
+  function startQuiz() {
+    quizScore = 0; quizIdx = 0; quizAnswered = false; quizAnswers = [];
+    var pool = QUIZ_POOL.slice(); shuffle(pool); quizSet = pool.slice(0, QUIZ_SIZE);
+    quizPanel.style.display = ''; quizBar.style.display = ''; quizResult.style.display = 'none';
+    showQuizQuestion();
+  }
+  function showQuizQuestion() {
+    var q = quizSet[quizIdx]; qbarNum.textContent = (quizIdx + 1); quizAnswered = false;
+    var html = '<p class="qp-prompt">' + (quizIdx + 1) + '. ' + q.q + '</p><div class="answer-grid">';
+    q.opts.forEach(function (opt, i) { html += '<button class="answer-btn" data-idx="' + i + '">' + opt + '</button>'; });
+    html += '</div><div style="margin-top:12px;display:flex;align-items:center;gap:10px;">';
+    html += '<span class="quiz-feedback" id="qfb"></span>';
+    html += '<button class="btn btn-primary" id="q-next" style="display:none;margin-left:auto;">Next \u2192</button></div>';
+    quizPanel.innerHTML = html;
+    quizPanel.querySelectorAll('.answer-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { submitQuizAnswer(parseInt(btn.dataset.idx)); });
+    });
+    document.getElementById('q-next').addEventListener('click', nextQuizQuestion);
+  }
+  function submitQuizAnswer(idx) {
+    if (quizAnswered) return; quizAnswered = true;
+    var q = quizSet[quizIdx]; var ok = idx === q.correct;
+    if (ok) quizScore++;
+    quizAnswers.push({ q: q.q, given: q.opts[idx], correct: q.opts[q.correct], ok: ok });
+    quizPanel.querySelectorAll('.answer-btn').forEach(function (btn, i) {
+      btn.classList.add('locked');
+      if (i === q.correct) btn.classList.add('correct');
+      if (i === idx && !ok) btn.classList.add('wrong');
+    });
+    var qfb = document.getElementById('qfb');
+    qfb.textContent = ok ? '\u2714 Correct!' : '\u2718 Incorrect';
+    qfb.className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    document.getElementById('q-next').style.display = '';
+  }
+  function nextQuizQuestion() { quizIdx++; if (quizIdx >= QUIZ_SIZE) showQuizResult(); else showQuizQuestion(); }
+  function showQuizResult() {
+    quizPanel.style.display = 'none'; quizBar.style.display = 'none'; quizResult.style.display = '';
+    var pct = quizScore / QUIZ_SIZE;
+    var cls = pct >= 1 ? 'perfect' : pct >= 0.6 ? 'good' : 'poor';
+    var stars = pct >= 1 ? '\u2605\u2605\u2605' : pct >= 0.6 ? '\u2605\u2605' : '\u2605';
+    var verdict = pct >= 1 ? 'Perfect Score!' : pct >= 0.6 ? 'Good Job!' : 'Keep Practicing!';
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><div class="qr-title">Quiz Complete</div><div class="qr-stars">' + stars + '</div></div>';
+    html += '<div class="qr-score-wrap"><div class="qr-score ' + cls + '">' + quizScore + '/' + QUIZ_SIZE + '</div><div class="qr-verdict">' + verdict + '</div></div></div>';
+    html += '<div class="qr-rows">';
+    quizAnswers.forEach(function (a, i) {
+      html += '<div class="qr-row ' + (a.ok ? 'ok' : 'err') + '"><div class="qr-qnum">Q' + (i + 1) + '</div>';
+      html += '<div class="qr-detail"><strong>' + a.q + '</strong><br>Your answer: ' + a.given + (a.ok ? '' : '<br>Correct: ' + a.correct) + '</div>';
+      html += '<div class="qr-mark">' + (a.ok ? '\u2714' : '\u2718') + '</div></div>';
+    });
+    html += '</div><button class="btn btn-primary" id="q-retry">New Quiz</button>';
+    quizResult.innerHTML = html;
+    document.getElementById('q-retry').addEventListener('click', startQuiz);
+  }
+
+  /* ================================================================
+     EXPORT CSV + PNG
+     ================================================================ */
+  function exportCSV() {
+    var matA = MATERIALS[matAIdx], matB = MATERIALS[matBIdx];
+    var u = U();
+    var lines = [];
+    lines.push('# Specific Heat Capacity Simulator export');
+    lines.push('# NHIT VisualLab/tools/specific-heat-capacity');
+    lines.push('# Q max = ' + u.fromHeatKJ(heatInput).toFixed(u.hDigits) + ' ' + u.heatLabel + ', m = ' + u.fromMassKg(mass).toFixed(u.mDigits) + ' ' + u.massLabel);
+    lines.push('# Material A = ' + matA.name + ' (c = ' + matA.c + ' J/kg\u00B7K)');
+    lines.push('# Material B = ' + matB.name + ' (c = ' + matB.c + ' J/kg\u00B7K)');
+    lines.push('Q_' + u.heatLabel + ',T_A_' + u.tempLabel + ',T_B_' + u.tempLabel + ',dT_A_' + u.dTempLabel + ',dT_B_' + u.dTempLabel);
+    var maxQ = heatInput, N = 20;
+    for (var i = 0; i <= N; i++) {
+      var q = maxQ * i / N;
+      var dA = calcDT(q, mass, matA.c), dB = calcDT(q, mass, matB.c);
+      lines.push(
+        u.fromHeatKJ(q).toFixed(3) + ',' +
+        u.fromTempC(T0 + dA).toFixed(3) + ',' +
+        u.fromTempC(T0 + dB).toFixed(3) + ',' +
+        u.fromDTempC(dA).toFixed(3) + ',' +
+        u.fromDTempC(dB).toFixed(3)
+      );
+    }
+    var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'specific-heat-' + matA.name + '-vs-' + matB.name + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  }
+  function exportPNG() {
+    _exportFlag = true; render();
+    try {
+      var data = canvas.toDataURL('image/png');
+      var a = document.createElement('a');
+      a.href = data; a.download = 'specific-heat-capacity.png';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ a.remove(); }, 100);
+    } catch (e) { alert('Export failed: ' + e.message); }
+    _exportFlag = false; render();
+  }
+
+  /* ================================================================
+     CONTEXT MENU
+     ================================================================ */
+  // Trace hover detection — map mouse to canvas(W,H) space, find nearest trace segment
+  function canvasCoord(e) {
+    var rect = canvas.getBoundingClientRect();
+    var sx = W / rect.width, sy = H / rect.height;
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+  }
+  function distToSeg(px, py, ax, ay, bx, by) {
+    var dx = bx - ax, dy = by - ay;
+    var len2 = dx * dx + dy * dy;
+    if (len2 === 0) { dx = px - ax; dy = py - ay; return Math.sqrt(dx * dx + dy * dy); }
+    var t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    var qx = ax + t * dx, qy = ay + t * dy;
+    return Math.sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
+  }
+  canvas.addEventListener('mousemove', function (e) {
+    if (mode !== 'simulate' || !keepTraces || !traces.length || !showGraph) {
+      if (hoverTrace) { hoverTrace = null; canvas.style.cursor = ''; render(); }
+      return;
+    }
+    var c = canvasCoord(e);
+    var best = null, bestD = 6; // 6px threshold in canvas space
+    for (var i = 0; i < traces.length; i++) {
+      var poly = traces[i].poly;
+      if (!poly || poly.length < 2) continue;
+      for (var j = 1; j < poly.length; j++) {
+        var d = distToSeg(c.x, c.y, poly[j - 1].x, poly[j - 1].y, poly[j].x, poly[j].y);
+        if (d < bestD) { bestD = d; best = traces[i]; }
+      }
+    }
+    var prev = hoverTrace && hoverTrace.trace;
+    if (best) {
+      hoverTrace = { trace: best, mx: c.x, my: c.y };
+      canvas.style.cursor = 'pointer';
+      render();
+    } else if (prev) {
+      hoverTrace = null;
+      canvas.style.cursor = '';
+      render();
+    }
+  });
+  canvas.addEventListener('mouseleave', function () {
+    if (hoverTrace) { hoverTrace = null; canvas.style.cursor = ''; render(); }
+  });
+
+  var ctxMenu = document.getElementById('ctx-menu');
+  canvas.addEventListener('contextmenu', function (e) {
+    if (mode !== 'simulate') return;
+    e.preventDefault();
+    var vx = Math.min(e.clientX, window.innerWidth - 200);
+    var vy = Math.min(e.clientY, window.innerHeight - 240);
+    ctxMenu.style.left = vx + 'px'; ctxMenu.style.top = vy + 'px';
+    ctxMenu.style.display = 'block';
+  });
+  document.addEventListener('click', function (e) {
+    if (ctxMenu.style.display === 'block' && !ctxMenu.contains(e.target)) ctxMenu.style.display = 'none';
+  });
+  ctxMenu.addEventListener('click', function (e) {
+    var t = e.target.closest('.ctx-item'); if (!t) return;
+    var u = U();
+    var matA = MATERIALS[matAIdx], matB = MATERIALS[matBIdx];
+    var dA = calcDT(heatInput, mass, matA.c), dB = calcDT(heatInput, mass, matB.c);
+    switch (t.dataset.ctx) {
+      case 'copy-a':
+        navigator.clipboard && navigator.clipboard.writeText(u.fromDTempC(dA).toFixed(u.dtDigits) + ' ' + u.dTempLabel); break;
+      case 'copy-b':
+        navigator.clipboard && navigator.clipboard.writeText(u.fromDTempC(dB).toFixed(u.dtDigits) + ' ' + u.dTempLabel); break;
+      case 'csv': exportCSV(); break;
+      case 'png': exportPNG(); break;
+      case 'traces':
+        keepTraces = !keepTraces;
+        var chk = document.getElementById('chk-traces'); if (chk) chk.checked = keepTraces;
+        if (!keepTraces) { traces = []; hoverTrace = null; }
+        render(); pushHistory(true); break;
+      case 'clear-traces':
+        traces = []; hoverTrace = null; render(); break;
+      case 'reset': resetState(); break;
+    }
+    ctxMenu.style.display = 'none';
+  });
+
+  /* ================================================================
+     CUSTOM MATERIAL MODAL
+     ================================================================ */
+  var custModal = document.getElementById('cust-modal');
+  function openCust() {
+    var u = U();
+    document.getElementById('cm-unit-label').innerHTML = 'c (' + u.cLabel + ')';
+    document.getElementById('cm-hint').innerHTML = unitSystem === 'si'
+      ? 'Enter a positive value. Typical range: 100&ndash;5000 J/(kg&middot;K).'
+      : 'Enter a positive value. Typical range: 0.02&ndash;1.2 BTU/(lb&middot;&deg;F).';
+    document.getElementById('cm-name').value = '';
+    document.getElementById('cm-c').value = '';
+    document.getElementById('cm-err').style.display = 'none';
+    custModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function(){ document.getElementById('cm-name').focus(); }, 50);
+  }
+  function closeCust() { custModal.classList.remove('active'); document.body.style.overflow = ''; }
+  document.getElementById('btn-custom').addEventListener('click', openCust);
+  document.getElementById('cust-modal-close').addEventListener('click', closeCust);
+  document.getElementById('cm-cancel').addEventListener('click', closeCust);
+  custModal.addEventListener('click', function (e) { if (e.target === custModal) closeCust(); });
+  document.getElementById('cm-add').addEventListener('click', function () {
+    var name = (document.getElementById('cm-name').value || '').trim();
+    var cRaw = parseFloat(document.getElementById('cm-c').value);
+    var err = document.getElementById('cm-err');
+    if (!name) { err.textContent = 'Please enter a name.'; err.style.display = ''; return; }
+    if (!isFinite(cRaw) || cRaw <= 0) { err.textContent = 'Enter a positive c value.'; err.style.display = ''; return; }
+    var cSI = unitSystem === 'si' ? cRaw : (cRaw / 2.388459e-4);
+    if (cSI < 50 || cSI > 20000) { err.textContent = 'c out of realistic range (50\u201320,000 J/(kg\u00B7K)).'; err.style.display = ''; return; }
+    var palette = ['#f06292', '#ba68c8', '#9575cd', '#7986cb', '#4db6ac', '#81c784', '#dce775'];
+    var color = palette[MATERIALS.length % palette.length];
+    var fill = color.replace('#', '').match(/.{2}/g).map(function (h) { return parseInt(h, 16); });
+    MATERIALS.push({ name: name, c: cSI, color: color, fill: 'rgba(' + fill[0] + ',' + fill[1] + ',' + fill[2] + ',.35)', kind: 'custom', startC: 20, phaseC: null, phaseName: 'phase change' });
+    rebuildMaterialSelects();
+    matBIdx = MATERIALS.length - 1;
+    syncInputs(); updateReadouts(); updateLearningPanels(); invalidateOutput(); render(); pushHistory(true);
+    closeCust();
+  });
+
+  /* ================================================================
+     WIRING — sliders, steppers, selects, toggles
+     ================================================================ */
+  function onHeatChange(fromImperial) {
+    // Heat slider/stepper — slider is always SI; stepper respects unit
+    heatInput = Math.max(0, Math.min(100, parseFloat(slHeat.value) || 0));
+    stopHeating(); invalidateOutput();
+    updateReadouts(); updateLearningPanels(); render(); pushHistory();
+  }
+  slHeat.addEventListener('input', function () {
+    heatInput = Math.max(0, Math.min(100, parseFloat(slHeat.value) || 0));
+    stopHeating(); invalidateOutput();
+    updateReadouts(); updateLearningPanels(); render(); pushHistory();
+  });
+  slMass.addEventListener('input', function () {
+    mass = Math.max(0.1, Math.min(20, parseFloat(slMass.value) || 0.1));
+    stopHeating(); invalidateOutput();
+    updateReadouts(); updateLearningPanels(); render(); pushHistory();
+  });
+  inHeat.addEventListener('input', function () {
+    var u = U(); var v = parseFloat(inHeat.value);
+    if (!isFinite(v)) return;
+    heatInput = Math.max(0, Math.min(100, u.toHeatKJ(v)));
+    slHeat.value = heatInput;
+    stopHeating(); invalidateOutput();
+    updateLearningPanels(); render(); pushHistory();
+    // Do not override the user's input while typing — just update readouts except the edited field
+    var matA = MATERIALS[matAIdx], matB = MATERIALS[matBIdx];
+    var dtA = 0, dtB = 0; // forceScale=0 so readouts are 0/T0
+    rTempA.textContent = u.fromTempC(T0).toFixed(u.tDigits);
+    rTempB.textContent = u.fromTempC(T0).toFixed(u.tDigits);
+    rDtA.textContent = '0.0'; rDtB.textContent = '0.0';
+    rHeat.textContent = u.fromHeatKJ(heatInput).toFixed(u.hDigits);
+  });
+  inMass.addEventListener('input', function () {
+    var u = U(); var v = parseFloat(inMass.value);
+    if (!isFinite(v)) return;
+    mass = Math.max(0.1, Math.min(20, u.toMassKg(v)));
+    slMass.value = mass;
+    stopHeating(); invalidateOutput();
+    updateLearningPanels(); render(); pushHistory();
+  });
+  document.querySelectorAll('.step-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var dir = parseInt(b.dataset.dir), what = b.dataset.step;
+      var u = U();
+      if (what === 'heat') {
+        var stepKJ = 0.5;
+        heatInput = Math.max(0, Math.min(100, heatInput + dir * stepKJ));
+        slHeat.value = heatInput;
+      } else {
+        var stepKg = 0.1;
+        mass = Math.max(0.1, Math.min(20, mass + dir * stepKg));
+        slMass.value = mass;
+      }
+      stopHeating(); invalidateOutput();
+      syncInputs(); updateReadouts(); updateLearningPanels(); render(); pushHistory(true);
+    });
+  });
+
+  function resyncParticles() {
+    var mA = MATERIALS[matAIdx] || MATERIALS[0];
+    var mB = MATERIALS[matBIdx] || MATERIALS[0];
+    initParticles(particlesA, 150, 225, 120, 98, mA.kind === 'solid' ? 'solid' : 'liquid');
+    initParticles(particlesB, 380, 225, 120, 98, mB.kind === 'solid' ? 'solid' : 'liquid');
+    updateAmbientT0();
+  }
+  selMatA.addEventListener('change', function () {
+    matAIdx = parseInt(selMatA.value);
+    resyncParticles();
+    stopHeating(); invalidateOutput(); updateReadouts(); updateLearningPanels(); render(); pushHistory(true);
+  });
+  selMatB.addEventListener('change', function () {
+    matBIdx = parseInt(selMatB.value);
+    resyncParticles();
+    stopHeating(); invalidateOutput(); updateReadouts(); updateLearningPanels(); render(); pushHistory(true);
+  });
+
+  // Canvas toggles
+  function wireToggle(id, setter) {
+    var el = document.getElementById(id); if (!el) return;
+    el.addEventListener('change', function () { setter(!!el.checked); render(); pushHistory(true); });
+  }
+  wireToggle('chk-flames',    function (v) { showFlames = v; });
+  wireToggle('chk-particles', function (v) { showParticles = v; });
+  wireToggle('chk-graph',     function (v) { showGraph = v; });
+  wireToggle('chk-equation',  function (v) { showEquation = v; });
+  wireToggle('chk-traces',    function (v) {
+    keepTraces = v;
+    if (!v) { traces = []; hoverTrace = null; }
+  });
+
+  // Unit toggle
+  document.getElementById('unit-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    unitSystem = e.target.dataset.unit;
+    document.querySelectorAll('#unit-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p === e.target);
+    });
+    updateReadouts(); updateLearningPanels(); render();
+  });
+
+  // Action bar
+  document.getElementById('btn-heat').addEventListener('click', startHeating);
+  document.getElementById('btn-stop').addEventListener('click', stopHeating);
+  document.getElementById('btn-reset').addEventListener('click', resetState);
+  document.getElementById('btn-undo').addEventListener('click', undo);
+  document.getElementById('btn-redo').addEventListener('click', redo);
+  document.getElementById('btn-csv').addEventListener('click', exportCSV);
+  document.getElementById('btn-png').addEventListener('click', exportPNG);
+
+  // Calc modal wiring
+  document.getElementById('btn-calc').addEventListener('click', openCalcModal);
+  document.getElementById('calc-modal-close').addEventListener('click', closeCalcModal);
+  document.getElementById('calc-modal').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('calc-modal')) closeCalcModal();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (document.getElementById('calc-modal').classList.contains('active')) { closeCalcModal(); return; }
+      if (custModal.classList.contains('active')) { closeCust(); return; }
+      if (ctxMenu.style.display === 'block') { ctxMenu.style.display = 'none'; return; }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); redo(); }
+  });
+
+  // Learn panels wiring
+  function wireLearnPanels() {
+    var expAll = document.getElementById('learn-expand-all');
+    var colAll = document.getElementById('learn-collapse-all');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function(c){ c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function(c){ c.open = false; }); });
+  }
+
+  // Resize
+  window.addEventListener('resize', function () { resizeCanvas(); render(); });
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(function () { resizeCanvas(); render(); }).observe(canvas);
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  rebuildMaterialSelects();
+  buildPresetChips();
+  wireLearnPanels();
+  resizeCanvas();
+  initParticles(particlesA, 150, 225, 120, 98, (MATERIALS[matAIdx] && MATERIALS[matAIdx].kind === 'solid') ? 'solid' : 'liquid');
+  initParticles(particlesB, 380, 225, 120, 98, (MATERIALS[matBIdx] && MATERIALS[matBIdx].kind === 'solid') ? 'solid' : 'liquid');
+  syncInputs();
+  updateReadouts();
+  updateLearningPanels();
+  pushHistory(true);
+  if (!animId) tick();
+
+})();
+
+/* ── Specific heat values table: live filter ─────────────────────────────
+   Matches on material name, category and the c value, so "water",
+   "gas" and "4186" all work.                                            */
+(function () {
+  'use strict';
+
+  var input = document.getElementById('shc-filter');
+  var table = document.getElementById('shc-table');
+  var count = document.getElementById('shc-count');
+  if (!input || !table) return;
+
+  var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+  var total = rows.length;
+
+  function report(n) {
+    if (count) {
+      count.textContent = n === total
+        ? total + ' materials'
+        : n + ' of ' + total + ' materials';
+    }
+  }
+
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    if (!q) {
+      rows.forEach(function (r) { r.hidden = false; });
+      report(total);
+      return;
+    }
+    var shown = 0;
+    rows.forEach(function (r) {
+      // cells 0-2 = category, material, c value
+      var hay = (r.cells[0].textContent + ' ' + r.cells[1].textContent + ' ' +
+                 r.cells[2].textContent).toLowerCase();
+      var hit = hay.indexOf(q) !== -1;
+      r.hidden = !hit;
+      if (hit) shown++;
+    });
+    report(shown);
+  });
+
+  report(total);
+})();
+
+/* ── Q = mcΔT solver ─────────────────────────────────────────────────────
+   Independent of the animated simulator above. Enter any three of
+   Q, m, c, ΔT and the fourth is solved and shown with its working.
+   Q is entered in kJ; the algebra runs in joules.                        */
+(function () {
+  'use strict';
+
+  var q = document.getElementById('sv-q');
+  var m = document.getElementById('sv-m');
+  var c = document.getElementById('sv-c');
+  var dt = document.getElementById('sv-dt');
+  var out = document.getElementById('sv-out');
+  var mat = document.getElementById('sv-mat');
+  var clr = document.getElementById('sv-clear');
+  if (!q || !m || !c || !dt || !out) return;
+
+  var FIELDS = [
+    { el: q,  key: 'Q',  label: 'Q',  unit: 'kJ' },
+    { el: m,  key: 'm',  label: 'm',  unit: 'kg' },
+    { el: c,  key: 'c',  label: 'c',  unit: 'J/kg·K' },
+    { el: dt, key: 'dT', label: 'ΔT', unit: '°C' }
+  ];
+
+  /* Populate the material picker from the simulator's own list, so the
+     two never disagree about a c value. */
+  if (mat && typeof window.SHC_getMaterials === 'function') {
+    window.SHC_getMaterials().forEach(function (x) {
+      var o = document.createElement('option');
+      o.value = String(x.c);
+      o.textContent = x.name + ' (' + x.c + ')';
+      mat.appendChild(o);
+    });
+    mat.addEventListener('change', function () {
+      if (this.value) { c.value = this.value; solve(); }
+    });
+  }
+
+  function num(el) {
+    var v = el.value.trim();
+    if (v === '') return null;
+    var n = parseFloat(v);
+    return isFinite(n) ? n : NaN;
+  }
+
+  function fmt(n) {
+    if (!isFinite(n)) return '—';
+    var a = Math.abs(n);
+    if (a !== 0 && (a < 0.001 || a >= 1e6)) return n.toExponential(3);
+    return String(Math.round(n * 1000) / 1000);
+  }
+
+  function msg(html, cls) {
+    out.innerHTML = cls ? '<span class="' + cls + '">' + html + '</span>' : html;
+  }
+
+  function solve() {
+    var vals = {}, blanks = [], bad = false;
+    FIELDS.forEach(function (f) {
+      var v = num(f.el);
+      if (v === null) blanks.push(f);
+      else if (isNaN(v)) bad = true;
+      else vals[f.key] = v;
+    });
+
+    if (bad) { msg('Please enter numbers only.', 'sv-err'); return; }
+    if (blanks.length === 0) {
+      // All four given: check consistency rather than silently ignoring one.
+      var lhs = vals.Q * 1000, rhs = vals.m * vals.c * vals.dT;
+      var okc = Math.abs(lhs - rhs) <= Math.max(1, Math.abs(rhs) * 0.01);
+      msg(okc
+        ? 'All four values given and consistent: Q = mcΔT holds.'
+        : 'All four given, but they are inconsistent — mcΔT = ' +
+          fmt(rhs / 1000) + ' kJ, not ' + fmt(vals.Q) + ' kJ. Clear one field to solve for it.',
+        okc ? '' : 'sv-err');
+      return;
+    }
+    if (blanks.length > 1) {
+      msg('Enter three values — ' + blanks.length + ' are still blank.');
+      return;
+    }
+
+    var target = blanks[0], res, expr, steps;
+    var Qj = vals.Q != null ? vals.Q * 1000 : null;
+
+    if (target.key === 'Q') {
+      res = vals.m * vals.c * vals.dT / 1000;                 /* kJ */
+      expr = 'Q = m × c × ΔT';
+      steps = 'Q = ' + fmt(vals.m) + ' × ' + fmt(vals.c) + ' × ' + fmt(vals.dT) +
+              ' = ' + fmt(res * 1000) + ' J';
+    } else if (target.key === 'm') {
+      if (vals.c === 0 || vals.dT === 0) { msg('c and ΔT must be non-zero to solve for m.', 'sv-err'); return; }
+      res = Qj / (vals.c * vals.dT);
+      expr = 'm = Q / (c × ΔT)';
+      steps = 'm = ' + fmt(Qj) + ' / (' + fmt(vals.c) + ' × ' + fmt(vals.dT) + ')';
+    } else if (target.key === 'c') {
+      if (vals.m === 0 || vals.dT === 0) { msg('m and ΔT must be non-zero to solve for c.', 'sv-err'); return; }
+      res = Qj / (vals.m * vals.dT);
+      expr = 'c = Q / (m × ΔT)';
+      steps = 'c = ' + fmt(Qj) + ' / (' + fmt(vals.m) + ' × ' + fmt(vals.dT) + ')';
+    } else {
+      if (vals.m === 0 || vals.c === 0) { msg('m and c must be non-zero to solve for ΔT.', 'sv-err'); return; }
+      res = Qj / (vals.m * vals.c);
+      expr = 'ΔT = Q / (m × c)';
+      steps = 'ΔT = ' + fmt(Qj) + ' / (' + fmt(vals.m) + ' × ' + fmt(vals.c) + ')';
+    }
+
+    if (!isFinite(res)) { msg('That combination has no finite solution.', 'sv-err'); return; }
+
+    var note = '';
+    if (target.key === 'c' && res < 0) {
+      note = '<br><small>A negative specific heat is not physical — check that Q and ΔT have the same sign.</small>';
+    }
+    out.innerHTML =
+      '<span class="sv-res">' + target.label + ' = ' + fmt(res) + ' ' + target.unit + '</span>' +
+      '<span class="sv-step">' + expr + '</span>' +
+      '<span class="sv-step">' + steps + '</span>' + note;
+  }
+
+  FIELDS.forEach(function (f) { f.el.addEventListener('input', solve); });
+  if (clr) {
+    clr.addEventListener('click', function () {
+      FIELDS.forEach(function (f) { f.el.value = ''; });
+      if (mat) mat.value = '';
+      out.textContent = '';
+      q.focus();
+    });
+  }
+})();

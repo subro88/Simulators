@@ -1,0 +1,2714 @@
+(function () {
+  'use strict';
+
+  /* ── helpers ── */
+  var $ = function (id) { return document.getElementById(id); };
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function roundN(v, n) { var f = Math.pow(10, n); return Math.round(v * f) / f; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  /* ── DOM refs ── */
+  var canvas = $('sim-canvas');
+  var ctx    = canvas.getContext('2d');
+  var slVbe  = $('sl-vbe');
+  var slVce  = $('sl-vce');
+  var slBeta = $('sl-beta');
+
+  /* ── physics constants ── */
+  var VT   = 0.02585;   // thermal voltage at 300K (V)
+  var IS   = 1e-14;     // transport saturation current (A)
+  var VBE_ON = 0.7;     // typical silicon turn-on
+  var VCE_SAT = 0.2;    // saturation V_CE
+  var BV_CBO = 50;      // collector-base breakdown (V)
+  var BV_EBO = 6;       // emitter-base Zener breakdown (V)
+  var VA   = 100;       // Early voltage (V) — sets output-characteristic slope
+
+  /* ── state ── */
+  var state = {
+    mode: 'simulate',
+    type: 'npn',        // npn | pnp
+    view: 'cross-section',
+    vbe: 0,             // base-emitter voltage (V)
+    vce: 5,             // collector-emitter voltage (V)
+    beta: 100,          // current gain
+    // computed
+    ib: 0,              // base current (A)
+    ic: 0,              // collector current (A)
+    ie: 0,              // emitter current (A)
+    region: 'Cutoff',
+    running: false,
+    animFrame: null,
+    particles: [],      // animated carriers
+    avalancheParticles: [],
+    audioCtx: null,
+    exploreCat: 'basics',
+    practiceScore: 0,
+    practiceTotal: 0,
+    currentPractice: null,
+    quizSet: [],
+    quizIdx: 0,
+    quizScore: 0,
+    quizAnswers: [],
+    quizLocked: false,
+    quizSelectedAnswer: null
+  };
+
+  /* ── canvas sizing ── */
+  var W, H, dpr;
+  function resizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    var rect = canvas.parentElement.getBoundingClientRect();
+    W = rect.width - 16;
+    H = Math.max(320, Math.min(W * 0.5, 440));
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  /* ═══════════ PHYSICS ENGINE ═══════════ */
+  function compute() {
+    if (state.type === 'pn') {
+      computePN();
+      return;
+    }
+
+    var vbe = state.vbe;
+    var vce = state.vce;
+    var beta = state.beta;
+    var vbc = vbe - vce;  // V_BC = V_BE - V_CE
+
+    // Ebers-Moll transport model
+    var expBE = Math.exp(clamp(vbe / VT, -40, 40));
+    var expBC = Math.exp(clamp(vbc / VT, -40, 40));
+    var betaR = 2; // reverse beta
+
+    // Collector current (Ebers-Moll transport model): the -IS·e^(VBC/VT) term
+    // makes IC collapse toward 0 as VCE → 0 (deep saturation), as it must.
+    state.ic = IS * (expBE - expBC) - (IS / betaR) * (expBC - 1);
+    // Base current
+    state.ib = (IS / beta) * (expBE - 1) + (IS / betaR) * (expBC - 1);
+    // Emitter current (KCL)
+    state.ie = state.ic + state.ib;
+
+    // Clamp negatives for display (tiny leakage is effectively 0)
+    if (state.ic < 0) state.ic = 0;
+    if (state.ib < 0) state.ib = 0;
+    if (state.ie < 0) state.ie = 0;
+
+    // Early effect (base-width modulation): in the forward-active region the
+    // reverse-biased BC depletion widens with VCE, thinning the base and
+    // raising IC slightly. Gives the output characteristic its real finite
+    // slope (output resistance) so the VCE slider visibly affects IC.
+    if (vbc < 0.4 && vce > 0) {
+      state.ic *= (1 + vce / VA);
+      state.ie = state.ic + state.ib;
+    }
+
+    // Avalanche multiplication
+    if (vce > 0 && (-vbc) > BV_CBO * 0.6) {
+      var ratio = (-vbc) / BV_CBO;
+      if (ratio >= 0.99) ratio = 0.99;
+      var M = 1 / (1 - Math.pow(ratio, 4));
+      state.ic *= M;
+      state.ie = state.ic + state.ib;
+    }
+
+    // Determine operating region
+    if (vbe < 0.5) {
+      state.region = 'Cutoff';
+    } else if (vbe >= 0.5 && vbc < 0.4) {
+      state.region = 'Active';
+    } else if (vbe >= 0.5 && vbc >= 0.4) {
+      state.region = 'Saturation';
+    } else {
+      state.region = 'Reverse Active';
+    }
+
+    // Check for breakdown
+    if ((-vbc) >= BV_CBO * 0.95) {
+      state.region = 'Avalanche Breakdown';
+    }
+    // Check for BE Zener breakdown (heavily doped, low voltage ~6V)
+    if ((-vbe) >= BV_EBO * 0.9) {
+      state.region = 'Zener Breakdown';
+      // Zener tunnelling current surges through BE junction — milliamp-scale
+      // so the readout actually shows the surge (M ranges ~15 → 100)
+      var M_z = 1 / Math.max(0.01, 1 - Math.pow(Math.abs(vbe) / BV_EBO, 4));
+      state.ib = 0.5e-3 * M_z;
+      state.ic = 0; // collector is disconnected in this config
+      state.ie = state.ib;
+    }
+  }
+
+  /* ── PN junction physics ── */
+  function computePN() {
+    var v = state.vbe; // use VBE slider as forward voltage for PN
+    var expV = Math.exp(clamp(v / VT, -40, 40));
+
+    // Shockley diode equation: I = IS * (e^(V/VT) - 1)
+    state.pnCurrent = IS * (expV - 1);
+
+    // PN junction has no IC, IB — just diode current
+    state.ic = state.pnCurrent;
+    state.ib = 0;
+    state.ie = state.pnCurrent;
+
+    // Determine region
+    if (v <= -BV_EBO * 0.9) {
+      // Avalanche/Zener breakdown at high reverse voltage
+      state.region = 'Breakdown';
+      // Breakdown current surges (avalanche multiplication) — milliamp-scale
+      // so "large reverse current" is what the readout shows
+      var M = 1 / Math.max(0.01, 1 - Math.pow(Math.abs(v) / BV_EBO, 4));
+      state.pnCurrent = -0.5e-3 * M; // large reverse current
+      state.ic = Math.abs(state.pnCurrent);
+      state.ie = state.ic;
+    } else if (v < 0.1) {
+      state.region = 'Reverse Bias';
+    } else if (v < 0.5) {
+      state.region = 'Transition';
+    } else {
+      state.region = 'Forward Bias';
+    }
+  }
+
+  /* ── depletion region widths (normalised 0-1) ── */
+  function getDepletionBE() {
+    // Forward bias narrows, reverse bias widens
+    var vbi = 0.7; // built-in potential
+    var vApplied = state.vbe;
+    var factor = Math.sqrt(Math.max(0.01, (vbi - vApplied) / vbi));
+    return clamp(factor, 0.05, 2.0);
+  }
+  function getDepletionBC() {
+    var vbi = 0.7;
+    var vbc = state.vbe - state.vce; // negative in active mode = reverse bias
+    var factor = Math.sqrt(Math.max(0.01, (vbi - vbc) / vbi));
+    return clamp(factor, 0.05, 3.0);
+  }
+
+  /* ═══════════ DRAWING ═══════════ */
+  /* Shared studio background: dark gradient + subtle grid + accent glow
+     centred on the device — used by all three views so the scene is
+     consistent (the cross-section used to render on a transparent canvas). */
+  function drawSceneBg() {
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0e1220');
+    bg.addColorStop(0.55, '#0a0e18');
+    bg.addColorStop(1, '#070a12');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    var glow = ctx.createRadialGradient(W / 2, H * 0.45, 20, W / 2, H * 0.45, Math.max(W, H) * 0.5);
+    glow.addColorStop(0, 'rgba(255,110,64,0.06)');
+    glow.addColorStop(1, 'rgba(255,110,64,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,.03)';
+    ctx.lineWidth = 1;
+    for (var gx = 0; gx < W; gx += 25) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
+    for (var gy = 0; gy < H; gy += 25) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawSceneBg();
+
+    if (state.type === 'pn') {
+      drawPNJunction();
+    } else if (state.view === 'cross-section') {
+      drawCrossSection();
+    } else {
+      drawCircuit();
+    }
+  }
+
+  function drawCrossSection() {
+    var font = getComputedStyle(document.body).fontFamily;
+    var isNPN = state.type === 'npn';
+
+    // ── Layout: 3 region blocks (60% of canvas), centred ──
+    var bw = Math.round(W * 0.7);   // total width for all 3 regions
+    var bh = Math.round(H * 0.40);  // block height
+    var mx = Math.round((W - bw) / 2);
+    var my = Math.round(H * 0.30);  // push down for circuit above
+    var regionW = bw / 3;
+    var baseW = regionW * 0.6;      // base is thin (physically narrow)
+    var emitterW = (bw - baseW) / 2;
+    var collectorW = emitterW;
+
+    // Region positions
+    var eX = mx;
+    var bX = mx + emitterW;
+    var cX = mx + emitterW + baseW;
+
+    // BE and BC junction x positions
+    var beJx = bX;
+    var bcJx = cX;
+
+    // Atom grid config
+    var atomCols = 3;
+    var atomRows = 3;
+    var atomR = Math.min(bw / 30, bh / 16, 8);
+
+    // Depletion widths
+    var depBE = getDepletionBE();
+    var depBC = getDepletionBC();
+    var depBEpx = clamp(depBE * 6, 2, emitterW * 0.4);
+    var depBCpx = clamp(depBC * 8, 2, collectorW * 0.4);
+
+    // ── Region colours ──
+    var nBg = 'rgba(50,120,220,.12)';
+    var nBorder = 'rgba(50,120,220,.35)';
+    var pBg = 'rgba(220,50,80,.12)';
+    var pBorder = 'rgba(220,50,80,.35)';
+    var nAtomColor = 'rgba(244,67,54,';   // donor = red
+    var pAtomColor = 'rgba(76,175,80,';    // acceptor = green
+    var electronColor = '#4fc3f7';
+    var holeColor = '#ef5350';
+
+    // NPN: E=N+, B=P, C=N  |  PNP: E=P+, B=N, C=P
+    var regions = isNPN ? [
+      { x: eX, w: emitterW, bg: nBg, border: nBorder, label: 'N+', sub: 'Emitter', atomCol: nAtomColor, carrierType: 'electron', carrierCol: electronColor },
+      { x: bX, w: baseW, bg: pBg, border: pBorder, label: 'P', sub: 'Base', atomCol: pAtomColor, carrierType: 'hole', carrierCol: holeColor },
+      { x: cX, w: collectorW, bg: nBg, border: nBorder, label: 'N', sub: 'Collector', atomCol: nAtomColor, carrierType: 'electron', carrierCol: electronColor }
+    ] : [
+      { x: eX, w: emitterW, bg: pBg, border: pBorder, label: 'P+', sub: 'Emitter', atomCol: pAtomColor, carrierType: 'hole', carrierCol: holeColor },
+      { x: bX, w: baseW, bg: nBg, border: nBorder, label: 'N', sub: 'Base', atomCol: nAtomColor, carrierType: 'electron', carrierCol: electronColor },
+      { x: cX, w: collectorW, bg: pBg, border: pBorder, label: 'P', sub: 'Collector', atomCol: pAtomColor, carrierType: 'hole', carrierCol: holeColor }
+    ];
+
+    // ── Draw region blocks ──
+    regions.forEach(function (r) {
+      ctx.fillStyle = r.bg;
+      ctx.fillRect(r.x, my, r.w, bh);
+      ctx.strokeStyle = r.border;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(r.x, my, r.w, bh);
+
+      // Region type label (top)
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.font = 'bold 13px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(r.label, r.x + r.w / 2, my + 14);
+    });
+
+    // ── Depletion zones ──
+    // BE depletion
+    var isBEZener = state.region === 'Zener Breakdown';
+    ctx.fillStyle = isBEZener ? 'rgba(200,50,255,.2)' : 'rgba(180,180,180,.18)';
+    ctx.fillRect(beJx - depBEpx, my, depBEpx * 2, bh);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = isBEZener ? 'rgba(200,50,255,.5)' : 'rgba(255,255,255,.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(beJx - depBEpx, my, depBEpx * 2, bh);
+    ctx.setLineDash([]);
+
+    // Zener breakdown visual effects at BE junction
+    if (isBEZener && state.running) {
+      var zPulse = 0.3 + 0.3 * Math.sin(state.pnTotalT / 180);
+      // Purple glow (Zener = quantum tunnelling, different color from avalanche red)
+      ctx.fillStyle = 'rgba(180,50,255,' + zPulse + ')';
+      ctx.fillRect(beJx - depBEpx, my, depBEpx * 2, bh);
+      // Tunnelling arrows (horizontal lines through the barrier)
+      ctx.strokeStyle = 'rgba(180,150,255,' + (0.4 + zPulse * 0.4) + ')';
+      ctx.lineWidth = 1.5;
+      // Electron tunnelling direction: NPN base(P)->emitter(N+) = leftward;
+      // PNP mirror = rightward. Must match the tunnelling particles.
+      var zDir = isNPN ? -1 : 1;
+      for (var zt = 0; zt < 5; zt++) {
+        var zy = my + 10 + Math.random() * (bh - 20);
+        var zx1 = beJx + zDir * (depBEpx + 3);
+        ctx.beginPath();
+        ctx.moveTo(beJx - zDir * (depBEpx + 3), zy);
+        ctx.lineTo(zx1, zy);
+        ctx.stroke();
+        // Arrow head on the exit side
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.moveTo(zx1, zy);
+        ctx.lineTo(zx1 - zDir * 5, zy - 3);
+        ctx.lineTo(zx1 - zDir * 5, zy + 3);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // "ZENER!" label
+      ctx.fillStyle = 'rgba(180,100,255,' + (0.6 + zPulse * 0.4) + ')';
+      ctx.font = 'bold 9px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText('ZENER!', beJx, my + 10);
+    }
+
+    // BC depletion
+    var isBCBreakdown = state.region === 'Avalanche Breakdown';
+    ctx.fillStyle = isBCBreakdown ? 'rgba(255,50,50,.25)' : 'rgba(180,180,180,.18)';
+    ctx.fillRect(bcJx - depBCpx, my, depBCpx * 2, bh);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = isBCBreakdown ? 'rgba(255,80,80,.5)' : 'rgba(255,255,255,.2)';
+    ctx.strokeRect(bcJx - depBCpx, my, depBCpx * 2, bh);
+    ctx.setLineDash([]);
+
+    // Avalanche breakdown visual effects at BC junction
+    if (isBCBreakdown && state.running) {
+      var pulse = 0.3 + 0.3 * Math.sin(state.pnTotalT / 200);
+      // Red pulsing glow
+      ctx.fillStyle = 'rgba(255,50,50,' + pulse + ')';
+      ctx.fillRect(bcJx - depBCpx, my, depBCpx * 2, bh);
+      // Lightning/spark lines
+      ctx.strokeStyle = 'rgba(255,255,100,' + (0.4 + pulse * 0.3) + ')';
+      ctx.lineWidth = 1.5;
+      for (var sp = 0; sp < 6; sp++) {
+        var sy = my + 10 + Math.random() * (bh - 20);
+        ctx.beginPath();
+        ctx.moveTo(bcJx - 10, sy);
+        ctx.lineTo(bcJx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 15);
+        ctx.lineTo(bcJx + 10, sy + (Math.random() - 0.5) * 10);
+        ctx.stroke();
+      }
+      // "BREAKDOWN!" label
+      ctx.fillStyle = 'rgba(255,23,68,' + (0.6 + pulse * 0.4) + ')';
+      ctx.font = 'bold 9px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText('BREAKDOWN!', bcJx, my + 10);
+    }
+
+    // ── Lattice: fixed dopant IONS + free mobile CARRIERS (two distinct
+    //    layers so the concept is unambiguous) ──
+    //    * Fixed ion  = locked in the crystal, always shows its charge
+    //      (+ donor in N material, minus acceptor in the P base). Dim;
+    //      brightens inside the depletion region where the mobile carriers
+    //      have been swept away, exposing the bare fixed charge.
+    //    * Mobile carrier = electron (minus) in N material, hole (+) in the
+    //      P base. Bright, glowing, detached from the ion and jittering in
+    //      the interstitial gap so it reads as FREE, not bound to an atom.
+    //      Absent inside the depletion region. Net drift is the flow overlay.
+    regions.forEach(function (r, rIdx) {
+      var cols = rIdx === 1 ? 2 : atomCols; // base is thin, fewer columns
+      var rows = atomRows;
+      var spX = r.w / (cols + 1);
+      var spY = bh / (rows + 1);
+      var isElectronRegion = r.carrierType === 'electron';
+      var ionSign  = isElectronRegion ? '+' : '\u2212';  // donor + / acceptor -
+      var carrSign = isElectronRegion ? '\u2212' : '+';  // electron - / hole +
+      var glowPre  = isElectronRegion ? 'rgba(79,195,247,' : 'rgba(239,83,80,';
+
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < cols; col++) {
+          var ax = r.x + (col + 1) * spX;
+          var ay = my + (row + 1) * spY;
+
+          var inDepBE = (Math.abs(ax - beJx) < depBEpx);
+          var inDepBC = (Math.abs(ax - bcJx) < depBCpx);
+          var inDep = inDepBE || inDepBC;
+
+          // Fixed dopant ion (locked in lattice).
+          ctx.fillStyle = r.atomCol + (inDep ? '0.30)' : '0.14)');
+          ctx.beginPath(); ctx.arc(ax, ay, atomR, 0, Math.PI * 2); ctx.fill();
+          ctx.setLineDash(inDep ? [] : [2, 2]);
+          ctx.strokeStyle = r.atomCol + (inDep ? '0.95)' : '0.5)');
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = 'rgba(255,255,255,' + (inDep ? 0.92 : 0.5) + ')';
+          ctx.font = 'bold ' + Math.round(atomR * 1.05) + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(ionSign, ax, ay + atomR * 0.36);
+
+          // Free mobile carrier (skipped in the depletion region).
+          if (!inDep) {
+            var seed = rIdx * 31 + row * 7 + col * 3;
+            var jx = Math.sin(state.pnTotalT / 360 + seed) * spX * 0.26;
+            var jy = Math.cos(state.pnTotalT / 300 + seed * 1.7) * spY * 0.22;
+            var cxp = clamp(ax + spX * 0.40 + jx, r.x + 4, r.x + r.w - 4);
+            var cyp = clamp(ay - spY * 0.30 + jy, my + 5, my + bh - 5);
+            var cr  = atomR * 0.5;
+            var grd = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, cr * 2.4);
+            grd.addColorStop(0, glowPre + '0.5)');
+            grd.addColorStop(1, glowPre + '0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath(); ctx.arc(cxp, cyp, cr * 2.4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = r.carrierCol;
+            ctx.beginPath(); ctx.arc(cxp, cyp, cr, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold ' + Math.round(atomR * 0.6) + 'px sans-serif';
+            ctx.fillText(carrSign, cxp, cyp + atomR * 0.2);
+          }
+        }
+      }
+    });
+
+    // ── Directed carrier-flow overlay (conduction animation) ──
+    drawCarrierFlow({
+      eX: eX, bX: bX, cX: cX,
+      emitterW: emitterW, baseW: baseW, collectorW: collectorW,
+      beJx: beJx, bcJx: bcJx, my: my, bh: bh, isNPN: isNPN
+    });
+
+    // ── External circuit (two batteries) ──
+    var wireCol = 'rgba(255,110,64,.5)';
+    ctx.strokeStyle = wireCol;
+    ctx.lineWidth = 2;
+
+    // Terminal positions
+    var eTermX = eX + emitterW * 0.3;
+    var bTermX = bX + baseW / 2;
+    var cTermX = cX + collectorW * 0.7;
+
+    // VBE battery (between E and B, above blocks)
+    var vbeBatX = (eTermX + bTermX) / 2;
+    var vbeBatY = my - 35;
+    if (vbeBatY < 18) vbeBatY = 18;
+
+    // Wires E to VBE battery
+    ctx.beginPath();
+    ctx.moveTo(eTermX, my);
+    ctx.lineTo(eTermX, vbeBatY + 10);
+    ctx.lineTo(vbeBatX - 15, vbeBatY + 10);
+    ctx.stroke();
+    // Wires B to VBE battery
+    ctx.beginPath();
+    ctx.moveTo(bTermX, my);
+    ctx.lineTo(bTermX, vbeBatY + 10);
+    ctx.lineTo(vbeBatX + 15, vbeBatY + 10);
+    ctx.stroke();
+
+    // VBE battery symbol — PNP uses the V_EB convention (E positive w.r.t. B)
+    // Left end of this loop is the EMITTER wire, right end the BASE wire.
+    // NPN forward drive: + on base (right). PNP mirror (V_EB): + on emitter
+    // (left). A negative slider (reverse bias / Zener) flips the plates.
+    var vbePosLeft = isNPN ? (state.vbe < 0) : (state.vbe >= 0);
+    drawBatterySymbol(vbeBatX, vbeBatY, vbePosLeft,
+      (isNPN ? 'V_BE=' : 'V_EB=') + roundN(state.vbe, 1) + 'V', font);
+
+    // VCE battery (between B/E ground and C, below blocks)
+    var vceBatX = (bTermX + cTermX) / 2;
+    var vceBatY = my + bh + 25;
+
+    // Bottom wire from E to C through VCE battery
+    ctx.beginPath();
+    ctx.moveTo(eTermX, my + bh);
+    ctx.lineTo(eTermX, vceBatY);
+    ctx.lineTo(vceBatX - 15, vceBatY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cTermX, my + bh);
+    ctx.lineTo(cTermX, vceBatY);
+    ctx.lineTo(vceBatX + 15, vceBatY);
+    ctx.stroke();
+
+    // VCE battery symbol — PNP uses the V_EC convention (E positive w.r.t. C)
+    // Left end is the EMITTER wire, right end the COLLECTOR wire.
+    // NPN: + on collector (right). PNP mirror (V_EC): + on emitter (left).
+    drawBatterySymbol(vceBatX, vceBatY - 10, !isNPN,
+      (isNPN ? 'V_CE=' : 'V_EC=') + roundN(state.vce, 1) + 'V', font);
+
+    // Terminal dots
+    ctx.fillStyle = wireCol;
+    [eTermX, bTermX, cTermX].forEach(function (tx) {
+      ctx.beginPath(); ctx.arc(tx, my, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tx, my + bh, 4, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // ── Terminal labels (E, B, C) with badge backgrounds ──
+    function drawTermBadge(x, y, letter, color) {
+      var br = 13;
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.font = 'bold 16px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(letter, x, y + 6);
+    }
+    drawTermBadge(eTermX, my + bh + 38, 'E', '#ff6e40');
+    drawTermBadge(bTermX, my - 38, 'B', '#ff6e40');
+    drawTermBadge(cTermX, my + bh + 38, 'C', '#ff6e40');
+
+    // ── Conventional current I on the external wires ──────────────────────
+    // Amber arrowheads drift from battery + through the device back to −.
+    // For NPN this is OPPOSITE to the electron drift inside the silicon —
+    // made explicit here because it is the classic point of confusion.
+    // Density and speed scale with the actual current, so the sliders
+    // visibly modulate each loop; cutoff correctly shows no arrows.
+    function drawLoopCurrent(pts, amps, minAmps) {
+      if (!(amps > minAmps)) return;
+      var segs = [], total = 0, i2, dx2, dy2, sl;
+      for (i2 = 0; i2 < pts.length - 1; i2++) {
+        dx2 = pts[i2 + 1][0] - pts[i2][0];
+        dy2 = pts[i2 + 1][1] - pts[i2][1];
+        sl = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+        segs.push({ x: pts[i2][0], y: pts[i2][1], dx: dx2, dy: dy2, len: sl });
+        total += sl;
+      }
+      var mag = clamp((Math.log10(amps) + 6) / 5, 0.12, 1); // 1uA -> 0.12, 100mA -> 1
+      var n = Math.max(2, Math.round(2 + mag * 4));
+      var cycle = 2600 - 1800 * mag;
+      for (var a2 = 0; a2 < n; a2++) {
+        var s2 = ((state.pnTotalT / cycle) + a2 / n) % 1;
+        var dist = s2 * total, seg = null, acc = 0;
+        for (var j2 = 0; j2 < segs.length; j2++) {
+          if (dist <= acc + segs[j2].len) { seg = segs[j2]; dist -= acc; break; }
+          acc += segs[j2].len;
+        }
+        if (!seg) continue;
+        var f2 = seg.len ? dist / seg.len : 0;
+        var ang = Math.atan2(seg.dy, seg.dx);
+        ctx.save();
+        ctx.translate(seg.x + seg.dx * f2, seg.y + seg.dy * f2);
+        ctx.rotate(ang);
+        ctx.fillStyle = 'rgba(255,193,70,' + (0.5 + 0.4 * mag) + ')';
+        ctx.beginPath();
+        ctx.moveTo(4.5, 0); ctx.lineTo(-3, -3); ctx.lineTo(-3, 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    var yTopWire = vbeBatY + 10;
+    var vbeLoopA = [[vbeBatX + 15, yTopWire], [bTermX, yTopWire], [bTermX, my]];    // battery+ -> B
+    var vbeLoopB = [[eTermX, my], [eTermX, yTopWire], [vbeBatX - 15, yTopWire]];    // E -> battery-
+    var vceLoopA = [[vceBatX + 15, vceBatY], [cTermX, vceBatY], [cTermX, my + bh]]; // battery+ -> C
+    var vceLoopB = [[eTermX, my + bh], [eTermX, vceBatY], [vceBatX - 15, vceBatY]]; // E -> battery-
+    // NPN forward = as listed; PNP mirrors every loop; a reverse-biased BE
+    // (negative slider / Zener) additionally flips the base loop.
+    if (((state.vbe >= 0 ? 1 : -1) * (isNPN ? 1 : -1)) < 0) { vbeLoopA.reverse(); vbeLoopB.reverse(); }
+    if (!isNPN) { vceLoopA.reverse(); vceLoopB.reverse(); }
+    drawLoopCurrent(vbeLoopA, state.ib, 2e-7);
+    drawLoopCurrent(vbeLoopB, state.ib, 2e-7);
+    drawLoopCurrent(vceLoopA, state.ic, 2e-6);
+    drawLoopCurrent(vceLoopB, state.ic, 2e-6);
+
+    // ── VBE polarity badges ──
+    var posCol = 'rgba(61,220,132,1)';
+    var negCol = 'rgba(255,85,85,1)';
+    function drawSmallPolBadge(x, y, symbol, color) {
+      var r2 = 10;
+      ctx.fillStyle = color.replace(/[\d.]+\)$/, '0.2)');
+      ctx.beginPath(); ctx.arc(x, y, r2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = color.replace(/[\d.]+\)$/, '0.6)');
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.font = 'bold 14px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(symbol, x, y + 5);
+    }
+    // Forward-bias polarity — NPN: B positive w.r.t. E; PNP mirror: E positive.
+    if (Math.abs(state.vbe) >= 0.1) {
+      // Badge sign follows the SIGN of the applied voltage, so dragging the
+      // slider negative visibly reverses the supply (reverse bias / Zener).
+      var bPos = isNPN ? (state.vbe >= 0) : (state.vbe < 0);
+      drawSmallPolBadge(bTermX + 14, vbeBatY + 10, bPos ? '+' : '\u2212', bPos ? posCol : negCol);
+      drawSmallPolBadge(eTermX - 14, vbeBatY + 10, bPos ? '\u2212' : '+', bPos ? negCol : posCol);
+    }
+    drawSmallPolBadge(cTermX + 14, vceBatY, isNPN ? '+' : '\u2212', isNPN ? posCol : negCol);
+    drawSmallPolBadge(eTermX - 14, vceBatY, isNPN ? '\u2212' : '+', isNPN ? negCol : posCol);
+
+    // ── Junction labels ──
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.font = '600 9px ' + font;
+    ctx.textAlign = 'center';
+    ctx.fillText('BE Junction', beJx, my - 6);
+    ctx.fillText('BC Junction', bcJx, my - 6);
+
+    // ── Live junction-bias chips: the operating region IS the combination
+    //    of the two junction states, so show each one explicitly ──
+    function drawBiasChip(x, vj) {
+      var y = my + bh + 16;
+      var stateTxt, col;
+      if (vj >= 0.4)        { stateTxt = 'FWD'; col = 'rgba(61,220,132,'; }
+      else if (vj <= -0.05) { stateTxt = 'REV'; col = 'rgba(130,155,255,'; }
+      else                  { stateTxt = 'OFF'; col = 'rgba(160,170,190,'; }
+      var txt = stateTxt + ' ' + (vj >= 0 ? '+' : '\u2212') + roundN(Math.abs(vj), 1) + 'V';
+      ctx.font = 'bold 9px ' + font;
+      var tw = ctx.measureText(txt).width + 12;
+      var rx0 = x - tw / 2, ry0 = y - 8, rr = 4;
+      ctx.beginPath();
+      ctx.moveTo(rx0 + rr, ry0);
+      ctx.arcTo(rx0 + tw, ry0, rx0 + tw, ry0 + 15, rr);
+      ctx.arcTo(rx0 + tw, ry0 + 15, rx0, ry0 + 15, rr);
+      ctx.arcTo(rx0, ry0 + 15, rx0, ry0, rr);
+      ctx.arcTo(rx0, ry0, rx0 + tw, ry0, rr);
+      ctx.closePath();
+      ctx.fillStyle = col + '0.13)';
+      ctx.fill();
+      ctx.strokeStyle = col + '0.55)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = col + '0.95)';
+      ctx.textAlign = 'center';
+      ctx.fillText(txt, x, y + 3);
+    }
+    // Mirrored slider convention holds for both types: BE bias = VBE slider,
+    // BC bias = VBE − VCE.
+    drawBiasChip(beJx, state.vbe);
+    drawBiasChip(bcJx, state.vbe - state.vce);
+
+    // ── Emitter / Base / Collector sub-labels (inside blocks, readable) ──
+    ctx.font = '600 10px ' + font;
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
+    regions.forEach(function (r) {
+      ctx.fillText(r.sub, r.x + r.w / 2, my + bh - 5);
+    });
+
+    // ── Region + current display ──
+    var regionColor = state.region === 'Active' ? '#3ddc84' :
+                      state.region === 'Saturation' ? '#f5c842' :
+                      state.region === 'Cutoff' ? '#6b7a99' :
+                      state.region === 'Avalanche Breakdown' ? '#ff5555' :
+                      state.region === 'Zener Breakdown' ? '#b040ff' :
+                      state.region === 'Breakdown' ? '#ff5555' : '#dde3f0';
+    ctx.fillStyle = regionColor;
+    ctx.font = 'bold 12px ' + font;
+    ctx.textAlign = 'left';
+    ctx.fillText('Region: ' + state.region, 10, 16);
+
+    if (state.region !== 'Cutoff') {
+      ctx.fillStyle = 'rgba(255,255,255,.4)';
+      ctx.font = '10px ' + font;
+      ctx.textAlign = 'left';
+      ctx.fillText('I_C = ' + roundN(state.ic * 1000, 2) + ' mA', 10, 30);
+      ctx.fillText('I_B = ' + roundN(state.ib * 1e6, 1) + ' \u00b5A', 10, 42);
+    }
+
+    // ── Legend (top-right): fixed dopant ions vs free mobile carriers ──
+    var lx = W - 150;
+    ctx.font = '9px ' + font;
+    ctx.textAlign = 'left';
+    // helper: swatch (dim ringed ion, or bright solid carrier) with its charge
+    function legendMark(y, fill, glyph, label, ion) {
+      var mr = ion ? 5 : 4;
+      ctx.fillStyle = fill + (ion ? '0.22)' : '1)');
+      ctx.beginPath(); ctx.arc(lx, y - 3, mr, 0, Math.PI * 2); ctx.fill();
+      if (ion) { ctx.strokeStyle = fill + '0.8)'; ctx.lineWidth = 1; ctx.stroke(); }
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(glyph, lx, y);
+      ctx.font = '9px ' + font;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,.45)';
+      ctx.fillText(label, lx + 10, y);
+    }
+    legendMark(12, 'rgba(244,67,54,',  '+',        'Donor ion (fixed)',    true);
+    legendMark(26, 'rgba(76,175,80,',  '−',   'Acceptor ion (fixed)', true);
+    legendMark(40, 'rgba(79,195,247,', '−',   'Electron (mobile)',    false);
+    legendMark(54, 'rgba(239,83,80,',  '+',        'Hole (mobile)',        false);
+    // Conventional-current key + the carrier-direction relationship
+    ctx.fillStyle = 'rgba(255,193,70,.95)';
+    ctx.beginPath();
+    ctx.moveTo(lx + 4, 68); ctx.lineTo(lx - 3, 64.5); ctx.lineTo(lx - 3, 71.5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
+    ctx.fillText('Conventional current I', lx + 10, 71);
+    ctx.fillStyle = 'rgba(255,255,255,.32)';
+    ctx.fillText(isNPN ? '(electrons drift opposite to I)' : '(holes drift along I)', lx + 10, 83);
+
+    // ── Breakdown particles for BJT (avalanche at BC, Zener at BE) ──
+    if ((isBCBreakdown || isBEZener) && state.running) {
+      state.avalancheParticles.forEach(function (p) {
+        var alpha = Math.min(1, p.life / 30);
+        ctx.fillStyle = p.type === 'electron'
+          ? 'rgba(79,195,247,' + alpha + ')'
+          : 'rgba(239,83,80,' + alpha + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        if (p.life > 40 && Math.random() < 0.3) {
+          ctx.strokeStyle = 'rgba(255,255,100,' + (alpha * 0.5) + ')';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + (Math.random() - 0.5) * 12, p.y + (Math.random() - 0.5) * 12);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // ── Subtitle bar (cinematic narration) ──
+    if (state.pnPhases.length > 0 && state.pnPhase < state.pnPhases.length && state.running) {
+      var subText = state.pnPhases[state.pnPhase].sub;
+      var subY = H - 16;
+      ctx.fillStyle = 'rgba(0,0,0,.65)';
+      ctx.fillRect(0, H - 38, W, 38);
+      ctx.strokeStyle = 'rgba(255,110,64,.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, H - 38); ctx.lineTo(W, H - 38); ctx.stroke();
+      ctx.fillStyle = '#dde3f0';
+      ctx.font = '600 11px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(subText, W / 2, subY);
+      // progress dots
+      var dotY2 = H - 5;
+      for (var di2 = 0; di2 < state.pnPhases.length; di2++) {
+        ctx.fillStyle = di2 === state.pnPhase ? '#ff6e40' : (di2 < state.pnPhase ? 'rgba(255,110,64,.4)' : 'rgba(255,255,255,.15)');
+        ctx.beginPath();
+        ctx.arc(W / 2 - (state.pnPhases.length * 5) + di2 * 10, dotY2, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  /* ── Directed carrier-flow overlay ──────────────────────────────────
+     The core "animated carrier flow" the tool advertises. Electrons (NPN)
+     or holes (PNP) are injected at the emitter, drift across the emitter,
+     are injected across the forward-biased BE junction into the thin base,
+     then most are swept across the reverse-biased BC junction into the
+     collector. A β-dependent fraction (≈ I_B/I_E = 1/(β+1)) recombine in
+     the base, each balanced by a base-current carrier arriving from the B
+     terminal. Positions are time-driven (state.pnTotalT) so draw() stays a
+     pure function of state — no per-frame particle bookkeeping needed. */
+  function drawCarrierDot(x, y, coreCol, glowPre, a, flash) {
+    var r = flash ? 4.2 : 3.0;
+    var grd = ctx.createRadialGradient(x, y, 0, x, y, r * 2.3);
+    grd.addColorStop(0, glowPre + (a * 0.9) + ')');
+    grd.addColorStop(1, glowPre + '0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(x, y, r * 2.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? 'rgba(255,244,180,' + a + ')' : coreCol;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.72, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawCarrierFlow(g) {
+    if (!state.running) return;
+    if (state.region !== 'Active' && state.region !== 'Saturation') return;
+
+    var t = state.pnTotalT;
+    var coreCol = g.isNPN ? '#4fc3f7' : '#ef5350';
+    var glowPre = g.isNPN ? 'rgba(79,195,247,' : 'rgba(239,83,80,';
+    var suppPre = g.isNPN ? 'rgba(239,83,80,'  : 'rgba(79,195,247,'; // base majority
+    var sat = state.region === 'Saturation';
+
+    var xStart = g.eX + g.emitterW * 0.10;
+    var xEnd   = g.cX + g.collectorW * 0.90;
+    var span   = Math.max(1, xEnd - xStart);
+    var yTop = g.my + 12, yBot = g.my + g.bh - 12;
+    var midY = (yTop + yBot) / 2;
+    var bTermX = g.bX + g.baseW / 2;
+
+    // Fraction of injected carriers that recombine in the base ≈ I_B/I_E.
+    var recFrac = clamp(1 / (state.beta + 1), 0.02, 0.45);
+    // Total carriers scale with collector current; base traversal time ∝ period.
+    var N = clamp(Math.round(state.ic * 1000 * 2.6), 12, 34);
+    var period = sat ? 3400 : clamp(2600 - state.vce * 22, 1500, 2600);
+    var yBand = yBot - yTop;
+
+    // Base occupies this fraction of the path.
+    var fBaseA = clamp((g.bX - xStart) / span, 0.02, 0.95);
+    var fBaseB = clamp((g.bX + g.baseW - xStart) / span, fBaseA + 0.02, 0.98);
+
+    // Deterministic per-carrier pseudo-random hash (keeps draw() pure — no
+    // stored particle state — while breaking the rigid lane/lockstep look).
+    function hash(n) { var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+
+    ctx.save();
+    for (var i = 0; i < N; i++) {
+      var h1 = hash(i + 1);        // baseline height
+      var h2 = hash(i + 101);      // speed
+      var h3 = hash(i + 211);      // phase offset
+      var h4 = hash(i + 307);      // wander character
+      var h5 = hash(i + 419);      // recombine roll
+
+      var baseY  = yTop + (0.06 + 0.88 * h1) * yBand;          // scatter across the body
+      var spd    = 0.72 + 0.56 * h2;                            // per-carrier speed → natural spreading
+      var phase  = ((t / period) * spd + h3) % 1;
+      var recombine = h5 < recFrac;
+      var stopF  = fBaseA + h4 * (fBaseB - fBaseA);
+      // Organic vertical wander (varied amplitude, frequency & phase per carrier).
+      var wander = Math.sin(t / (260 + 220 * h4) + i * 1.7) * (1.5 + 2.5 * h2);
+
+      if (recombine && phase >= stopF) {
+        // Recombination flash in base + supplying base-current carrier.
+        var fade = 1 - clamp((phase - stopF) / 0.14, 0, 1);
+        if (fade <= 0) continue;
+        var rx = lerp(xStart, xEnd, stopF);
+        drawCarrierDot(rx, baseY + wander * 0.4, coreCol, glowPre, 0.9 * fade, true);
+        var supT = clamp((phase - stopF) / 0.18, 0, 1);
+        var supX = lerp(bTermX, rx, supT);
+        var supY = lerp(g.my - 4, baseY, supT);
+        ctx.fillStyle = suppPre + (0.55 * fade) + ')';
+        ctx.beginPath(); ctx.arc(supX, supY, 2.4, 0, Math.PI * 2); ctx.fill();
+        continue;
+      }
+
+      var x = lerp(xStart, xEnd, phase);
+      // Gently funnel toward the base centreline while crossing the thin base.
+      var vy = baseY + wander;
+      if (phase > fBaseA && phase < fBaseB) {
+        var k = (phase - fBaseA) / (fBaseB - fBaseA);
+        vy = lerp(vy, midY, 0.45 * Math.sin(k * Math.PI));
+      }
+      // Motion tail (trailing to the left = direction of travel).
+      ctx.strokeStyle = glowPre + '0.22)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(x - span * 0.022, vy);
+      ctx.lineTo(x, vy);
+      ctx.stroke();
+      // Brighten right at the BE junction to signal injection.
+      var inj = (phase > fBaseA - 0.03 && phase < fBaseA + 0.05) ? 1 : 0.85;
+      drawCarrierDot(x, vy, coreCol, glowPre, inj, false);
+    }
+    ctx.restore();
+  }
+
+  /* ── Battery symbol helper for BJT circuit ── */
+  function drawBatterySymbol(cx, cy, isPositiveLeft, label, font) {
+    var plateGap = 6;
+    // Clear area behind battery
+    ctx.fillStyle = '#0a0e18';
+    ctx.fillRect(cx - 16, cy - 12, 32, 24);
+    // Plate positions follow the ACTUAL polarity (isPositiveLeft) — the long
+    // thin plate is +, the short thick plate is −.
+    var longX  = isPositiveLeft ? cx - plateGap / 2 : cx + plateGap / 2;
+    var shortX = isPositiveLeft ? cx + plateGap / 2 : cx - plateGap / 2;
+    ctx.strokeStyle = 'rgba(255,255,255,.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(longX, cy - 8);
+    ctx.lineTo(longX, cy + 8);
+    ctx.stroke();
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(shortX, cy - 4);
+    ctx.lineTo(shortX, cy + 4);
+    ctx.stroke();
+    // Tiny +/− marks beside each plate so polarity is unambiguous
+    ctx.font = 'bold 9px ' + font;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(61,220,132,.95)';
+    ctx.fillText('+', longX + (isPositiveLeft ? -8 : 8), cy - 5);
+    ctx.fillStyle = 'rgba(255,85,85,.95)';
+    ctx.fillText('\u2212', shortX + (isPositiveLeft ? 8 : -8), cy - 5);
+    // Label above
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = '600 10px ' + font;
+    ctx.fillText(label, cx, cy - 14);
+  }
+
+  function drawHatching(x, y, w, h) {
+    ctx.strokeStyle = 'rgba(255,255,255,.1)';
+    ctx.lineWidth = 0.5;
+    var gap = 6;
+    for (var i = 0; i < (w + h) / gap; i++) {
+      var startX = x + i * gap;
+      var startY = y;
+      var endX = startX - h;
+      var endY = y + h;
+      ctx.beginPath();
+      ctx.moveTo(clamp(startX, x, x + w), clamp(startY + Math.max(0, x - startX + h), y, y + h));
+      ctx.lineTo(clamp(endX, x, x + w), clamp(endY, y, y + h));
+      ctx.stroke();
+    }
+  }
+
+  /* ═══════════ CINEMATIC PN JUNCTION ═══════════ */
+  // Animation phases for PN junction storytelling
+  var PN_PHASES = [
+    { dur: 2000, sub: 'Two semiconductor blocks: P-type (majority: holes) and N-type (majority: electrons)' },
+    { dur: 2000, sub: 'Blocks joined \u2014 at the junction, electrons and holes diffuse across and recombine...' },
+    { dur: 2000, sub: 'Recombination leaves behind fixed ions, creating a depletion region with no free carriers' },
+    { dur: 2000, sub: 'The fixed ions create a built-in electric field (E) that opposes further diffusion' },
+    { dur: 2000, sub: 'Equilibrium reached: diffusion force = drift force. Built-in potential \u2248 0.7V for silicon' },
+    { dur: 2000, sub: 'Now connect an external power supply to the junction...' },
+    // Phase 6+ depends on forward/reverse — set dynamically
+  ];
+  var PN_FORWARD_PHASES = [
+    { dur: 2000, sub: 'FORWARD BIAS: Battery + to P-side, \u2212 to N-side' },
+    { dur: 2500, sub: 'External field opposes built-in field \u2014 depletion region NARROWS' },
+    { dur: 2500, sub: 'Barrier reduced! Electrons from N cross into P, holes from P cross into N' },
+    { dur: 3000, sub: 'Current flows! I = I\u209b(e^(V/V\u209c) \u2212 1) \u2014 exponential increase with voltage' }
+  ];
+  var PN_REVERSE_PHASES = [
+    { dur: 2000, sub: 'REVERSE BIAS: Battery + to N-side, \u2212 to P-side' },
+    { dur: 2500, sub: 'External field ADDS to built-in field \u2014 depletion region WIDENS' },
+    { dur: 2500, sub: 'Barrier increased! Majority carriers pulled AWAY from junction' },
+    { dur: 3000, sub: 'No current flows \u2014 only tiny leakage from minority carriers (picoamps)' }
+  ];
+  var PN_BREAKDOWN_PHASES = [
+    { dur: 2000, sub: 'High reverse voltage applied across the PN junction...' },
+    { dur: 2500, sub: 'Depletion region widens dramatically. Electric field intensifies!' },
+    { dur: 2500, sub: 'At V \u2248 6V: field strong enough for BREAKDOWN \u2014 two mechanisms possible:' },
+    { dur: 3000, sub: 'ZENER (<5V): Quantum tunnelling \u2014 electrons tunnel through the narrow barrier' },
+    { dur: 3000, sub: 'AVALANCHE (>5V): Impact ionisation \u2014 carriers accelerate, hit atoms, free more carriers' },
+    { dur: 3000, sub: 'Cascade effect! Each freed carrier creates more \u2192 AVALANCHE of electron-hole pairs!' },
+    { dur: 3000, sub: 'Large reverse current surges through the junction \u2014 can destroy the device if uncontrolled' }
+  ];
+
+  // BJT cinematic phases
+  var BJT_ACTIVE_PHASES = [
+    { dur: 2500, sub: 'NPN transistor: N+ Emitter, thin P Base, N Collector \u2014 two PN junctions back-to-back' },
+    { dur: 2500, sub: 'Depletion regions form at both BE and BC junctions with fixed ions' },
+    { dur: 2500, sub: 'Apply VBE = 0.7V (forward bias BE junction) and VCE = 5V (reverse bias BC junction)' },
+    { dur: 3000, sub: 'BE junction forward biased \u2014 electrons from Emitter injected into the thin Base region' },
+    { dur: 3000, sub: 'Base is very thin \u2014 most electrons diffuse across before recombining with holes' },
+    { dur: 3000, sub: 'BC junction reverse biased \u2014 strong electric field sweeps electrons into Collector' },
+    { dur: 3000, sub: 'Small base current IB controls large collector current IC \u2014 this is AMPLIFICATION! IC = \u03b2 \u00d7 IB' }
+  ];
+  var BJT_CUTOFF_PHASES = [
+    { dur: 2500, sub: 'NPN transistor: N+ Emitter, thin P Base, N Collector' },
+    { dur: 2500, sub: 'Depletion regions form at both junctions' },
+    { dur: 2500, sub: 'VBE < 0.5V \u2014 BE junction is NOT forward biased' },
+    { dur: 3000, sub: 'No electrons injected into Base \u2014 both junctions reverse biased' },
+    { dur: 3000, sub: 'CUTOFF: Transistor is OFF. IC \u2248 0, only tiny leakage current flows' }
+  ];
+  var BJT_SATURATION_PHASES = [
+    { dur: 2500, sub: 'NPN transistor: N+ Emitter, thin P Base, N Collector' },
+    { dur: 2500, sub: 'Apply VBE = 0.7V and VCE = 0.2V \u2014 both junctions forward biased!' },
+    { dur: 3000, sub: 'BE forward biased: electrons flood from Emitter into Base' },
+    { dur: 3000, sub: 'BC also forward biased: Collector cannot sweep all electrons \u2014 excess carriers' },
+    { dur: 3000, sub: 'SATURATION: VCE(sat) \u2248 0.2V. Transistor fully ON \u2014 acts like a closed switch' }
+  ];
+
+  state.pnPhase = 0;
+  state.pnPhaseT = 0;     // time within current phase (0-1)
+  state.pnTotalT = 0;     // total elapsed ms
+  state.pnStartTime = 0;
+  state.pnPhases = [];
+
+  function buildPNPhases() {
+    if (state.type === 'pn') {
+      state.pnPhases = PN_PHASES.slice();
+      if (state.region === 'Breakdown') {
+        state.pnPhases = state.pnPhases.concat(PN_BREAKDOWN_PHASES);
+      } else if (state.vbe >= 0.5) {
+        state.pnPhases = state.pnPhases.concat(PN_FORWARD_PHASES);
+      } else {
+        state.pnPhases = state.pnPhases.concat(PN_REVERSE_PHASES);
+      }
+    } else {
+      // BJT phases
+      if (state.region === 'Cutoff') {
+        state.pnPhases = BJT_CUTOFF_PHASES.slice();
+      } else if (state.region === 'Saturation') {
+        state.pnPhases = BJT_SATURATION_PHASES.slice();
+      } else {
+        // Active (or breakdown — use active phases)
+        var phases = BJT_ACTIVE_PHASES.slice();
+        // Adapt for PNP
+        if (state.type === 'pnp') {
+          phases = phases.map(function (p) {
+            return { dur: p.dur, sub: p.sub.replace(/NPN/g, 'PNP').replace(/N\+ Emitter, thin P Base, N Collector/g, 'P+ Emitter, thin N Base, P Collector').replace(/electrons/g, 'HOLES').replace(/HOLES from Emitter/g, 'holes from Emitter').replace(/holes/g, 'electrons').replace(/HOLES/g, 'holes') };
+          });
+        }
+        state.pnPhases = phases;
+      }
+    }
+  }
+
+  function drawPNJunction() {
+    var font = getComputedStyle(document.body).fontFamily;
+    // Shrink semiconductor blocks to 60% — center them, leave room for circuit
+    var fullW = W;
+    var fullH = H;
+    var bw = Math.round(fullW * 0.55);  // block total width = 55% of canvas
+    var bh = Math.round(fullH * 0.45);  // block total height = 45% of canvas
+    var mx = Math.round((fullW - bw) / 2);  // center horizontally
+    var my = Math.round(fullH * 0.28);      // push blocks down to leave room for circuit above
+    var hw = bw / 2;           // half width
+    var jx = mx + hw;          // junction x
+    var phase = state.pnPhase;
+    var t = state.pnPhaseT;    // 0-1 within phase
+    var isForward = state.vbe >= 0.5;
+    var totalPhases = state.pnPhases.length;
+
+    // (background + grid drawn by drawSceneBg in draw())
+
+    // ── Layout constants ──
+    var slideIn = phase > 0 ? 1 : t;
+    var gapPx = (1 - slideIn) * 40;
+    var pX = mx;
+    var pW = hw - gapPx / 2;
+    var nX = mx + hw + gapPx / 2;
+    var nW = hw - gapPx / 2;
+
+    // Atom grid config
+    var cols = 5;         // atoms per row in each region
+    var rows = 4;         // rows of atoms
+    var atomR = Math.min(bw / (cols * 5), bh / (rows * 4), 10);
+    var spacingX = pW / (cols + 1);
+    var spacingY = bh / (rows + 1);
+
+    // Depletion width (in columns from junction)
+    var depCols = 0;      // how many atom columns are in depletion
+    if (phase >= 1) {
+      depCols = phase >= 2 ? 1.5 : t * 1.5;
+      if (phase >= 7) {
+        if (isForward) {
+          depCols = 1.5 * (1 - clamp(t * 0.8, 0, 0.8));
+        } else {
+          depCols = 1.5 * (1 + clamp(t * 1.2, 0, 1.2));
+        }
+      }
+    }
+    var depPx = depCols * spacingX;
+
+    // ── Draw P block ──
+    ctx.fillStyle = 'rgba(220,50,80,.12)';
+    ctx.fillRect(pX, my, pW, bh);
+    ctx.strokeStyle = 'rgba(220,50,80,.35)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(pX, my, pW, bh);
+
+    // ── Draw N block ──
+    ctx.fillStyle = 'rgba(50,120,220,.12)';
+    ctx.fillRect(nX, my, nW, bh);
+    ctx.strokeStyle = 'rgba(50,120,220,.35)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(nX, my, nW, bh);
+
+    // ── Depletion region overlay ──
+    if (phase >= 1 && depPx > 0) {
+      var depAlpha = phase >= 2 ? 0.2 : t * 0.2;
+      ctx.fillStyle = 'rgba(180,180,180,' + depAlpha + ')';
+      ctx.fillRect(jx - depPx, my, depPx * 2, bh);
+      // Dashed border for depletion
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = 'rgba(255,255,255,.25)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(jx - depPx, my, depPx * 2, bh);
+      ctx.setLineDash([]);
+      // "Depletion Region" label
+      if (phase >= 2) {
+        ctx.fillStyle = state.region === 'Breakdown' ? 'rgba(255,85,85,.6)' : 'rgba(255,255,255,.3)';
+        ctx.font = '8px ' + font;
+        ctx.textAlign = 'center';
+        ctx.fillText(state.region === 'Breakdown' ? 'BREAKDOWN!' : 'DEPLETION', jx, my + 12);
+      }
+      // Red glow during breakdown
+      if (state.region === 'Breakdown') {
+        var pulse = 0.3 + 0.3 * Math.sin(state.pnTotalT / 200);
+        ctx.fillStyle = 'rgba(255,50,50,' + pulse + ')';
+        ctx.fillRect(jx - depPx, my, depPx * 2, bh);
+        // Lightning/spark lines
+        ctx.strokeStyle = 'rgba(255,255,100,' + (0.4 + pulse * 0.3) + ')';
+        ctx.lineWidth = 1.5;
+        for (var sp = 0; sp < 5; sp++) {
+          var sy = my + 10 + Math.random() * (bh - 20);
+          ctx.beginPath();
+          ctx.moveTo(jx - 8, sy);
+          ctx.lineTo(jx + (Math.random() - 0.5) * 10, sy + (Math.random() - 0.5) * 15);
+          ctx.lineTo(jx + 8, sy + (Math.random() - 0.5) * 10);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // ── Region labels ──
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = 'bold 16px ' + font;
+    ctx.textAlign = 'center';
+    ctx.fillText('P', pX + pW * 0.3, my + 18);
+    ctx.fillText('N', nX + nW * 0.7, my + 18);
+
+    // ── Draw atom grid with carriers ──
+    // P-side: acceptor atoms (green circles) + holes (red open circles with +)
+    for (var pr = 0; pr < rows; pr++) {
+      for (var pc = 0; pc < cols; pc++) {
+        var ax = pX + (pc + 1) * spacingX;
+        var ay = my + (pr + 1) * spacingY;
+        var distFromJunction = (jx - ax) / spacingX; // in column units
+
+        var inDepletion = distFromJunction < depCols && distFromJunction >= 0;
+
+        // Acceptor atom (always present — fixed in lattice)
+        ctx.fillStyle = inDepletion ? 'rgba(76,175,80,.7)' : 'rgba(76,175,80,.45)';
+        ctx.beginPath(); ctx.arc(ax, ay, atomR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = inDepletion ? 'rgba(76,175,80,.9)' : 'rgba(76,175,80,.6)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (inDepletion) {
+          // In depletion: acceptor has captured an electron → shows − (negative ion)
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold ' + Math.round(atomR * 1.3) + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('\u2212', ax, ay + atomR * 0.4);
+        } else {
+          // Outside depletion: hole is free carrier (red circle with +)
+          var holeOffset = Math.sin(state.pnTotalT / 500 + pc * 2 + pr * 3) * 3;
+          var hx = ax + holeOffset;
+          var hy = ay - atomR - 4;
+
+          // In forward bias late phases, holes move toward junction
+          if (phase >= 8 && isForward && state.running) {
+            var drift = ((state.pnTotalT / 800 + pc + pr * cols) % 3) * spacingX * 0.3;
+            hx = ax + drift;
+            if (hx > jx - depPx) hx = ax; // wrap back
+          }
+
+          ctx.fillStyle = '#ef5350';
+          ctx.beginPath(); ctx.arc(hx, hy, atomR * 0.55, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold ' + Math.round(atomR * 0.7) + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('+', hx, hy + atomR * 0.25);
+        }
+      }
+    }
+
+    // N-side: donor atoms (red/orange circles) + electrons (blue dots with −)
+    for (var nr = 0; nr < rows; nr++) {
+      for (var nc = 0; nc < cols; nc++) {
+        var bx = nX + (nc + 1) * spacingX;
+        var by = my + (nr + 1) * spacingY;
+        var distFromJ = (bx - jx) / spacingX;
+
+        var inDep = distFromJ < depCols && distFromJ >= 0;
+
+        // Donor atom (always present — fixed in lattice)
+        ctx.fillStyle = inDep ? 'rgba(244,67,54,.7)' : 'rgba(244,67,54,.4)';
+        ctx.beginPath(); ctx.arc(bx, by, atomR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = inDep ? 'rgba(244,67,54,.9)' : 'rgba(244,67,54,.6)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (inDep) {
+          // In depletion: donor lost its electron → shows + (positive ion)
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold ' + Math.round(atomR * 1.3) + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('+', bx, by + atomR * 0.4);
+        } else {
+          // Outside depletion: free electron (blue dot with −)
+          var eOffset = Math.cos(state.pnTotalT / 500 + nc * 2 + nr * 3) * 3;
+          var ex = bx + eOffset;
+          var ey = by - atomR - 4;
+
+          // In forward bias late phases, electrons move toward junction
+          if (phase >= 8 && isForward && state.running) {
+            var eDrift = ((state.pnTotalT / 800 + nc + nr * cols) % 3) * spacingX * 0.3;
+            ex = bx - eDrift;
+            if (ex < jx + depPx) ex = bx;
+          }
+
+          ctx.fillStyle = '#4fc3f7';
+          ctx.beginPath(); ctx.arc(ex, ey, atomR * 0.5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold ' + Math.round(atomR * 0.6) + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('\u2212', ex, ey + atomR * 0.2);
+        }
+      }
+    }
+
+    // ── E-field arrow (phase 3+) ──
+    if (phase >= 3 && depPx > 4) {
+      var efAlpha = phase === 3 ? t : 1;
+      ctx.strokeStyle = 'rgba(245,200,66,' + (efAlpha * 0.8) + ')';
+      ctx.lineWidth = 2.5;
+      var arrowY = my + bh / 2;
+      ctx.beginPath();
+      ctx.moveTo(jx + depPx * 0.7, arrowY);
+      ctx.lineTo(jx - depPx * 0.7, arrowY);
+      ctx.stroke();
+      drawArrowHead(jx + depPx * 0.5, arrowY, jx - depPx * 0.5, arrowY, 'rgba(245,200,66,' + efAlpha + ')');
+      ctx.fillStyle = 'rgba(245,200,66,' + (efAlpha * 0.6) + ')';
+      ctx.font = '600 10px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText('E-field', jx, arrowY - 10);
+      if (phase >= 4) {
+        ctx.fillStyle = 'rgba(245,200,66,.45)';
+        ctx.font = '9px ' + font;
+        ctx.fillText('V\u2098\u1d62 \u2248 0.7V', jx, arrowY + 14);
+      }
+    }
+
+    // ── Phase 5+: External power supply ──
+    if (phase >= 5) {
+      var battAlpha = phase === 5 ? t : 1;
+      drawBattery(mx, my, bw, bh, battAlpha, isForward, phase >= 8 && isForward);
+    }
+
+    // ── Carrier legend (top-right) ──
+    var legendX = W - 130;
+    var legendY = 10;
+    ctx.font = '9px ' + font;
+    ctx.textAlign = 'left';
+    // Acceptor atom
+    ctx.fillStyle = 'rgba(76,175,80,.6)';
+    ctx.beginPath(); ctx.arc(legendX, legendY + 4, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText('Acceptor atom', legendX + 9, legendY + 8);
+    // Donor atom
+    ctx.fillStyle = 'rgba(244,67,54,.6)';
+    ctx.beginPath(); ctx.arc(legendX, legendY + 18, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText('Donor atom', legendX + 9, legendY + 22);
+    // Hole
+    ctx.fillStyle = '#ef5350';
+    ctx.beginPath(); ctx.arc(legendX, legendY + 32, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText('Hole (+)', legendX + 9, legendY + 36);
+    // Electron
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath(); ctx.arc(legendX, legendY + 46, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText('Electron (\u2212)', legendX + 9, legendY + 50);
+
+    // ── Bias + current display (top-left) ──
+    if (phase >= 6) {
+      var isBreakdown = state.region === 'Breakdown';
+      var regionColor = isBreakdown ? '#ff1744' : (isForward ? '#3ddc84' : '#ff5555');
+      var regionLabel = isBreakdown ? 'BREAKDOWN!' : (isForward ? 'Forward Bias' : 'Reverse Bias');
+      ctx.fillStyle = regionColor;
+      ctx.font = 'bold 12px ' + font;
+      ctx.textAlign = 'left';
+      ctx.fillText(regionLabel, 12, 16);
+      ctx.fillStyle = 'rgba(255,255,255,.4)';
+      ctx.font = '10px ' + font;
+      if (isBreakdown) {
+        ctx.fillText('I = ' + roundN(Math.abs(state.pnCurrent) * 1000, 1) + ' mA (surge!)', 12, 30);
+      } else if (isForward) {
+        ctx.fillText('I = ' + roundN(state.pnCurrent * 1000, 3) + ' mA', 12, 30);
+      } else {
+        ctx.fillText('I \u2248 0 (leakage only)', 12, 30);
+      }
+    }
+
+    // ── Bottom labels ──
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.font = '9px ' + font;
+    ctx.textAlign = 'center';
+    ctx.fillText('P-type (acceptors)', pX + pW / 2, my + bh + 12);
+    ctx.fillText('N-type (donors)', nX + nW / 2, my + bh + 12);
+
+    // ── Avalanche particles (breakdown) ──
+    if (state.region === 'Breakdown' && state.running) {
+      drawParticlesPN(mx, my, bw, bh, hw);
+    }
+
+    // ── Subtitle bar at bottom ──
+    if (state.pnPhases.length > 0 && phase < state.pnPhases.length) {
+      var subText = state.pnPhases[phase].sub;
+      var subY = H - 16;
+      // background
+      ctx.fillStyle = 'rgba(0,0,0,.65)';
+      ctx.fillRect(0, H - 38, W, 38);
+      // border top
+      ctx.strokeStyle = 'rgba(255,110,64,.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, H - 38); ctx.lineTo(W, H - 38); ctx.stroke();
+      // text
+      ctx.fillStyle = '#dde3f0';
+      ctx.font = '600 12px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(subText, W / 2, subY);
+      // progress dots
+      var dotY = H - 6;
+      for (var di = 0; di < state.pnPhases.length; di++) {
+        ctx.fillStyle = di === phase ? '#ff6e40' : (di < phase ? 'rgba(255,110,64,.4)' : 'rgba(255,255,255,.15)');
+        ctx.beginPath();
+        ctx.arc(W / 2 - (state.pnPhases.length * 5) + di * 10, dotY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawBattery(mx, my, bw, bh, alpha, isForward, showFlow) {
+    var font = getComputedStyle(document.body).fontFamily;
+    var cx = mx + bw / 2;
+
+    // Battery positioned above the blocks with space
+    var batW = 50;
+    var batH = 22;
+    var batX = cx - batW / 2;
+    var batY = my - 50; // well above blocks
+    if (batY < 20) batY = 20;
+
+    // Wire color
+    var wireColor = 'rgba(255,110,64,' + (alpha * 0.6) + ')';
+    ctx.strokeStyle = wireColor;
+    ctx.lineWidth = 2;
+
+    // Left wire: battery left terminal → down to P-side top
+    var leftTermX = mx + bw * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(batX, batY + batH / 2);
+    ctx.lineTo(leftTermX, batY + batH / 2);
+    ctx.lineTo(leftTermX, my);
+    ctx.stroke();
+
+    // Right wire: battery right terminal → down to N-side top
+    var rightTermX = mx + bw * 0.85;
+    ctx.beginPath();
+    ctx.moveTo(batX + batW, batY + batH / 2);
+    ctx.lineTo(rightTermX, batY + batH / 2);
+    ctx.lineTo(rightTermX, my);
+    ctx.stroke();
+
+    // Terminal dots
+    ctx.fillStyle = wireColor;
+    ctx.beginPath(); ctx.arc(leftTermX, my, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(rightTermX, my, 4, 0, Math.PI * 2); ctx.fill();
+
+    // Bottom wire (return path) connecting under the blocks
+    var botY = my + bh + 12;
+    ctx.beginPath();
+    ctx.moveTo(leftTermX, my + bh);
+    ctx.lineTo(leftTermX, botY);
+    ctx.lineTo(rightTermX, botY);
+    ctx.lineTo(rightTermX, my + bh);
+    ctx.stroke();
+
+    // Battery body (proper battery symbol)
+    // Clear area
+    ctx.fillStyle = '#0a0e18';
+    ctx.fillRect(batX - 4, batY - 4, batW + 8, batH + 8);
+
+    // Battery plates (standard symbol: long thin line = +, short thick = -)
+    ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+    ctx.lineWidth = 2;
+    // Long line (+)
+    var plateGap = 6;
+    ctx.beginPath();
+    ctx.moveTo(cx - plateGap / 2, batY + 4);
+    ctx.lineTo(cx - plateGap / 2, batY + batH - 4);
+    ctx.stroke();
+    // Short thick line (-)
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx + plateGap / 2, batY + 7);
+    ctx.lineTo(cx + plateGap / 2, batY + batH - 7);
+    ctx.stroke();
+
+    // Wire stubs from plates
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = wireColor;
+    ctx.beginPath();
+    ctx.moveTo(batX, batY + batH / 2);
+    ctx.lineTo(cx - plateGap / 2, batY + batH / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + plateGap / 2, batY + batH / 2);
+    ctx.lineTo(batX + batW, batY + batH / 2);
+    ctx.stroke();
+
+    // Polarity labels ABOVE battery (clearly outside wires)
+    ctx.font = 'bold 16px ' + font;
+    ctx.textAlign = 'center';
+    var polY = batY - 8;
+    if (isForward) {
+      // + on left (P-side), − on right (N-side)
+      ctx.fillStyle = 'rgba(61,220,132,' + alpha + ')';
+      ctx.fillText('+', batX - 12, polY + 5);
+      ctx.fillStyle = 'rgba(255,85,85,' + alpha + ')';
+      ctx.fillText('\u2212', batX + batW + 14, polY + 5);
+    } else {
+      // − on left (P-side), + on right (N-side)
+      ctx.fillStyle = 'rgba(255,85,85,' + alpha + ')';
+      ctx.fillText('\u2212', batX - 12, polY + 5);
+      ctx.fillStyle = 'rgba(61,220,132,' + alpha + ')';
+      ctx.fillText('+', batX + batW + 14, polY + 5);
+    }
+
+    // Large polarity labels at terminals with coloured badge backgrounds
+    function drawPolBadge(x, y, symbol, color) {
+      var badgeR = 12;
+      ctx.fillStyle = color.replace(/[\d.]+\)$/, (alpha * 0.25) + ')');
+      ctx.beginPath(); ctx.arc(x, y, badgeR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = color.replace(/[\d.]+\)$/, (alpha * 0.6) + ')');
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = color.replace(/[\d.]+\)$/, alpha + ')');
+      ctx.font = 'bold 16px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(symbol, x, y + 5);
+    }
+    var posColor = 'rgba(61,220,132,1)';
+    var negColor = 'rgba(255,85,85,1)';
+    var termLabelY = my - 14;
+    if (isForward) {
+      drawPolBadge(leftTermX - 18, termLabelY, '+', posColor);
+      drawPolBadge(rightTermX + 18, termLabelY, '\u2212', negColor);
+    } else {
+      drawPolBadge(leftTermX - 18, termLabelY, '\u2212', negColor);
+      drawPolBadge(rightTermX + 18, termLabelY, '+', posColor);
+    }
+
+    // "V" label on battery (above polarity signs)
+    ctx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.6) + ')';
+    ctx.font = '600 11px ' + font;
+    ctx.textAlign = 'center';
+    ctx.fillText('V = ' + roundN(Math.abs(state.vbe), 1) + ' V', cx, batY - 16);
+
+    // Electron flow dots along wires
+    if (showFlow && alpha > 0.8 && isForward) {
+      var flowT = (state.pnTotalT % 2000) / 2000;
+      ctx.fillStyle = 'rgba(79,195,247,.7)';
+
+      // Top wire (right to left through battery = conventional opposite)
+      for (var fi = 0; fi < 5; fi++) {
+        var ft = (flowT + fi * 0.2) % 1;
+        // Right side: from rightTermX up to battery, then left, then down to leftTermX
+        var totalPath = (rightTermX - batX - batW) + (batX + batW - batX) + (batX - leftTermX);
+        var pos = ft * totalPath;
+        var px, py;
+        var seg1 = rightTermX - (batX + batW); // right horizontal
+        var seg2 = batW; // through battery
+        if (pos < seg1) {
+          px = rightTermX - pos;
+          py = batY + batH / 2;
+        } else if (pos < seg1 + seg2) {
+          px = batX + batW - (pos - seg1);
+          py = batY + batH / 2;
+        } else {
+          px = batX - (pos - seg1 - seg2);
+          py = batY + batH / 2;
+        }
+        px = clamp(px, leftTermX, rightTermX);
+        ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Down left wire
+      for (var di = 0; di < 3; di++) {
+        var dt = (flowT + di * 0.33) % 1;
+        ctx.beginPath();
+        ctx.arc(leftTermX, my + dt * bh, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Bottom wire (left to right)
+      for (var bi = 0; bi < 4; bi++) {
+        var bt = (flowT + bi * 0.25) % 1;
+        ctx.beginPath();
+        ctx.arc(leftTermX + bt * (rightTermX - leftTermX), botY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Up right wire
+      for (var ui = 0; ui < 3; ui++) {
+        var ut = (flowT + ui * 0.33) % 1;
+        ctx.beginPath();
+        ctx.arc(rightTermX, my + bh - ut * bh, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Current direction label
+    if (showFlow) {
+      ctx.fillStyle = 'rgba(255,255,255,.35)';
+      ctx.font = '9px ' + font;
+      ctx.textAlign = 'center';
+      if (isForward) {
+        ctx.fillText('I (conventional) \u2192', cx, botY + 12);
+        ctx.fillText('e\u207b flow \u2190', cx, botY + 24);
+      } else {
+        ctx.fillText('No current (reverse bias)', cx, botY + 12);
+      }
+    }
+  }
+
+  function drawParticlesPN(mx, my, bw, bh, hw) {
+    state.particles.forEach(function (p) {
+      var radius = 3.5;
+      ctx.fillStyle = p.type === 'electron' ? '#4fc3f7' : '#ef5350';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 7px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.type === 'electron' ? '\u2212' : '+', p.x, p.y + 2.5);
+    });
+
+    // Avalanche particles (breakdown)
+    state.avalancheParticles.forEach(function (p) {
+      var alpha = Math.min(1, p.life / 30);
+      ctx.fillStyle = p.type === 'electron'
+        ? 'rgba(79,195,247,' + alpha + ')'
+        : 'rgba(239,83,80,' + alpha + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Spark trail
+      if (p.life > 40 && Math.random() < 0.3) {
+        ctx.strokeStyle = 'rgba(255,255,100,' + (alpha * 0.5) + ')';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + (Math.random() - 0.5) * 12, p.y + (Math.random() - 0.5) * 12);
+        ctx.stroke();
+      }
+    });
+  }
+
+  function drawCircuit() {
+    var cx = W / 2;
+    var cy = H / 2;
+    var isNPN = state.type === 'npn';
+
+    // (dark studio background drawn by drawSceneBg in draw())
+
+    // Simple BJT circuit symbol
+    ctx.strokeStyle = '#ff6e40';
+    ctx.lineWidth = 2.5;
+
+    // Base line (horizontal, left)
+    ctx.beginPath();
+    ctx.moveTo(cx - 80, cy);
+    ctx.lineTo(cx - 20, cy);
+    ctx.stroke();
+
+    // Vertical bar at base
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - 20, cy - 35);
+    ctx.lineTo(cx - 20, cy + 35);
+    ctx.stroke();
+
+    // Collector line (angled up-right)
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 20, cy - 18);
+    ctx.lineTo(cx + 30, cy - 50);
+    ctx.lineTo(cx + 30, cy - 80);
+    ctx.stroke();
+
+    // Emitter line (angled down-right)
+    ctx.beginPath();
+    ctx.moveTo(cx - 20, cy + 18);
+    ctx.lineTo(cx + 30, cy + 50);
+    ctx.lineTo(cx + 30, cy + 80);
+    ctx.stroke();
+
+    // Arrow on emitter (NPN: pointing away, PNP: pointing in)
+    var ax = cx + 30, ay = cy + 50;
+    var arrowAngle = isNPN ? Math.atan2(50 - 18, 30 + 20) : Math.atan2(-(50 - 18), -(30 + 20));
+    if (isNPN) {
+      // arrow pointing outward on emitter
+      drawArrowHead(cx + 10, cy + 38, cx + 30, cy + 50, '#ff6e40');
+    } else {
+      // arrow pointing inward on emitter
+      drawArrowHead(cx + 30, cy + 50, cx + 10, cy + 38, '#ff6e40');
+    }
+
+    // Labels
+    ctx.fillStyle = '#ff6e40';
+    ctx.font = 'bold 14px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'center';
+    ctx.fillText('B', cx - 90, cy + 5);
+    ctx.fillText('C', cx + 45, cy - 85);
+    ctx.fillText('E', cx + 45, cy + 90);
+
+    // Type label
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.font = 'bold 16px ' + getComputedStyle(document.body).fontFamily;
+    ctx.fillText(isNPN ? 'NPN' : 'PNP', cx + 80, cy);
+
+    // Circle around transistor
+    ctx.strokeStyle = 'rgba(255,110,64,.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 55, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Current direction arrows
+    if (state.region !== 'Cutoff') {
+      ctx.fillStyle = '#3ddc84';
+      ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+      if (isNPN) {
+        ctx.fillText('I_C \u2191', cx + 55, cy - 60);
+        ctx.fillText('I_E \u2193', cx + 55, cy + 70);
+        ctx.fillText('I_B \u2192', cx - 55, cy - 15);
+      } else {
+        ctx.fillText('I_C \u2193', cx + 55, cy - 60);
+        ctx.fillText('I_E \u2191', cx + 55, cy + 70);
+        ctx.fillText('I_B \u2190', cx - 55, cy - 15);
+      }
+    }
+
+    // Region label
+    var regionColor = state.region === 'Active' ? '#3ddc84' :
+                      state.region === 'Saturation' ? '#f5c842' :
+                      state.region.indexOf('Breakdown') >= 0 ? '#ff5555' : '#6b7a99';
+    ctx.fillStyle = regionColor;
+    ctx.font = 'bold 13px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'left';
+    ctx.fillText('Region: ' + state.region, 20, 25);
+  }
+
+  function drawArrowHead(fromX, fromY, toX, toY, color) {
+    var angle = Math.atan2(toY - fromY, toX - fromX);
+    var sz = 8;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - sz * Math.cos(angle - 0.5), toY - sz * Math.sin(angle - 0.5));
+    ctx.lineTo(toX - sz * Math.cos(angle + 0.5), toY - sz * Math.sin(angle + 0.5));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /* ═══════════ PARTICLE ANIMATION ═══════════ */
+  function initParticles() {
+    state.particles = [];
+    state.avalancheParticles = [];
+
+    if (state.type === 'pn') {
+      initParticlesPN();
+      return;
+    }
+
+    if (state.region === 'Cutoff') return;
+
+    var marginX = 30;
+    var marginY = 40;
+    var bodyW = W - 2 * marginX;
+    var bodyH = H - 2 * marginY;
+    var regionW = bodyW / 3;
+    var isNPN = state.type === 'npn';
+
+    // Main carrier flow: electrons (NPN) or holes (PNP)
+    var numCarriers = Math.min(30, Math.max(5, Math.round(state.ic * 5000)));
+
+    for (var i = 0; i < numCarriers; i++) {
+      // Carrier travels from emitter through base to collector
+      state.particles.push({
+        x: marginX + Math.random() * regionW * 0.7,
+        y: marginY + 20 + Math.random() * (bodyH - 40),
+        vx: (0.5 + Math.random() * 1.5) * (isNPN ? 1 : 1), // always left to right visually
+        vy: (Math.random() - 0.5) * 0.3,
+        type: isNPN ? 'electron' : 'hole',
+        phase: 'emitter' // emitter → base → collector
+      });
+    }
+
+    // Minority carriers (base current) — fewer, going base→emitter
+    var numMinority = Math.max(1, Math.round(numCarriers / state.beta * 10));
+    for (var j = 0; j < numMinority; j++) {
+      state.particles.push({
+        x: marginX + regionW + Math.random() * regionW,
+        y: marginY + 20 + Math.random() * (bodyH - 40),
+        vx: -(0.3 + Math.random() * 0.5),
+        vy: (Math.random() - 0.5) * 0.4,
+        type: isNPN ? 'hole' : 'electron',
+        phase: 'base-recombine'
+      });
+    }
+
+    // Avalanche particles at BC junction
+    if (state.region === 'Avalanche Breakdown') {
+      for (var k = 0; k < 40; k++) {
+        state.avalancheParticles.push({
+          x: marginX + 2 * regionW + (Math.random() - 0.5) * 30,
+          y: marginY + 20 + Math.random() * (bodyH - 40),
+          vx: (Math.random() - 0.3) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          life: 60 + Math.floor(Math.random() * 60),
+          type: Math.random() < 0.5 ? 'electron' : 'hole'
+        });
+      }
+    }
+
+    // Zener tunnelling particles at BE junction
+    if (state.region === 'Zener Breakdown') {
+      for (var z = 0; z < 30; z++) {
+        state.avalancheParticles.push({
+          x: marginX + regionW + (Math.random() - 0.5) * 20,
+          y: marginY + 20 + Math.random() * (bodyH - 40),
+          vx: (1.5 + Math.random() * 2) * (isNPN ? -1 : 1), // tunnelling direction: through BE barrier
+          vy: (Math.random() - 0.5) * 0.5,
+          life: 50 + Math.floor(Math.random() * 50),
+          type: 'electron' // Zener = electron tunnelling
+        });
+      }
+    }
+  }
+
+  function initParticlesPN() {
+    if (state.region === 'Reverse Bias') return; // no carriers flow
+
+    // Avalanche/Zener breakdown in PN junction
+    if (state.region === 'Breakdown') {
+      var fullW = W;
+      var fullH = H;
+      var bw2 = Math.round(fullW * 0.55);
+      var bh2 = Math.round(fullH * 0.45);
+      var mx2 = Math.round((fullW - bw2) / 2);
+      var my2 = Math.round(fullH * 0.28);
+      var jx2 = mx2 + bw2 / 2;
+      for (var av = 0; av < 50; av++) {
+        state.avalancheParticles.push({
+          x: jx2 + (Math.random() - 0.5) * 30,
+          y: my2 + 10 + Math.random() * (bh2 - 20),
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5,
+          life: 40 + Math.floor(Math.random() * 80),
+          type: Math.random() < 0.5 ? 'electron' : 'hole'
+        });
+      }
+      return; // don't spawn normal carriers
+    }
+
+    var marginX = 60;
+    var marginY = 40;
+    var bodyW = W - 2 * marginX;
+    var bodyH = H - 2 * marginY;
+    var halfW = bodyW / 2;
+
+    var numCarriers = Math.min(20, Math.max(3, Math.round(state.pnCurrent * 3000)));
+
+    // In forward bias: electrons flow from N to P (right to left), holes flow from P to N (left to right)
+    for (var i = 0; i < numCarriers; i++) {
+      // Electrons crossing junction from N to P
+      state.particles.push({
+        x: marginX + halfW + Math.random() * halfW * 0.6,
+        y: marginY + 20 + Math.random() * (bodyH - 40),
+        vx: -(0.5 + Math.random() * 1.2),
+        vy: (Math.random() - 0.5) * 0.3,
+        type: 'electron',
+        phase: 'emitter'
+      });
+      // Holes crossing junction from P to N
+      state.particles.push({
+        x: marginX + Math.random() * halfW * 0.6,
+        y: marginY + 20 + Math.random() * (bodyH - 40),
+        vx: (0.5 + Math.random() * 1.2),
+        vy: (Math.random() - 0.5) * 0.3,
+        type: 'hole',
+        phase: 'emitter'
+      });
+    }
+  }
+
+  function updateParticles() {
+    var marginX = 30;
+    var marginY = 40;
+    var bodyW = W - 2 * marginX;
+    var bodyH = H - 2 * marginY;
+    var regionW = bodyW / 3;
+
+    state.particles.forEach(function (p) {
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Bounce vertically
+      if (p.y < marginY + 5 || p.y > marginY + bodyH - 5) {
+        p.vy *= -1;
+        p.y = clamp(p.y, marginY + 5, marginY + bodyH - 5);
+      }
+
+      // Wrap horizontally — recycle from emitter to collector
+      if (p.phase === 'emitter' || p.phase === 'collector') {
+        if (p.x > marginX + bodyW) {
+          p.x = marginX + Math.random() * 10;
+        }
+        if (p.x < marginX) {
+          p.x = marginX + Math.random() * 10;
+        }
+      }
+
+      // base recombination carriers bounce
+      if (p.phase === 'base-recombine') {
+        if (p.x < marginX + regionW * 0.3) {
+          p.x = marginX + regionW + Math.random() * regionW;
+        }
+      }
+    });
+
+    // Avalanche particles
+    var avMinX, avMaxX, avMinY, avMaxY;
+    if (state.type === 'pn') {
+      // PN junction: particles near junction centre
+      var bw2 = Math.round(W * 0.55);
+      var bh2 = Math.round(H * 0.45);
+      var mx2 = Math.round((W - bw2) / 2);
+      var my2 = Math.round(H * 0.28);
+      avMinX = mx2; avMaxX = mx2 + bw2;
+      avMinY = my2; avMaxY = my2 + bh2;
+    } else {
+      avMinX = marginX + regionW;
+      avMaxX = marginX + bodyW;
+      avMinY = marginY + 5;
+      avMaxY = marginY + bodyH - 5;
+    }
+    state.avalancheParticles.forEach(function (p) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+
+      // Bounce in junction area
+      if (p.y < avMinY || p.y > avMaxY) p.vy *= -1;
+      if (p.x < avMinX || p.x > avMaxX) {
+        p.vx *= -0.8;
+        p.x = clamp(p.x, avMinX, avMaxX);
+      }
+
+      // Spawn new particles (cascade)
+      if (p.life > 30 && Math.random() < 0.02 && state.avalancheParticles.length < 100) {
+        state.avalancheParticles.push({
+          x: p.x + (Math.random() - 0.5) * 10,
+          y: p.y + (Math.random() - 0.5) * 10,
+          vx: (Math.random() - 0.5) * 3,
+          vy: (Math.random() - 0.5) * 3,
+          life: 30 + Math.floor(Math.random() * 30),
+          type: Math.random() < 0.5 ? 'electron' : 'hole'
+        });
+      }
+    });
+
+    // Remove dead avalanche particles
+    state.avalancheParticles = state.avalancheParticles.filter(function (p) { return p.life > 0; });
+  }
+
+  function drawParticles(marginX, marginY, bodyW, bodyH, regionW) {
+    // Main carriers
+    state.particles.forEach(function (p) {
+      var radius = 3;
+      ctx.fillStyle = p.type === 'electron' ? '#4fc3f7' : '#ef5350';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // charge symbol
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 6px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.type === 'electron' ? '\u2212' : '+', p.x, p.y + 2);
+    });
+
+    // Avalanche particles (with flash effect)
+    state.avalancheParticles.forEach(function (p) {
+      var alpha = p.life / 60;
+      var radius = 2 + Math.random() * 2;
+      ctx.fillStyle = p.type === 'electron' ?
+        'rgba(79,195,247,' + alpha + ')' :
+        'rgba(239,83,80,' + alpha + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Flash/spark effect
+      if (p.life > 40 && Math.random() < 0.3) {
+        ctx.strokeStyle = 'rgba(255,255,255,' + (alpha * 0.5) + ')';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + (Math.random() - 0.5) * 12, p.y + (Math.random() - 0.5) * 12);
+        ctx.stroke();
+      }
+    });
+
+    // Carrier legend
+    ctx.font = '10px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'left';
+    // electron
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath(); ctx.arc(W - 100, 16, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText('Electron', W - 92, 20);
+    // hole
+    ctx.fillStyle = '#ef5350';
+    ctx.beginPath(); ctx.arc(W - 100, 32, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText('Hole', W - 92, 36);
+  }
+
+  /* ── animation loop ── */
+  var lastFrameTime = 0;
+  function animate(ts) {
+    if (!state.running) return;
+    if (!lastFrameTime) lastFrameTime = ts;
+    var dt = ts - lastFrameTime;
+    lastFrameTime = ts;
+
+    // Phase progression (PN junction + BJT cinematic)
+    if (state.pnPhases.length > 0) {
+      state.pnTotalT += dt;
+      // calculate which phase we're in
+      var elapsed = 0;
+      state.pnPhase = state.pnPhases.length - 1;
+      state.pnPhaseT = 1;
+      for (var pi = 0; pi < state.pnPhases.length; pi++) {
+        if (state.pnTotalT < elapsed + state.pnPhases[pi].dur) {
+          state.pnPhase = pi;
+          state.pnPhaseT = (state.pnTotalT - elapsed) / state.pnPhases[pi].dur;
+          break;
+        }
+        elapsed += state.pnPhases[pi].dur;
+      }
+      // init particles once we reach carrier flow phase
+      if (state.pnPhase >= 8 && state.particles.length === 0) {
+        initParticles();
+      }
+    }
+
+    updateParticles();
+    draw();
+    state.animFrame = requestAnimationFrame(animate);
+  }
+
+  function startAnimation() {
+    if (state.running) return;
+    compute();
+
+    // Reset cinematic phase animation (all types)
+    state.pnPhase = 0;
+    state.pnPhaseT = 0;
+    state.pnTotalT = 0;
+    state.particles = [];
+    buildPNPhases();
+    if (state.type !== 'pn') {
+      initParticles();
+    }
+
+    state.running = true;
+    lastFrameTime = 0;
+    playClick();
+    requestAnimationFrame(animate);
+  }
+
+  function stopAnimation() {
+    state.running = false;
+    if (state.animFrame) cancelAnimationFrame(state.animFrame);
+  }
+
+  /* ── update UI ── */
+  function updateUI() {
+    compute();
+
+    $('val-vbe').textContent = roundN(state.vbe, 2);
+    $('val-vce').textContent = roundN(state.vce, 1);
+    $('val-beta').textContent = state.beta;
+
+    // Readout badges
+    $('rb-region').textContent = state.region;
+    $('rb-ic').textContent = roundN(state.ic * 1000, 2);
+    $('rb-ib').textContent = roundN(state.ib * 1e6, 1);
+    $('rb-beta').textContent = state.beta;
+    $('rb-vbe').textContent = roundN(state.vbe, 2);
+
+    // Formula
+    if (state.region === 'Active') {
+      $('formula-label').textContent = 'Active';
+      $('formula-expr').innerHTML = 'I<sub>C</sub> = \u03b2 \u00d7 I<sub>B</sub>';
+      $('formula-result').textContent = roundN(state.ic * 1000, 2) + ' mA = ' + state.beta + ' \u00d7 ' + roundN(state.ib * 1e6, 1) + ' \u00b5A';
+    } else if (state.region === 'Saturation') {
+      $('formula-label').textContent = 'Saturation';
+      $('formula-expr').innerHTML = 'V<sub>CE(sat)</sub> \u2248 0.2V';
+      $('formula-result').textContent = 'V_CE = ' + roundN(state.vce, 2) + ' V, both junctions forward';
+    } else if (state.region === 'Cutoff') {
+      $('formula-label').textContent = 'Cutoff';
+      $('formula-expr').innerHTML = 'I<sub>C</sub> \u2248 0';
+      $('formula-result').textContent = 'V_BE < 0.5V, transistor OFF';
+    } else if (state.region === 'Zener Breakdown') {
+      $('formula-label').textContent = state.region;
+      $('formula-expr').innerHTML = 'M = 1/(1-(V/BV)<sup>n</sup>)';
+      $('formula-result').textContent = 'I_B = ' + roundN(state.ib * 1000, 1) + ' mA (tunnelling surge)';
+    } else {
+      $('formula-label').textContent = state.region;
+      $('formula-expr').innerHTML = 'M = 1/(1-(V/BV)<sup>n</sup>)';
+      $('formula-result').textContent = 'I_C = ' + roundN(state.ic * 1000, 1) + ' mA (multiplied)';
+    }
+
+    // Info cells
+    $('iv-vbe').textContent = roundN(state.vbe, 2) + ' V';
+    $('iv-vce').textContent = roundN(state.vce, 1) + ' V';
+    $('iv-ib').textContent = roundN(state.ib * 1e6, 1) + ' \u00b5A';
+    $('iv-ic').textContent = roundN(state.ic * 1000, 2) + ' mA';
+    $('iv-ie').textContent = roundN(state.ie * 1000, 2) + ' mA';
+    $('iv-region').textContent = state.region;
+
+    // Result description
+    updateDescription();
+
+    // Keep the bias pills + preset buttons reflecting the live operating point
+    // so manual slider drags light up the matching region, not just presets.
+    if (typeof syncBiasToggle === 'function') syncBiasToggle();
+    updatePresetHighlight();
+
+    if (!state.running) draw();
+    if (state.running && !state.tweening) {
+      // reinitialise particles for new parameters (skipped mid-tween so a
+      // gliding preset transition stays smooth instead of resetting each frame)
+      initParticles();
+    }
+  }
+
+  /* ── Highlight the preset / region that matches the live state ──────────
+     Region-based: dragging a slider into the active region lights the
+     "Active" preset, into saturation lights "Saturation", etc. Ties the
+     preset buttons to what the device is actually doing. */
+  function updatePresetHighlight() {
+    var key = null;
+    if (state.type === 'pn') {
+      key = state.region === 'Forward Bias' ? 'pn-forward' :
+            state.region === 'Transition'   ? 'pn-transition' :
+            state.region === 'Reverse Bias' ? 'pn-reverse' :
+            state.region === 'Breakdown'    ? 'pn-avalanche' : null;
+      if (key === 'pn-reverse' && Math.abs(state.vbe) < 0.05) key = 'pn-off';
+    } else {
+      key = state.region === 'Cutoff'              ? 'cutoff' :
+            state.region === 'Active'              ? 'active' :
+            state.region === 'Saturation'          ? 'saturation' :
+            state.region === 'Avalanche Breakdown' ? 'avalanche' :
+            state.region === 'Zener Breakdown'     ? 'zener' : null;
+    }
+    document.querySelectorAll('.preset-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.preset === key);
+    });
+  }
+
+  /* ── Smoothly glide the operating point (VBE/VCE/β) to target values ────
+     Used by presets and the bias pills so the transition is animated — you
+     watch the depletion regions morph and the current ramp instead of the
+     scene snapping. */
+  function easeInOut(k) { return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }
+  function syncSlidersFromState() {
+    slVbe.value = clamp(state.vbe, parseFloat(slVbe.min), parseFloat(slVbe.max));
+    slVce.value = clamp(state.vce, parseFloat(slVce.min), parseFloat(slVce.max));
+    slBeta.value = clamp(state.beta, parseFloat(slBeta.min), parseFloat(slBeta.max));
+  }
+  function cancelTween() {
+    if (state.tween) { cancelAnimationFrame(state.tween); state.tween = null; }
+    state.tweening = false;
+  }
+  function animateParamsTo(target, dur) {
+    cancelTween();
+    dur = dur || 460;
+    var from = { vbe: state.vbe, vce: state.vce, beta: state.beta };
+    var start = null;
+    state.tweening = true;
+    function step(ts) {
+      if (start === null) start = ts;
+      var k = clamp((ts - start) / dur, 0, 1);
+      var e = easeInOut(k);
+      if ('vbe' in target)  state.vbe  = lerp(from.vbe,  target.vbe,  e);
+      if ('vce' in target)  state.vce  = lerp(from.vce,  target.vce,  e);
+      if ('beta' in target) state.beta = Math.round(lerp(from.beta, target.beta, e));
+      syncSlidersFromState();
+      updateUI();
+      if (k < 1) { state.tween = requestAnimationFrame(step); }
+      else {
+        // snap exactly to target, then let the live animation take over
+        if ('vbe' in target)  state.vbe  = target.vbe;
+        if ('vce' in target)  state.vce  = target.vce;
+        if ('beta' in target) state.beta = target.beta;
+        state.tween = null; state.tweening = false;
+        syncSlidersFromState(); updateUI();
+        if (state.running) initParticles();
+      }
+    }
+    state.tween = requestAnimationFrame(step);
+  }
+  /* Apply an operating point: ensure the animation is running, then glide. */
+  function gotoOperatingPoint(target, dur) {
+    playClick();
+    if (!state.running) { startAnimation(); $('btn-run').innerHTML = '&#9724; Stop'; }
+    animateParamsTo(target, dur);
+  }
+
+  function updateDescription() {
+    var desc = '';
+    var isNPN = state.type === 'npn';
+    var carrier = isNPN ? 'electrons' : 'holes';
+
+    if (state.region === 'Cutoff') {
+      desc = 'The <strong class="desc-highlight">transistor is OFF</strong>. V<sub>BE</sub> = ' + roundN(state.vbe, 2) + 'V is below the 0.5V threshold. Both junctions are reverse biased. The depletion regions are wide and no significant current flows. The transistor acts as an <strong>open switch</strong>.';
+    } else if (state.region === 'Active') {
+      desc = 'The transistor is in <strong class="desc-highlight">Forward Active</strong> mode \u2014 ideal for amplification. The BE junction is forward biased (V<sub>BE</sub> \u2248 ' + roundN(state.vbe, 2) + 'V), injecting ' + carrier + ' from emitter into the thin base. Most ' + carrier + ' (' + roundN(state.ic / state.ie * 100, 1) + '%) cross the base and are swept into the collector. I<sub>C</sub> = \u03b2 \u00d7 I<sub>B</sub> = ' + roundN(state.ic * 1000, 2) + ' mA.';
+    } else if (state.region === 'Saturation') {
+      desc = 'The transistor is in <strong class="desc-highlight">Saturation</strong> \u2014 acting as a <strong>closed switch</strong>. Both BE and BC junctions are forward biased. V<sub>CE</sub> drops to \u2248' + roundN(state.vce, 2) + 'V. The collector cannot support the full \u03b2\u00d7I<sub>B</sub> current; it is limited by the external circuit.';
+    } else if (state.region === 'Avalanche Breakdown') {
+      desc = '<strong style="color:var(--red)">AVALANCHE BREAKDOWN!</strong> The reverse-biased BC junction voltage exceeds BV<sub>CBO</sub> (' + BV_CBO + 'V). High electric field accelerates carriers to kinetic energies sufficient for <strong>impact ionisation</strong>. Each collision creates new electron-hole pairs, triggering a cascade multiplication. Current increases uncontrollably \u2014 <strong>destructive if not current-limited</strong>.';
+    } else if (state.region === 'Zener Breakdown') {
+      desc = '<strong style="color:#b040ff">ZENER BREAKDOWN!</strong> The reverse-biased BE junction voltage exceeds BV<sub>EBO</sub> (' + BV_EBO + 'V). The heavily doped emitter creates a very narrow depletion region. At this voltage, the electric field is strong enough for <strong>quantum mechanical tunnelling</strong> \u2014 electrons tunnel directly from the valence band to the conduction band <strong>without needing kinetic energy</strong>. This is fundamentally different from avalanche (impact ionisation). I<sub>B</sub> surges = ' + roundN(state.ib * 1000, 1) + ' mA.';
+    } else if (state.type === 'pn' && state.region === 'Forward Bias') {
+      desc = 'The PN junction is <strong class="desc-highlight">forward biased</strong> (V = ' + roundN(state.vbe, 2) + 'V). The external voltage opposes the built-in electric field, <strong>narrowing the depletion region</strong>. The barrier is reduced and majority carriers cross the junction: electrons flow from N to P, holes flow from P to N. Current flows exponentially: I = I<sub>S</sub>(e<sup>V/V<sub>T</sub></sup> \u2212 1) = ' + roundN(state.pnCurrent * 1000, 3) + ' mA.';
+    } else if (state.type === 'pn' && state.region === 'Reverse Bias') {
+      desc = 'The PN junction is <strong style="color:var(--red)">reverse biased</strong> (V = ' + roundN(state.vbe, 2) + 'V). The external voltage aids the built-in field, <strong>widening the depletion region</strong>. The barrier increases and majority carriers cannot cross. Only a tiny reverse saturation current I<sub>S</sub> flows (picoamps) from minority carriers.';
+    } else if (state.type === 'pn' && state.region === 'Transition') {
+      desc = 'The PN junction is in the <strong class="desc-highlight">transition region</strong> (V = ' + roundN(state.vbe, 2) + 'V). The applied voltage partially overcomes the built-in potential (~0.7V for silicon). The depletion region is narrowing but significant current has not yet begun. The diode is just starting to "turn on".';
+    } else if (state.type === 'pn' && state.region === 'Breakdown') {
+      var isZener = Math.abs(state.vbe) < 5.5;
+      desc = '<strong style="color:var(--red)">JUNCTION BREAKDOWN!</strong> Reverse voltage (' + roundN(Math.abs(state.vbe), 1) + 'V) exceeds the breakdown voltage (~' + BV_EBO + 'V). ';
+      if (isZener) {
+        desc += 'At this voltage, <strong>Zener breakdown</strong> dominates: the high electric field across the narrow depletion region enables quantum mechanical <strong>tunnelling</strong> of electrons directly from the valence band to the conduction band.';
+      } else {
+        desc += '<strong>Avalanche breakdown</strong>: accelerated carriers gain enough kinetic energy for <strong>impact ionisation</strong> — each collision creates new electron-hole pairs, triggering a multiplication cascade. Current surges uncontrollably.';
+      }
+    } else {
+      desc = 'Transistor is in <strong>' + state.region + '</strong> mode.';
+    }
+
+    $('desc-text').innerHTML = desc;
+  }
+
+  /* ── sound ── */
+  function getAudioCtx() {
+    if (!state.audioCtx) state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return state.audioCtx;
+  }
+  function playTone(freq, dur, type, vol) {
+    try {
+      var ac = getAudioCtx();
+      var o = ac.createOscillator();
+      var g = ac.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      g.gain.value = vol || 0.08;
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+      o.connect(g); g.connect(ac.destination);
+      o.start(); o.stop(ac.currentTime + dur);
+    } catch (e) {}
+  }
+  function playClick()   { playTone(800, 0.05, 'square', 0.04); }
+  function playSuccess() { playTone(880, 0.12, 'sine', 0.1); setTimeout(function () { playTone(1100, 0.15, 'sine', 0.1); }, 120); }
+  function playError()   { playTone(300, 0.2, 'sawtooth', 0.06); }
+
+  /* ── slider events ── */
+  function syncSlider(sl, valEl, key, step) {
+    sl.addEventListener('input', function () {
+      cancelTween();                 // manual drag overrides an in-progress glide
+      state[key] = parseFloat(sl.value);
+      updateUI();
+    });
+    document.querySelectorAll('.stepper-btn[data-target="' + sl.id + '"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        cancelTween();
+        var dir = parseInt(btn.dataset.dir, 10);
+        var newVal = parseFloat(sl.value) + dir * step;
+        newVal = clamp(newVal, parseFloat(sl.min), parseFloat(sl.max));
+        sl.value = newVal;
+        state[key] = newVal;
+        playClick();
+        updateUI();
+      });
+    });
+    // Click value to edit
+    valEl.style.cursor = 'pointer';
+    valEl.title = 'Click to type a value';
+    valEl.addEventListener('click', function () {
+      var old = valEl.textContent;
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.value = old; inp.step = step;
+      inp.min = sl.min; inp.max = sl.max;
+      inp.style.cssText = 'width:55px;background:transparent;border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:.85rem;font-weight:700;text-align:center;border-radius:4px;padding:2px;';
+      valEl.textContent = '';
+      valEl.appendChild(inp);
+      inp.focus(); inp.select();
+      function commit() {
+        cancelTween();
+        var v = parseFloat(inp.value);
+        if (isNaN(v)) v = parseFloat(old);
+        v = clamp(v, parseFloat(sl.min), parseFloat(sl.max));
+        sl.value = v; state[key] = v;
+        valEl.textContent = key === 'beta' ? v : roundN(v, key === 'vbe' ? 2 : 1);
+        updateUI();
+      }
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') inp.blur();
+        if (e.key === 'Escape') { valEl.textContent = old; }
+      });
+    });
+  }
+
+  syncSlider(slVbe, $('val-vbe'), 'vbe', 0.05);
+  syncSlider(slVce, $('val-vce'), 'vce', 0.5);
+  syncSlider(slBeta, $('val-beta'), 'beta', 10);
+
+  /* ── mode switching ── */
+  document.querySelectorAll('#mode-tabs .pill').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('#mode-tabs .pill').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      state.mode = tab.dataset.mode;
+      stopAnimation(); cancelTween();
+      ['simulate', 'explore', 'practice', 'quiz'].forEach(function (m) {
+        var sec = $('sec-' + m);
+        if (sec) sec.style.display = m === state.mode ? '' : 'none';
+      });
+      $('readout-badges').style.display = (state.mode === 'practice' || state.mode === 'quiz' || state.mode === 'explore') ? 'none' : '';
+      if (state.mode === 'explore') renderExplore();
+      playClick();
+    });
+  });
+
+  /* ── type switching ── */
+  function updateControlsVisibility() {
+    var isPN = state.type === 'pn';
+    // Hide VCE and beta sliders for PN junction
+    $('row-vce').style.display = isPN ? 'none' : '';
+    $('row-beta').style.display = isPN ? 'none' : '';
+    // Show bias toggle for all types (different options)
+    $('bias-group').style.display = '';
+    document.querySelectorAll('.bias-pn').forEach(function (el) { el.style.display = isPN ? '' : 'none'; });
+    document.querySelectorAll('.bias-bjt').forEach(function (el) { el.style.display = isPN ? 'none' : ''; });
+    // Hide view tabs for PN (always cross-section)
+    document.querySelectorAll('#view-tabs').forEach(function (el) {
+      el.parentElement.style.display = isPN ? 'none' : '';
+    });
+    // Update preset buttons
+    var presetRow = $('preset-row');
+    if (isPN) {
+      presetRow.innerHTML = '<span class="sim-slider-label">Presets</span>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="pn-off">Off (0V)</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="pn-forward">Forward (0.7V)</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="pn-transition">Transition (0.4V)</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="pn-reverse">Reverse (\u22125V)</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="pn-avalanche">Avalanche</button>';
+      bindPresets();
+    } else {
+      presetRow.innerHTML = '<span class="sim-slider-label">Presets</span>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="cutoff">Cutoff</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="active">Active</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="saturation">Saturation</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="avalanche">Avalanche</button>' +
+        '<button class="btn btn-ghost preset-btn" data-preset="zener">Zener</button>';
+      bindPresets();
+    }
+    // Update VBE slider label
+    var vbeLabel = document.querySelector('[for="sl-vbe"], .slider-row:first-child .sim-slider-label');
+  }
+
+  document.querySelectorAll('#type-tabs .pill').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('#type-tabs .pill').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      state.type = tab.dataset.type;
+      stopAnimation(); cancelTween();
+      updateControlsVisibility();
+      playClick();
+      updateUI();
+    });
+  });
+
+  /* ── view switching ── */
+  document.querySelectorAll('#view-tabs .pill').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('#view-tabs .pill').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      state.view = tab.dataset.view;
+      playClick();
+      if (!state.running) draw();
+    });
+  });
+
+  /* ── sync bias toggle highlight to match state.vbe ── */
+  function syncBiasToggle() {
+    document.querySelectorAll('#bias-tabs .pill').forEach(function (t) { t.classList.remove('active'); });
+    // Breakdown regions have no bias pill — leave all unhighlighted rather
+    // than mislabel them as cutoff.
+    if (state.region && state.region.indexOf('Breakdown') !== -1) return;
+    var target;
+    if (state.type === 'pn') {
+      target = state.vbe >= 0.5 ? 'forward' : 'reverse';
+    } else {
+      // BJT regions
+      if (state.vbe < 0.5) target = 'cutoff';
+      else if (state.vce < 0.3) target = 'saturation';
+      else target = 'active';
+    }
+    var tab = document.querySelector('#bias-tabs .pill[data-bias="' + target + '"]');
+    if (tab) tab.classList.add('active');
+  }
+
+  /* ── bias toggle (PN junction only) ── */
+  document.querySelectorAll('#bias-tabs .pill').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('#bias-tabs .pill').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      var bias = tab.dataset.bias;
+      var biasTargets = {
+        forward:    { vbe: 0.7 },
+        reverse:    { vbe: -5 },
+        cutoff:     { vbe: 0,   vce: 5 },
+        active:     { vbe: 0.7, vce: 5 },
+        saturation: { vbe: 0.7, vce: 0.15 }
+      };
+      if (biasTargets[bias]) gotoOperatingPoint(biasTargets[bias], 460);
+    });
+  });
+
+  /* ── buttons ── */
+  $('btn-run').addEventListener('click', function () {
+    if (state.running) { stopAnimation(); cancelTween(); $('btn-run').innerHTML = '&#9654; Run'; }
+    else { startAnimation(); $('btn-run').innerHTML = '&#9724; Stop'; }
+  });
+  $('btn-reset').addEventListener('click', function () {
+    stopAnimation(); cancelTween();
+    state.vbe = 0; state.vce = 5; state.beta = 100;
+    slVbe.value = 0; slVce.value = 5; slBeta.value = 100;
+    $('btn-run').innerHTML = '&#9654; Run';
+    playClick();
+    updateUI();
+  });
+
+  /* ── presets ── */
+  var PRESET_TARGETS = {
+    // BJT
+    cutoff:     { vbe: 0,    vce: 5 },
+    active:     { vbe: 0.7,  vce: 5 },
+    saturation: { vbe: 0.7,  vce: 0.15 },
+    avalanche:  { vbe: 0.7,  vce: 50 },
+    zener:      { vbe: -6.5, vce: 0 },
+    // PN junction (VBE slider only)
+    'pn-off':        { vbe: 0 },
+    'pn-forward':    { vbe: 0.7 },
+    'pn-transition': { vbe: 0.4 },
+    'pn-reverse':    { vbe: -5 },
+    'pn-avalanche':  { vbe: -8 }
+  };
+  function bindPresets() {
+    document.querySelectorAll('.preset-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = PRESET_TARGETS[btn.dataset.preset];
+        if (!target) return;
+        // Instant visual feedback on the pressed button; the region-based
+        // highlight in updateUI takes over once the glide settles.
+        document.querySelectorAll('.preset-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        // Glide the operating point (animated slider + canvas transition).
+        gotoOperatingPoint(target, 460);
+      });
+    });
+  }
+  bindPresets();
+
+  /* ── context menu ── */
+  canvas.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    var menu = $('ctx-menu');
+    var rect = canvas.parentElement.getBoundingClientRect();
+    menu.style.left = (e.clientX - rect.left) + 'px';
+    menu.style.top = (e.clientY - rect.top) + 'px';
+    menu.style.display = 'block';
+  });
+  document.addEventListener('click', function () { $('ctx-menu').style.display = 'none'; });
+  document.querySelectorAll('.ctx-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var action = btn.dataset.action;
+      if (action === 'save-img') {
+        var tmp = document.createElement('canvas');
+        tmp.width = canvas.width; tmp.height = canvas.height;
+        var tc = tmp.getContext('2d');
+        tc.drawImage(canvas, 0, 0);
+        var fs = Math.round(tmp.width * 0.022); if (fs < 10) fs = 10;
+        tc.font = '600 ' + fs + 'px "Segoe UI", system-ui, sans-serif';
+        tc.textAlign = 'right'; tc.textBaseline = 'bottom';
+        tc.fillStyle = 'rgba(255,255,255,0.25)';
+        tc.fillText('NHIT VisualLab', tmp.width - 12, tmp.height - 8);
+        var a = document.createElement('a');
+        a.href = tmp.toDataURL('image/png');
+        a.download = 'bjt_' + state.type + '_' + state.region.replace(/\s+/g, '_') + '.png';
+        a.click();
+      } else if (action === 'copy-data') {
+        var txt = state.type.toUpperCase() + ' Transistor\n';
+        txt += 'Region: ' + state.region + '\n';
+        txt += 'V_BE = ' + roundN(state.vbe, 2) + ' V\n';
+        txt += 'V_CE = ' + roundN(state.vce, 1) + ' V\n';
+        txt += 'I_B = ' + roundN(state.ib * 1e6, 1) + ' \u00b5A\n';
+        txt += 'I_C = ' + roundN(state.ic * 1000, 2) + ' mA\n';
+        txt += 'I_E = ' + roundN(state.ie * 1000, 2) + ' mA\n';
+        txt += '\u03b2 = ' + state.beta;
+        navigator.clipboard.writeText(txt);
+      } else if (action === 'reset') {
+        $('btn-reset').click();
+      }
+    });
+  });
+
+  /* ═══════════ EXPLORE ═══════════ */
+  var EXPLORE = {
+    basics: [
+      { title: 'What Is a BJT?', body: 'A Bipolar Junction Transistor (BJT) is a three-terminal semiconductor device with two PN junctions. It uses both electrons and holes (hence "bipolar") as charge carriers. The three regions are Emitter (heavily doped, injects carriers), Base (thin, lightly doped), and Collector (moderately doped, collects carriers).', note: '"Bipolar" means both carrier types (electrons AND holes) participate in current flow, unlike FETs which are unipolar.' },
+      { title: 'PN Junction Basics', body: 'When P-type and N-type semiconductors join, majority carriers diffuse across the junction, leaving behind fixed ions. This creates a depletion region with a built-in electric field opposing further diffusion. Forward bias narrows the depletion region (current flows); reverse bias widens it (current blocked).', formula: 'V_bi = (kT/q) \u00d7 ln(N_A \u00d7 N_D / n_i\u00b2) \u2248 0.7V for Si' },
+      { title: 'NPN vs PNP', body: 'NPN: Emitter is N+, Base is P, Collector is N. Electrons are majority carriers flowing E\u2192B\u2192C. PNP: Emitter is P+, Base is N, Collector is P. Holes are majority carriers. The physics is identical \u2014 only carrier types and voltage polarities are reversed.', note: 'NPN is more common because electron mobility in silicon (\u22481400 cm\u00b2/V\u00b7s) is about 3\u00d7 higher than hole mobility (\u2248450 cm\u00b2/V\u00b7s), making NPN faster.' },
+      { title: 'Why Is the Base Thin?', body: 'The base must be very thin (<1 \u00b5m) so that most carriers injected from the emitter can diffuse across without recombining. If the base were thick, carriers would recombine with majority carriers in the base, reducing the collector current and lowering \u03b2.', formula: '\u03b1 = I_C/I_E \u2248 0.99, meaning 99% of emitter carriers reach the collector' }
+    ],
+    regions: [
+      { title: 'Cutoff Region', body: 'Both junctions are reverse biased. V_BE < 0.5V (for silicon). No significant current flows \u2014 the transistor is OFF. Only tiny leakage current I_CEO = (\u03b2+1)\u00d7I_CBO flows (nanoamps). The transistor acts as an open switch.', note: 'In digital circuits, cutoff = logic LOW output.' },
+      { title: 'Forward Active Region', body: 'BE junction is forward biased (V_BE \u2248 0.7V), BC junction is reverse biased (V_CE > V_CE(sat)). This is the amplification region where I_C = \u03b2\u00d7I_B. A small base current controls a much larger collector current.', formula: 'I_C = \u03b2 \u00d7 I_B,  I_E = I_C + I_B = (\u03b2+1) \u00d7 I_B', example: 'If \u03b2 = 100 and I_B = 20 \u00b5A:\nI_C = 100 \u00d7 20 \u00b5A = 2 mA\nI_E = 2 mA + 0.02 mA = 2.02 mA' },
+      { title: 'Saturation Region', body: 'Both junctions are forward biased. V_CE drops to V_CE(sat) \u2248 0.2V. The transistor is fully ON, acting as a closed switch. The actual I_C is limited by the external circuit, not by \u03b2\u00d7I_B.', formula: 'V_CE(sat) \u2248 0.2V,  \u03b2_forced = I_C/I_B < \u03b2', note: 'Test: if \u03b2\u00d7I_B > I_C(circuit), the transistor is saturated.' },
+      { title: 'Reverse Active Region', body: 'BE is reverse biased, BC is forward biased. Current flows "backwards" with much lower gain (\u03b2_R \u2248 0.1\u20135). Rarely used intentionally, but appears in the Ebers-Moll model and some TTL logic circuits.' }
+    ],
+    breakdown: [
+      { title: 'Avalanche Breakdown', body: 'At high reverse bias on the BC junction (V_CB > BV_CBO), the electric field accelerates carriers to kinetic energies sufficient for impact ionisation. Each collision knocks a valence electron free, creating an electron-hole pair. Both carriers are then accelerated and cause further ionisation \u2014 a self-sustaining avalanche cascade.', formula: 'M = 1/(1 - (V_CB/BV_CBO)^n),  n \u2248 4 for Si NPN', note: 'BV_CEO = BV_CBO / \u03b2^(1/n) \u2014 breakdown in common-emitter is LOWER than common-base!' },
+      { title: 'Zener Breakdown', body: 'In heavily doped junctions (like the BE junction), the depletion region is very narrow (<10 nm). At moderate reverse bias (<5V), the electric field is intense enough for quantum mechanical tunnelling: electrons tunnel directly from the P-side valence band to the N-side conduction band without needing kinetic energy.', note: 'Zener breakdown has a NEGATIVE temperature coefficient (BV decreases with temperature), while avalanche has a POSITIVE coefficient.' },
+      { title: 'Punch-Through', body: 'As V_CB increases, the BC depletion region widens into the thin base. If it reaches the BE depletion region, the base is "fully depleted" \u2014 there is no neutral base left. Carriers flow directly from emitter to collector without base control. This is called punch-through.', note: 'Prevented by sufficient base width and doping. Critical in short-channel devices.' },
+      { title: 'Thermal Runaway', body: 'Not a junction breakdown but a destructive positive feedback loop: I_C increases \u2192 power P = V_CE\u00d7I_C heats the junction \u2192 I_S doubles every ~10\u00b0C \u2192 I_C increases further \u2192 more heating. If thermal resistance is too high, T_j exceeds 150-200\u00b0C and the device is destroyed.', note: 'Emitter degeneration resistors (R_E) provide negative feedback that stabilises against thermal runaway.' }
+    ],
+    formulas: [
+      { title: 'Ebers-Moll Model', body: 'The complete large-signal BJT model defines the transistor as two coupled diodes. It handles all four operating regions in one continuous set of equations.', formula: 'I_C = I_S\u00d7(e^(V_BE/V_T) - 1) - (I_S/\u03b2_R)\u00d7(e^(V_BC/V_T) - 1)\nI_B = (I_S/\u03b2_F)\u00d7(e^(V_BE/V_T) - 1) + (I_S/\u03b2_R)\u00d7(e^(V_BC/V_T) - 1)' },
+      { title: 'Current Gain Relationships', body: '\u03b2 (h_FE) is the common-emitter current gain. \u03b1 (h_FB) is the common-base current gain. They are related:', formula: '\u03b2 = I_C/I_B,  \u03b1 = I_C/I_E = \u03b2/(\u03b2+1)\n\u03b2 = \u03b1/(1-\u03b1)', example: 'If \u03b2 = 100: \u03b1 = 100/101 = 0.99\nIf \u03b1 = 0.995: \u03b2 = 0.995/0.005 = 199' },
+      { title: 'Depletion Region Width', body: 'The depletion width depends on doping concentrations and applied voltage:', formula: 'W = \u221a(2\u03b5_s(V_bi - V_A)/q \u00d7 (1/N_A + 1/N_D))', example: 'Forward bias (V_A > 0): W decreases\nReverse bias (V_A < 0): W increases' },
+      { title: 'I-V Characteristics', body: 'The Shockley diode equation governs each junction:', formula: 'I = I_S \u00d7 (e^(V/(n\u00d7V_T)) - 1)', example: 'At V = 0.7V, n = 1, V_T = 25.85 mV:\ne^(700/25.85) = e^27.1 \u2248 5.8\u00d710^11\nI = I_S \u00d7 5.8\u00d710^11 (very large multiplication of I_S)' }
+    ],
+    applications: [
+      { title: 'Common-Emitter Amplifier', body: 'The most common BJT amplifier configuration. Input signal applied to the base, amplified output taken from the collector. Voltage gain A_v = -g_m \u00d7 R_C, where g_m = I_C/V_T is the transconductance. Inverts the signal (180\u00b0 phase shift).', formula: 'A_v = -g_m \u00d7 R_C = -(I_C/V_T) \u00d7 R_C' },
+      { title: 'BJT as a Switch', body: 'In digital circuits, BJTs switch between cutoff (OFF, output HIGH) and saturation (ON, output LOW). The base current must be large enough to drive the transistor deep into saturation: I_B > I_C(\u03b2_forced) where \u03b2_forced \u2248 10-20 for reliable switching.', note: 'Switching speed is limited by charge storage in the base \u2014 excess carriers must be removed before the transistor turns off.' },
+      { title: 'Current Mirror', body: 'Two matched BJTs sharing V_BE produce equal collector currents. Used in integrated circuits to copy/mirror a reference current. The accuracy depends on matched V_BE and \u03b2.', formula: 'I_out = I_ref \u00d7 (\u03b2/(\u03b2+2)) \u2248 I_ref for large \u03b2' },
+      { title: 'Darlington Pair', body: 'Two BJTs cascaded so that the emitter of the first drives the base of the second. The combined \u03b2 = \u03b2_1 \u00d7 \u03b2_2, giving very high current gain (thousands). Used when a very small base current must control a large load current.', formula: '\u03b2_total = \u03b2_1 \u00d7 \u03b2_2', example: 'If \u03b2_1 = \u03b2_2 = 100: \u03b2_total = 10,000' }
+    ]
+  };
+
+  function renderExplore() {
+    var container = $('explore-cards');
+    container.innerHTML = '';
+    var cards = EXPLORE[state.exploreCat] || [];
+    cards.forEach(function (card) {
+      var div = document.createElement('div');
+      div.className = 'explore-card';
+      var html = '<h3>' + card.title + '</h3><p>' + card.body.replace(/\n/g, '<br>') + '</p>';
+      if (card.formula) html += '<div class="formula-box">' + card.formula.replace(/\n/g, '<br>') + '</div>';
+      if (card.example) html += '<div class="example-box">' + card.example.replace(/\n/g, '<br>') + '</div>';
+      if (card.note) html += '<p style="color:var(--gold);font-size:.8rem;margin-top:8px"><strong>Note:</strong> ' + card.note + '</p>';
+      div.innerHTML = html;
+      container.appendChild(div);
+    });
+  }
+
+  document.querySelectorAll('#explore-tabs .explore-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('#explore-tabs .explore-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      state.exploreCat = tab.dataset.cat;
+      playClick();
+      renderExplore();
+    });
+  });
+
+  /* ═══════════ PRACTICE ═══════════ */
+  var PRACTICE_GEN = [
+    function () {
+      var beta = 50 + Math.floor(Math.random() * 250);
+      var ib = 10 + Math.floor(Math.random() * 90);
+      var ic = beta * ib / 1000;
+      return { q: 'An NPN transistor has \u03b2 = ' + beta + '. If I_B = ' + ib + ' \u00b5A, find I_C in mA.', type: 'numeric', answer: roundN(ic, 2), tol: 0.5, unit: 'mA', explain: 'I_C = \u03b2 \u00d7 I_B = ' + beta + ' \u00d7 ' + ib + ' \u00b5A = ' + roundN(ic, 2) + ' mA' };
+    },
+    function () {
+      var beta = 50 + Math.floor(Math.random() * 200);
+      var ic = 1 + Math.floor(Math.random() * 20);
+      var ie = roundN(ic * (1 + 1 / beta), 2);
+      return { q: 'If \u03b2 = ' + beta + ' and I_C = ' + ic + ' mA, find I_E.', type: 'numeric', answer: ie, tol: 0.5, unit: 'mA', explain: 'I_E = I_C + I_B = I_C(1 + 1/\u03b2) = ' + ic + ' \u00d7 ' + roundN(1 + 1 / beta, 4) + ' = ' + ie + ' mA' };
+    },
+    function () {
+      var scenarios = [
+        { desc: 'V_BE = 0.3V, V_CE = 5V', ans: 'Cutoff' },
+        { desc: 'V_BE = 0.7V, V_CE = 5V', ans: 'Forward Active' },
+        { desc: 'V_BE = 0.7V, V_CE = 0.15V', ans: 'Saturation' },
+        { desc: 'V_BE = 0V, V_CE = 0V', ans: 'Cutoff' }
+      ];
+      var pick = scenarios[Math.floor(Math.random() * scenarios.length)];
+      return { q: 'An NPN transistor has ' + pick.desc + '. What operating region is it in?', type: 'mcq', options: ['Cutoff', 'Forward Active', 'Saturation', 'Reverse Active'], answer: pick.ans, explain: pick.desc + ' \u2192 ' + pick.ans };
+    },
+    function () {
+      var beta = 100 + Math.floor(Math.random() * 200);
+      var alpha = roundN(beta / (beta + 1), 4);
+      return { q: 'If \u03b2 = ' + beta + ', what is \u03b1?', type: 'numeric', answer: alpha, tol: 0.01, unit: '', explain: '\u03b1 = \u03b2/(\u03b2+1) = ' + beta + '/' + (beta + 1) + ' = ' + alpha };
+    },
+    function () {
+      var options = ['Impact ionisation cascade at high V_CB', 'Quantum tunnelling through narrow depletion', 'Base fully depleted by widening BC depletion', 'Positive thermal feedback loop'];
+      var answers = ['Avalanche Breakdown', 'Zener Breakdown', 'Punch-Through', 'Thermal Runaway'];
+      var idx = Math.floor(Math.random() * 4);
+      return { q: 'Which breakdown mechanism is described: "' + options[idx] + '"?', type: 'mcq', options: answers, answer: answers[idx], explain: options[idx] + ' = ' + answers[idx] };
+    }
+  ];
+
+  function newPractice() {
+    var gen = PRACTICE_GEN[Math.floor(Math.random() * PRACTICE_GEN.length)];
+    var prob = gen();
+    state.currentPractice = prob;
+    $('p-prompt').textContent = prob.q;
+    $('p-feedback').textContent = '';
+    $('p-feedback').style.color = '';
+    $('p-options').innerHTML = '';
+    $('p-input-row').style.display = 'none';
+    $('p-input').disabled = false;
+    $('p-check').disabled = false;
+
+    if (prob.type === 'mcq') {
+      prob.options.forEach(function (opt) {
+        var btn = document.createElement('button');
+        btn.className = 'mcq-option';
+        btn.textContent = opt;
+        btn.addEventListener('click', function () {
+          $('p-options').querySelectorAll('.mcq-option').forEach(function (b) { b.disabled = true; });
+          state.practiceTotal++;
+          if (opt === prob.answer) {
+            btn.classList.add('correct'); state.practiceScore++;
+            $('p-feedback').textContent = 'Correct! ' + prob.explain;
+            $('p-feedback').style.color = 'var(--green)';
+            playSuccess();
+          } else {
+            btn.classList.add('wrong');
+            $('p-options').querySelectorAll('.mcq-option').forEach(function (b) { if (b.textContent === prob.answer) b.classList.add('correct'); });
+            $('p-feedback').textContent = 'Incorrect. ' + prob.explain;
+            $('p-feedback').style.color = 'var(--red)';
+            playError();
+          }
+          $('p-score').textContent = state.practiceScore;
+          $('p-total').textContent = state.practiceTotal;
+        });
+        $('p-options').appendChild(btn);
+      });
+    } else {
+      $('p-input-row').style.display = 'flex';
+      $('p-unit').textContent = prob.unit;
+      $('p-input').value = '';
+      $('p-input').focus();
+    }
+  }
+
+  $('p-new').addEventListener('click', function () { playClick(); newPractice(); });
+  $('p-check').addEventListener('click', function () {
+    if (!state.currentPractice) return;
+    var val = parseFloat($('p-input').value);
+    if (isNaN(val)) return;
+    state.practiceTotal++;
+    if (Math.abs(val - state.currentPractice.answer) <= (state.currentPractice.tol || 0.5)) {
+      state.practiceScore++;
+      $('p-feedback').textContent = 'Correct! ' + state.currentPractice.explain;
+      $('p-feedback').style.color = 'var(--green)';
+      playSuccess();
+    } else {
+      $('p-feedback').textContent = 'Incorrect (answer: ' + state.currentPractice.answer + '). ' + state.currentPractice.explain;
+      $('p-feedback').style.color = 'var(--red)';
+      playError();
+    }
+    $('p-score').textContent = state.practiceScore;
+    $('p-total').textContent = state.practiceTotal;
+    $('p-input').disabled = true;
+    $('p-check').disabled = true;
+  });
+  $('p-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('p-check').click(); });
+
+  /* ═══════════ QUIZ ═══════════ */
+  var QUIZ_POOL = [
+    { q: 'In an NPN transistor, the majority carriers crossing the base are:', type: 'mcq', options: ['Electrons', 'Holes', 'Protons', 'Photons'], answer: 'Electrons', explain: 'In NPN, electrons are injected from the N+ emitter into the P base and cross to the N collector.' },
+    { q: 'V_BE(on) for a silicon BJT is approximately:', type: 'mcq', options: ['0.3V', '0.5V', '0.7V', '1.2V'], answer: '0.7V', explain: 'Silicon PN junctions have a built-in potential of ~0.7V for forward conduction.' },
+    { q: 'If \u03b2 = 150 and I_B = 40 \u00b5A, find I_C.', type: 'numeric', answer: 6, tol: 0.5, unit: 'mA', explain: 'I_C = \u03b2 \u00d7 I_B = 150 \u00d7 40\u00b5A = 6 mA' },
+    { q: 'In saturation, V_CE is approximately:', type: 'mcq', options: ['0V', '0.2V', '0.7V', '5V'], answer: '0.2V', explain: 'In saturation, both junctions are forward biased and V_CE drops to ~0.2V (V_CE(sat)).' },
+    { q: 'Which breakdown involves quantum tunnelling?', type: 'mcq', options: ['Avalanche', 'Zener', 'Punch-Through', 'Thermal Runaway'], answer: 'Zener', explain: 'Zener breakdown: electrons tunnel through the narrow depletion region of heavily doped junctions (<5V).' },
+    { q: 'If \u03b1 = 0.99, what is \u03b2?', type: 'numeric', answer: 99, tol: 5, unit: '', explain: '\u03b2 = \u03b1/(1-\u03b1) = 0.99/0.01 = 99' },
+    { q: 'BV_CEO is typically _____ than BV_CBO.', type: 'mcq', options: ['Higher', 'Lower', 'Equal', 'Unrelated'], answer: 'Lower', explain: 'BV_CEO = BV_CBO/\u03b2^(1/n). The feedback through \u03b2 lowers the breakdown voltage in CE configuration.' },
+    { q: 'What happens when both BE and BC junctions are forward biased?', type: 'mcq', options: ['Cutoff', 'Active', 'Saturation', 'Breakdown'], answer: 'Saturation', explain: 'Both junctions forward biased = saturation. V_CE drops to ~0.2V.' },
+    { q: 'An NPN transistor has \u03b2 = 200, I_C = 10 mA. Find I_E.', type: 'numeric', answer: 10.05, tol: 0.1, unit: 'mA', explain: 'I_B = I_C/\u03b2 = 10/200 = 0.05 mA. I_E = I_C + I_B = 10.05 mA' },
+    { q: 'In cutoff region, the transistor acts as:', type: 'mcq', options: ['Open switch', 'Closed switch', 'Amplifier', 'Voltage regulator'], answer: 'Open switch', explain: 'In cutoff, both junctions are reverse biased, no current flows \u2014 the transistor is an open switch.' },
+    { q: 'The base of a BJT is deliberately made:', type: 'mcq', options: ['Thick and heavily doped', 'Thin and lightly doped', 'Thick and lightly doped', 'Thin and heavily doped'], answer: 'Thin and lightly doped', explain: 'Thin base ensures most carriers cross without recombining. Light doping reduces base current (increases \u03b2).' },
+    { q: 'PNP transistor: conventional current flows into the:', type: 'mcq', options: ['Collector', 'Base', 'Emitter', 'All three'], answer: 'Emitter', explain: 'In PNP, conventional current enters the emitter (holes flow from E to C). I_C and I_B flow out.' },
+    { q: 'Thermal voltage V_T at 300K equals:', type: 'numeric', answer: 25.85, tol: 1, unit: 'mV', explain: 'V_T = kT/q = (1.381\u00d710\u207b\u00b2\u00b3 \u00d7 300) / 1.602\u00d710\u207b\u00b9\u2079 \u2248 25.85 mV' },
+    { q: 'Impact ionisation is the mechanism behind:', type: 'mcq', options: ['Zener breakdown', 'Avalanche breakdown', 'Punch-through', 'Forward bias'], answer: 'Avalanche breakdown', explain: 'Avalanche: high-energy carriers knock valence electrons free (impact ionisation), creating a cascade.' },
+    { q: 'I_S (saturation current) doubles approximately every:', type: 'mcq', options: ['1\u00b0C', '5\u00b0C', '10\u00b0C', '50\u00b0C'], answer: '10\u00b0C', explain: 'I_S has strong temperature dependence, roughly doubling every 10\u00b0C rise in junction temperature.' }
+  ];
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function startQuiz() {
+    var pool = QUIZ_POOL.slice();
+    shuffle(pool);
+    state.quizSet = pool.slice(0, 5);
+    state.quizIdx = 0; state.quizScore = 0;
+    state.quizAnswers = []; state.quizLocked = false;
+    $('q-result').style.display = 'none';
+    $('q-result').innerHTML = '';
+    $('q-start').textContent = 'Restart';
+    showQuizQ();
+  }
+
+  function showQuizQ() {
+    var q = state.quizSet[state.quizIdx];
+    $('q-progress').textContent = 'Question ' + (state.quizIdx + 1) + ' / 5';
+    $('q-prompt').textContent = q.q;
+    $('q-feedback').textContent = '';
+    state.quizLocked = false;
+    $('q-actions').style.display = 'flex';
+    $('q-submit').style.display = '';
+    $('q-next').style.display = 'none';
+    $('q-options').innerHTML = '';
+    $('q-input-row').style.display = 'none';
+
+    if (q.type === 'mcq') {
+      q.options.forEach(function (opt) {
+        var btn = document.createElement('button');
+        btn.className = 'mcq-option';
+        btn.textContent = opt;
+        btn.addEventListener('click', function () {
+          if (state.quizLocked) return;
+          $('q-options').querySelectorAll('.mcq-option').forEach(function (b) { b.classList.remove('selected'); });
+          btn.classList.add('selected');
+          state.quizSelectedAnswer = opt;
+        });
+        $('q-options').appendChild(btn);
+      });
+    } else {
+      $('q-input-row').style.display = 'flex';
+      $('q-unit').textContent = q.unit;
+      $('q-input').value = '';
+      $('q-input').disabled = false;
+      $('q-input').focus();
+    }
+  }
+
+  $('q-start').addEventListener('click', function () { playClick(); startQuiz(); });
+  $('q-submit').addEventListener('click', function () {
+    if (state.quizLocked) return;
+    var q = state.quizSet[state.quizIdx];
+    var userAnswer, correct;
+    if (q.type === 'mcq') {
+      if (!state.quizSelectedAnswer) return;
+      userAnswer = state.quizSelectedAnswer;
+      correct = userAnswer === q.answer;
+      $('q-options').querySelectorAll('.mcq-option').forEach(function (b) {
+        b.disabled = true;
+        if (b.textContent === q.answer) b.classList.add('correct');
+        if (b.textContent === userAnswer && !correct) b.classList.add('wrong');
+      });
+    } else {
+      userAnswer = parseFloat($('q-input').value);
+      if (isNaN(userAnswer)) return;
+      correct = Math.abs(userAnswer - q.answer) <= (q.tol || 1);
+      $('q-input').disabled = true;
+    }
+    state.quizLocked = true;
+    if (correct) { state.quizScore++; $('q-feedback').textContent = 'Correct! ' + q.explain; $('q-feedback').style.color = 'var(--green)'; playSuccess(); }
+    else { $('q-feedback').textContent = 'Incorrect. ' + q.explain; $('q-feedback').style.color = 'var(--red)'; playError(); }
+    state.quizAnswers.push({ q: q.q, userAnswer: userAnswer, correct: correct, correctAnswer: q.answer, explain: q.explain });
+    $('q-submit').style.display = 'none';
+    $('q-next').style.display = '';
+    $('q-next').textContent = state.quizIdx < 4 ? 'Next \u2192' : 'Show Results';
+  });
+  $('q-next').addEventListener('click', function () { state.quizIdx++; if (state.quizIdx < 5) showQuizQ(); else showQuizResult(); playClick(); });
+  $('q-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('q-submit').click(); });
+
+  function showQuizResult() {
+    $('q-prompt').textContent = '';
+    $('q-options').innerHTML = '';
+    $('q-input-row').style.display = 'none';
+    $('q-actions').style.display = 'none';
+    $('q-feedback').textContent = '';
+    var pct = Math.round((state.quizScore / 5) * 100);
+    var stars = state.quizScore === 5 ? '\u2605\u2605\u2605' : state.quizScore >= 3 ? '\u2605\u2605\u2606' : '\u2605\u2606\u2606';
+    var html = '<div class="quiz-score-display">' + state.quizScore + ' / 5 (' + pct + '%)</div>';
+    html += '<div class="quiz-stars">' + stars + '</div>';
+    state.quizAnswers.forEach(function (a, i) {
+      html += '<div class="quiz-result-row ' + (a.correct ? 'correct' : 'wrong') + '">';
+      html += '<div class="qr-q">' + (a.correct ? '\u2713' : '\u2717') + ' Q' + (i + 1) + ': ' + a.q + '</div>';
+      html += '<div class="qr-a">Your answer: ' + a.userAnswer + ' | Correct: ' + a.correctAnswer + '</div>';
+      html += '</div>';
+    });
+    $('q-result').innerHTML = html;
+    $('q-result').style.display = '';
+    $('q-progress').textContent = 'Result';
+  }
+
+  /* ── init ── */
+  window.addEventListener('resize', function () { resizeCanvas(); if (!state.running) draw(); });
+  resizeCanvas();
+  updateControlsVisibility();
+  syncBiasToggle();
+  compute();
+  updateUI();
+  renderExplore();
+})();

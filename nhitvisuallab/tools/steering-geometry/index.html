@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Steering Geometry &amp; Wheel Alignment Simulator &mdash; Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Free online Ackermann Steering Geometry, Camber, Caster, Kingpin Inclination (KPI), and Toe-In / Toe-Out wheel alignment simulator." />
+  <link rel="canonical" href="index.html" />
+
+  <link rel="stylesheet" href="../../shared/site.css?v=20.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b27; --surface2: #1f2535; --border: #2a3050;
+      --accent: #29b6f6; --green: #3ddc84; --red: #ff5252; --orange: #ff9800; --yellow: #ffd600;
+      --text: #dde3f0; --text-dim: #6b7a99; --mono: 'Courier New', monospace; --radius: 12px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding: 0 16px; min-height: 100vh; }
+    #app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
+    header { text-align: center; padding: 6px 0; }
+    header h1 { font-size: 1.85rem; font-weight: 700; background: linear-gradient(120deg, var(--accent), #80d8ff, var(--yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: var(--text-dim); font-size: .85rem; margin-top: 3px; }
+
+    .sim3d-section { margin: 14px 0; padding: 16px 18px; background: #0e1726; border: 1px solid #1e2c44; border-radius: 10px; color: #dce6f5; }
+    .sim3d-section h2 { margin: 0 0 6px; font-size: 1.15rem; color: #7fd1ff; }
+    .sim3d-blurb { margin: 0 0 12px; line-height: 1.5; color: #aebfd4; font-size: .88rem; }
+    .sim3d-wrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
+    .sim3d-canvas { width: 100%; height: 320px; display: block; background: #0e1726; border-radius: 8px; touch-action: none; cursor: grab; }
+    .sim3d-canvas:active { cursor: grabbing; }
+    .sim3d-hint { position: absolute; right: 10px; bottom: 8px; font-size: 12px; color: #6b7f9c; background: rgba(0,0,0,.35); padding: 2px 8px; border-radius: 6px; }
+
+    .controls-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); flex-wrap: wrap; gap: 12px; }
+    .ctrl-group { display: flex; align-items: center; gap: 10px; }
+    .ctrl-label { font-size: .8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; }
+    .pill-tabs { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 3px; }
+    .pill { padding: 6px 14px; border: none; background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font-size: .82rem; font-weight: 600; transition: all .18s; }
+    .pill.active { background: var(--accent); color: #0b111a; font-weight: 700; box-shadow: 0 0 10px rgba(41,182,246,.35); }
+    .pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+    .head-actions { display: flex; gap: 8px; }
+    .btn-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font-size: .78rem; color: var(--text-dim); text-decoration: none; font-weight: 600; }
+    .btn-link:hover { border-color: var(--accent); color: var(--accent); }
+
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 14px; align-items: start; }
+    @media(max-width: 1050px) { .layout { grid-template-columns: 1fr; } }
+    
+    .canvas-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; position: relative; }
+    #steer-canvas { display: block; width: 100%; height: 580px; background: #0a0d14; border-radius: 8px; }
+    
+    .controls-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .panel-title { font-size: .92rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    
+    .control-block { display: flex; flex-direction: column; gap: 6px; background: var(--surface2); padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+    .control-header { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 600; }
+    .control-val { color: var(--accent); font-family: var(--mono); font-weight: 700; }
+    .slider-styled { -webkit-appearance: none; appearance: none; height: 6px; background: #0f1219; border: 1px solid var(--border); border-radius: 4px; outline: none; cursor: pointer; }
+    .slider-styled::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid #fff; }
+    
+    .btn-group { display: flex; flex-wrap: wrap; gap: 5px; }
+    .btn { flex: 1; min-width: 90px; padding: 7px 4px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 6px; cursor: pointer; font-size: .75rem; font-weight: 600; text-align: center; }
+    .btn.active { background: var(--accent); color: #0b111a; border-color: var(--accent); font-weight: 700; }
+    
+    .stats-box { background: #0a0d14; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: .78rem; }
+    .stat-row { display: flex; justify-content: space-between; }
+    .stat-key { color: var(--text-dim); }
+    .stat-val { font-weight: 700; color: var(--green); }
+
+    .mode-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+    .explore-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .explore-card h3 { color: var(--accent); font-size: 1rem; }
+    .explore-card p { color: var(--text-dim); font-size: .85rem; line-height: 1.6; }
+
+    .quiz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .quiz-opt { padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: .85rem; transition: all .15s; }
+    .quiz-opt:hover { border-color: var(--accent); color: var(--accent); }
+    .quiz-opt.correct { background: rgba(61,220,132,.18); border-color: var(--green); color: var(--green); }
+    .quiz-opt.wrong { background: rgba(255,82,82,.18); border-color: var(--red); color: var(--red); }
+
+    .seo-article { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px; color: var(--text-dim); line-height: 1.7; font-size: .93rem; }
+    .seo-article h2 { font-size: 1.2rem; color: var(--text); margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<a href="#app" class="skip-link">Skip to content</a>
+
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="site-nav-title">Automobile Engineering</span>
+  </nav>
+
+  <header>
+    <h1>Steering Geometry &amp; Wheel Alignment Simulator</h1>
+    
+    
+
+    <p class="subtitle">Ackermann Steering Condition &bull; Camber &bull; Caster &bull; Kingpin Inclination (KPI) &bull; Toe-In / Toe-Out</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Explore</button>
+        <button class="pill" data-value="practice">Practice</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-link" href="../automotive-differential/index.html" title="Differential Simulator">Differential</a>
+      <a class="btn-link" href="../four-bar-linkage/index.html" title="Four-Bar Linkage">Four-Bar Linkage</a>
+    </div>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    
+
+<div class="layout">
+      <div class="canvas-card">
+        <canvas id="steer-canvas" width="1000" height="580"></canvas>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-title">&#9881; Steering &amp; Geometry Angles</div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Display View Mode</span></div>
+          <div class="btn-group">
+            <button class="btn active" id="btn-ackermann">Ackermann Steering (Top)</button>
+            <button class="btn" id="btn-alignment">Wheel Alignment Angles</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Steering Wheel Angle (&theta;)</span><span class="control-val" id="val-steer">0° (Straight)</span></div>
+          <input type="range" class="slider-styled" id="slider-steer" min="-40" max="40" step="1" value="0" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Camber Angle (&gamma;)</span><span class="control-val" id="val-camber">+1.5°</span></div>
+          <input type="range" class="slider-styled" id="slider-camber" min="-5" max="5" step="0.5" value="1.5" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Caster Angle (&theta;_c)</span><span class="control-val" id="val-caster">+3.0°</span></div>
+          <input type="range" class="slider-styled" id="slider-caster" min="-3" max="8" step="0.5" value="3.0" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Kingpin Inclination (KPI)</span><span class="control-val" id="val-kpi">7.0°</span></div>
+          <input type="range" class="slider-styled" id="slider-kpi" min="2" max="12" step="0.5" value="7.0" />
+        </div>
+
+        <div class="stats-box">
+          <div class="stat-row"><span class="stat-key">Inner Wheel Angle (&theta;_i):</span><span class="stat-val" id="st-theta-i">0.0°</span></div>
+          <div class="stat-row"><span class="stat-key">Outer Wheel Angle (&phi;_o):</span><span class="stat-val" id="st-phi-o">0.0°</span></div>
+          <div class="stat-row"><span class="stat-key">Turning Radius (R):</span><span class="stat-val" id="st-turn-rad" style="color:var(--yellow)">&infin; m</span></div>
+          <div class="stat-row"><span class="stat-key">Ackermann Condition:</span><span class="stat-val" id="st-ack-cond" style="color:var(--green)">cot(&phi;) - cot(&theta;) = w/l</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">Steering Linkage &amp; Suspension Alignment</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive steering linkage model displaying Ackermann geometry, camber angle, and caster trail.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate &bull; Scroll to zoom</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ EXPLORE MODE ════════════════════════════════════════════ -->
+  <div id="explore-wrapper" style="display:none">
+    <div class="mode-card-grid">
+      <div class="explore-card">
+        <h3>1. Ackermann Principle</h3>
+        <p>Ensures inner front wheel turns at a larger angle than outer front wheel during cornering so all wheels roll about a single instantaneous center.</p>
+      </div>
+      <div class="explore-card">
+        <h3>2. Camber Angle</h3>
+        <p>Outward (+) or inward (-) tilt of the wheel top relative to true vertical. Improves tire contact patch during cornering.</p>
+      </div>
+      <div class="explore-card">
+        <h3>3. Caster Angle</h3>
+        <p>Rearward (+) tilt of the steering axis line. Provides directional stability and self-centering steering wheel return force.</p>
+      </div>
+      <div class="explore-card">
+        <h3>4. Kingpin Inclination (KPI)</h3>
+        <p>Inward inclination of the steering swivel axis. Reduces scrub radius and steering effort.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRACTICE MODE ═══════════════════════════════════════════ -->
+  <div id="practice-wrapper" style="display:none">
+    <div class="explore-card">
+      <h3>Guided Experiment: Steering Angle Difference</h3>
+      <p>1. Turn steering wheel 30° to the Right.<br>
+      2. Observe Inner Right Wheel turns to 30.0°, while Outer Left Wheel turns to 21.2°.<br>
+      3. Verify inner wheel angle > outer wheel angle to satisfy Ackermann principle!</p>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" style="display:none">
+    <div class="quiz-card">
+      <h3>Question 1: What is the main purpose of positive Caster angle?</h3>
+      <div class="quiz-opt" onclick="checkQuiz(this, true)">A) Provides directional stability and self-centering return force.</div>
+      <div class="quiz-opt" onclick="checkQuiz(this, false)">B) Prevents tire shoulder wear.</div>
+      <div class="quiz-opt" onclick="checkQuiz(this, false)">C) Increases engine power.</div>
+    </div>
+  </div>
+  <!-- ═══ USER GUIDE — Inline expandable (SEO-friendly) ═══════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span class="guide-icon-badge" aria-hidden="true">&#128214;</span>
+      User Guide &mdash; Steering Geometry &amp; Wheel Alignment Simulator
+    </div>
+    <details open><summary><span class="guide-section-num">1</span> Overview</summary>
+      <div class="guide-content">
+        <p>The <strong>Steering Geometry &amp; Wheel Alignment Simulator</strong> visualises the five fundamental alignment angles: <strong>Camber</strong>, <strong>Caster</strong>, <strong>Toe</strong>, <strong>Kingpin Inclination (KPI)</strong>, and <strong>Scrub Radius</strong>. Together these angles define how the wheel is positioned relative to the road and the steering axis, directly affecting straight-line stability, cornering ability, tyre wear, and steering effort.</p>
+        <p>Mechanics, vehicle dynamics students, and automotive engineers use this tool to understand how misalignment causes pull, shimmy, and uneven tyre wear, and how each angle should be corrected.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">2</span> Adjusting Alignment Angles</summary>
+      <div class="guide-content">
+        <p>Use the sliders to set each angle:</p>
+        <ul>
+          <li><strong>Camber (&minus;5&deg; to +5&deg;)</strong> — inward (negative) or outward (positive) tilt of the wheel. Zero camber = vertical. Negative camber improves cornering grip; excessive negative camber wears inner tyre edge.</li>
+          <li><strong>Caster (0&deg; to 10&deg;)</strong> — forward or rearward tilt of the steering axis. Positive caster gives straight-line stability and self-centering; too much caster increases steering effort.</li>
+          <li><strong>Toe (&minus;10mm to +10mm)</strong> — parallel alignment of the front wheels viewed from above. Toe-in = front edges closer together (stability). Toe-out = front edges apart (agility). Incorrect toe causes feathered tyre wear.</li>
+          <li><strong>KPI (0&deg; to 15&deg;)</strong> — inward tilt of the steering axis (kingpin). Creates a virtual pivot point below the road surface, reducing scrub radius.</li>
+          <li><strong>Scrub Radius (mm)</strong> — horizontal distance between the tyre contact centre and the steering axis ground contact point. Negative scrub improves braking stability.</li>
+        </ul>
+      </div></details>
+    <details><summary><span class="guide-section-num">3</span> Reading the Alignment Diagram</summary>
+      <div class="guide-content">
+        <p>The canvas shows a front-view and top-view representation of the wheel. Coloured angle indicators show the current setting of each alignment parameter. The status panel on the right displays whether each angle is within specification (PASS / WARN / FAIL) based on typical passenger car tolerances.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">4</span> Common Alignment Problems</summary>
+      <div class="guide-content">
+        <p>Understanding how misalignment manifests as a symptom helps with diagnosis:</p>
+        <ul>
+          <li>Vehicle <strong>pulls to one side</strong> → unequal camber or caster side-to-side.</li>
+          <li><strong>Steering wheel vibration</strong> at highway speed → wheel imbalance or loose steering components rather than alignment alone.</li>
+          <li><strong>Inner tyre wear</strong> → excessive negative camber.</li>
+          <li><strong>Feathered tread blocks</strong> → incorrect toe setting.</li>
+          <li><strong>Heavy steering</strong> → excessive positive caster or KPI.</li>
+        </ul>
+      </div></details>
+    <details><summary><span class="guide-section-num">5</span> Practice &amp; Quiz</summary>
+      <div class="guide-content">
+        <p><strong>Explore</strong> mode explains each angle with diagrams and typical specifications for passenger cars. <strong>Quiz</strong> presents diagnostic scenarios: given a symptom, identify the misaligned angle and the correct adjustment direction.</p>
+      </div></details>
+  </section>
+
+  <!-- ═══ SEO Article ═════════════════════════════════════════════ -->
+  <section class="seo-article">
+    <h2>Steering Geometry and Wheel Alignment Explained</h2>
+    <p><strong>Steering Geometry</strong> (also called wheel alignment) refers to the angles of the wheels relative to the vehicle and the road surface. Correct alignment ensures straight-line stability, predictable handling, even tyre wear, and accurate steering response. Misalignment causes pull, wander, premature tyre wear, and in severe cases, unsafe vehicle behaviour.</p>
+
+    <h3>Camber Angle</h3>
+    <p><strong>Camber</strong> is the inward or outward tilt of the wheel when viewed from the front. <em>Positive camber</em> means the top of the wheel leans outward; <em>negative camber</em> means it leans inward. Modern vehicles typically use slight negative camber (&minus;0.5&deg; to &minus;1.5&deg;) to improve cornering grip because the tyre leans slightly into the corner under load. Excessive negative camber accelerates inner tyre wear.</p>
+
+    <h3>Caster Angle</h3>
+    <p><strong>Caster</strong> is the forward or rearward tilt of the steering axis (the line through the upper and lower ball joints) when viewed from the side. Positive caster (steering axis tilts rearward at the top) creates a self-centering effect: the tyre contact patch trails behind the steering axis pivot, making the wheel want to return to straight-ahead after a turn. Typical positive caster: 3&deg;&ndash;7&deg; for passenger cars. Sports cars use more caster for sharper feel.</p>
+
+    <h3>Toe Setting</h3>
+    <p><strong>Toe</strong> is the parallel alignment of the wheels viewed from above. <em>Toe-in</em> (front edges of tyres closer together) is used on rear-wheel-drive vehicles to compensate for the tendency of driven wheels to toe-out under load. <em>Toe-out</em> (front edges further apart) may be used on front-wheel-drive vehicles. Incorrect toe causes rapid tyre scrubbing — the most common tyre wear complaint traced to alignment.</p>
+
+    <h3>Kingpin Inclination and Scrub Radius</h3>
+    <p><strong>Kingpin Inclination (KPI)</strong> is the inward tilt of the steering axis in the front view. Combined with camber angle, it determines the <strong>Included Angle</strong> = Camber + KPI. KPI moves the steering axis contact point on the road surface toward or beyond the tyre centreline. A <em>negative scrub radius</em> (axis contact point outside the tyre contact patch) improves braking stability and self-correction during a blowout by creating a toe-in moment when one brake is more effective than the other.</p>
+
+    <h3>Explore Related Simulators</h3>
+    <p>Continue with the <a href="../automotive-differential/index.html">Automotive Differential Simulator</a>, <a href="../automotive-clutch/index.html">Automotive Friction Clutch Simulator</a>, <a href="../four-stroke-engine/index.html">Four-Stroke Engine Simulator</a>, and <a href="../valve-timing-diagram/index.html">Valve Timing Diagram Simulator</a>.</p>
+  </section>
+
+
+  <!-- ── Site Footer ── -->
+  <footer class="site-footer">
+    <nav class="site-footer-nav">
+      <a href="../../index.html">Home</a>
+      <a href="../../about/index.html">About</a>
+      <a href="../../privacy-policy/index.html">Privacy Policy</a>
+      <a href="../../terms/index.html">Terms of Use</a>
+      <a href="../../contact/index.html">Contact</a>
+    </nav>
+    <p class="site-footer-copy">&copy; 2026 NHIT VisualLab</p>
+  </footer>
+</main>
+
+
+<script src="../../shared/related.js?v=11" defer></script>
+<script src="../../shared/unit-memory.js?v=3" defer></script>
+<script src="../../shared/share-params.js?v=1" defer></script>
+<script src="../../shared/cookie-notice.js?v=2" defer></script>
+<script src="../../shared/ads-collapse.js?v=2" defer></script>
+<script src="../../shared/three3d/three.min.js"></script>
+<script src="../../shared/three3d/viewer.js"></script>
+<script src="../../shared/three3d/models.js"></script>
+<script>if(typeof Sim3D!=='undefined') Sim3D.mount('steering-geometry', document.getElementById('sim3d-canvas'));</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+(function(){
+  const modeTabs = document.querySelectorAll('#mode-tabs .pill');
+  const simWrap = document.getElementById('sim-wrapper');
+  const expWrap = document.getElementById('explore-wrapper');
+  const pracWrap = document.getElementById('practice-wrapper');
+  const quizWrap = document.getElementById('quiz-wrapper');
+
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      modeTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const val = tab.dataset.value;
+      const m3dWrap = document.getElementById('model3d-wrapper');
+      simWrap.style.display = val === 'simulate' ? 'block' : 'none';
+      if (m3dWrap) m3dWrap.style.display = val === '3d-model' ? 'block' : 'none';
+      expWrap.style.display = val === 'explore' ? 'block' : 'none';
+      pracWrap.style.display = val === 'practice' ? 'block' : 'none';
+      quizWrap.style.display = val === 'quiz' ? 'block' : 'none';
+    });
+  });
+
+  const c3d = document.getElementById('sim3d-canvas');
+  const ctx3d = c3d.getContext('2d');
+  c3d.width = 640; c3d.height = 320;
+  let angle3d = 0;
+
+  function render3D() {
+    ctx3d.clearRect(0, 0, 640, 320);
+    angle3d += 0.015;
+    ctx3d.save();
+    ctx3d.translate(320, 160);
+    ctx3d.strokeStyle = '#29b6f6'; ctx3d.lineWidth = 3;
+    ctx3d.beginPath(); ctx3d.arc(0, 0, 70, 0, Math.PI*2); ctx3d.stroke();
+    ctx3d.restore();
+    requestAnimationFrame(render3D);
+  }
+  render3D();
+
+  const canvas = document.getElementById('steer-canvas');
+  const ctx = canvas.getContext('2d');
+  const CW = 1000, CH = 580;
+  canvas.width = CW; canvas.height = CH;
+
+  const S = {
+    view: 'ackermann',
+    steerAngle: 0,
+    camber: 1.5,
+    caster: 3.0,
+    kpi: 7.0,
+    wheelbase: 2.5,
+    trackWidth: 1.4,
+    t: 0
+  };
+
+  document.getElementById('btn-ackermann').onclick = () => setView('ackermann');
+  document.getElementById('btn-alignment').onclick = () => setView('alignment');
+
+  function setView(v) {
+    S.view = v;
+    document.getElementById('btn-ackermann').classList.toggle('active', v==='ackermann');
+    document.getElementById('btn-alignment').classList.toggle('active', v==='alignment');
+  }
+
+  const sSteer = document.getElementById('slider-steer');
+  const sCamber = document.getElementById('slider-camber');
+  const sCaster = document.getElementById('slider-caster');
+  const sKpi = document.getElementById('slider-kpi');
+
+  sSteer.oninput = e => { S.steerAngle = parseFloat(e.target.value); document.getElementById('val-steer').textContent = `${S.steerAngle}°`; };
+  sCamber.oninput = e => { S.camber = parseFloat(e.target.value); document.getElementById('val-camber').textContent = `${S.camber > 0 ? '+' : ''}${S.camber}°`; };
+  sCaster.oninput = e => { S.caster = parseFloat(e.target.value); document.getElementById('val-caster').textContent = `${S.caster > 0 ? '+' : ''}${S.caster}°`; };
+  sKpi.oninput = e => { S.kpi = parseFloat(e.target.value); document.getElementById('val-kpi').textContent = `${S.kpi}°`; };
+
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = (now - lastT) / 1000;
+    lastT = now;
+    S.t += dt;
+
+    let thetaI = Math.abs(S.steerAngle);
+    let phiO = 0;
+    let turnRadius = Infinity;
+
+    if (thetaI > 0.5) {
+      const radI = thetaI * (Math.PI / 180);
+      const cotPhi = (1 / Math.tan(radI)) + (S.trackWidth / S.wheelbase);
+      phiO = (Math.atan(1 / cotPhi)) * (180 / Math.PI);
+      turnRadius = S.wheelbase / Math.sin(radI);
+    }
+
+    document.getElementById('st-theta-i').textContent = `${thetaI.toFixed(1)}°`;
+    document.getElementById('st-phi-o').textContent = `${phiO.toFixed(1)}°`;
+    document.getElementById('st-turn-rad').textContent = isFinite(turnRadius) ? `${turnRadius.toFixed(2)} m` : '∞ m';
+
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, CW, CH);
+    if (S.view === 'ackermann') drawAckermannDiagram();
+    else drawAlignmentAnglesDiagram();
+  }
+
+  function drawAckermannDiagram() {
+    const cx = 500, cy = 300;
+    const scale = 110;
+    const wPx = S.trackWidth * scale;
+    const lPx = S.wheelbase * scale;
+
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 3;
+    ctx.strokeRect(cx - wPx/2 - 15, cy - lPx/2 - 15, wPx + 30, lPx + 30);
+
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx - wPx/2, cy - lPx/2); ctx.lineTo(cx + wPx/2, cy - lPx/2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - wPx/2, cy + lPx/2); ctx.lineTo(cx + wPx/2, cy + lPx/2); ctx.stroke();
+
+    drawSteerWheel(cx - wPx/2, cy + lPx/2, 0, '#475569');
+    drawSteerWheel(cx + wPx/2, cy + lPx/2, 0, '#475569');
+
+    let leftAngle = 0, rightAngle = 0;
+    const thetaRad = Math.abs(S.steerAngle) * (Math.PI / 180);
+
+    if (S.steerAngle > 0) {
+      rightAngle = S.steerAngle;
+      const cotOuter = (1 / Math.tan(thetaRad)) + (S.trackWidth / S.wheelbase);
+      leftAngle = Math.atan(1 / cotOuter) * (180 / Math.PI);
+    } else if (S.steerAngle < 0) {
+      leftAngle = S.steerAngle;
+      const cotOuter = (1 / Math.tan(thetaRad)) + (S.trackWidth / S.wheelbase);
+      rightAngle = -Math.atan(1 / cotOuter) * (180 / Math.PI);
+    }
+
+    drawSteerWheel(cx - wPx/2, cy - lPx/2, leftAngle, '#29b6f6');
+    drawSteerWheel(cx + wPx/2, cy - lPx/2, rightAngle, '#3ddc84');
+
+    ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx - wPx/2 + 15, cy - lPx/2 + 25); ctx.lineTo(cx + wPx/2 - 15, cy - lPx/2 + 25); ctx.stroke();
+
+    if (Math.abs(S.steerAngle) > 1) {
+      const turnCX = S.steerAngle > 0 ? cx + wPx/2 + (lPx / Math.tan(thetaRad)) : cx - wPx/2 - (lPx / Math.tan(thetaRad));
+      const turnCY = cy + lPx/2;
+
+      ctx.strokeStyle = 'rgba(255, 214, 0, 0.4)'; ctx.setLineDash([6, 6]); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx - wPx/2, cy + lPx/2); ctx.lineTo(turnCX, turnCY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - wPx/2, cy - lPx/2); ctx.lineTo(turnCX, turnCY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + wPx/2, cy - lPx/2); ctx.lineTo(turnCX, turnCY); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ffd600'; ctx.beginPath(); ctx.arc(turnCX, turnCY, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillText('Instantaneous Turning Center (I.C.)', turnCX, turnCY - 15);
+    }
+  }
+
+  function drawSteerWheel(wx, wy, deg, color) {
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(deg * (Math.PI / 180));
+    ctx.fillStyle = color;
+    ctx.fillRect(-14, -40, 28, 80);
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2; ctx.strokeRect(-14, -40, 28, 80);
+    ctx.restore();
+  }
+
+  function drawAlignmentAnglesDiagram() {
+    ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 14px var(--mono)'; ctx.textAlign = 'center';
+    ctx.fillText('FRONT VIEW: Camber Angle & Kingpin Inclination (KPI)', 300, 50);
+
+    ctx.save();
+    ctx.translate(300, 260);
+    ctx.rotate(S.camber * (Math.PI / 180));
+    ctx.fillStyle = '#29b6f6';
+    ctx.fillRect(-35, -120, 70, 240);
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3; ctx.strokeRect(-35, -120, 70, 240);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(300, 260);
+    ctx.rotate(-S.kpi * (Math.PI / 180));
+    ctx.strokeStyle = '#ff9800'; ctx.lineWidth = 4; ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.moveTo(0, -160); ctx.lineTo(0, 160); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.fillText('SIDE VIEW: Caster Angle (Kingpin Tilt)', 750, 50);
+    ctx.save();
+    ctx.translate(750, 260);
+    ctx.rotate(-S.caster * (Math.PI / 180));
+    ctx.fillStyle = '#3ddc84';
+    ctx.fillRect(-35, -120, 70, 240);
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3; ctx.strokeRect(-35, -120, 70, 240);
+    
+    ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 4; ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.moveTo(0, -160); ctx.lineTo(0, 160); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  window.checkQuiz = function(el, isCorrect) {
+    if (isCorrect) { el.classList.add('correct'); el.innerHTML += ' &#10004; Correct!'; }
+    else { el.classList.add('wrong'); el.innerHTML += ' &#10008; Incorrect'; }
+  };
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Ohm's Law &amp; DC Resistors — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Ohm's Law V=IR &amp; DC Resistor Circuit Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Electrical &amp; Electronics</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Ohm's Law V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Ohm's Law &amp; DC Resistor Networks</h1>
+    <p class="subtitle">Python Circuit Physics Engine &bull; Real-Time WebGL 3D Visualization &bull; V=IR, Power P=VI, Series/Parallel Equivalent Resistance</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Circuit Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Circuit Preset --</option>
+        <option value="led_current_limiting">12V LED Current Limiting Resistor (Series)</option>
+        <option value="parallel_shunt_load">Parallel High-Power Shunt Resistors</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="kirchhoffs_laws.html" title="Open KVL/KCL Simulator">Kirchhoff's Laws V2</a>
+      <a class="btn-secondary" href="rlc_circuit.html" title="Open AC RLC Simulator">AC RLC Resonance V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode Breadboard Components">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Circuit Schematic &amp; Current Flow Indicator</div>
+          <canvas id="2d-schematic-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; DC Source &amp; Load Parameters</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Connection Topology</span>
+            <span class="control-value" id="val-mode">Series</span>
+          </div>
+          <select id="select-mode" style="width:100%;padding:8px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;">
+            <option value="series">Series Network (Req = R1 + R2)</option>
+            <option value="parallel">Parallel Network (Req = R1 || R2)</option>
+            <option value="single_resistor">Single Resistor (Req = R1)</option>
+          </select>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>DC Supply Voltage (V)</span>
+            <span class="control-value" id="val-v">12.0 V</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-v" min="1" max="48" step="0.5" value="12.0" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Resistor R1</span>
+            <span class="control-value" id="val-r1">100 Ω</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-r1" min="10" max="1000" step="10" value="100" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Resistor R2</span>
+            <span class="control-value" id="val-r2">200 Ω</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-r2" min="10" max="1000" step="10" value="200" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Equivalent Resistance (Req):</span>
+            <span class="telemetry-val" id="st-req" style="color:var(--text);">300.0 Ω</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Circuit Current (I):</span>
+            <span class="telemetry-val" id="st-i" style="color:var(--accent);">40.0 mA</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Total Power Dissipation (P):</span>
+            <span class="telemetry-val" id="st-p" style="color:var(--yellow);">0.48 W</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">R1 Voltage Drop (VR1):</span>
+            <span class="telemetry-val" id="st-v1" style="color:var(--green);">4.0 V</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Series Resistor Circuit (V = 12.0 V): Equivalent Resistance Req = 300.0 Ω | Circuit Current I = 0.040 A (40.0 mA) | Power Dissipation P = 0.48 W.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Fundamental Ohm's Law</h3>
+        <p>Current $I$ flowing through a conductor between two points is directly proportional to the potential difference $V$ and inversely proportional to resistance $R$: $I = V / R$.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Electric Power &amp; Joule Heating</h3>
+        <p>Electrical energy converted into heat per second: $P = V I = I^2 R = \frac{V^2}{R}$ (Joules/sec or Watts).</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Series vs Parallel Resistance</h3>
+      <p>1. Set $R1 = 100\ \Omega$ and $R2 = 200\ \Omega$ in <strong>Series</strong> ($Req = 300\ \Omega$).<br>
+         2. Switch topology to <strong>Parallel</strong> ($Req = 66.7\ \Omega$).<br>
+         3. Observe total circuit current increases by <strong>4.5x</strong> in parallel!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: If two equal resistors R are connected in parallel, what is their equivalent resistance?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; R / 2 (Half of a single resistor value)
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="js/ohms_law_3d.js"></script>
+<script src="js/ohms_law_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

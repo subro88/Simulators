@@ -1,0 +1,4261 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Refrigeration Cycle Simulator — app.js
+   Vapor Compression Refrigeration Cycle
+   P-h Diagram · 4 Refrigerants · 4 Modes
+   ═══════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ═══════════════════════════════════════════════════════════════
+     S1  HELPERS
+     ═══════════════════════════════════════════════════════════════ */
+  function $(id) { return document.getElementById(id); }
+  function show(el) { if (el) el.style.display = ''; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function easeInOut(t) { return t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+  function easeOut(t) { return 1 - (1 - t) * (1 - t); }
+  function roundN(v, n) { var f = Math.pow(10, n); return Math.round(v * f) / f; }
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function randFloat(a, b) { return a + Math.random() * (b - a); }
+  function shuffleArr(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function hexToRGBA(hex, alpha) {
+    var r = parseInt(hex.slice(1, 3), 16);
+    var g = parseInt(hex.slice(3, 5), 16);
+    var b = parseInt(hex.slice(5, 7), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+  function log10(x) { return Math.log(x) / Math.LN10; }
+  function ctxRoundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y,     x + w, y + r,     r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x,     y + h, x,     y + h - r, r);
+    ctx.lineTo(x,     y + r);
+    ctx.arcTo(x,     y,     x + r, y,         r);
+    ctx.closePath();
+  }
+  function superscript(n) {
+    var sup = { '0': '\u2070', '1': '\u00b9', '2': '\u00b2', '3': '\u00b3', '4': '\u2074', '5': '\u2075', '6': '\u2076', '7': '\u2077', '8': '\u2078', '9': '\u2079' };
+    return String(n).split('').map(function (c) { return sup[c] || c; }).join('');
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S2  REFRIGERANT DATABASE (4)
+     ═══════════════════════════════════════════════════════════════ */
+  var REFRIGERANTS = [
+    {
+      id: 'r134a', name: 'R-134a',
+      boilPt: -26.1, critT: 101.1, critP: 4060, /* kPa */
+      odp: 0, gwp: 1430,
+      color: '#4dd0e1',
+      /* Antoine: P_sat(T) = exp(A - B/(T+C)) kPa, T in °C
+         Calibrated to NIST data: 101 kPa @ -26.1°C, 201 kPa @ -10°C, 1016 kPa @ 40°C (<1% error) */
+      antA: 14.35, antB: 2070, antC: 239,
+      /* Enthalpy curve-fit (kJ/kg), ref 200 kJ/kg at 0°C liquid */
+      /* Saturation fits below are quadratics passed exactly through three
+         anchor temperatures (-10, 0, 40 C) taken from published saturation
+         tables on the IIR reference (hf = 200 kJ/kg, sf = 1.000 kJ/kg.K at
+         0 C). The previous coefficients were hand-rounded and drifted at
+         condensing temperature - R-134a's sg was 1.646 against a true 1.710 -
+         which the isentropic entropy match is very sensitive to. */
+      hf0: 200.0000, hf1: 1.346, hf2: 0.0016,
+      hg0: 398.6000, hg1: 0.576, hg2: -0.0014,
+      /* Entropy curve-fit (kJ/kg.K) */
+      sf0: 1.0000, sf1: 0.004878, sf2: -3.2e-06,
+      sg0: 1.7274, sg1: -0.000569, sg2: 3.1e-06,
+      /* Specific heat (approx) */
+      cpVapor: 0.90, cpLiquid: 1.38,
+      molarMass: 102.03,   /* C2H2F4 */
+      /* Specific volume vapor at 0°C approx m3/kg */
+      vg0: 0.07, vgSlope: -0.0008
+    },
+    {
+      id: 'r410a', name: 'R-410A',
+      boilPt: -51.4, critT: 71.4, critP: 4900,
+      odp: 0, gwp: 2088,
+      color: '#7e57c2',
+      /* Calibrated: 101 kPa @ -51.4°C, 796 kPa @ 0°C, 2419 kPa @ 40°C (<1% error) */
+      antA: 14.93, antB: 2121, antC: 257,
+      /* Saturation fits below are quadratics passed exactly through three
+         anchor temperatures (-10, 0, 40 C) taken from published saturation
+         tables on the IIR reference (hf = 200 kJ/kg, sf = 1.000 kJ/kg.K at
+         0 C). The previous coefficients were hand-rounded and drifted at
+         condensing temperature - R-134a's sg was 1.646 against a true 1.710 -
+         which the isentropic entropy match is very sensitive to. */
+      hf0: 200.0000, hf1: 1.6775, hf2: 0.00275,
+      hg0: 421.4000, hg1: 0.301, hg2: -0.0049,
+      sf0: 1.0000, sf1: 0.006305, sf2: -5.5e-06,
+      sg0: 1.8105, sg1: -0.001711, sg2: -4.1e-06,
+      cpVapor: 0.84, cpLiquid: 1.50,
+      molarMass: 72.58,    /* 50/50 wt% R-32 / R-125 blend */
+      vg0: 0.04, vgSlope: -0.0005
+    },
+    {
+      id: 'r22', name: 'R-22 (legacy)',
+      boilPt: -40.8, critT: 96.1, critP: 4990,
+      odp: 0.055, gwp: 1810,
+      color: '#ff8a65',
+      /* Calibrated: 101 kPa @ -40.8°C, 498 kPa @ 0°C, 1534 kPa @ 40°C (<1% error) */
+      antA: 14.35, antB: 2029, antC: 249,
+      /* Saturation fits below are quadratics passed exactly through three
+         anchor temperatures (-10, 0, 40 C) taken from published saturation
+         tables on the IIR reference (hf = 200 kJ/kg, sf = 1.000 kJ/kg.K at
+         0 C). The previous coefficients were hand-rounded and drifted at
+         condensing temperature - R-134a's sg was 1.646 against a true 1.710 -
+         which the isentropic entropy match is very sensitive to. */
+      hf0: 200.0000, hf1: 1.1765, hf2: 0.00165,
+      hg0: 405.4000, hg1: 0.359, hg2: -0.0021,
+      sf0: 1.0000, sf1: 0.0043965, sf2: -5.35e-06,
+      sg0: 1.7518, sg1: -0.001371, sg2: 2.9e-06,
+      cpVapor: 0.65, cpLiquid: 1.20,
+      molarMass: 86.47,    /* CHClF2 */
+      vg0: 0.06, vgSlope: -0.0007
+    },
+    {
+      id: 'r290', name: 'R-290 (Propane)',
+      boilPt: -42.1, critT: 96.7, critP: 4250,
+      odp: 0, gwp: 3,
+      color: '#66bb6a',
+      /* Calibrated: 101 kPa @ -42.1°C, 474 kPa @ 0°C, 1369 kPa @ 40°C (<2% error) */
+      antA: 14.04, antB: 2029, antC: 257,
+      /* Saturation fits below are quadratics passed exactly through three
+         anchor temperatures (-10, 0, 40 C) taken from published saturation
+         tables on the IIR reference (hf = 200 kJ/kg, sf = 1.000 kJ/kg.K at
+         0 C). The previous coefficients were hand-rounded and drifted at
+         condensing temperature - R-134a's sg was 1.646 against a true 1.710 -
+         which the isentropic entropy match is very sensitive to. */
+      hf0: 200.0000, hf1: 2.422, hf2: 0.0042,
+      hg0: 574.5000, hg1: 0.9995, hg2: -0.00305,
+      sf0: 1.0000, sf1: 0.009074, sf2: -2.46e-05,
+      sg0: 2.3711, sg1: -0.0011675, sg2: -1.475e-05,
+      cpVapor: 1.67, cpLiquid: 2.50,
+      molarMass: 44.10,    /* C3H8 */
+      vg0: 0.10, vgSlope: -0.001
+    }
+  ];
+
+  /* ═══════════════════════════════════════════════════════════════
+     S3  THERMODYNAMIC PROPERTY FUNCTIONS
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Saturation pressure (kPa) from temperature (degC) */
+  function Psat(ref, T) {
+    var p = Math.exp(ref.antA - ref.antB / (T + ref.antC));
+    return clamp(p, 10, ref.critP);
+  }
+
+  /* Inverse: saturation temperature from pressure */
+  function Tsat(ref, P) {
+    if (P <= 0) return ref.boilPt;
+    var lnP = Math.log(clamp(P, 10, ref.critP));
+    return ref.antB / (ref.antA - lnP) - ref.antC;
+  }
+
+  /* Saturated liquid enthalpy (kJ/kg) */
+  function hf(ref, T) {
+    return ref.hf0 + ref.hf1 * T + ref.hf2 * T * T;
+  }
+
+  /* Saturated vapor enthalpy (kJ/kg) */
+  function hg(ref, T) {
+    return ref.hg0 + ref.hg1 * T + ref.hg2 * T * T;
+  }
+
+  /* Latent heat of vaporization */
+  function hfg(ref, T) {
+    return hg(ref, T) - hf(ref, T);
+  }
+
+  /* Saturated liquid entropy (kJ/kg.K) */
+  function sf(ref, T) {
+    return ref.sf0 + ref.sf1 * T + ref.sf2 * T * T;
+  }
+
+  /* Saturated vapor entropy (kJ/kg.K) */
+  function sg(ref, T) {
+    return ref.sg0 + ref.sg1 * T + ref.sg2 * T * T;
+  }
+
+  /* Specific volume of saturated vapor (m3/kg) */
+  function vg(ref, T) {
+    var v = ref.vg0 + ref.vgSlope * T;
+    return Math.max(v, 0.002);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S4  CYCLE CALCULATION ENGINE
+     ═══════════════════════════════════════════════════════════════ */
+
+  function calculateCycle(refIdx, Tevap, Tcond, superheat, subcool, etaComp, Qcap) {
+    var ref = REFRIGERANTS[refIdx];
+
+    /* Pressures — clamp Tcond to at most 0.95·critT to keep cycle physically meaningful */
+    var TcondSafe = Math.min(Tcond, ref.critT * 0.95);
+    var Plow  = Psat(ref, Tevap);
+    var Phigh = Psat(ref, TcondSafe);
+
+    /* Ensure Phigh > Plow (prevents PR=1 if temperatures are inverted or too close) */
+    if (Phigh <= Plow) Phigh = Plow * 1.5;
+
+    /* State 1: Evaporator exit (superheated vapor) */
+    var T1 = Tevap + superheat;
+    var P1 = Plow;
+    var h1 = hg(ref, Tevap) + ref.cpVapor * superheat;
+    var s1 = sg(ref, Tevap) + ref.cpVapor * Math.log((T1 + 273.15) / (Tevap + 273.15));
+
+    /* State 2: Compressor exit (superheated vapor) */
+    var P2 = Phigh;
+    /* Locate state 2s by matching entropy on the DISCHARGE isobar, which is
+       what "isentropic compression" actually means, instead of stepping the
+       ideal-gas pressure-ratio relation.
+
+       Superheated vapour entropy at pressure P is measured from that isobar's
+       own saturation point:  s(P,T) = sg(Tsat(P)) + cp*ln(T/Tsat(P)).
+       Setting that equal to s1 and solving for T gives
+
+           T2s = Tcond_K * exp( (s1 - sg(Tcond)) / cp )
+
+       and the discharge enthalpy is then anchored on the same isobar,
+       h2s = hg(Tcond) + cp*(T2s - Tcond), rather than extrapolated from state 1.
+
+       This replaces the ideal-gas route entirely. That route treated enthalpy
+       as a function of temperature alone, which is self-consistent but ignores
+       the real vapour's departure from ideality, and it left compressor work
+       about 10% high (COP ~2.99 against a table-based 3.32). Matching entropy
+       against the recalibrated saturation fits brings it to ~1%. */
+    var T2s_approx = (Tcond + 273.15) *
+                     Math.exp((s1 - sg(ref, Tcond)) / ref.cpVapor) - 273.15;
+    var h2s = hg(ref, Tcond) + ref.cpVapor * (T2s_approx - Tcond);
+    /* Actual compression with efficiency */
+    var h2 = h1 + (h2s - h1) / (etaComp / 100);
+    /* Read the actual discharge temperature off the DISCHARGE isobar too, the
+       same way h2s was placed on it. Extrapolating from state 1 (which sits on
+       the suction isobar) would not even return T2s when the compressor is
+       ideal; this form does, by construction. */
+    var T2 = Tcond + (h2 - hg(ref, Tcond)) / ref.cpVapor;
+
+    /* State 3: Condenser exit (subcooled liquid) */
+    var T3 = Tcond - subcool;
+    var P3 = Phigh;
+    var h3 = hf(ref, Tcond) - ref.cpLiquid * subcool;
+
+    /* State 4: Expansion valve exit (two-phase) */
+    var P4 = Plow;
+    var h4 = h3; /* Isenthalpic expansion */
+    var hfEvap = hf(ref, Tevap);
+    var hfgEvap = hfg(ref, Tevap);
+    var x4 = hfgEvap > 0 ? clamp((h4 - hfEvap) / hfgEvap, 0, 1) : 0;
+    var T4 = Tevap;
+
+    /* Performance */
+    var qEvap = h1 - h4; /* kJ/kg */
+    var wComp = h2 - h1; /* kJ/kg */
+    var qCond = h2 - h3; /* kJ/kg */
+    var COP = wComp > 0 ? qEvap / wComp : 0;
+
+    /* Mass flow for desired cooling capacity */
+    var mDot = qEvap > 0 ? Qcap / qEvap : 0; /* kg/s */
+    var Wdot = mDot * wComp; /* kW */
+    var Qrej = mDot * qCond; /* kW */
+
+    /* Pressure ratio */
+    var PR = Plow > 0 ? Phigh / Plow : 1;
+
+    /* Volumetric flow at compressor inlet */
+    var v1 = vg(ref, Tevap) * (1 + superheat * 0.004);
+    var Vdot = mDot * v1; /* m3/s */
+
+    return {
+      ref: ref,
+      Tevap: Tevap, Tcond: Tcond,
+      superheat: superheat, subcool: subcool,
+      etaComp: etaComp, Qcap: Qcap,
+      Plow: Plow, Phigh: Phigh,
+      T1: T1, P1: P1, h1: h1, s1: s1,
+      T2: T2, P2: P2, h2: h2,
+      T3: T3, P3: P3, h3: h3,
+      T4: T4, P4: P4, h4: h4, x4: x4,
+      qEvap: qEvap, wComp: wComp, qCond: qCond,
+      COP: COP, mDot: mDot, Wdot: Wdot, Qrej: Qrej,
+      PR: PR, Vdot: Vdot
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S5  CONCEPTS DATA (12)
+     ═══════════════════════════════════════════════════════════════ */
+  var CONCEPTS = [
+    /* Components */
+    {
+      id: 'compressor-types', name: 'Compressor Types', cat: 'Components',
+      symbol: 'W', formula: 'W_comp = m_dot * (h2 - h1)',
+      desc: 'The compressor is the heart of the vapor compression refrigeration system. It raises the pressure and temperature of the refrigerant vapor from the evaporator (low-side) pressure to the condenser (high-side) pressure. Reciprocating compressors use pistons in cylinders, ideal for small-to-medium capacity. Scroll compressors use two interlocking spirals for smooth, quiet operation and are dominant in residential HVAC. Rotary compressors use rolling pistons and are common in window air conditioners. Screw compressors use helical rotors for large commercial and industrial applications.',
+      example: {
+        problem: 'A compressor raises the refrigerant from h1 = 400 kJ/kg to h2 = 440 kJ/kg with a mass flow rate of 0.05 kg/s. Calculate the compressor power input.',
+        steps: ['W_comp = m_dot x (h2 - h1)', 'W_comp = 0.05 x (440 - 400)', 'W_comp = 0.05 x 40 = <strong>2.0 kW</strong>']
+      }
+    },
+    {
+      id: 'condenser', name: 'Condenser', cat: 'Components',
+      symbol: 'Qh', formula: 'Q_cond = m_dot * (h2 - h3)',
+      desc: 'The condenser rejects heat from the high-pressure, high-temperature refrigerant to the surroundings, causing the vapor to desuperheat, condense (change phase from gas to liquid), and then subcool. Air-cooled condensers use fans to blow ambient air across finned coils and are the most common type in residential systems. Water-cooled condensers use cooling water in shell-and-tube or plate heat exchangers, offering higher efficiency in large commercial installations. Evaporative condensers combine both, spraying water over the coils while also using forced air.',
+      example: {
+        problem: 'A condenser receives refrigerant at h2 = 440 kJ/kg and discharges at h3 = 260 kJ/kg. The mass flow rate is 0.08 kg/s. Calculate the heat rejected.',
+        steps: ['Q_cond = m_dot x (h2 - h3)', 'Q_cond = 0.08 x (440 - 260)', 'Q_cond = 0.08 x 180 = <strong>14.4 kW</strong>']
+      }
+    },
+    {
+      id: 'expansion-device', name: 'Expansion Device', cat: 'Components',
+      symbol: 'h3=h4', formula: 'h4 = h3 (isenthalpic)',
+      desc: 'The expansion device reduces the pressure and temperature of the liquid refrigerant from the high-side (condenser) to the low-side (evaporator). This is an isenthalpic process (h4 = h3), meaning no work is done and no heat is transferred. The thermostatic expansion valve (TEV) is the most common, using a sensing bulb on the evaporator outlet to regulate superheat. Capillary tubes are simple, inexpensive fixed-restriction devices used in small systems like domestic refrigerators. Electronic expansion valves (EEV) use stepper motors for precise control in modern variable-speed systems.',
+      example: {
+        problem: 'Liquid refrigerant enters the expansion valve at h3 = 255 kJ/kg. At the evaporator temperature, hf = 190 kJ/kg and hfg = 200 kJ/kg. Find the quality at the evaporator inlet.',
+        steps: ['h4 = h3 = 255 kJ/kg (isenthalpic)', 'x4 = (h4 - hf) / hfg', 'x4 = (255 - 190) / 200 = 65 / 200', 'x4 = <strong>0.325 or 32.5%</strong>']
+      }
+    },
+    {
+      id: 'evaporator', name: 'Evaporator', cat: 'Components',
+      symbol: 'Ql', formula: 'Q_evap = m_dot * (h1 - h4)',
+      desc: 'The evaporator absorbs heat from the space or medium being cooled, causing the two-phase refrigerant to boil and become superheated vapor. Direct expansion (DX) coils are the most common, with refrigerant flowing inside tubes while air blows over external fins. The evaporator operates at low pressure and temperature, creating the desired cooling effect. Flooded evaporators submerge the tubes in a pool of liquid refrigerant for efficient heat transfer, used in large chillers. Shell-and-tube evaporators are used in water-chilling applications.',
+      example: {
+        problem: 'An evaporator has h1 = 400 kJ/kg and h4 = 250 kJ/kg. The cooling capacity is 10 kW. Find the mass flow rate.',
+        steps: ['Q_evap = m_dot x (h1 - h4)', '10 = m_dot x (400 - 250)', 'm_dot = 10 / 150', 'm_dot = <strong>0.0667 kg/s</strong>']
+      }
+    },
+    /* Thermodynamics */
+    {
+      id: 'vcc-cycle', name: 'Vapor Compression Cycle', cat: 'Thermodynamics',
+      symbol: '', formula: '1-2: Compression, 2-3: Condensation, 3-4: Expansion, 4-1: Evaporation',
+      desc: 'The vapor compression cycle (VCC) is the most widely used refrigeration cycle. It consists of four main processes: (1-2) Compression: low-pressure vapor is compressed to high pressure, increasing both pressure and temperature. (2-3) Condensation: high-pressure, high-temperature vapor rejects heat to the surroundings and condenses to liquid. (3-4) Expansion: high-pressure liquid is throttled through an expansion device, reducing pressure and temperature (isenthalpic process). (4-1) Evaporation: low-pressure, two-phase refrigerant absorbs heat from the cooled space and evaporates. The ideal cycle assumes isentropic compression and no pressure drops, while the actual cycle has irreversibilities.',
+      example: {
+        problem: 'An ideal VCC uses R-134a with evaporator temperature of -10 deg C and condenser temperature of 40 deg C. If h1 = 395 kJ/kg, h2 = 430 kJ/kg, h3 = 256 kJ/kg, h4 = 256 kJ/kg, find the COP.',
+        steps: ['q_evap = h1 - h4 = 395 - 256 = 139 kJ/kg', 'w_comp = h2 - h1 = 430 - 395 = 35 kJ/kg', 'COP = q_evap / w_comp = 139 / 35', 'COP = <strong>3.97</strong>']
+      }
+    },
+    {
+      id: 'ph-diagram', name: 'P-h Diagram', cat: 'Thermodynamics',
+      symbol: 'P, h', formula: 'Pressure (log scale) vs Enthalpy',
+      desc: 'The pressure-enthalpy (P-h) diagram is the primary tool for analyzing refrigeration cycles. The y-axis shows pressure on a logarithmic scale, and the x-axis shows specific enthalpy. The saturation dome divides the diagram into three regions: subcooled liquid (left of the dome), two-phase mixture (under the dome), and superheated vapor (right of the dome). The four processes of the VCC form a rectangle-like shape: compression (1-2) goes upward-right, condensation (2-3) goes left at constant pressure, expansion (3-4) goes straight down at constant enthalpy, and evaporation (4-1) goes right at constant pressure. Horizontal distances represent energy quantities (q_evap, w_comp, q_cond).',
+      example: {
+        problem: 'On a P-h diagram, states 1 and 4 are at the same horizontal line (same pressure). The horizontal distance between them represents what quantity?',
+        steps: ['The horizontal distance from state 4 to state 1 represents:', 'q_evap = h1 - h4 (the refrigerating effect)', 'This is the <strong>useful cooling per kg of refrigerant</strong>']
+      }
+    },
+    {
+      id: 'cop-efficiency', name: 'COP and Energy Efficiency', cat: 'Thermodynamics',
+      symbol: 'COP', formula: 'COP_cooling = Q_evap / W_comp',
+      desc: 'The Coefficient of Performance (COP) is the primary measure of refrigeration cycle efficiency. COP_cooling = Q_evap / W_comp, which is the ratio of useful cooling to the work input. Unlike thermal efficiency, COP can be greater than 1 (typical values are 2-6). For a heat pump, COP_heating = Q_cond / W_comp = COP_cooling + 1. The maximum theoretical COP is given by the Carnot COP: COP_Carnot = T_evap / (T_cond - T_evap), where temperatures are in Kelvin. The Energy Efficiency Ratio (EER) = COP x 3.412 (converts to BTU/W-hr). SEER (Seasonal EER) averages performance over a cooling season.',
+      example: {
+        problem: 'A refrigeration system has T_evap = -5 deg C and T_cond = 40 deg C. Calculate the Carnot COP and compare with an actual COP of 3.5.',
+        steps: ['T_evap = -5 + 273.15 = 268.15 K', 'T_cond = 40 + 273.15 = 313.15 K', 'COP_Carnot = T_evap / (T_cond - T_evap) = 268.15 / (313.15 - 268.15)', 'COP_Carnot = 268.15 / 45 = <strong>5.96</strong>', 'Actual COP / Carnot COP = 3.5 / 5.96 = 0.587 or <strong>58.7% of Carnot</strong>']
+      }
+    },
+    /* Refrigerants */
+    {
+      id: 'ref-properties', name: 'Refrigerant Properties', cat: 'Refrigerants',
+      symbol: '', formula: '',
+      desc: 'An ideal refrigerant should have a low boiling point, high latent heat of vaporization, low specific volume of vapor (to reduce compressor size), moderate operating pressures, chemical stability, non-toxicity, and non-flammability. R-134a (HFC) boils at -26.1 deg C and operates at moderate pressures, making it suitable for automotive and medium-temperature applications. R-410A (HFC blend) has very high operating pressures but excellent heat transfer, dominating residential HVAC. R-22 (HCFC) was the workhorse refrigerant but is being phased out due to ozone depletion. R-290 (propane, HC) has excellent thermodynamic properties and near-zero environmental impact but is flammable (A3 safety class).',
+      example: {
+        problem: 'R-134a has a boiling point of -26.1 deg C at atmospheric pressure. At what approximate temperature does it boil at 400 kPa?',
+        steps: ['Using the Clausius-Clapeyron relationship:', 'At higher pressure, the boiling point increases.', 'R-134a at 400 kPa boils at approximately <strong>8.9 deg C</strong>', 'This is why we can use it for air conditioning (cooling to around 5-10 deg C evaporator temp).']
+      }
+    },
+    {
+      id: 'env-impact', name: 'Environmental Impact', cat: 'Refrigerants',
+      symbol: 'ODP, GWP', formula: '',
+      desc: 'Refrigerants are regulated based on two key environmental metrics. ODP (Ozone Depletion Potential) measures how much a substance depletes stratospheric ozone relative to R-11 (CFC-11, ODP = 1.0). CFCs have ODP of 0.6-1.0 and were banned by the Montreal Protocol (1987). HCFCs like R-22 have lower ODP (0.055) and are being phased out. HFCs (R-134a, R-410A) have zero ODP. GWP (Global Warming Potential) measures the heat-trapping ability relative to CO2 (GWP = 1) over 100 years. The Kigali Amendment (2016) targets HFCs with high GWP (R-134a: 1430, R-410A: 2088). Natural refrigerants like R-290 propane (GWP = 3), R-744 CO2 (GWP = 1), and R-717 ammonia (GWP = 0) are gaining importance.',
+      example: {
+        problem: 'A system contains 5 kg of R-410A (GWP = 2088). If the entire charge leaks, what is the CO2-equivalent emission?',
+        steps: ['CO2-eq = mass x GWP', 'CO2-eq = 5 x 2088', 'CO2-eq = <strong>10,440 kg CO2-equivalent</strong>', 'This equals roughly 10.4 tonnes of CO2 impact.']
+      }
+    },
+    {
+      id: 'ref-selection', name: 'Refrigerant Selection', cat: 'Refrigerants',
+      symbol: '', formula: '',
+      desc: 'Selecting the right refrigerant depends on the application temperature range, system pressures, safety requirements, environmental regulations, and efficiency goals. For domestic refrigeration (-20 to -10 deg C evaporating), R-134a and R-600a (isobutane) are common. For air conditioning (0 to 10 deg C evaporating), R-410A, R-32, and R-290 dominate. For low-temperature applications (-40 to -20 deg C), R-404A and R-290 are used. The critical temperature must be well above the condenser temperature for efficient condensation. Operating pressures must be within safe limits for the compressor and piping. The refrigerant must be compatible with the lubricating oil, gasket materials, and system components.',
+      example: {
+        problem: 'Why would R-410A be unsuitable for high-temperature condensing above 60 deg C while R-134a would still work?',
+        steps: ['R-410A critical temperature = 71.4 deg C', 'R-134a critical temperature = 101.1 deg C', 'At T_cond = 60 deg C, R-410A is very close to its critical point', 'Condensation becomes inefficient near the critical point', '<strong>R-134a has 41 deg C of margin, R-410A has only 11 deg C</strong>']
+      }
+    },
+    /* Applications */
+    {
+      id: 'air-conditioning', name: 'Air Conditioning', cat: 'Applications',
+      symbol: '', formula: 'Q_cooling = m_air * cp_air * (T_return - T_supply)',
+      desc: 'Air conditioning systems use the vapor compression cycle to provide comfort cooling in buildings. A typical split system has an indoor unit (evaporator coil and blower) and an outdoor unit (compressor, condenser coil, and fan). The evaporator operates at 3-7 deg C to cool indoor air to about 12-15 deg C supply temperature. The condenser rejects heat at 35-55 deg C depending on ambient conditions. Direct expansion (DX) systems are the most common residential type. Chilled water systems use a centralized chiller to produce cold water (6-7 deg C), which is pumped to air handling units throughout the building. Variable refrigerant flow (VRF) systems use inverter-driven compressors to match capacity to load.',
+      example: {
+        problem: 'A room requires 5 kW of cooling. The system COP is 3.5. What is the total electrical power consumption and total heat rejected to the outside?',
+        steps: ['W_comp = Q_evap / COP = 5 / 3.5 = 1.43 kW', 'Q_cond = Q_evap + W_comp = 5 + 1.43', 'Q_cond = <strong>6.43 kW rejected to outside</strong>', 'Total electricity consumption = <strong>1.43 kW</strong>']
+      }
+    },
+    {
+      id: 'heat-pump', name: 'Heat Pump', cat: 'Applications',
+      symbol: 'COP_hp', formula: 'COP_heating = COP_cooling + 1',
+      desc: 'A heat pump is a refrigeration system operated in reverse to provide heating. Instead of cooling a space and rejecting heat outside, a heat pump absorbs heat from the outdoor air (or ground) and delivers it indoors. The cycle is identical to a cooling system, but the useful output is the condenser heat rejection (Q_cond) rather than the evaporator heat absorption. COP_heating = Q_cond / W_comp = COP_cooling + 1, which means the heating COP is always greater than the cooling COP by exactly 1. In cold weather, the evaporator (now outdoors) may ice up, requiring a defrost cycle that temporarily reverses the refrigerant flow. Air-source heat pumps are most common, while ground-source (geothermal) heat pumps use the stable ground temperature for higher year-round efficiency.',
+      example: {
+        problem: 'A heat pump has a cooling COP of 4.0. Calculate the heating COP and the heat delivered if the compressor power is 2 kW.',
+        steps: ['COP_heating = COP_cooling + 1 = 4.0 + 1 = 5.0', 'Q_heating = COP_heating x W_comp', 'Q_heating = 5.0 x 2 = <strong>10 kW of heating</strong>', 'The system delivers 10 kW of heat for only 2 kW of electrical input.']
+      }
+    }
+  ];
+
+  /* ═══════════════════════════════════════════════════════════════
+     S6  PROBLEM GENERATORS (12)
+     ═══════════════════════════════════════════════════════════════ */
+  function generateProblem() {
+    var pool = [
+      genCOP, genCompressorWork, genMassFlow, genQuality,
+      genHeatRejected, genDischargeTemp, genPressureRatio,
+      genCarnotCOP, genPowerInput, genRefrigEffect,
+      genVolumetricFlow, genHeatPumpCOP
+    ];
+    return pool[randInt(0, pool.length - 1)]();
+  }
+
+  function genCOP() {
+    var h1 = 390 + randInt(0, 20);
+    var h2 = h1 + 25 + randInt(0, 25);
+    var h3 = 240 + randInt(0, 30);
+    var h4 = h3;
+    var qEvap = h1 - h4;
+    var wComp = h2 - h1;
+    var cop = qEvap / wComp;
+    return {
+      prompt: 'A refrigeration cycle has: h1 = ' + h1 + ' kJ/kg, h2 = ' + h2 + ' kJ/kg, h3 = h4 = ' + h3 + ' kJ/kg. Calculate the COP.',
+      answer: roundN(cop, 2), unit: '', tol: 0.1,
+      solution: [
+        'q_evap = h1 - h4 = ' + h1 + ' - ' + h3 + ' = ' + (h1 - h3) + ' kJ/kg',
+        'w_comp = h2 - h1 = ' + h2 + ' - ' + h1 + ' = ' + (h2 - h1) + ' kJ/kg',
+        'COP = q_evap / w_comp = ' + (h1 - h3) + ' / ' + (h2 - h1),
+        '<strong>COP = ' + roundN(cop, 2) + '</strong>'
+      ]
+    };
+  }
+
+  function genCompressorWork() {
+    var h1 = 390 + randInt(0, 20);
+    var h2 = h1 + 25 + randInt(0, 30);
+    var wComp = h2 - h1;
+    return {
+      prompt: 'Refrigerant enters a compressor at h1 = ' + h1 + ' kJ/kg and exits at h2 = ' + h2 + ' kJ/kg. Calculate the specific compressor work (kJ/kg).',
+      answer: roundN(wComp, 1), unit: 'kJ/kg', tol: 0.5,
+      solution: [
+        'w_comp = h2 - h1',
+        'w_comp = ' + h2 + ' - ' + h1,
+        '<strong>w_comp = ' + roundN(wComp, 1) + ' kJ/kg</strong>'
+      ]
+    };
+  }
+
+  function genMassFlow() {
+    var Qcap = randInt(3, 15);
+    var qEvap = 120 + randInt(0, 40);
+    var mDot = Qcap / qEvap;
+    return {
+      prompt: 'A refrigeration system has a cooling capacity of ' + Qcap + ' kW and a refrigerating effect of ' + qEvap + ' kJ/kg. Calculate the mass flow rate (kg/s).',
+      answer: roundN(mDot, 4), unit: 'kg/s', tol: 0.002,
+      solution: [
+        'm_dot = Q_evap / q_evap',
+        'm_dot = ' + Qcap + ' / ' + qEvap,
+        '<strong>m_dot = ' + roundN(mDot, 4) + ' kg/s</strong>'
+      ]
+    };
+  }
+
+  function genQuality() {
+    var h4 = 240 + randInt(0, 30);
+    var hfVal = 170 + randInt(0, 30);
+    var hfgVal = 180 + randInt(0, 30);
+    var x = (h4 - hfVal) / hfgVal;
+    x = clamp(x, 0, 1);
+    return {
+      prompt: 'After the expansion valve, h4 = ' + h4 + ' kJ/kg. At the evaporator temperature, hf = ' + hfVal + ' kJ/kg and hfg = ' + hfgVal + ' kJ/kg. Calculate the quality x4.',
+      answer: roundN(x, 3), unit: '', tol: 0.01,
+      solution: [
+        'x4 = (h4 - hf) / hfg',
+        'x4 = (' + h4 + ' - ' + hfVal + ') / ' + hfgVal,
+        'x4 = ' + (h4 - hfVal) + ' / ' + hfgVal,
+        '<strong>x4 = ' + roundN(x, 3) + ' (' + roundN(x * 100, 1) + '%)</strong>'
+      ]
+    };
+  }
+
+  function genHeatRejected() {
+    var h2 = 430 + randInt(0, 30);
+    var h3 = 240 + randInt(0, 30);
+    var mDot = roundN(randFloat(0.03, 0.12), 3);
+    var Qcond = mDot * (h2 - h3);
+    return {
+      prompt: 'A condenser receives refrigerant at h2 = ' + h2 + ' kJ/kg and discharges at h3 = ' + h3 + ' kJ/kg. Mass flow rate = ' + mDot + ' kg/s. Calculate the heat rejected (kW).',
+      answer: roundN(Qcond, 2), unit: 'kW', tol: 0.1,
+      solution: [
+        'Q_cond = m_dot x (h2 - h3)',
+        'Q_cond = ' + mDot + ' x (' + h2 + ' - ' + h3 + ')',
+        'Q_cond = ' + mDot + ' x ' + (h2 - h3),
+        '<strong>Q_cond = ' + roundN(Qcond, 2) + ' kW</strong>'
+      ]
+    };
+  }
+
+  function genDischargeTemp() {
+    var T1 = -10 + randInt(0, 15);
+    var wComp = 30 + randInt(0, 25);
+    var cp = roundN(randFloat(0.8, 1.0), 2);
+    var T2 = T1 + wComp / cp;
+    return {
+      prompt: 'Refrigerant enters the compressor at T1 = ' + T1 + ' deg C. The specific compressor work is ' + wComp + ' kJ/kg and cp_vapor = ' + cp + ' kJ/(kg.K). Estimate the compressor discharge temperature.',
+      answer: roundN(T2, 1), unit: 'deg C', tol: 1,
+      solution: [
+        'T2 = T1 + w_comp / cp_vapor',
+        'T2 = ' + T1 + ' + ' + wComp + ' / ' + cp,
+        'T2 = ' + T1 + ' + ' + roundN(wComp / cp, 1),
+        '<strong>T2 = ' + roundN(T2, 1) + ' deg C</strong>'
+      ]
+    };
+  }
+
+  function genPressureRatio() {
+    var Plow = 200 + randInt(0, 200);
+    var Phigh = Plow * (2 + randFloat(0.5, 3));
+    Phigh = Math.round(Phigh);
+    var pr = Phigh / Plow;
+    return {
+      prompt: 'A refrigeration system operates between P_low = ' + Plow + ' kPa and P_high = ' + Phigh + ' kPa. Calculate the pressure ratio.',
+      answer: roundN(pr, 2), unit: '', tol: 0.05,
+      solution: [
+        'PR = P_high / P_low',
+        'PR = ' + Phigh + ' / ' + Plow,
+        '<strong>PR = ' + roundN(pr, 2) + '</strong>'
+      ]
+    };
+  }
+
+  function genCarnotCOP() {
+    var Tevap = -20 + randInt(0, 25);
+    var Tcond = 30 + randInt(0, 20);
+    var TevapK = Tevap + 273.15;
+    var TcondK = Tcond + 273.15;
+    var copCarnot = TevapK / (TcondK - TevapK);
+    return {
+      prompt: 'Calculate the Carnot COP for a refrigeration cycle operating between T_evap = ' + Tevap + ' deg C and T_cond = ' + Tcond + ' deg C.',
+      answer: roundN(copCarnot, 2), unit: '', tol: 0.1,
+      solution: [
+        'T_evap = ' + Tevap + ' + 273.15 = ' + roundN(TevapK, 2) + ' K',
+        'T_cond = ' + Tcond + ' + 273.15 = ' + roundN(TcondK, 2) + ' K',
+        'COP_Carnot = T_evap / (T_cond - T_evap)',
+        'COP_Carnot = ' + roundN(TevapK, 2) + ' / (' + roundN(TcondK, 2) + ' - ' + roundN(TevapK, 2) + ')',
+        '<strong>COP_Carnot = ' + roundN(copCarnot, 2) + '</strong>'
+      ]
+    };
+  }
+
+  function genPowerInput() {
+    var Qcap = randInt(3, 15);
+    var cop = roundN(2 + randFloat(0.5, 3.5), 1);
+    var Wdot = Qcap / cop;
+    return {
+      prompt: 'A refrigeration system provides ' + Qcap + ' kW of cooling with a COP of ' + cop + '. Calculate the power input to the compressor (kW).',
+      answer: roundN(Wdot, 2), unit: 'kW', tol: 0.05,
+      solution: [
+        'COP = Q_evap / W_comp',
+        'W_comp = Q_evap / COP',
+        'W_comp = ' + Qcap + ' / ' + cop,
+        '<strong>W_comp = ' + roundN(Wdot, 2) + ' kW</strong>'
+      ]
+    };
+  }
+
+  function genRefrigEffect() {
+    var h1 = 390 + randInt(0, 20);
+    var h4 = 240 + randInt(0, 30);
+    var qEvap = h1 - h4;
+    return {
+      prompt: 'In a refrigeration cycle, h1 = ' + h1 + ' kJ/kg (evaporator outlet) and h4 = ' + h4 + ' kJ/kg (evaporator inlet). Calculate the refrigerating effect per kg.',
+      answer: roundN(qEvap, 1), unit: 'kJ/kg', tol: 0.5,
+      solution: [
+        'q_evap = h1 - h4',
+        'q_evap = ' + h1 + ' - ' + h4,
+        '<strong>q_evap = ' + roundN(qEvap, 1) + ' kJ/kg</strong>'
+      ]
+    };
+  }
+
+  function genVolumetricFlow() {
+    var mDot = roundN(randFloat(0.03, 0.10), 3);
+    var v1 = roundN(randFloat(0.04, 0.10), 3);
+    var Vdot = mDot * v1;
+    return {
+      prompt: 'A compressor has a mass flow rate of ' + mDot + ' kg/s. The specific volume at the suction is ' + v1 + ' m3/kg. Calculate the volumetric flow rate at the compressor inlet (m3/s).',
+      answer: roundN(Vdot, 5), unit: 'm3/s', tol: 0.0005,
+      solution: [
+        'V_dot = m_dot x v1',
+        'V_dot = ' + mDot + ' x ' + v1,
+        '<strong>V_dot = ' + roundN(Vdot, 5) + ' m3/s</strong>'
+      ]
+    };
+  }
+
+  function genHeatPumpCOP() {
+    var copCool = roundN(2.5 + randFloat(0.5, 3), 1);
+    var copHeat = copCool + 1;
+    return {
+      prompt: 'A heat pump has a cooling COP of ' + copCool + '. Calculate the heating COP.',
+      answer: roundN(copHeat, 1), unit: '', tol: 0.05,
+      solution: [
+        'COP_heating = COP_cooling + 1',
+        'COP_heating = ' + copCool + ' + 1',
+        '<strong>COP_heating = ' + roundN(copHeat, 1) + '</strong>'
+      ]
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S7  QUIZ POOL (15)
+     ═══════════════════════════════════════════════════════════════ */
+  var QUIZ_POOL = [
+    /* MCQ (10) */
+    { type: 'mcq', q: 'What is the purpose of the compressor in a vapor compression cycle?', opts: ['Raise the pressure and temperature of the refrigerant vapor', 'Cool the refrigerant to liquid', 'Expand the refrigerant to low pressure', 'Absorb heat from the cooled space'], ans: 0 },
+    { type: 'mcq', q: 'During the expansion process (3-4), which property remains constant?', opts: ['Enthalpy (h3 = h4)', 'Entropy (s3 = s4)', 'Temperature (T3 = T4)', 'Pressure (P3 = P4)'], ans: 0 },
+    { type: 'mcq', q: 'What does the area under the saturation dome on a P-h diagram represent?', opts: ['Two-phase (liquid + vapor) region', 'Superheated vapor region', 'Subcooled liquid region', 'Supercritical region'], ans: 0 },
+    { type: 'mcq', q: 'Which refrigerant has the lowest GWP among the following?', opts: ['R-290 (Propane, GWP = 3)', 'R-134a (GWP = 1430)', 'R-410A (GWP = 2088)', 'R-22 (GWP = 1810)'], ans: 0 },
+    { type: 'mcq', q: 'The COP of a heat pump is related to the cooling COP by:', opts: ['COP_hp = COP_cool + 1', 'COP_hp = COP_cool - 1', 'COP_hp = 1 / COP_cool', 'COP_hp = COP_cool x 2'], ans: 0 },
+    { type: 'mcq', q: 'Superheat at the evaporator exit ensures:', opts: ['No liquid enters the compressor', 'Higher condensing pressure', 'Lower evaporator temperature', 'Reduced COP'], ans: 0 },
+    { type: 'mcq', q: 'The Montreal Protocol primarily addresses:', opts: ['Ozone-depleting substances (ODP)', 'Global warming potential (GWP)', 'Refrigerant flammability', 'Compressor noise levels'], ans: 0 },
+    { type: 'mcq', q: 'In an actual VCC, the compressor isentropic efficiency accounts for:', opts: ['Irreversibilities in the compression process', 'Heat loss in the evaporator', 'Pressure drop in the condenser', 'Expansion valve throttling losses'], ans: 0 },
+    { type: 'mcq', q: 'Subcooling the refrigerant at the condenser exit:', opts: ['Increases the refrigerating effect and COP', 'Decreases the condensing pressure', 'Increases compressor work', 'Has no effect on system performance'], ans: 0 },
+    { type: 'mcq', q: 'Which expansion device uses a sensing bulb to control superheat?', opts: ['Thermostatic expansion valve (TEV)', 'Capillary tube', 'Orifice plate', 'Hand valve'], ans: 0 },
+    /* Numeric (5) */
+    { type: 'num', q: 'Calculate COP: h1 = 400 kJ/kg, h2 = 435 kJ/kg, h3 = h4 = 250 kJ/kg. COP = q_evap / w_comp.', ans: roundN((400 - 250) / (435 - 400), 2), unit: '', tol: 0.1 },
+    { type: 'num', q: 'Mass flow rate: cooling capacity = 10 kW, refrigerating effect = 150 kJ/kg. Find m_dot in kg/s.', ans: roundN(10 / 150, 4), unit: 'kg/s', tol: 0.002 },
+    { type: 'num', q: 'Carnot COP: T_evap = -10 deg C, T_cond = 35 deg C. COP_Carnot = T_L / (T_H - T_L) using Kelvin.', ans: roundN(263.15 / 45, 2), unit: '', tol: 0.1 },
+    { type: 'num', q: 'Quality after expansion: h4 = 260 kJ/kg, hf = 190 kJ/kg, hfg = 200 kJ/kg. Find x4.', ans: roundN((260 - 190) / 200, 2), unit: '', tol: 0.02 },
+    { type: 'num', q: 'Heat pump heating COP if cooling COP = 3.8. Use COP_hp = COP_cool + 1.', ans: 4.8, unit: '', tol: 0.05 }
+  ];
+
+  /* ═══════════════════════════════════════════════════════════════
+     S8  DOM REFS & STATE
+     ═══════════════════════════════════════════════════════════════ */
+  var elSimWrapper = $('sim-wrapper');
+  var elExploreWrapper = $('explore-wrapper');
+  var elPracticeWrapper = $('practice-wrapper');
+  var elQuizWrapper = $('quiz-wrapper');
+  var elModeTabs = $('mode-tabs');
+  var elRefTabs = $('ref-tabs');
+  /* Sliders */
+  var elTempComboSlider = $('temp-combo-slider');
+  var elTempComboNum    = $('temp-combo-num');
+  var TEMP_CFG = {
+    evap: { min: -30, max: 10, step: 1, key: 'Tevap' },
+    cond: { min: 25, max: 55, step: 1, key: 'Tcond' }
+  };
+  var elSuperheatSlider = $('superheat-slider');
+  var elSuperheatVal = $('superheat-val');
+  var elSubcoolSlider = $('subcool-slider');
+  var elSubcoolVal = $('subcool-val');
+  var elEtaCompSlider = $('eta-comp-slider');
+  var elEtaCompNum    = $('eta-comp-num');
+  var elEtaVolSlider  = $('eta-vol-slider');
+  var elEtaVolNum     = $('eta-vol-num');
+  var elCapSlider = $('cap-slider');
+  var elCapVal = $('cap-val');
+  var elSpeedSlider = $('speed-slider');
+  var elSpeedVal = $('speed-val');
+  var elBtnDome = $('btn-dome');
+  /* Buttons */
+  var elBtnStart = $('btn-start');
+  var elBtnReset = $('btn-reset');
+  var elBtnUnits = $('btn-units');
+  var elBtnExportCsv = $('btn-export-csv');
+  var elBtnExportPng = $('btn-export-png');
+  /* Presets */
+  var elPresetSelect = $('preset-select');
+  /* Context menu */
+  var elPhCtxMenu = $('ph-ctx-menu');
+  /* Companion number inputs */
+  var elTevapNum = null; /* replaced by temp-combo-num */
+  var elTcondNum = null; /* replaced by temp-combo-num */
+  var elSubcoolNum = $('subcool-num');
+  var elSuperheatNum = $('superheat-num');
+  var elCapNum = $('cap-num');
+  var elSpeedNum = $('speed-num');
+  /* Results */
+  var elReadoutGrid = $('readout-grid');
+
+  /* Explore */
+  var elExploreCats = $('explore-cats');
+  var elExploreGrid = $('explore-grid');
+  var elExploreInfo = $('explore-info');
+  /* Practice */
+  var elPracticePrompt = $('practice-prompt');
+  var elPracticeInput = $('practice-input');
+  var elPracticeUnit = $('practice-unit');
+  var elPracticeFeedback = $('practice-feedback');
+  var elPracticeSolution = $('practice-solution');
+  var elPracticeScore = $('practice-score');
+  var elBtnCheck = $('btn-check');
+  var elBtnShowSol = $('btn-show-sol');
+  var elBtnNextProb = $('btn-next-prob');
+  /* Quiz */
+  var elQuizPanel = $('quiz-panel');
+  var elQuizCounter = $('quiz-counter');
+  var elQuizPrompt = $('quiz-prompt');
+  var elQuizOptions = $('quiz-options');
+  var elQuizNumRow = $('quiz-num-row');
+  var elQuizNumInput = $('quiz-num-input');
+  var elQuizNumUnit = $('quiz-num-unit');
+  var elBtnQuizSubmit = $('btn-quiz-submit');
+  var elQuizFeedback = $('quiz-feedback');
+  var elBtnQuizNext = $('btn-quiz-next');
+  var elQuizResult = $('quiz-result');
+  var elQRStars = $('qr-stars');
+  var elQRScore = $('qr-score');
+  var elQRTable = $('qr-table');
+  var elBtnNewQuiz = $('btn-new-quiz');
+
+  /* State */
+  var state = {
+    mode: 'simulate',
+    refIdx: 0,
+    Tevap: -10,
+    Tcond: 40,
+    superheat: 5,
+    subcool: 3,
+    etaComp: 80,
+    Qcap: 5,
+    running: false,
+    paused: false,
+    animTime: 0,
+    cycle: null,
+    particles: [],
+    cycleStage: 0,   /* 0=idle  1-4=step-by-step  5=continuous */
+    stageTimer: 0,   /* seconds elapsed in current stage */
+    animSpeed: 0.4,  /* controlled by speed slider */
+    showDome: false, /* saturation dome toggle — off by default, user enables manually */
+    /* Machine canvas display toggles */
+    mcTemps: true, mcPressures: true, mcHeat: true,
+    mcCOP: true, mcEnergy: true, mcStage: true,
+    /* P-h diagram display toggles */
+    phStateLabels: true, phEnergyLabels: true, phShading: true,
+    /* Approach temperatures and volumetric efficiency */
+    approachEvap: 10, approachCond: 5, etaVol: 85,
+    Tspace: -5, Tamb: 30,
+    tempMode: 'evap',
+    units: 'SI',     /* 'SI' or 'IMP' */
+    /* Explore */
+    expCat: 'Components',
+    expIdx: 0,
+    /* Practice */
+    pProb: null,
+    pScore: 0,
+    pTotal: 0,
+    pDone: false,
+    /* Quiz */
+    qSet: [],
+    qIdx: 0,
+    qScore: 0,
+    qDone: false,
+    qAnswered: false,
+    qResults: []
+  };
+
+  /* ═══════════════════════════════════════════════════════════════
+     S9  CANVAS SETUP (DPR)
+     ═══════════════════════════════════════════════════════════════ */
+  var mCanvas = $('machine-canvas');
+  var gCanvas = $('graph-canvas');
+  var eCanvas = $('explore-canvas');
+  var mCtx = mCanvas.getContext('2d');
+  var gCtx = gCanvas.getContext('2d');
+  var eCtx = eCanvas.getContext('2d');
+  var MW = 560, MH = 700;
+  var GW = 560, GH = 500;
+  var EW = 900, EH = 400;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  function initCanvases() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    mCanvas.width = MW * dpr; mCanvas.height = MH * dpr;
+    mCanvas.style.width = MW + 'px'; mCanvas.style.height = MH + 'px';
+    mCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    /* gCanvas is sized dynamically by fitGraphCanvas() */
+
+    eCanvas.width = EW * dpr; eCanvas.height = EH * dpr;
+    eCanvas.style.width = EW + 'px'; eCanvas.style.height = EH + 'px';
+    eCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  /* Size the P-h canvas to fill the graph-column width at any screen size */
+  function fitGraphCanvas() {
+    var col = gCanvas.closest('.graph-column');
+    if (!col) return;
+    var colW = col.clientWidth;
+    if (colW < 1) return;               /* layout not ready yet */
+    var cardPad = 20;                   /* .canvas-card padding: 10px each side */
+    var newW = Math.max(400, colW - cardPad);
+    var newH = Math.round(newW * 0.56); /* ~16:9 ratio, slightly taller for log-P axis */
+    if (GW === newW && GH === newH) return;
+    GW = newW; GH = newH;
+    gCanvas.width  = GW * dpr;
+    gCanvas.height = GH * dpr;
+    gCanvas.style.width  = GW + 'px';
+    gCanvas.style.height = GH + 'px';
+    gCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S10  REFRIGERANT PARTICLES (animated flow)
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Define the refrigerant circuit path as a set of waypoints.
+     Particles follow this loop continuously. */
+  var PIPE_PATH = [];
+
+  function buildPipePath() {
+    /* Component centers */
+    var evapCX = 140, evapCY = 520;
+    var compCX = 420, compCY = 520;
+    var condCX = 420, condCY = 180;
+    var expCX = 140, expCY = 180;
+
+    PIPE_PATH = [
+      /* Evaporator (bottom-left) to Compressor (bottom-right) — suction line */
+      { x: evapCX + 60, y: evapCY, seg: 'suction' },
+      { x: 220, y: evapCY, seg: 'suction' },
+      { x: 280, y: evapCY, seg: 'suction' },
+      { x: 340, y: evapCY, seg: 'suction' },
+      { x: compCX - 50, y: compCY, seg: 'suction' },
+
+      /* Compressor (bottom-right) to Condenser (top-right) — discharge line */
+      { x: compCX, y: compCY - 50, seg: 'discharge' },
+      { x: compCX, y: 420, seg: 'discharge' },
+      { x: compCX, y: 350, seg: 'discharge' },
+      { x: compCX, y: 280, seg: 'discharge' },
+      { x: condCX, y: condCY + 50, seg: 'discharge' },
+
+      /* Condenser (top-right) to Expansion (top-left) — liquid line */
+      { x: condCX - 60, y: condCY, seg: 'liquid' },
+      { x: 340, y: condCY, seg: 'liquid' },
+      { x: 280, y: condCY, seg: 'liquid' },
+      { x: 220, y: condCY, seg: 'liquid' },
+      { x: expCX + 50, y: expCY, seg: 'liquid' },
+
+      /* Expansion (top-left) to Evaporator (bottom-left) — expansion line */
+      { x: expCX, y: expCY + 50, seg: 'expansion' },
+      { x: expCX, y: 280, seg: 'expansion' },
+      { x: expCX, y: 350, seg: 'expansion' },
+      { x: expCX, y: 420, seg: 'expansion' },
+      { x: evapCX, y: evapCY - 50, seg: 'expansion' }
+    ];
+  }
+
+  /* Stage config — one entry per process step */
+  var STAGE_DUR = 5; /* seconds per stage at speed 1× */
+  var STAGES = [
+    null, /* index 0 unused */
+    { label: '1 \u2192 2', name: 'Compression',
+      segStart: 0.00, segEnd: 0.25, color: '#ff5252',
+      desc: 'Compressor raises pressure and temperature of low-pressure vapor' },
+    { label: '2 \u2192 3', name: 'Condensation',
+      segStart: 0.25, segEnd: 0.50, color: '#ff8a65',
+      desc: 'Hot high-pressure gas rejects heat Q\u2095 to the environment and condenses' },
+    { label: '3 \u2192 4', name: 'Expansion',
+      segStart: 0.50, segEnd: 0.75, color: '#ffca28',
+      desc: 'Liquid refrigerant expands through valve \u2014 pressure and temperature drop sharply' },
+    { label: '4 \u2192 1', name: 'Evaporation',
+      segStart: 0.75, segEnd: 1.00, color: '#42a5f5',
+      desc: 'Low-pressure refrigerant absorbs heat Q\u2097 from the cold space and evaporates' }
+  ];
+
+  function initParticles() {
+    state.particles = [];
+    var total = 40;
+    for (var i = 0; i < total; i++) {
+      state.particles.push({
+        pos: i / total, /* 0..1 around the loop */
+        speed: 0.003 + Math.random() * 0.002,
+        size: 3 + Math.random() * 2
+      });
+    }
+  }
+
+  /* Creates particles confined to a single stage's pipe segment */
+  function initStagedParticles(stageIdx) {
+    state.particles = [];
+    var s = STAGES[stageIdx];
+    var total = 14;
+    var range = s.segEnd - s.segStart;
+    for (var i = 0; i < total; i++) {
+      state.particles.push({
+        pos: s.segStart + (i / total) * range,
+        speed: 0.003 + Math.random() * 0.002,
+        size: 3.5 + Math.random() * 1.5
+      });
+    }
+  }
+
+  function getParticlePosition(t) {
+    /* t is 0..1 around the loop. Interpolate between waypoints. */
+    var n = PIPE_PATH.length;
+    var idx = t * n;
+    var i0 = Math.floor(idx) % n;
+    var i1 = (i0 + 1) % n;
+    var frac = idx - Math.floor(idx);
+    return {
+      x: lerp(PIPE_PATH[i0].x, PIPE_PATH[i1].x, frac),
+      y: lerp(PIPE_PATH[i0].y, PIPE_PATH[i1].y, frac),
+      seg: PIPE_PATH[i0].seg
+    };
+  }
+
+  function getParticleColor(seg) {
+    switch (seg) {
+      case 'suction':   return '#42a5f5'; /* cool blue vapor */
+      case 'discharge': return '#ff5252'; /* hot red gas */
+      case 'liquid':    return '#ffca28'; /* warm yellow liquid */
+      case 'expansion': return '#00e5ff'; /* cold cyan two-phase */
+      default:          return '#90a4ae';
+    }
+  }
+
+  function updateParticles() {
+    var stage = state.cycleStage;
+    var spd = state.animSpeed;
+    if (stage >= 1 && stage <= 4) {
+      /* Confine particles to the active segment; wrap within that range */
+      var s = STAGES[stage];
+      for (var i = 0; i < state.particles.length; i++) {
+        var p = state.particles[i];
+        p.pos += p.speed * spd;
+        if (p.pos >= s.segEnd) {
+          p.pos = s.segStart + (p.pos - s.segEnd);
+          if (p.pos >= s.segEnd) p.pos = s.segStart; /* safety clamp */
+        }
+      }
+    } else {
+      /* Continuous mode — full loop */
+      for (var i = 0; i < state.particles.length; i++) {
+        var p = state.particles[i];
+        p.pos += p.speed * spd;
+        if (p.pos >= 1) p.pos -= 1;
+      }
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S11  MACHINE CANVAS — SYSTEM SCHEMATIC
+     ═══════════════════════════════════════════════════════════════ */
+
+  function drawMachine() {
+    mCtx.clearRect(0, 0, MW, MH);
+    drawBackground();
+    drawConnectingPipes();
+    drawEvaporator();
+    drawCompressor();
+    drawCondenser();
+    drawExpansionValve();
+    drawRefrigerantFlow();
+    drawStatePoints();
+    drawTemperatureLabels();
+    drawPressureLabels();
+    drawHeatFlowArrows();
+    drawCompressorWork();
+    drawCOPDisplay();
+    drawSystemLabel();
+    drawComponentDetails();
+    drawStageOverlay();
+    if (!state.running && state.cycleStage === 0) drawStartHint();
+  }
+
+  /* E2: First-time hint overlay on machine canvas before Start is pressed */
+  function drawStartHint() {
+    var cx = MW / 2, cy = MH / 2 + 30;
+    mCtx.fillStyle = 'rgba(8,12,20,0.80)';
+    ctxRoundRect(mCtx, cx - 148, cy - 56, 296, 112, 14);
+    mCtx.fill();
+    mCtx.strokeStyle = 'rgba(0,151,167,0.70)';
+    mCtx.lineWidth = 1.5;
+    ctxRoundRect(mCtx, cx - 148, cy - 56, 296, 112, 14);
+    mCtx.stroke();
+    /* Play icon */
+    mCtx.fillStyle = '#0097a7';
+    mCtx.beginPath();
+    mCtx.moveTo(cx - 16, cy - 30);
+    mCtx.lineTo(cx - 16, cy - 8);
+    mCtx.lineTo(cx + 6,  cy - 19);
+    mCtx.closePath();
+    mCtx.fill();
+    /* Text */
+    mCtx.fillStyle = '#dde3f0';
+    mCtx.font = 'bold 14px sans-serif';
+    mCtx.textAlign = 'center';
+    mCtx.textBaseline = 'middle';
+    mCtx.fillText('Press Start to begin animation', cx + 4, cy - 18);
+    mCtx.fillStyle = '#6b7a99';
+    mCtx.font = '11px sans-serif';
+    mCtx.fillText('Staged process walkthrough + live P-h diagram', cx, cy + 4);
+    mCtx.fillText('Keyboard shortcut: Space', cx, cy + 22);
+    mCtx.fillStyle = 'rgba(0,151,167,0.55)';
+    mCtx.font = '9px sans-serif';
+    mCtx.fillText('Adjust sliders or choose a Preset before starting', cx, cy + 40);
+    mCtx.textBaseline = 'alphabetic';
+  }
+
+  /* Stage-by-stage info banner drawn at top of machine canvas */
+  function drawStageOverlay() {
+    if (!(state.running || state.paused) || state.cycleStage === 0) return;
+    if (!state.mcStage) return;
+
+    /* Continuous mode: small badge only */
+    if (state.cycleStage === 5) {
+      mCtx.fillStyle = 'rgba(10,14,20,0.78)';
+      ctxRoundRect(mCtx, MW - 162, 14, 148, 26, 6);
+      mCtx.fill();
+      mCtx.fillStyle = '#4dd0e1';
+      mCtx.font = 'bold 11px sans-serif';
+      mCtx.textAlign = 'center';
+      mCtx.textBaseline = 'middle';
+      mCtx.fillText('\u21ba Continuous Cycle', MW - 88, 27);
+      mCtx.textBaseline = 'alphabetic';
+      return;
+    }
+
+    var s = STAGES[state.cycleStage];
+    var stageDurEff = STAGE_DUR / state.animSpeed;
+    var progress = Math.min(state.stageTimer / stageDurEff, 1);
+    var bx = 14, by = 14, bw = MW - 28, bh = 82;
+
+    /* Panel background */
+    mCtx.fillStyle = 'rgba(8,12,20,0.91)';
+    ctxRoundRect(mCtx, bx, by, bw, bh, 8);
+    mCtx.fill();
+    mCtx.strokeStyle = s.color;
+    mCtx.lineWidth = 1.5;
+    ctxRoundRect(mCtx, bx, by, bw, bh, 8);
+    mCtx.stroke();
+
+    /* Left accent bar */
+    mCtx.fillStyle = s.color;
+    mCtx.fillRect(bx + 1.5, by + 10, 4, bh - 20);
+
+    /* Stage label */
+    mCtx.fillStyle = s.color;
+    mCtx.font = 'bold 13px monospace';
+    mCtx.textAlign = 'left';
+    mCtx.fillText('STAGE ' + s.label + ' \u2014 ' + s.name.toUpperCase(), bx + 16, by + 24);
+
+    /* Description */
+    mCtx.fillStyle = 'rgba(200,210,230,0.85)';
+    mCtx.font = '11px sans-serif';
+    mCtx.fillText(s.desc, bx + 16, by + 43);
+
+    /* Progress bar track */
+    var pbx = bx + 16, pby = by + 56, pbw = bw - 108, pbh = 8;
+    mCtx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctxRoundRect(mCtx, pbx, pby, pbw, pbh, 4);
+    mCtx.fill();
+
+    /* Progress bar fill */
+    mCtx.fillStyle = s.color;
+    ctxRoundRect(mCtx, pbx, pby, Math.max(6, pbw * progress), pbh, 4);
+    mCtx.fill();
+
+    /* Stage step dots (1-4) */
+    for (var d = 1; d <= 4; d++) {
+      var ddx = bx + bw - 96 + (d - 1) * 24;
+      var ddy = by + 36;
+      var dotR = (d === state.cycleStage) ? 9 : 6;
+      mCtx.fillStyle = (d <= state.cycleStage) ? s.color : 'rgba(255,255,255,0.14)';
+      mCtx.beginPath();
+      mCtx.arc(ddx, ddy, dotR, 0, Math.PI * 2);
+      mCtx.fill();
+      if (d < state.cycleStage) {
+        /* Checkmark for completed stages */
+        mCtx.strokeStyle = '#0a0e14';
+        mCtx.lineWidth = 1.5;
+        mCtx.beginPath();
+        mCtx.moveTo(ddx - 3, ddy + 0.5);
+        mCtx.lineTo(ddx - 0.5, ddy + 3);
+        mCtx.lineTo(ddx + 4, ddy - 3);
+        mCtx.stroke();
+      } else {
+        mCtx.fillStyle = (d === state.cycleStage) ? '#0a0e14' : 'rgba(255,255,255,0.35)';
+        mCtx.font = 'bold 8px monospace';
+        mCtx.textAlign = 'center';
+        mCtx.textBaseline = 'middle';
+        mCtx.fillText(d, ddx, ddy);
+        mCtx.textBaseline = 'alphabetic';
+      }
+    }
+
+    /* Countdown */
+    var rem = Math.max(0, stageDurEff - state.stageTimer);
+    mCtx.fillStyle = 'rgba(255,255,255,0.38)';
+    mCtx.font = '10px monospace';
+    mCtx.textAlign = 'right';
+    mCtx.fillText(rem.toFixed(1) + 's', bx + bw - 8, by + bh - 5);
+  }
+
+  function drawBackground() {
+    /* Base vertical gradient for depth */
+    var bg = mCtx.createLinearGradient(0, 0, 0, MH);
+    bg.addColorStop(0,   '#0c121b');
+    bg.addColorStop(0.5, '#0a0e14');
+    bg.addColorStop(1,   '#080b11');
+    mCtx.fillStyle = bg;
+    mCtx.fillRect(0, 0, MW, MH);
+
+    /* Thermal ambient zones — reinforce the physics:
+       warm field over the condenser / Q_H rejection side (upper-right),
+       cool field over the evaporator / Q_L absorption side (lower-left). */
+    var warm = mCtx.createRadialGradient(450, 195, 20, 450, 195, 330);
+    warm.addColorStop(0, 'rgba(255,90,60,0.07)');
+    warm.addColorStop(1, 'rgba(255,90,60,0)');
+    mCtx.fillStyle = warm; mCtx.fillRect(0, 0, MW, MH);
+    var cool = mCtx.createRadialGradient(140, 540, 20, 140, 540, 330);
+    cool.addColorStop(0, 'rgba(60,150,255,0.07)');
+    cool.addColorStop(1, 'rgba(60,150,255,0)');
+    mCtx.fillStyle = cool; mCtx.fillRect(0, 0, MW, MH);
+
+    /* Technical grid (kept, slightly softened) */
+    mCtx.strokeStyle = 'rgba(42,48,80,0.22)';
+    mCtx.lineWidth = 0.5;
+    for (var x = 0; x < MW; x += 20) { mCtx.beginPath(); mCtx.moveTo(x, 0); mCtx.lineTo(x, MH); mCtx.stroke(); }
+    for (var y = 0; y < MH; y += 20) { mCtx.beginPath(); mCtx.moveTo(0, y); mCtx.lineTo(MW, y); mCtx.stroke(); }
+  }
+
+  function drawConnectingPipes() {
+    /* Component centers */
+    var evapCX = 140, evapCY = 520;
+    var compCX = 420, compCY = 520;
+    var condCX = 420, condCY = 180;
+    var expCX = 140, expCY = 180;
+
+    mCtx.lineWidth = 8;
+    mCtx.lineCap = 'round';
+    mCtx.lineJoin = 'round';
+
+    /* Suction line (evap -> comp) — bottom, blue */
+    mCtx.strokeStyle = '#1a3a4a';
+    mCtx.beginPath();
+    mCtx.moveTo(evapCX + 60, evapCY);
+    mCtx.lineTo(compCX - 50, compCY);
+    mCtx.stroke();
+
+    /* Discharge line (comp -> cond) — right side, red */
+    mCtx.strokeStyle = '#4a1a1a';
+    mCtx.beginPath();
+    mCtx.moveTo(compCX, compCY - 50);
+    mCtx.lineTo(condCX, condCY + 50);
+    mCtx.stroke();
+
+    /* Liquid line (cond -> exp) — top, yellow */
+    mCtx.strokeStyle = '#4a3a1a';
+    mCtx.beginPath();
+    mCtx.moveTo(condCX - 60, condCY);
+    mCtx.lineTo(expCX + 50, expCY);
+    mCtx.stroke();
+
+    /* Expansion line (exp -> evap) — left side, cyan */
+    mCtx.strokeStyle = '#1a3a3a';
+    mCtx.beginPath();
+    mCtx.moveTo(expCX, expCY + 50);
+    mCtx.lineTo(evapCX, evapCY - 50);
+    mCtx.stroke();
+
+    /* Pipe highlights */
+    mCtx.lineWidth = 2;
+    mCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+    mCtx.beginPath();
+    mCtx.moveTo(evapCX + 60, evapCY - 2);
+    mCtx.lineTo(compCX - 50, compCY - 2);
+    mCtx.stroke();
+    mCtx.beginPath();
+    mCtx.moveTo(compCX - 2, compCY - 50);
+    mCtx.lineTo(condCX - 2, condCY + 50);
+    mCtx.stroke();
+    mCtx.beginPath();
+    mCtx.moveTo(condCX - 60, condCY - 2);
+    mCtx.lineTo(expCX + 50, expCY - 2);
+    mCtx.stroke();
+    mCtx.beginPath();
+    mCtx.moveTo(expCX - 2, expCY + 50);
+    mCtx.lineTo(evapCX - 2, evapCY - 50);
+    mCtx.stroke();
+  }
+
+  function drawCompressor() {
+    var cx = 420, cy = 520;
+    var w = 90, h = 90;
+
+    /* Stage 1: compression glow */
+    if (state.cycleStage === 1 && (state.running || state.paused)) {
+      var p1 = 0.45 + 0.45 * Math.abs(Math.sin(state.animTime * 5));
+      mCtx.save();
+      mCtx.shadowColor = '#ff5252';
+      mCtx.shadowBlur = 32 * p1;
+      mCtx.fillStyle = 'rgba(255,82,82,' + (0.13 * p1) + ')';
+      mCtx.fillRect(cx - w / 2 - 16, cy - h / 2 - 16, w + 32, h + 32);
+      mCtx.restore();
+    }
+
+    /* Body */
+    var g = mCtx.createLinearGradient(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+    g.addColorStop(0, '#546e7a');
+    g.addColorStop(0.4, '#455a64');
+    g.addColorStop(0.8, '#37474f');
+    g.addColorStop(1, '#263238');
+    mCtx.fillStyle = g;
+    mCtx.beginPath();
+    mCtx.moveTo(cx - w / 2 + 8, cy - h / 2);
+    mCtx.lineTo(cx + w / 2 - 8, cy - h / 2);
+    mCtx.quadraticCurveTo(cx + w / 2, cy - h / 2, cx + w / 2, cy - h / 2 + 8);
+    mCtx.lineTo(cx + w / 2, cy + h / 2 - 8);
+    mCtx.quadraticCurveTo(cx + w / 2, cy + h / 2, cx + w / 2 - 8, cy + h / 2);
+    mCtx.lineTo(cx - w / 2 + 8, cy + h / 2);
+    mCtx.quadraticCurveTo(cx - w / 2, cy + h / 2, cx - w / 2, cy + h / 2 - 8);
+    mCtx.lineTo(cx - w / 2, cy - h / 2 + 8);
+    mCtx.quadraticCurveTo(cx - w / 2, cy - h / 2, cx - w / 2 + 8, cy - h / 2);
+    mCtx.closePath();
+    mCtx.fill();
+    mCtx.strokeStyle = '#78909c';
+    mCtx.lineWidth = 1.5;
+    mCtx.stroke();
+
+    /* Internal piston animation */
+    var pistonPhase = state.running ? state.animTime * 4 : 0;
+    var pistonOffset = Math.sin(pistonPhase) * 12;
+
+    /* Cylinder background */
+    mCtx.fillStyle = '#1a1f2e';
+    mCtx.fillRect(cx - 18, cy - 28, 36, 45);
+    mCtx.strokeStyle = '#455a64';
+    mCtx.lineWidth = 1;
+    mCtx.strokeRect(cx - 18, cy - 28, 36, 45);
+
+    /* ── Gas compression visualisation ── */
+    var cylTop  = cy - 28;         /* top of cylinder inner space */
+    var pisTop  = cy - 5 + pistonOffset; /* top face of piston */
+    var gasH    = pisTop - cylTop;
+    /* 0 = BDC (max volume), 1 = TDC (min volume) */
+    var compFact = Math.max(0, Math.min(1, (12 - pistonOffset) / 24));
+
+    if (gasH > 1) {
+      /* Colour: cool blue (suction) → orange-red (compressed) */
+      var gr = Math.round(66  + compFact * (255 - 66));
+      var gg = Math.round(165 + compFact * (80  - 165));
+      var gb = Math.round(245 + compFact * (40  - 245));
+      var gasAlpha = 0.30 + compFact * 0.50;
+
+      var gasGrad = mCtx.createLinearGradient(cx, cylTop, cx, pisTop);
+      gasGrad.addColorStop(0, 'rgba(' + gr + ',' + gg + ',' + gb + ',' + (gasAlpha * 0.55) + ')');
+      gasGrad.addColorStop(1, 'rgba(' + gr + ',' + gg + ',' + gb + ',' + gasAlpha + ')');
+      mCtx.fillStyle = gasGrad;
+      mCtx.fillRect(cx - 17, cylTop + 1, 34, gasH - 1);
+
+      /* Molecule dots — denser as gas compresses */
+      var numDots = Math.round(3 + compFact * 6);
+      var rowSpacing = gasH / (numDots + 1);
+      mCtx.fillStyle = 'rgba(' + gr + ',' + gg + ',' + gb + ',0.95)';
+      for (var di = 1; di <= numDots; di++) {
+        var dotY = cylTop + di * rowSpacing;
+        var dotX = (di % 2 === 0) ? cx - 6 : cx + 6;
+        mCtx.beginPath();
+        mCtx.arc(dotX, dotY, 1.4, 0, Math.PI * 2);
+        mCtx.fill();
+        /* mirror dot for density feel */
+        mCtx.beginPath();
+        mCtx.arc(cx + (dotX < cx ? 5 : -5), dotY + rowSpacing * 0.4, 1.0, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+
+      /* Heat shimmer at top of cylinder during compression stroke */
+      if (compFact > 0.55) {
+        var shimmerAlpha = (compFact - 0.55) / 0.45 * 0.35;
+        mCtx.fillStyle = 'rgba(255,160,0,' + shimmerAlpha + ')';
+        mCtx.fillRect(cx - 17, cylTop + 1, 34, Math.min(5, gasH - 1));
+      }
+    }
+
+    /* Piston */
+    mCtx.fillStyle = '#78909c';
+    mCtx.fillRect(cx - 14, cy - 5 + pistonOffset, 28, 10);
+    /* Highlight ring — brighter on upstroke (compression) */
+    mCtx.fillStyle = compFact > 0.5 ? 'rgba(255,140,60,0.7)' : '#90a4ae';
+    mCtx.fillRect(cx - 14, cy - 5 + pistonOffset, 28, 2);
+
+    /* Connecting rod */
+    mCtx.strokeStyle = '#607d8b';
+    mCtx.lineWidth = 3;
+    mCtx.beginPath();
+    mCtx.moveTo(cx, cy + 5 + pistonOffset);
+    mCtx.lineTo(cx, cy + 30);
+    mCtx.stroke();
+
+    /* Crankshaft circle */
+    mCtx.fillStyle = '#455a64';
+    mCtx.beginPath();
+    mCtx.arc(cx, cy + 30, 8, 0, Math.PI * 2);
+    mCtx.fill();
+    mCtx.strokeStyle = '#607d8b';
+    mCtx.lineWidth = 1;
+    mCtx.stroke();
+
+    /* Rotation mark on crankshaft */
+    if (state.running || state.paused) {
+      mCtx.save();
+      mCtx.translate(cx, cy + 30);
+      mCtx.rotate(state.animTime * 4);
+      mCtx.strokeStyle = '#0097a7';
+      mCtx.lineWidth = 2;
+      mCtx.beginPath();
+      mCtx.moveTo(0, 0);
+      mCtx.lineTo(6, 0);
+      mCtx.stroke();
+      mCtx.restore();
+    }
+
+    /* Valves (intake & discharge) */
+    var valveOpen = Math.sin(pistonPhase) > 0;
+    /* Intake valve (left) */
+    mCtx.fillStyle = valveOpen ? '#42a5f5' : '#37474f';
+    mCtx.beginPath();
+    mCtx.arc(cx - 22, cy - 15, 4, 0, Math.PI * 2);
+    mCtx.fill();
+    /* Discharge valve (top) */
+    mCtx.fillStyle = !valveOpen ? '#ff5252' : '#37474f';
+    mCtx.beginPath();
+    mCtx.arc(cx, cy - 32, 4, 0, Math.PI * 2);
+    mCtx.fill();
+
+    /* Motor symbol */
+    mCtx.fillStyle = '#0d1117';
+    mCtx.beginPath();
+    mCtx.arc(cx + 28, cy + 28, 10, 0, Math.PI * 2);
+    mCtx.fill();
+    mCtx.strokeStyle = '#0097a7';
+    mCtx.lineWidth = 1.5;
+    mCtx.stroke();
+    mCtx.fillStyle = '#0097a7';
+    mCtx.font = 'bold 9px sans-serif';
+    mCtx.textAlign = 'center';
+    mCtx.textBaseline = 'middle';
+    mCtx.fillText('M', cx + 28, cy + 28);
+    mCtx.textBaseline = 'alphabetic';
+
+    /* Label */
+    mCtx.fillStyle = '#0097a7';
+    mCtx.font = 'bold 9px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('COMPRESSOR', cx, cy + h / 2 + 14);
+  }
+
+  function drawCondenser() {
+    var cx = 420, cy = 180;
+    var w = 110, h = 70;
+
+    /* Coil housing */
+    var g = mCtx.createLinearGradient(cx - w / 2, cy - h / 2, cx - w / 2, cy + h / 2);
+    g.addColorStop(0, '#6d4c41');
+    g.addColorStop(0.5, '#5d4037');
+    g.addColorStop(1, '#4e342e');
+    mCtx.fillStyle = g;
+    mCtx.beginPath();
+    mCtx.moveTo(cx - w / 2 + 6, cy - h / 2);
+    mCtx.lineTo(cx + w / 2 - 6, cy - h / 2);
+    mCtx.quadraticCurveTo(cx + w / 2, cy - h / 2, cx + w / 2, cy - h / 2 + 6);
+    mCtx.lineTo(cx + w / 2, cy + h / 2 - 6);
+    mCtx.quadraticCurveTo(cx + w / 2, cy + h / 2, cx + w / 2 - 6, cy + h / 2);
+    mCtx.lineTo(cx - w / 2 + 6, cy + h / 2);
+    mCtx.quadraticCurveTo(cx - w / 2, cy + h / 2, cx - w / 2, cy + h / 2 - 6);
+    mCtx.lineTo(cx - w / 2, cy - h / 2 + 6);
+    mCtx.quadraticCurveTo(cx - w / 2, cy - h / 2, cx - w / 2 + 6, cy - h / 2);
+    mCtx.closePath();
+    mCtx.fill();
+    mCtx.strokeStyle = '#8d6e63';
+    mCtx.lineWidth = 1.5;
+    mCtx.stroke();
+
+    /* Coil tubes (serpentine) */
+    mCtx.strokeStyle = '#ffab40';
+    mCtx.lineWidth = 2;
+    for (var i = 0; i < 5; i++) {
+      var ty = cy - 22 + i * 11;
+      mCtx.beginPath();
+      mCtx.moveTo(cx - w / 2 + 10, ty);
+      mCtx.lineTo(cx + w / 2 - 10, ty);
+      mCtx.stroke();
+    }
+    /* U-bends */
+    for (var j = 0; j < 4; j++) {
+      var byTop = cy - 22 + j * 11;
+      var side = j % 2 === 0 ? cx + w / 2 - 10 : cx - w / 2 + 10;
+      mCtx.beginPath();
+      mCtx.arc(side, byTop + 5.5, 5.5, -Math.PI / 2, Math.PI / 2, j % 2 === 0);
+      mCtx.stroke();
+    }
+
+    /* Fan */
+    var fanX = cx, fanY = cy - h / 2 - 18;
+    mCtx.strokeStyle = '#78909c';
+    mCtx.lineWidth = 1;
+    mCtx.beginPath();
+    mCtx.arc(fanX, fanY, 12, 0, Math.PI * 2);
+    mCtx.stroke();
+    /* Fan blades */
+    var fanAngle = state.running ? state.animTime * 6 : 0;
+    mCtx.save();
+    mCtx.translate(fanX, fanY);
+    mCtx.rotate(fanAngle);
+    mCtx.fillStyle = '#90a4ae';
+    for (var b = 0; b < 4; b++) {
+      mCtx.save();
+      mCtx.rotate(b * Math.PI / 2);
+      mCtx.beginPath();
+      mCtx.moveTo(0, 0);
+      mCtx.lineTo(-4, -10);
+      mCtx.lineTo(4, -10);
+      mCtx.closePath();
+      mCtx.fill();
+      mCtx.restore();
+    }
+    mCtx.restore();
+
+    /* Stage 2: heat emission glow + wavy heat lines */
+    if (state.cycleStage === 2 && (state.running || state.paused)) {
+      var t2 = state.animTime;
+      mCtx.save();
+      /* Radial glow */
+      var p2 = 0.3 + 0.3 * Math.abs(Math.sin(t2 * 2.8));
+      var rg2 = mCtx.createRadialGradient(cx, cy, 5, cx, cy, 80);
+      rg2.addColorStop(0, 'rgba(255,110,40,' + p2 + ')');
+      rg2.addColorStop(1, 'rgba(255,110,40,0)');
+      mCtx.fillStyle = rg2;
+      mCtx.fillRect(cx - 80, cy - 80, 160, 160);
+      /* Wavy heat lines rising from top */
+      for (var wi2 = 0; wi2 < 5; wi2++) {
+        var wOff2 = (t2 * 45 + wi2 * 17) % 52;
+        var wx2 = cx - 44 + wi2 * 22;
+        var wAlpha2 = 0.75 * (1 - wOff2 / 52);
+        mCtx.strokeStyle = 'rgba(255,138,80,' + wAlpha2 + ')';
+        mCtx.lineWidth = 1.8;
+        mCtx.beginPath();
+        mCtx.moveTo(wx2, cy - h / 2 - 20 - wOff2);
+        mCtx.bezierCurveTo(
+          wx2 + 7,  cy - h / 2 - 32 - wOff2,
+          wx2 - 7,  cy - h / 2 - 44 - wOff2,
+          wx2,      cy - h / 2 - 52 - wOff2
+        );
+        mCtx.stroke();
+      }
+      mCtx.restore();
+    }
+
+    /* Label */
+    mCtx.fillStyle = '#ff8a65';
+    mCtx.font = 'bold 13px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('CONDENSER', cx, cy + h / 2 + 20);
+  }
+
+  function drawExpansionValve() {
+    var cx = 140, cy = 180;
+
+    /* Stage 3: expansion highlight glow */
+    if (state.cycleStage === 3 && (state.running || state.paused)) {
+      var p3 = 0.45 + 0.45 * Math.abs(Math.sin(state.animTime * 4.5));
+      mCtx.save();
+      var rg3 = mCtx.createRadialGradient(cx, cy, 3, cx, cy, 52);
+      rg3.addColorStop(0, 'rgba(255,202,40,' + (0.45 * p3) + ')');
+      rg3.addColorStop(1, 'rgba(255,202,40,0)');
+      mCtx.fillStyle = rg3;
+      mCtx.fillRect(cx - 52, cy - 52, 104, 104);
+      mCtx.restore();
+    }
+
+    /* Valve body — bowtie / throttle shape */
+    mCtx.fillStyle = '#455a64';
+    mCtx.beginPath();
+    /* Left triangle */
+    mCtx.moveTo(cx - 22, cy - 15);
+    mCtx.lineTo(cx, cy);
+    mCtx.lineTo(cx - 22, cy + 15);
+    mCtx.closePath();
+    mCtx.fill();
+    /* Right triangle */
+    mCtx.beginPath();
+    mCtx.moveTo(cx + 22, cy - 15);
+    mCtx.lineTo(cx, cy);
+    mCtx.lineTo(cx + 22, cy + 15);
+    mCtx.closePath();
+    mCtx.fill();
+    mCtx.strokeStyle = '#78909c';
+    mCtx.lineWidth = 1.5;
+    mCtx.beginPath();
+    mCtx.moveTo(cx - 22, cy - 15);
+    mCtx.lineTo(cx, cy);
+    mCtx.lineTo(cx - 22, cy + 15);
+    mCtx.stroke();
+    mCtx.beginPath();
+    mCtx.moveTo(cx + 22, cy - 15);
+    mCtx.lineTo(cx, cy);
+    mCtx.lineTo(cx + 22, cy + 15);
+    mCtx.stroke();
+
+    /* Sensing bulb */
+    mCtx.fillStyle = '#546e7a';
+    mCtx.beginPath();
+    mCtx.arc(cx, cy - 25, 8, 0, Math.PI * 2);
+    mCtx.fill();
+    mCtx.strokeStyle = '#78909c';
+    mCtx.lineWidth = 1;
+    mCtx.stroke();
+    /* Capillary line to bulb */
+    mCtx.strokeStyle = '#607d8b';
+    mCtx.lineWidth = 1;
+    mCtx.beginPath();
+    mCtx.moveTo(cx, cy - 15);
+    mCtx.lineTo(cx, cy - 17);
+    mCtx.stroke();
+
+    /* Label */
+    mCtx.fillStyle = '#80cbc4';
+    mCtx.font = 'bold 11px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('EXPANSION', cx, cy + 32);
+    mCtx.fillText('VALVE', cx, cy + 46);
+  }
+
+  function drawEvaporator() {
+    var cx = 140, cy = 520;
+    var w = 110, h = 70;
+
+    /* Stage 4: cold absorption glow */
+    if (state.cycleStage === 4 && (state.running || state.paused)) {
+      var p4 = 0.3 + 0.3 * Math.abs(Math.sin(state.animTime * 2.2));
+      mCtx.save();
+      var rg4 = mCtx.createRadialGradient(cx, cy, 5, cx, cy, 82);
+      rg4.addColorStop(0, 'rgba(66,165,245,' + (0.45 * p4) + ')');
+      rg4.addColorStop(1, 'rgba(66,165,245,0)');
+      mCtx.fillStyle = rg4;
+      mCtx.fillRect(cx - 82, cy - 82, 164, 164);
+      mCtx.restore();
+    }
+
+    /* Coil housing */
+    var g = mCtx.createLinearGradient(cx - w / 2, cy - h / 2, cx - w / 2, cy + h / 2);
+    g.addColorStop(0, '#1a237e');
+    g.addColorStop(0.5, '#0d47a1');
+    g.addColorStop(1, '#1a237e');
+    mCtx.fillStyle = g;
+    mCtx.beginPath();
+    mCtx.moveTo(cx - w / 2 + 6, cy - h / 2);
+    mCtx.lineTo(cx + w / 2 - 6, cy - h / 2);
+    mCtx.quadraticCurveTo(cx + w / 2, cy - h / 2, cx + w / 2, cy - h / 2 + 6);
+    mCtx.lineTo(cx + w / 2, cy + h / 2 - 6);
+    mCtx.quadraticCurveTo(cx + w / 2, cy + h / 2, cx + w / 2 - 6, cy + h / 2);
+    mCtx.lineTo(cx - w / 2 + 6, cy + h / 2);
+    mCtx.quadraticCurveTo(cx - w / 2, cy + h / 2, cx - w / 2, cy + h / 2 - 6);
+    mCtx.lineTo(cx - w / 2, cy - h / 2 + 6);
+    mCtx.quadraticCurveTo(cx - w / 2, cy - h / 2, cx - w / 2 + 6, cy - h / 2);
+    mCtx.closePath();
+    mCtx.fill();
+    mCtx.strokeStyle = '#42a5f5';
+    mCtx.lineWidth = 1.5;
+    mCtx.stroke();
+
+    /* Coil tubes */
+    mCtx.strokeStyle = '#42a5f5';
+    mCtx.lineWidth = 2;
+    for (var i = 0; i < 5; i++) {
+      var ty = cy - 22 + i * 11;
+      mCtx.beginPath();
+      mCtx.moveTo(cx - w / 2 + 10, ty);
+      mCtx.lineTo(cx + w / 2 - 10, ty);
+      mCtx.stroke();
+    }
+    for (var j = 0; j < 4; j++) {
+      var byTop = cy - 22 + j * 11;
+      var side = j % 2 === 0 ? cx + w / 2 - 10 : cx - w / 2 + 10;
+      mCtx.beginPath();
+      mCtx.arc(side, byTop + 5.5, 5.5, -Math.PI / 2, Math.PI / 2, j % 2 === 0);
+      mCtx.stroke();
+    }
+
+    /* Frost visualization */
+    if (state.running || state.cycle) {
+      mCtx.fillStyle = 'rgba(200,230,255,0.15)';
+      for (var f = 0; f < 8; f++) {
+        var fx = cx - 40 + f * 12;
+        var fy = cy - 30 + (f % 3) * 15;
+        mCtx.beginPath();
+        mCtx.arc(fx, fy, 3 + Math.sin(state.animTime * 2 + f) * 1.5, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+    }
+
+    /* Label */
+    mCtx.fillStyle = '#42a5f5';
+    mCtx.font = 'bold 13px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('EVAPORATOR', cx, cy - h / 2 - 12);
+  }
+
+  function drawRefrigerantFlow() {
+    if (!state.running && !state.paused) return;
+
+    /* Hide particles inside component bodies so they don't visually
+       "pass through" — they enter the component and reappear on exit */
+    var cullZones = [
+      { x1: 370, y1: 468, x2: 468, y2: 568 }, /* compressor  cx=420 cy=520 90×90 */
+      { x1: 358, y1: 138, x2: 478, y2: 218 }, /* condenser   cx=420 cy=180 110×70 */
+      { x1: 78,  y1: 478, x2: 198, y2: 558 }, /* evaporator  cx=140 cy=520 110×70 */
+      { x1: 112, y1: 158, x2: 168, y2: 202 }  /* exp. valve  cx=140 cy=180 */
+    ];
+
+    for (var i = 0; i < state.particles.length; i++) {
+      var p = state.particles[i];
+      var pos = getParticlePosition(p.pos);
+
+      /* Skip if inside any component interior */
+      var culled = false;
+      for (var z = 0; z < cullZones.length; z++) {
+        var cz = cullZones[z];
+        if (pos.x >= cz.x1 && pos.x <= cz.x2 && pos.y >= cz.y1 && pos.y <= cz.y2) {
+          culled = true; break;
+        }
+      }
+      if (culled) continue;
+
+      var color = getParticleColor(pos.seg);
+
+      /* Glow */
+      mCtx.fillStyle = hexToRGBA(color, 0.25);
+      mCtx.beginPath();
+      mCtx.arc(pos.x, pos.y, p.size + 3, 0, Math.PI * 2);
+      mCtx.fill();
+
+      /* Particle */
+      mCtx.fillStyle = color;
+      mCtx.beginPath();
+      mCtx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
+      mCtx.fill();
+    }
+  }
+
+  function drawStatePoints() {
+    if (!state.cycle) return;
+    var c = state.cycle;
+    var points = [
+      { n: '1', x: 200, y: 520, label: 'Evap Exit', color: '#42a5f5' },
+      { n: '2', x: 390, y: 440, label: 'Comp Exit', color: '#ff5252' },
+      /* State 3 moved onto liquid line, clear of condenser body (left edge 365) */
+      { n: '3', x: 310, y: 180, label: 'Cond Exit', color: '#ffca28' },
+      { n: '4', x: 140, y: 280, label: 'Exp Exit', color: '#00e5ff' }
+    ];
+
+    points.forEach(function (pt) {
+      /* Circle */
+      mCtx.fillStyle = pt.color;
+      mCtx.beginPath();
+      mCtx.arc(pt.x, pt.y, 10, 0, Math.PI * 2);
+      mCtx.fill();
+      mCtx.fillStyle = '#0a0e14';
+      mCtx.font = 'bold 11px sans-serif';
+      mCtx.textAlign = 'center';
+      mCtx.textBaseline = 'middle';
+      mCtx.fillText(pt.n, pt.x, pt.y);
+      mCtx.textBaseline = 'alphabetic';
+    });
+  }
+
+  function drawTemperatureLabels() {
+    if (!state.mcTemps) return;
+    if (!state.cycle) return;
+    var c = state.cycle;
+    var imp = state.units === 'IMP';
+    function fmtT(tc) { return imp ? (toF(tc) + '\u00b0F') : (roundN(tc, 1) + '\u00b0C'); }
+    var labels = [
+      { text: 'T1=' + fmtT(c.T1), x: 200, y: 503 },
+      { text: 'T2=' + fmtT(c.T2), x: 380, y: 425 },
+      { text: 'T3=' + fmtT(c.T3), x: 300, y: 164 },
+      { text: 'T4=' + fmtT(c.T4), x: 140, y: 263 }
+    ];
+    mCtx.font = '11px monospace';
+    mCtx.textAlign = 'center';
+    labels.forEach(function (lb) {
+      mCtx.fillStyle = '#dde3f0';
+      mCtx.fillText(lb.text, lb.x, lb.y);
+    });
+  }
+
+  function drawPressureLabels() {
+    if (!state.mcPressures) return;
+    if (!state.cycle) return;
+    var c = state.cycle;
+    var imp = state.units === 'IMP';
+
+    /* High pressure */
+    mCtx.fillStyle = 'rgba(255,82,82,0.15)';
+    mCtx.fillRect(290, 68, 245, 24);
+    mCtx.fillStyle = '#ff5252';
+    mCtx.font = 'bold 11px monospace';
+    mCtx.textAlign = 'center';
+    var phText = imp
+      ? 'Ph = ' + toPsi(c.Phigh) + ' psia'
+      : 'Ph = ' + roundN(c.Phigh, 0) + ' kPa  (' + roundN(c.Phigh / 1000, 2) + ' MPa)';
+    mCtx.fillText(phText, 413, 84);
+
+    /* Low pressure */
+    mCtx.fillStyle = 'rgba(66,165,245,0.15)';
+    mCtx.fillRect(20, 638, 245, 24);
+    mCtx.fillStyle = '#42a5f5';
+    var plText = imp
+      ? 'Pl = ' + toPsi(c.Plow) + ' psia'
+      : 'Pl = ' + roundN(c.Plow, 0) + ' kPa  (' + roundN(c.Plow / 1000, 2) + ' MPa)';
+    mCtx.fillText(plText, 143, 654);
+  }
+
+  function drawHeatFlowArrows() {
+    if (!state.mcHeat) return;
+    /* ── Q_H — three upward arrows on the right side of canvas ── */
+    var qhX = 528;          /* x-centre of arrow cluster */
+    var qhY1 = 175;         /* arrow tail (lower) */
+    var qhY2 = 108;         /* arrow tip (upper) */
+    mCtx.strokeStyle = '#ff5252';
+    mCtx.fillStyle   = '#ff5252';
+    mCtx.lineWidth   = 2;
+    for (var a = -1; a <= 1; a++) {
+      var ax = qhX + a * 13;
+      mCtx.beginPath();
+      mCtx.moveTo(ax, qhY1);
+      mCtx.lineTo(ax, qhY2 + 10);
+      mCtx.stroke();
+      mCtx.beginPath();
+      mCtx.moveTo(ax, qhY2 + 10);
+      mCtx.lineTo(ax - 5, qhY2 + 18);
+      mCtx.lineTo(ax + 5, qhY2 + 18);
+      mCtx.closePath();
+      mCtx.fill();
+    }
+    mCtx.font = 'bold 12px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('Q_H', qhX, qhY2);
+    if (state.cycle) {
+      var imp = state.units === 'IMP';
+      mCtx.font = '11px monospace';
+      mCtx.fillText(imp ? toBtuHr(state.cycle.Qrej) + ' BTU/hr' : roundN(state.cycle.Qrej, 2) + ' kW', qhX, qhY1 + 16);
+    }
+
+    /* ── Q_L — three upward arrows rising from below evaporator ── */
+    var qlX  = 140;
+    var qlY1 = 608;         /* arrow tail (lower) */
+    var qlY2 = 563;         /* arrow tip → enters evaporator bottom */
+    mCtx.strokeStyle = '#42a5f5';
+    mCtx.fillStyle   = '#42a5f5';
+    mCtx.lineWidth   = 2;
+    for (var b = -1; b <= 1; b++) {
+      var bx = qlX + b * 13;
+      mCtx.beginPath();
+      mCtx.moveTo(bx, qlY1);
+      mCtx.lineTo(bx, qlY2 + 10);
+      mCtx.stroke();
+      mCtx.beginPath();
+      mCtx.moveTo(bx, qlY2 + 10);
+      mCtx.lineTo(bx - 5, qlY2 + 18);
+      mCtx.lineTo(bx + 5, qlY2 + 18);
+      mCtx.closePath();
+      mCtx.fill();
+    }
+    mCtx.font = 'bold 12px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('Q_L', qlX, qlY1 + 16);
+    if (state.cycle) {
+      var imp2 = state.units === 'IMP';
+      mCtx.font = '11px monospace';
+      mCtx.fillText(imp2 ? toBtuHr(state.cycle.Qcap) + ' BTU/hr' : roundN(state.cycle.Qcap, 2) + ' kW', qlX, qlY1 + 30);
+    }
+  }
+
+  function drawCompressorWork() {
+    if (!state.mcHeat) return;
+    if (!state.cycle) return;
+    var c = state.cycle;
+
+    /* W_in arrow entering compressor from the right */
+    var arrowX = 468, arrowY = 520;
+    mCtx.strokeStyle = '#0097a7';
+    mCtx.fillStyle = '#0097a7';
+    mCtx.lineWidth = 2;
+    mCtx.beginPath();
+    mCtx.moveTo(arrowX + 28, arrowY);
+    mCtx.lineTo(arrowX, arrowY);
+    mCtx.stroke();
+    mCtx.beginPath();
+    mCtx.moveTo(arrowX, arrowY);
+    mCtx.lineTo(arrowX + 7, arrowY - 5);
+    mCtx.lineTo(arrowX + 7, arrowY + 5);
+    mCtx.closePath();
+    mCtx.fill();
+
+    /* Label right-aligned to avoid canvas edge clip */
+    mCtx.font = 'bold 11px monospace';
+    mCtx.textAlign = 'right';
+    var imp = state.units === 'IMP';
+    var wLabel = imp ? '\u2190 W_in = ' + toBtuHr(c.Wdot) + ' BTU/hr' : '\u2190 W_in = ' + roundN(c.Wdot, 2) + ' kW';
+    mCtx.fillText(wLabel, MW - 6, arrowY - 8);
+  }
+
+  function drawCOPDisplay() {
+    if (!state.mcCOP) return;
+    if (!state.cycle) return;
+    var c = state.cycle;
+
+    var bx = 260, by = 340, bw = 100, bh = 40;
+    mCtx.fillStyle = 'rgba(0,151,167,0.15)';
+    mCtx.beginPath();
+    mCtx.moveTo(bx + 6, by);
+    mCtx.lineTo(bx + bw - 6, by);
+    mCtx.quadraticCurveTo(bx + bw, by, bx + bw, by + 6);
+    mCtx.lineTo(bx + bw, by + bh - 6);
+    mCtx.quadraticCurveTo(bx + bw, by + bh, bx + bw - 6, by + bh);
+    mCtx.lineTo(bx + 6, by + bh);
+    mCtx.quadraticCurveTo(bx, by + bh, bx, by + bh - 6);
+    mCtx.lineTo(bx, by + 6);
+    mCtx.quadraticCurveTo(bx, by, bx + 6, by);
+    mCtx.closePath();
+    mCtx.fill();
+    mCtx.strokeStyle = '#0097a7';
+    mCtx.lineWidth = 1.5;
+    mCtx.stroke();
+
+    mCtx.fillStyle = '#0097a7';
+    mCtx.font = '8px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('COP', bx + bw / 2, by + 14);
+    mCtx.font = 'bold 18px monospace';
+    mCtx.fillText(roundN(c.COP, 2), bx + bw / 2, by + 34);
+  }
+
+  function drawSystemLabel() {
+    mCtx.fillStyle = '#0097a7';
+    mCtx.font = 'bold 11px monospace';
+    mCtx.textAlign = 'center';
+    mCtx.fillText('NHIT VisualLab RFC-300', MW / 2, 22);
+    mCtx.fillStyle = '#6b7a99';
+    mCtx.font = '8px monospace';
+    mCtx.fillText('Vapor Compression Refrigeration System', MW / 2, 36);
+
+    /* Refrigerant badge */
+    if (state.cycle) {
+      var ref = state.cycle.ref;
+      mCtx.fillStyle = hexToRGBA(ref.color, 0.2);
+      mCtx.fillRect(MW / 2 - 50, 42, 100, 18);
+      mCtx.fillStyle = ref.color;
+      mCtx.font = 'bold 9px monospace';
+      mCtx.fillText('Refrigerant: ' + ref.name, MW / 2, 55);
+    }
+  }
+
+  function drawComponentDetails() {
+    mCtx.textAlign = 'center';
+
+    /* Process labels along pipes */
+    if (state.mcStage) {
+      /* 1→2 Compression (right side, rotated) */
+      mCtx.fillStyle = '#ff5252';
+      mCtx.font = '11px monospace';
+      mCtx.save();
+      mCtx.translate(448, 475);
+      mCtx.rotate(-Math.PI / 2);
+      mCtx.fillText('1\u21922 Compression', 0, 0);
+      mCtx.restore();
+
+      /* 2→3 Condensation — above condenser body, below P_HIGH strip */
+      mCtx.fillStyle = '#ffca28';
+      mCtx.font = '11px monospace';
+      mCtx.fillText('2\u21923 Condensation', 310, 112);
+
+      /* 3→4 Expansion (left side, rotated) */
+      mCtx.fillStyle = '#00e5ff';
+      mCtx.font = '11px monospace';
+      mCtx.save();
+      mCtx.translate(118, 280);
+      mCtx.rotate(-Math.PI / 2);
+      mCtx.fillText('3\u21924 Expansion', 0, 0);
+      mCtx.restore();
+
+      /* 4→1 Evaporation (bottom pipe) */
+      mCtx.fillStyle = '#42a5f5';
+      mCtx.font = '11px monospace';
+      mCtx.fillText('4\u21921 Evaporation', 280, 540);
+    }
+
+    /* Energy balance box */
+    if (state.mcEnergy && state.cycle) {
+      var c = state.cycle;
+      var bx = 260, by = 620, bw = 280, bh = 60;
+      mCtx.fillStyle = 'rgba(13,17,23,0.85)';
+      mCtx.fillRect(bx, by, bw, bh);
+      mCtx.strokeStyle = '#2a3050';
+      mCtx.lineWidth = 1;
+      mCtx.strokeRect(bx, by, bw, bh);
+
+      mCtx.font = '7px monospace';
+      mCtx.textAlign = 'left';
+      mCtx.fillStyle = '#6b7a99';
+      mCtx.fillText('ENERGY BALANCE', bx + 5, by + 12);
+      mCtx.fillStyle = '#42a5f5';
+      var impE = state.units === 'IMP';
+      var uLbl = impE ? ' BTU/hr' : ' kW';
+      function fmtE(kw) { return impE ? toBtuHr(kw) : roundN(kw, 2); }
+      mCtx.fillText('Ql (evap)  = ' + fmtE(c.Qcap) + uLbl, bx + 5, by + 24);
+      mCtx.fillStyle = '#0097a7';
+      mCtx.fillText('W_in (comp) = ' + fmtE(c.Wdot) + uLbl, bx + 5, by + 36);
+      mCtx.fillStyle = '#ff5252';
+      mCtx.fillText('Qh (cond)  = ' + fmtE(c.Qrej) + uLbl, bx + 5, by + 48);
+      mCtx.fillStyle = '#90a4ae';
+      mCtx.fillText('Ql + W = Qh:  ' + fmtE(c.Qcap + c.Wdot) + ' \u2248 ' + fmtE(c.Qrej), bx + 140, by + 36);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S12  P-h DIAGRAM DRAWING
+     ═══════════════════════════════════════════════════════════════ */
+
+  var PH_OX = 65, PH_OY; /* will be set */
+  var PH_W, PH_H;
+
+  function drawPHDiagram() {
+    gCtx.clearRect(0, 0, GW, GH);
+    gCtx.fillStyle = '#0a0e14';
+    gCtx.fillRect(0, 0, GW, GH);
+
+    /* Grid */
+    gCtx.strokeStyle = 'rgba(42,48,80,0.25)';
+    gCtx.lineWidth = 0.5;
+
+    PH_OX = 70;
+    PH_OY = GH - 55;
+    PH_W = GW - 100;
+    PH_H = GH - 100;
+
+    for (var gx = PH_OX; gx <= PH_OX + PH_W; gx += 40) {
+      gCtx.beginPath(); gCtx.moveTo(gx, PH_OY - PH_H); gCtx.lineTo(gx, PH_OY); gCtx.stroke();
+    }
+    for (var gy = PH_OY; gy >= PH_OY - PH_H; gy -= 40) {
+      gCtx.beginPath(); gCtx.moveTo(PH_OX, gy); gCtx.lineTo(PH_OX + PH_W, gy); gCtx.stroke();
+    }
+
+    var ref = REFRIGERANTS[state.refIdx];
+    var c = state.cycle;
+
+    /* Title */
+    gCtx.fillStyle = '#e8edf8';
+    gCtx.font = 'bold 13px sans-serif';
+    gCtx.textAlign = 'center';
+    gCtx.fillText('Pressure-Enthalpy (P-h) Diagram \u2014 ' + ref.name, GW / 2, 22);
+
+    /* Axis ranges — dynamic per refrigerant + cycle state points */
+    var hLo = hf(ref, ref.boilPt - 20);        /* left anchor: liquid at low T */
+    var hHi = hg(ref, ref.critT) + 120;         /* right anchor: past vapour line */
+    if (c) {
+      /* Expand to include all 4 state points with 8% padding */
+      var allH = [c.h1, c.h2, c.h3, c.h4];
+      var hCycMin = Math.min.apply(null, allH);
+      var hCycMax = Math.max.apply(null, allH);
+      var hPad = (hCycMax - hCycMin) * 0.12;
+      hLo = Math.min(hLo, hCycMin - hPad);
+      hHi = Math.max(hHi, hCycMax + hPad);
+    }
+    var hMin = Math.floor(hLo / 50) * 50;
+    var hMax = Math.ceil(hHi / 50) * 50;
+    var PMin = 50, PMax = ref.critP * 1.3;
+    var logPMin = log10(PMin);
+    var logPMax = log10(PMax);
+
+    /* Axes */
+    gCtx.strokeStyle = '#6b7a99';
+    gCtx.lineWidth = 1;
+    gCtx.beginPath();
+    gCtx.moveTo(PH_OX, PH_OY - PH_H);
+    gCtx.lineTo(PH_OX, PH_OY);
+    gCtx.lineTo(PH_OX + PH_W, PH_OY);
+    gCtx.stroke();
+
+    /* X-axis: Enthalpy */
+    gCtx.fillStyle = '#a8b8d0';
+    gCtx.font = '9px monospace';
+    gCtx.textAlign = 'center';
+    var hSteps = [];
+    for (var hs = Math.ceil(hMin / 50) * 50; hs <= hMax; hs += 50) hSteps.push(hs);
+    hSteps.forEach(function (hv) {
+      var px = PH_OX + ((hv - hMin) / (hMax - hMin)) * PH_W;
+      if (px >= PH_OX && px <= PH_OX + PH_W) {
+        gCtx.fillText(state.units === 'IMP' ? roundN(hv * 0.42992, 1) : hv, px, PH_OY + 15);
+        gCtx.strokeStyle = 'rgba(100,120,160,0.18)';
+        gCtx.lineWidth = 0.4;
+        gCtx.beginPath(); gCtx.moveTo(px, PH_OY); gCtx.lineTo(px, PH_OY - PH_H); gCtx.stroke();
+      }
+    });
+    gCtx.fillStyle = '#b8c8e0';
+    gCtx.font = 'bold 10px sans-serif';
+    gCtx.fillText(state.units === 'IMP' ? 'Enthalpy h (BTU/lb)' : 'Enthalpy h (kJ/kg)', PH_OX + PH_W / 2, PH_OY + 32);
+
+    /* Y-axis: Pressure (log scale) */
+    gCtx.save();
+    gCtx.translate(14, PH_OY - PH_H / 2);
+    gCtx.rotate(-Math.PI / 2);
+    gCtx.fillStyle = '#b8c8e0';
+    gCtx.font = 'bold 10px sans-serif';
+    gCtx.textAlign = 'center';
+    gCtx.fillText(state.units === 'IMP' ? 'Pressure P (psia)' : 'Pressure P (kPa)', 0, 0);
+    gCtx.restore();
+
+    gCtx.textAlign = 'right';
+    gCtx.font = '9px monospace';
+    var pTicks = [50, 100, 200, 500, 1000, 2000, 5000];
+    pTicks.forEach(function (pv) {
+      if (pv >= PMin && pv <= PMax) {
+        var py = PH_OY - ((log10(pv) - logPMin) / (logPMax - logPMin)) * PH_H;
+        gCtx.fillStyle = '#a8b8d0';
+        gCtx.fillText(state.units === 'IMP' ? roundN(pv * 0.14504, 1) : pv, PH_OX - 5, py + 3);
+        gCtx.strokeStyle = 'rgba(100,120,160,0.18)';
+        gCtx.lineWidth = 0.4;
+        gCtx.beginPath(); gCtx.moveTo(PH_OX, py); gCtx.lineTo(PH_OX + PH_W, py); gCtx.stroke();
+      }
+    });
+
+    /* Helper: map h,P to canvas coords */
+    function hToX(hVal) { return PH_OX + ((hVal - hMin) / (hMax - hMin)) * PH_W; }
+    function PToY(pVal) {
+      var logP = log10(clamp(pVal, PMin, PMax));
+      return PH_OY - ((logP - logPMin) / (logPMax - logPMin)) * PH_H;
+    }
+
+    /* Saturation dome — shown when user manually toggles on, at any active stage */
+    var domeVisible = state.showDome && state.cycleStage !== 0;
+
+    var Tstart = ref.boilPt - 10;
+    var Tend = ref.critT;
+
+    /* At the critical point the saturated-liquid and saturated-vapour branches
+       must MEET: hfg is zero there by definition. The polynomial property fits
+       do not enforce that — at T_crit they leave a gap of 66 kJ/kg for R-134a
+       and up to 116 kJ/kg for the other refrigerants — so the dome was drawn
+       as two lines that never join, with the critical-point marker floating in
+       the opening between them.
+
+       Taper the half-width to zero over the top of the range with a quarter
+       ellipse, sqrt(1 - u^2), which meets the un-tapered curve with zero slope
+       (so there is no kink where it starts) and closes vertically at the apex,
+       the way a real dome does. This affects the DRAWN dome only: the engine's
+       hf/hg/hfg are untouched, and the cycle never operates near T_crit. */
+    var domeTaperFrom = Tend - (Tend - Tstart) * 0.30;
+    function domeBranch(T, wantVapour) {
+      var hfT = hf(ref, T), hgT = hg(ref, T);
+      var mean = (hfT + hgT) / 2, half = (hgT - hfT) / 2;
+      if (T > domeTaperFrom) {
+        var u = clamp((T - domeTaperFrom) / (Tend - domeTaperFrom), 0, 1);
+        half *= Math.sqrt(Math.max(0, 1 - u * u));
+      }
+      return wantVapour ? mean + half : mean - half;
+    }
+
+    if (domeVisible) {
+      /* Liquid saturation line */
+      gCtx.strokeStyle = hexToRGBA(ref.color, 0.75);
+      gCtx.lineWidth = 1.8;
+      gCtx.beginPath();
+      var firstLiq = true;
+      for (var step = 0; step <= 80; step++) {
+        var Tloop = Tstart + (Tend - Tstart) * step / 80;
+        var Ploop = Psat(ref, Tloop);
+        var hfLoop = domeBranch(Tloop, false);
+        var px = hToX(hfLoop);
+        var py = PToY(Ploop);
+        if (px >= PH_OX && px <= PH_OX + PH_W && py >= PH_OY - PH_H && py <= PH_OY) {
+          if (firstLiq) { gCtx.moveTo(px, py); firstLiq = false; }
+          else gCtx.lineTo(px, py);
+        }
+      }
+      gCtx.stroke();
+
+      /* Vapor saturation line */
+      gCtx.beginPath();
+      var firstVap = true;
+      for (var step2 = 80; step2 >= 0; step2--) {
+        var Tloop2 = Tstart + (Tend - Tstart) * step2 / 80;
+        var Ploop2 = Psat(ref, Tloop2);
+        var hgLoop = domeBranch(Tloop2, true);
+        var px2 = hToX(hgLoop);
+        var py2 = PToY(Ploop2);
+        if (px2 >= PH_OX && px2 <= PH_OX + PH_W && py2 >= PH_OY - PH_H && py2 <= PH_OY) {
+          if (firstVap) { gCtx.moveTo(px2, py2); firstVap = false; }
+          else gCtx.lineTo(px2, py2);
+        }
+      }
+      gCtx.stroke();
+
+      /* Critical point */
+      /* With the taper above, both branches converge here, so the apex is
+         exactly where the marker sits rather than floating in a gap. */
+      var hCrit = domeBranch(ref.critT, false);
+      var critPx = hToX(hCrit);
+      var critPy = PToY(ref.critP);
+      gCtx.fillStyle = '#f5c842';
+      gCtx.beginPath();
+      gCtx.arc(critPx, critPy, 5, 0, Math.PI * 2);
+      gCtx.fill();
+      /* Label below the dot, dark pill background */
+      gCtx.font = 'bold 10px sans-serif';
+      var cpTxt = 'Critical Pt';
+      var cpTw = gCtx.measureText(cpTxt).width;
+      gCtx.fillStyle = 'rgba(8,12,20,0.78)';
+      gCtx.fillRect(critPx - cpTw / 2 - 4, critPy + 9, cpTw + 8, 15);
+      gCtx.fillStyle = '#f5c842';
+      gCtx.textAlign = 'center';
+      gCtx.fillText(cpTxt, critPx, critPy + 21);
+
+      /* Dome fill (subtle) */
+      gCtx.fillStyle = hexToRGBA(ref.color, 0.06);
+      gCtx.beginPath();
+      var firstDom = true;
+      for (var stepD = 0; stepD <= 80; stepD++) {
+        var TloopD = Tstart + (Tend - Tstart) * stepD / 80;
+        var PloopD = Psat(ref, TloopD);
+        var hfD = hf(ref, TloopD);
+        var pxD = clamp(hToX(hfD), PH_OX, PH_OX + PH_W);
+        var pyD = clamp(PToY(PloopD), PH_OY - PH_H, PH_OY);
+        if (firstDom) { gCtx.moveTo(pxD, pyD); firstDom = false; }
+        else gCtx.lineTo(pxD, pyD);
+      }
+      for (var stepD2 = 80; stepD2 >= 0; stepD2--) {
+        var TloopD2 = Tstart + (Tend - Tstart) * stepD2 / 80;
+        var PloopD2 = Psat(ref, TloopD2);
+        var hgD = hg(ref, TloopD2);
+        var pxD2 = clamp(hToX(hgD), PH_OX, PH_OX + PH_W);
+        var pyD2 = clamp(PToY(PloopD2), PH_OY - PH_H, PH_OY);
+        gCtx.lineTo(pxD2, pyD2);
+      }
+      gCtx.closePath();
+      gCtx.fill();
+
+      /* Isotherms */
+      var isotherms = [-20, 0, 20, 40, 60, 80, 100];
+      gCtx.lineWidth = 0.7;
+      gCtx.setLineDash([4, 4]);
+      isotherms.forEach(function (Tiso) {
+        if (Tiso >= ref.critT) return;
+        var Pstart2 = Psat(ref, Tiso);
+        gCtx.strokeStyle = 'rgba(180,195,220,0.22)';
+        gCtx.beginPath();
+        var firstIso = true;
+        for (var ps = 0; ps <= 30; ps++) {
+          var Piso = Pstart2 * Math.pow(PMax / Pstart2, ps / 30);
+          if (Piso > PMax) break;
+          var hIso = hg(ref, Tiso) + (ps / 30) * 40;
+          var isoPx = hToX(hIso);
+          var isoPy = PToY(Piso);
+          if (isoPx >= PH_OX && isoPx <= PH_OX + PH_W && isoPy >= PH_OY - PH_H) {
+            if (firstIso) { gCtx.moveTo(isoPx, isoPy); firstIso = false; }
+            else gCtx.lineTo(isoPx, isoPy);
+          }
+        }
+        gCtx.stroke();
+        /* Isotherm label */
+        if (Tiso >= -20 && Tiso <= 80) {
+          var labelH = hg(ref, Tiso) + 30;
+          var labelP = Psat(ref, Tiso) * 2;
+          var lx = hToX(labelH);
+          var ly = PToY(labelP);
+          if (lx > PH_OX && lx < PH_OX + PH_W - 20 && ly > PH_OY - PH_H && ly < PH_OY) {
+            gCtx.fillStyle = 'rgba(180,200,230,0.75)';
+            gCtx.font = 'bold 8px monospace';
+            gCtx.textAlign = 'left';
+            gCtx.fillText(Tiso + '\u00b0C', lx + 2, ly - 3);
+          }
+        }
+      });
+      gCtx.setLineDash([]);
+
+      /* Region labels — anchored to fixed positions well clear of cycle lines */
+      gCtx.font = 'bold 11px sans-serif';
+      gCtx.textAlign = 'center';
+      /* Subcooled Liquid — far left, mid-height */
+      gCtx.fillStyle = 'rgba(180,200,230,0.60)';
+      gCtx.fillText('Subcooled', hToX(130), PH_OY - PH_H * 0.55);
+      gCtx.fillText('Liquid',    hToX(130), PH_OY - PH_H * 0.55 + 15);
+      /* Two-Phase — bottom centre of dome */
+      gCtx.fillStyle = 'rgba(180,200,230,0.50)';
+      gCtx.fillText('Two-Phase', hToX(295), PH_OY - 22);
+      /* Superheated Vapor — right side, upper area */
+      gCtx.fillStyle = 'rgba(180,200,230,0.60)';
+      gCtx.fillText('Superheated', hToX(490), PH_OY - PH_H * 0.82);
+      gCtx.fillText('Vapor',       hToX(490), PH_OY - PH_H * 0.82 + 15);
+    }
+
+    /* Draw cycle on P-h diagram — only after Start is pressed */
+    if (c && state.cycleStage !== 0) {
+      var s1x = hToX(c.h1), s1y = PToY(c.P1);
+      var s2x = hToX(c.h2), s2y = PToY(c.P2);
+      var s3x = hToX(c.h3), s3y = PToY(c.P3);
+      var s4x = hToX(c.h4), s4y = PToY(c.P4);
+
+      var curStage = state.cycleStage;
+      var staged = (state.running || state.paused) && curStage >= 1 && curStage <= 4;
+      var stageProg = staged
+        ? Math.min(state.stageTimer / (STAGE_DUR / state.animSpeed), 1)
+        : 1;
+
+      /* Returns 0..1: how much of a given process line to draw */
+      function frac(lineStage) {
+        if (!staged) return 1;
+        if (lineStage < curStage) return 1;
+        if (lineStage === curStage) return stageProg;
+        return 0;
+      }
+
+      var f12 = frac(1), f23 = frac(2), f34 = frac(3), f41 = frac(4);
+
+      /* 1→2 Compression — partial quadratic bezier */
+      if (f12 > 0) {
+        var cpx12 = s1x + (s2x - s1x) * 0.3;
+        var cpy12 = s1y + (s2y - s1y) * 0.6;
+        gCtx.strokeStyle = '#ff5252';
+        gCtx.lineWidth = 2.5;
+        gCtx.beginPath();
+        for (var bi = 0; bi <= 30; bi++) {
+          var bt = (bi / 30) * f12;
+          var bpx = (1-bt)*(1-bt)*s1x + 2*(1-bt)*bt*cpx12 + bt*bt*s2x;
+          var bpy = (1-bt)*(1-bt)*s1y + 2*(1-bt)*bt*cpy12 + bt*bt*s2y;
+          if (bi === 0) gCtx.moveTo(bpx, bpy); else gCtx.lineTo(bpx, bpy);
+        }
+        gCtx.stroke();
+      }
+
+      /* 2→3 Condensation — partial horizontal */
+      if (f23 > 0) {
+        gCtx.strokeStyle = '#ffca28';
+        gCtx.lineWidth = 2.5;
+        gCtx.beginPath();
+        gCtx.moveTo(s2x, s2y);
+        gCtx.lineTo(lerp(s2x, s3x, f23), lerp(s2y, s3y, f23));
+        gCtx.stroke();
+      }
+
+      /* 3→4 Expansion — partial vertical */
+      if (f34 > 0) {
+        gCtx.strokeStyle = '#00e5ff';
+        gCtx.lineWidth = 2.5;
+        gCtx.beginPath();
+        gCtx.moveTo(s3x, s3y);
+        gCtx.lineTo(lerp(s3x, s4x, f34), lerp(s3y, s4y, f34));
+        gCtx.stroke();
+      }
+
+      /* 4→1 Evaporation — partial horizontal */
+      if (f41 > 0) {
+        gCtx.strokeStyle = '#42a5f5';
+        gCtx.lineWidth = 2.5;
+        gCtx.beginPath();
+        gCtx.moveTo(s4x, s4y);
+        gCtx.lineTo(lerp(s4x, s1x, f41), lerp(s4y, s1y, f41));
+        gCtx.stroke();
+      }
+
+      /* Pulsing traveling dot on the active stage line */
+      if (staged) {
+        var dotCol, dotX, dotY;
+        if (curStage === 1) {
+          dotCol = '#ff5252';
+          var dt1 = stageProg;
+          var cpx12b = s1x + (s2x - s1x) * 0.3;
+          var cpy12b = s1y + (s2y - s1y) * 0.6;
+          dotX = (1-dt1)*(1-dt1)*s1x + 2*(1-dt1)*dt1*cpx12b + dt1*dt1*s2x;
+          dotY = (1-dt1)*(1-dt1)*s1y + 2*(1-dt1)*dt1*cpy12b + dt1*dt1*s2y;
+        } else if (curStage === 2) {
+          dotCol = '#ffca28';
+          dotX = lerp(s2x, s3x, stageProg);
+          dotY = lerp(s2y, s3y, stageProg);
+        } else if (curStage === 3) {
+          dotCol = '#00e5ff';
+          dotX = lerp(s3x, s4x, stageProg);
+          dotY = lerp(s3y, s4y, stageProg);
+        } else {
+          dotCol = '#42a5f5';
+          dotX = lerp(s4x, s1x, stageProg);
+          dotY = lerp(s4y, s1y, stageProg);
+        }
+        var dp = 0.5 + 0.5 * Math.abs(Math.sin(state.animTime * 4));
+        gCtx.fillStyle = hexToRGBA(dotCol, 0.28 + 0.28 * dp);
+        gCtx.beginPath();
+        gCtx.arc(dotX, dotY, 12 + 4 * dp, 0, Math.PI * 2);
+        gCtx.fill();
+        gCtx.fillStyle = dotCol;
+        gCtx.beginPath();
+        gCtx.arc(dotX, dotY, 5, 0, Math.PI * 2);
+        gCtx.fill();
+      }
+
+      /* Shaded areas — only in continuous/full mode */
+      if (!staged && state.phShading) {
+        gCtx.fillStyle = 'rgba(66,165,245,0.08)';
+        gCtx.fillRect(Math.min(s4x, s1x), s1y - 5, Math.abs(s1x - s4x), 10);
+        gCtx.fillStyle = 'rgba(255,202,40,0.08)';
+        gCtx.fillRect(Math.min(s3x, s2x), s2y - 5, Math.abs(s2x - s3x), 10);
+      }
+
+      /* State points — appear progressively as stages complete */
+      var stateData = [
+        { n: '1', x: s1x, y: s1y, T: c.T1, h: c.h1, color: '#42a5f5', showAt: 1, lx: -14, ly: 22 },
+        { n: '2', x: s2x, y: s2y, T: c.T2, h: c.h2, color: '#ff5252', showAt: 2, lx: 12,  ly: -14 },
+        { n: '3', x: s3x, y: s3y, T: c.T3, h: c.h3, color: '#ffca28', showAt: 3, lx: -90, ly: 22 },
+        { n: '4', x: s4x, y: s4y, T: c.T4, h: c.h4, color: '#00e5ff', showAt: 4, lx: 12,  ly: 22 }
+      ];
+
+      /* Helper: draw dark pill behind text for readability */
+      function phLabel(txt, x, y, col, fnt) {
+        gCtx.font = fnt || 'bold 10px sans-serif';
+        var tw = gCtx.measureText(txt).width;
+        gCtx.fillStyle = 'rgba(8,12,20,0.72)';
+        gCtx.fillRect(x - 3, y - 12, tw + 6, 15);
+        gCtx.fillStyle = col;
+        gCtx.fillText(txt, x, y);
+      }
+
+      if (state.phStateLabels) {
+        stateData.forEach(function (sp) {
+          if (staged && curStage < sp.showAt) return;
+          /* Outer glow */
+          gCtx.fillStyle = hexToRGBA(sp.color, 0.28);
+          gCtx.beginPath();
+          gCtx.arc(sp.x, sp.y, 12, 0, Math.PI * 2);
+          gCtx.fill();
+          /* Point */
+          gCtx.fillStyle = sp.color;
+          gCtx.beginPath();
+          gCtx.arc(sp.x, sp.y, 7, 0, Math.PI * 2);
+          gCtx.fill();
+          /* Number */
+          gCtx.fillStyle = '#0a0e14';
+          gCtx.font = 'bold 10px sans-serif';
+          gCtx.textAlign = 'center';
+          gCtx.textBaseline = 'middle';
+          gCtx.fillText(sp.n, sp.x, sp.y);
+          gCtx.textBaseline = 'alphabetic';
+          /* Info label with dark background pill */
+          var lx = sp.x + sp.lx;
+          var ly = sp.y + sp.ly;
+          gCtx.textAlign = 'left';
+          var phImp = state.units === 'IMP';
+          var tLbl = phImp ? ('T' + sp.n + ' = ' + toF(sp.T) + '\u00b0F') : ('T' + sp.n + ' = ' + roundN(sp.T, 1) + '\u00b0C');
+          var hLbl = phImp ? ('h' + sp.n + ' = ' + roundN(sp.h * 0.42992, 1) + ' BTU/lb') : ('h' + sp.n + ' = ' + roundN(sp.h, 0) + ' kJ/kg');
+          phLabel(tLbl, lx, ly,      sp.color, 'bold 10px sans-serif');
+          phLabel(hLbl, lx, ly + 15, sp.color, '10px sans-serif');
+        });
+      }
+
+      /* Energy labels with dark pill background — continuous mode only */
+      if (!staged && state.phEnergyLabels) {
+        var phImp2 = state.units === 'IMP';
+        gCtx.textAlign = 'center';
+        /* q_evap — placed inside cycle (above evaporation line) */
+        var qeL = phImp2 ? ('q_evap = ' + roundN(c.qEvap * 0.42992, 1) + ' BTU/lb') : ('q_evap = ' + roundN(c.qEvap, 1) + ' kJ/kg');
+        phLabel(qeL, (s4x + s1x) / 2 - gCtx.measureText(qeL).width / 2, s1y - 22, '#42a5f5', 'bold 11px sans-serif');
+        /* q_cond */
+        var qcL = phImp2 ? ('q_cond = ' + roundN(c.qCond * 0.42992, 1) + ' BTU/lb') : ('q_cond = ' + roundN(c.qCond, 1) + ' kJ/kg');
+        phLabel(qcL, (s3x + s2x) / 2 - gCtx.measureText(qcL).width / 2, s2y - 16, '#ffca28', 'bold 11px sans-serif');
+        /* w_comp — placed to the left of the compression curve midpoint */
+        var wcMidX = s1x + (s2x - s1x) * 0.25 - 10;
+        var wcMidY = s1y + (s2y - s1y) * 0.5;
+        gCtx.textAlign = 'right';
+        var wcL = phImp2 ? ('w_comp = ' + roundN(c.wComp * 0.42992, 1) + ' BTU/lb') : ('w_comp = ' + roundN(c.wComp, 1) + ' kJ/kg');
+        phLabel(wcL, wcMidX - gCtx.measureText(wcL).width, wcMidY, '#ff5252', 'bold 11px sans-serif');
+      }
+    }
+
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S12b  PRESETS
+     ═══════════════════════════════════════════════════════════════ */
+  var PRESETS = {
+    fridge:   { Tevap: -15, Tcond: 35, subcool: 5, superheat: 10, eta: 80, cap: 0.5 },
+    ac:       { Tevap:  -5, Tcond: 40, subcool: 5, superheat: 10, eta: 80, cap: 1.5 },
+    heatpump: { Tevap:   0, Tcond: 45, subcool: 5, superheat: 10, eta: 80, cap: 2.0 },
+    freezer:  { Tevap: -30, Tcond: 40, subcool: 5, superheat: 10, eta: 75, cap: 0.8 }
+  };
+
+  function applyPreset(key) {
+    var p = PRESETS[key];
+    if (!p) return;
+    state.Tevap = p.Tevap; state.Tcond = p.Tcond;
+    state.subcool = p.subcool; state.superheat = p.superheat;
+    state.etaComp = p.eta; state.Qcap = p.cap;
+    /* Sync range sliders */
+    if (state.tempMode === 'evap') { if (elTempComboSlider) elTempComboSlider.value = p.Tevap; if (elTempComboNum) elTempComboNum.value = p.Tevap; }
+    if (state.tempMode === 'cond') { if (elTempComboSlider) elTempComboSlider.value = p.Tcond; if (elTempComboNum) elTempComboNum.value = p.Tcond; }
+    elSubcoolSlider.value = p.subcool; elSuperheatSlider.value = p.superheat;
+    elCapSlider.value = p.cap;
+    if (elEtaCompSlider) elEtaCompSlider.value = p.eta;
+    if (elEtaCompNum)    elEtaCompNum.value    = p.eta;
+    /* Sync value labels */
+    elSubcoolVal.textContent = p.subcool + ' K';
+    elSuperheatVal.textContent = p.superheat + ' K';
+    elCapVal.textContent = p.cap + ' kW';
+    /* Sync companion number inputs */
+    if (elSubcoolNum) elSubcoolNum.value = p.subcool;
+    if (elSuperheatNum) elSuperheatNum.value = p.superheat;
+    if (elCapNum) elCapNum.value = p.cap;
+    state.Tspace = state.Tevap + state.approachEvap;
+    state.Tamb   = state.Tcond - state.approachCond;
+    syncSliderUnits();
+    updateTempDisplay();
+    recalcCycle(); displayResults();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S12c  UNIT CONVERSION
+     ═══════════════════════════════════════════════════════════════ */
+  function toF(c)   { return roundN(c * 9 / 5 + 32, 1); }
+  function toPsi(kPa)  { return roundN(kPa * 0.14504, 1); }
+  function toBtuHr(kW) { return roundN(kW * 3412.14, 0); }
+  function toLbMin(kgs){ return roundN(kgs * 132.277, 4); }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S12d  EXPORT / COPY
+     ═══════════════════════════════════════════════════════════════ */
+  function exportCSV() {
+    var c = state.cycle;
+    if (!c) { alert('Run the simulation first to generate data.'); return; }
+    var ref = c.ref;
+    var rows = [
+      ['Parameter', 'Value', 'Unit'],
+      ['Refrigerant', ref.name, ''],
+      ['Evaporator Temperature', c.Tevap, '\u00b0C'],
+      ['Condenser Temperature', c.Tcond, '\u00b0C'],
+      ['Superheat', c.superheat, 'K'],
+      ['Subcooling', c.subcool, 'K'],
+      ['Compressor Efficiency', c.etaComp, '%'],
+      ['Cooling Capacity Input', c.Qcap, 'kW'],
+      ['', '', ''],
+      ['State Point', 'Temperature (\u00b0C)', 'Pressure (kPa)', 'Enthalpy (kJ/kg)'],
+      ['Point 1 (Evap Exit)', roundN(c.T1,1), roundN(c.P1,0), roundN(c.h1,1)],
+      ['Point 2 (Comp Exit)', roundN(c.T2,1), roundN(c.P2,0), roundN(c.h2,1)],
+      ['Point 3 (Cond Exit)', roundN(c.T3,1), roundN(c.P3,0), roundN(c.h3,1)],
+      ['Point 4 (Exp Exit)',  roundN(c.T4,1), roundN(c.P4,0), roundN(c.h4,1)],
+      ['', '', '', ''],
+      ['Performance', 'Value', 'Unit', ''],
+      ['COP', roundN(c.COP,3), '', ''],
+      ['Mass Flow Rate', roundN(c.mDot,5), 'kg/s', ''],
+      ['Compressor Power', roundN(c.Wdot,3), 'kW', ''],
+      ['Heat Rejected', roundN(c.Qrej,3), 'kW', ''],
+      ['Pressure Ratio', roundN(c.PR,2), '', ''],
+      ['Quality at x4', roundN(c.x4*100,1), '%', ''],
+      ['Discharge Temperature', roundN(c.T2,1), '\u00b0C', '']
+    ];
+    var csv = rows.map(function(r){ return r.join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'refrigeration-cycle-' + ref.id + '.csv';
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  function exportPNG() {
+    fitGraphCanvas();
+    var url = gCanvas.toDataURL('image/png');
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'ph-diagram-' + REFRIGERANTS[state.refIdx].id + '.png';
+    a.click();
+  }
+
+  function copyValues() {
+    var c = state.cycle;
+    if (!c) { alert('Run the simulation first.'); return; }
+    var txt = [
+      'Refrigeration Cycle \u2014 ' + c.ref.name,
+      'Point 1: T=' + roundN(c.T1,1) + '\u00b0C  P=' + roundN(c.P1,0) + ' kPa  h=' + roundN(c.h1,1) + ' kJ/kg',
+      'Point 2: T=' + roundN(c.T2,1) + '\u00b0C  P=' + roundN(c.P2,0) + ' kPa  h=' + roundN(c.h2,1) + ' kJ/kg',
+      'Point 3: T=' + roundN(c.T3,1) + '\u00b0C  P=' + roundN(c.P3,0) + ' kPa  h=' + roundN(c.h3,1) + ' kJ/kg',
+      'Point 4: T=' + roundN(c.T4,1) + '\u00b0C  P=' + roundN(c.P4,0) + ' kPa  h=' + roundN(c.h4,1) + ' kJ/kg',
+      'COP=' + roundN(c.COP,2) + '  W_comp=' + roundN(c.Wdot,2) + ' kW  Q_evap=' + roundN(c.Qcap,2) + ' kW'
+    ].join('\n');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(txt).catch(function() { prompt('Copy:', txt); });
+    } else {
+      prompt('Copy:', txt);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S13  ANIMATION ENGINE
+     ═══════════════════════════════════════════════════════════════ */
+  var animRAF = null;
+  var lastFrameTime = 0;
+
+  function updateStartBtn() {
+    if (!elBtnStart) return;
+    if (state.running) {
+      elBtnStart.innerHTML = '&#10074;&#10074; Pause';
+      elBtnStart.classList.add('btn-paused');
+    } else {
+      elBtnStart.innerHTML = '&#9654; Start';
+      elBtnStart.classList.remove('btn-paused');
+    }
+  }
+
+  function startCycle() {
+    recalcCycle();
+    state.running = true;
+    state.paused = false;
+    state.animTime = 0;
+    state.cycleStage = 1;
+    state.stageTimer = 0;
+    initStagedParticles(1);
+    if (!animRAF) {
+      lastFrameTime = performance.now();
+      animLoop();
+    }
+    updateStartBtn();
+    displayResults();
+  }
+
+  function pauseCycle() {
+    state.running = false;
+    state.paused = true;
+    if (animRAF) {
+      cancelAnimationFrame(animRAF);
+      animRAF = null;
+    }
+    updateStartBtn();
+    drawMachine();
+    drawPHDiagram();
+  }
+
+  function resumeCycle() {
+    if (state.cycleStage === 0) { startCycle(); return; }
+    state.running = true;
+    state.paused = false;
+    if (!animRAF) {
+      lastFrameTime = performance.now();
+      animLoop();
+    }
+    updateStartBtn();
+  }
+
+  function stopCycle() {
+    state.running = false;
+    if (animRAF) {
+      cancelAnimationFrame(animRAF);
+      animRAF = null;
+    }
+    drawMachine();
+    drawPHDiagram();
+  }
+
+  function recalcCycle() {
+    state.cycle = calculateCycle(
+      state.refIdx, state.Tevap, state.Tcond,
+      state.superheat, state.subcool,
+      state.etaComp, state.Qcap
+    );
+    if (state.cycle) {
+      state.cycle.Tspace = state.Tevap + state.approachEvap;
+      state.cycle.Tamb   = state.Tcond - state.approachCond;
+      /* Compressor displacement: actual vol flow / eta_vol → L/min */
+      state.cycle.V_disp = state.cycle.Vdot / (state.etaVol / 100) * 1000 * 60;
+    }
+  }
+
+  function animLoop() {
+    var now = performance.now();
+    var dt = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+    dt = Math.min(dt, 0.05);
+
+    state.animTime += dt * state.animSpeed;
+
+    /* Stage advancement: each stage runs for STAGE_DUR / animSpeed seconds */
+    if (state.cycleStage >= 1 && state.cycleStage <= 4) {
+      state.stageTimer += dt;
+      var stageDurEff = STAGE_DUR / state.animSpeed;
+      if (state.stageTimer >= stageDurEff) {
+        state.stageTimer = 0;
+        state.cycleStage++;
+        if (state.cycleStage > 4) {
+          /* All 4 stages done — run continuous cycle, full P-h shown */
+          state.cycleStage = 5;
+          initParticles();
+        } else {
+          initStagedParticles(state.cycleStage);
+        }
+      }
+    }
+
+    updateParticles();
+    drawMachine();
+    drawPHDiagram();
+
+    if (state.running) {
+      animRAF = requestAnimationFrame(animLoop);
+    } else {
+      animRAF = null;
+    }
+  }
+
+  function resetSim() {
+    stopCycle();
+    state.cycle = null;
+    state.running = false;
+    state.paused = false;
+    state.animTime = 0;
+    state.cycleStage = 0;
+    state.stageTimer = 0;
+    state.particles = [];
+    hide(elReadoutGrid);
+    updateStartBtn();
+    drawMachine();
+    drawPHDiagram();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S14  RESULTS DISPLAY
+     ═══════════════════════════════════════════════════════════════ */
+  function updateTempDisplay() {
+    var imp = state.units === 'IMP';
+    var fmtT = function (tc) {
+      return imp ? (roundN(tc * 9 / 5 + 32, 1) + ' °F') : (roundN(tc, 1) + ' °C');
+    };
+    var lbl = $('temp-derived-label'), val = $('temp-derived-val');
+    if (state.tempMode === 'evap') {
+      if (lbl) lbl.textContent = 'Space Temp:';
+      if (val) val.textContent = fmtT(state.Tspace);
+    } else {
+      if (lbl) lbl.textContent = 'Outdoor Temp:';
+      if (val) val.textContent = fmtT(state.Tamb);
+    }
+  }
+
+  function syncSliderUnits() {
+    var imp = state.units === 'IMP';
+    /* Temperature (Evap/Cond) */
+    var tBadge = $('temp-combo-unit');
+    if (tBadge) tBadge.textContent = imp ? '\u00b0F' : '\u00b0C';
+    var tCfg = imp
+      ? { evap: { min: -22, max: 50, step: 1 }, cond: { min: 77, max: 131, step: 1 } }
+      : { evap: { min: -30, max: 10, step: 1 }, cond: { min:  25, max:  55, step: 1 } };
+    TEMP_CFG.evap.min = tCfg.evap.min; TEMP_CFG.evap.max = tCfg.evap.max;
+    TEMP_CFG.cond.min = tCfg.cond.min; TEMP_CFG.cond.max = tCfg.cond.max;
+    var tMode = state.tempMode;
+    var tSI   = state[TEMP_CFG[tMode].key];
+    var tDisp = imp ? roundN(tSI * 9 / 5 + 32, 0) : tSI;
+    var tCurr = tCfg[tMode];
+    if (elTempComboSlider) { elTempComboSlider.min = tCurr.min; elTempComboSlider.max = tCurr.max; elTempComboSlider.step = tCurr.step; elTempComboSlider.value = tDisp; }
+    if (elTempComboNum)    { elTempComboNum.min    = tCurr.min; elTempComboNum.max    = tCurr.max; elTempComboNum.step    = tCurr.step; elTempComboNum.value    = tDisp; }
+    /* Subcooling K → R */
+    var scDisp = imp ? roundN(state.subcool * 1.8, 0) : roundN(state.subcool, 1);
+    var scMax  = imp ? 27 : 15; var scStep = imp ? 1 : 1;
+    if (elSubcoolSlider) { elSubcoolSlider.min = 0; elSubcoolSlider.max = scMax; elSubcoolSlider.step = scStep; elSubcoolSlider.value = scDisp; }
+    if (elSubcoolNum)    { elSubcoolNum.min    = 0; elSubcoolNum.max    = scMax; elSubcoolNum.step    = scStep; elSubcoolNum.value    = scDisp; }
+    var scBadge = $('subcool-unit');  if (scBadge)  scBadge.textContent  = imp ? 'R' : 'K';
+    /* Superheat K → R */
+    var shDisp = imp ? roundN(state.superheat * 1.8, 0) : roundN(state.superheat, 1);
+    var shMax  = imp ? 36 : 20; var shStep = imp ? 1 : 1;
+    if (elSuperheatSlider) { elSuperheatSlider.min = 0; elSuperheatSlider.max = shMax; elSuperheatSlider.step = shStep; elSuperheatSlider.value = shDisp; }
+    if (elSuperheatNum)    { elSuperheatNum.min    = 0; elSuperheatNum.max    = shMax; elSuperheatNum.step    = shStep; elSuperheatNum.value    = shDisp; }
+    var shBadge = $('superheat-unit'); if (shBadge) shBadge.textContent  = imp ? 'R' : 'K';
+    /* Cooling Capacity kW → BTU/hr */
+    var capDisp = imp ? Math.round(state.Qcap * 3412.14 / 100) * 100 : roundN(state.Qcap, 1);
+    var capMin  = imp ? 1700  : 0.5;
+    var capMax  = imp ? 17100 : 5.0;
+    var capStp  = imp ? 100   : 0.1;
+    if (elCapSlider) { elCapSlider.min = capMin; elCapSlider.max = capMax; elCapSlider.step = capStp; elCapSlider.value = capDisp; }
+    if (elCapNum)    { elCapNum.min    = capMin; elCapNum.max    = capMax; elCapNum.step    = capStp; elCapNum.value    = capDisp; }
+    var capBadge = $('cap-unit');      if (capBadge)  capBadge.textContent  = imp ? 'BTU/hr' : 'kW';
+    /* Efficiency stays % — no conversion needed */
+  }
+
+  function displayResults() {
+    if (!state.cycle) return;
+    var c = state.cycle;
+    var imp = state.units === 'IMP';
+    show(elReadoutGrid);
+    /* Readout cards */
+    $('res-cop').textContent = roundN(c.COP, 2);
+    if (imp) {
+      $('res-capacity').textContent = toBtuHr(c.Qcap);
+      $('res-power').textContent    = toBtuHr(c.Wdot);
+      $('res-rejected').textContent = toBtuHr(c.Qrej);
+      $('res-massflow').textContent = toLbMin(c.mDot);
+      $('res-discharge').textContent= toF(c.T2);
+    } else {
+      $('res-capacity').textContent = roundN(c.Qcap, 2);
+      $('res-power').textContent    = roundN(c.Wdot, 2);
+      $('res-rejected').textContent = roundN(c.Qrej, 2);
+      $('res-massflow').textContent = roundN(c.mDot, 4);
+      $('res-discharge').textContent= roundN(c.T2, 1);
+    }
+    $('res-pr').textContent      = roundN(c.PR, 2);
+    $('res-quality').textContent = roundN(c.x4 * 100, 1);
+    /* V_disp is L/min internally; Imperial compressors are rated in CFM. */
+    var resVdisp = $('res-vdisp');
+    if (resVdisp) resVdisp.textContent = roundN(imp ? c.V_disp * 0.0353147 : c.V_disp, imp ? 3 : 1);
+    /* Readout unit labels */
+    var powerUnit = imp ? 'BTU/hr' : 'kW';
+    var massUnit  = imp ? 'lb/min' : 'kg/s';
+    var tempUnit  = imp ? '\u00b0F' : '\u00b0C';
+    var capCards  = elReadoutGrid.querySelectorAll('.readout-unit');
+    /* cards: COP, Cooling Cap, Comp Power, Heat Rejected, Mass Flow, PR, Quality, Discharge */
+    if (capCards.length >= 8) {
+      capCards[1].textContent = powerUnit;
+      capCards[2].textContent = powerUnit;
+      capCards[3].textContent = powerUnit;
+      capCards[4].textContent = massUnit;
+      capCards[7].textContent = tempUnit;
+    }
+    if (capCards.length >= 9) capCards[8].textContent = imp ? 'CFM' : 'L/min';
+    /* P-h diagram badges */
+    var bdCop = $('badge-cop'); if (bdCop) bdCop.textContent = roundN(c.COP, 2);
+    var bdQe  = $('badge-qe');  if (bdQe)  bdQe.textContent  = imp ? toBtuHr(c.Qcap) : roundN(c.Qcap,2);
+    var bdQc  = $('badge-qc');  if (bdQc)  bdQc.textContent  = imp ? toBtuHr(c.Qrej) : roundN(c.Qrej,2);
+    var bdWc  = $('badge-wcomp'); if (bdWc) bdWc.textContent = imp ? toBtuHr(c.Wdot) : roundN(c.Wdot,2);
+    /* Badge unit spans */
+    var energyUnit = imp ? 'BTU/hr' : 'kW';
+    var buQe = $('badge-qe-unit');   if (buQe)  buQe.textContent  = energyUnit;
+    var buQc = $('badge-qc-unit');   if (buQc)  buQc.textContent  = energyUnit;
+    var buWc = $('badge-wcomp-unit');if (buWc)  buWc.textContent  = energyUnit;
+    /* Slider unit badges */
+    var tempUnit2 = imp ? '\u00b0F' : '\u00b0C';
+    var dTUnit    = imp ? 'R' : 'K';
+    var capUnit   = imp ? 'BTU/hr' : 'kW';
+    var su;
+    su = $('temp-combo-unit'); if (su) su.textContent = tempUnit2;
+    su = $('subcool-unit');  if (su) su.textContent = dTUnit;
+    su = $('superheat-unit');if (su) su.textContent = dTUnit;
+    su = $('cap-unit');      if (su) su.textContent = capUnit;
+    /* Redraw canvases when not animating (animation loop handles it otherwise) */
+    if (!state.running) { drawMachine(); drawPHDiagram(); }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S15  MODE SWITCHING
+     ═══════════════════════════════════════════════════════════════ */
+  function setMode(m) {
+    state.mode = m;
+    hide(elSimWrapper); hide(elExploreWrapper); hide(elPracticeWrapper); hide(elQuizWrapper);
+    switch (m) {
+      case 'simulate': show(elSimWrapper); drawMachine(); drawPHDiagram(); break;
+      case 'explore':  show(elExploreWrapper); buildExploreUI(); break;
+      case 'practice': show(elPracticeWrapper); if (!state.pProb) newPractice(); break;
+      case 'quiz':     show(elQuizWrapper); if (state.qSet.length === 0) startQuiz(); break;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S16  EXPLORE MODE (12 concepts, 4 categories)
+     ═══════════════════════════════════════════════════════════════ */
+  var EXP_CATS = ['Components', 'Thermodynamics', 'Refrigerants', 'Applications'];
+
+  function buildExploreUI() {
+    elExploreCats.innerHTML = '';
+    EXP_CATS.forEach(function (cat) {
+      var btn = document.createElement('button');
+      btn.className = 'pill' + (cat === state.expCat ? ' active' : '');
+      btn.textContent = cat;
+      btn.addEventListener('click', function () {
+        state.expCat = cat;
+        elExploreCats.querySelectorAll('.pill').forEach(function (p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        buildExploreGrid();
+      });
+      elExploreCats.appendChild(btn);
+    });
+    buildExploreGrid();
+  }
+
+  function buildExploreGrid() {
+    elExploreGrid.innerHTML = '';
+    var filtered = CONCEPTS.filter(function (c) { return c.cat === state.expCat; });
+    filtered.forEach(function (c, i) {
+      var btn = document.createElement('button');
+      btn.className = 'explore-btn' + (i === 0 ? ' active' : '');
+      btn.textContent = c.name;
+      btn.addEventListener('click', function () {
+        elExploreGrid.querySelectorAll('.explore-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        selectConcept(c);
+      });
+      elExploreGrid.appendChild(btn);
+    });
+    if (filtered.length > 0) selectConcept(filtered[0]);
+  }
+
+  function selectConcept(concept) {
+    state.expIdx = CONCEPTS.indexOf(concept);
+    elExploreInfo.innerHTML = '';
+    var h = document.createElement('h3');
+    h.textContent = concept.name;
+    if (concept.symbol) h.textContent += ' (' + concept.symbol + ')';
+    elExploreInfo.appendChild(h);
+
+    var p = document.createElement('p');
+    p.textContent = concept.desc;
+    elExploreInfo.appendChild(p);
+
+    if (concept.formula) {
+      var fb = document.createElement('div');
+      fb.className = 'formula-box';
+      fb.textContent = concept.formula;
+      elExploreInfo.appendChild(fb);
+    }
+
+    if (concept.example) {
+      var eb = document.createElement('div');
+      eb.className = 'example-box';
+      eb.innerHTML = '<strong>Example: </strong>' + concept.example.problem + '<br>';
+      concept.example.steps.forEach(function (s) {
+        eb.innerHTML += '\u2022 ' + s + '<br>';
+      });
+      elExploreInfo.appendChild(eb);
+    }
+
+    drawExploreDiagram(concept);
+  }
+
+  function drawExploreDiagram(concept) {
+    eCtx.clearRect(0, 0, EW, EH);
+    eCtx.fillStyle = '#0a0e14';
+    eCtx.fillRect(0, 0, EW, EH);
+
+    switch (concept.id) {
+      case 'compressor-types':  drawExploreCompressor(); break;
+      case 'condenser':         drawExploreCondenser(); break;
+      case 'expansion-device':  drawExploreExpansion(); break;
+      case 'evaporator':        drawExploreEvaporator(); break;
+      case 'vcc-cycle':         drawExploreVCC(); break;
+      case 'ph-diagram':        drawExplorePH(); break;
+      case 'cop-efficiency':    drawExploreCOP(); break;
+      case 'ref-properties':    drawExploreRefProps(); break;
+      case 'env-impact':        drawExploreEnvImpact(); break;
+      case 'ref-selection':     drawExploreRefSelect(); break;
+      case 'air-conditioning':  drawExploreAC(); break;
+      case 'heat-pump':         drawExploreHeatPump(); break;
+    }
+
+    /* Title bar */
+    eCtx.fillStyle = 'rgba(0,151,167,0.15)';
+    eCtx.fillRect(0, EH - 30, EW, 30);
+    eCtx.fillStyle = '#4dd0e1';
+    eCtx.font = 'bold 11px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText(concept.name, EW / 2, EH - 10);
+  }
+
+  function drawExploreCompressor() {
+    var cx = EW / 2, cy = 190;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Compressor Types in Refrigeration Systems', cx, 25);
+
+    /* Draw 4 compressor types side by side */
+    var types = [
+      { name: 'Reciprocating', x: 130, desc: 'Piston + cylinder' },
+      { name: 'Scroll', x: 330, desc: 'Two spirals' },
+      { name: 'Rotary', x: 530, desc: 'Rolling piston' },
+      { name: 'Screw', x: 730, desc: 'Helical rotors' }
+    ];
+
+    types.forEach(function (t) {
+      /* Housing */
+      eCtx.fillStyle = '#37474f';
+      eCtx.beginPath();
+      eCtx.arc(t.x, cy, 50, 0, Math.PI * 2);
+      eCtx.fill();
+      eCtx.strokeStyle = '#607d8b';
+      eCtx.lineWidth = 2;
+      eCtx.stroke();
+
+      /* Internal mechanism (simplified) */
+      if (t.name === 'Reciprocating') {
+        eCtx.fillStyle = '#78909c';
+        eCtx.fillRect(t.x - 12, cy - 30, 24, 35);
+        eCtx.fillStyle = '#90a4ae';
+        eCtx.fillRect(t.x - 10, cy - 10, 20, 8);
+        eCtx.strokeStyle = '#0097a7';
+        eCtx.lineWidth = 2;
+        eCtx.beginPath();
+        eCtx.moveTo(t.x, cy - 2);
+        eCtx.lineTo(t.x, cy + 20);
+        eCtx.stroke();
+        eCtx.beginPath();
+        eCtx.arc(t.x, cy + 25, 8, 0, Math.PI * 2);
+        eCtx.stroke();
+      } else if (t.name === 'Scroll') {
+        eCtx.strokeStyle = '#0097a7';
+        eCtx.lineWidth = 2;
+        eCtx.beginPath();
+        eCtx.arc(t.x, cy, 25, 0, Math.PI * 1.5);
+        eCtx.stroke();
+        eCtx.beginPath();
+        eCtx.arc(t.x + 5, cy + 5, 20, Math.PI, Math.PI * 2.5);
+        eCtx.stroke();
+      } else if (t.name === 'Rotary') {
+        eCtx.strokeStyle = '#607d8b';
+        eCtx.lineWidth = 1.5;
+        eCtx.beginPath();
+        eCtx.arc(t.x, cy, 30, 0, Math.PI * 2);
+        eCtx.stroke();
+        eCtx.fillStyle = '#0097a7';
+        eCtx.beginPath();
+        eCtx.arc(t.x + 8, cy, 15, 0, Math.PI * 2);
+        eCtx.fill();
+        eCtx.fillStyle = '#263238';
+        eCtx.fillRect(t.x + 20, cy - 3, 12, 6);
+      } else {
+        eCtx.strokeStyle = '#0097a7';
+        eCtx.lineWidth = 2;
+        for (var s = 0; s < 3; s++) {
+          eCtx.beginPath();
+          eCtx.moveTo(t.x - 25 + s * 5, cy - 25);
+          eCtx.bezierCurveTo(t.x + 10 + s * 3, cy - 10, t.x - 10 + s * 3, cy + 10, t.x + 25 - s * 5, cy + 25);
+          eCtx.stroke();
+        }
+      }
+
+      /* Label */
+      eCtx.fillStyle = '#0097a7';
+      eCtx.font = 'bold 10px sans-serif';
+      eCtx.fillText(t.name, t.x, cy + 70);
+      eCtx.fillStyle = '#6b7a99';
+      eCtx.font = '8px sans-serif';
+      eCtx.fillText(t.desc, t.x, cy + 82);
+    });
+
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 12px monospace';
+    eCtx.fillText('W_comp = m_dot \u00d7 (h2 - h1)', cx, 50);
+  }
+
+  function drawExploreCondenser() {
+    var cx = EW / 2, cy = 200;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Condenser Types: Heat Rejection to Environment', cx, 25);
+
+    /* Air-cooled condenser */
+    var acx = 200, acy = cy;
+    eCtx.fillStyle = '#5d4037';
+    eCtx.fillRect(acx - 60, acy - 40, 120, 80);
+    eCtx.strokeStyle = '#8d6e63';
+    eCtx.lineWidth = 1;
+    eCtx.strokeRect(acx - 60, acy - 40, 120, 80);
+    for (var i = 0; i < 6; i++) {
+      eCtx.strokeStyle = '#ffab40';
+      eCtx.lineWidth = 1.5;
+      eCtx.beginPath();
+      eCtx.moveTo(acx - 50, acy - 30 + i * 12);
+      eCtx.lineTo(acx + 50, acy - 30 + i * 12);
+      eCtx.stroke();
+    }
+    /* Fan */
+    eCtx.strokeStyle = '#90a4ae';
+    eCtx.lineWidth = 1;
+    eCtx.beginPath();
+    eCtx.arc(acx, acy - 55, 15, 0, Math.PI * 2);
+    eCtx.stroke();
+    /* Arrows */
+    eCtx.strokeStyle = '#ff5252';
+    eCtx.lineWidth = 1;
+    for (var a = -1; a <= 1; a++) {
+      eCtx.beginPath();
+      eCtx.moveTo(acx + a * 20, acy - 75);
+      eCtx.lineTo(acx + a * 20, acy - 85);
+      eCtx.stroke();
+    }
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Air-Cooled', acx, acy + 58);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Most common', acx, acy + 70);
+    eCtx.fillText('residential', acx, acy + 80);
+
+    /* Water-cooled */
+    var wcx = 450, wcy = cy;
+    eCtx.fillStyle = '#37474f';
+    eCtx.fillRect(wcx - 50, wcy - 40, 100, 80);
+    eCtx.strokeStyle = '#607d8b';
+    eCtx.strokeRect(wcx - 50, wcy - 40, 100, 80);
+    /* Shell and tube representation */
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.lineWidth = 2;
+    eCtx.beginPath();
+    eCtx.moveTo(wcx - 40, wcy - 20);
+    eCtx.lineTo(wcx + 40, wcy - 20);
+    eCtx.lineTo(wcx + 40, wcy + 20);
+    eCtx.lineTo(wcx - 40, wcy + 20);
+    eCtx.stroke();
+    eCtx.strokeStyle = '#ffab40';
+    eCtx.lineWidth = 1;
+    for (var ti = 0; ti < 4; ti++) {
+      eCtx.beginPath();
+      eCtx.moveTo(wcx - 35, wcy - 12 + ti * 8);
+      eCtx.lineTo(wcx + 35, wcy - 12 + ti * 8);
+      eCtx.stroke();
+    }
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Water-Cooled', wcx, wcy + 58);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Shell & tube', wcx, wcy + 70);
+    eCtx.fillText('higher efficiency', wcx, wcy + 80);
+
+    /* Evaporative */
+    var ecx = 700, ecy = cy;
+    eCtx.fillStyle = '#4e342e';
+    eCtx.fillRect(ecx - 50, ecy - 40, 100, 80);
+    eCtx.strokeStyle = '#8d6e63';
+    eCtx.strokeRect(ecx - 50, ecy - 40, 100, 80);
+    /* Water spray dots */
+    eCtx.fillStyle = 'rgba(66,165,245,0.5)';
+    for (var d = 0; d < 10; d++) {
+      eCtx.beginPath();
+      eCtx.arc(ecx - 30 + d * 7, ecy - 25 + (d % 3) * 20, 2, 0, Math.PI * 2);
+      eCtx.fill();
+    }
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Evaporative', ecx, ecy + 58);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Air + Water', ecx, ecy + 70);
+    eCtx.fillText('spray cooling', ecx, ecy + 80);
+
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 12px monospace';
+    eCtx.fillText('Q_cond = m_dot \u00d7 (h2 - h3)', cx, 50);
+  }
+
+  function drawExploreExpansion() {
+    var cx = EW / 2, cy = 180;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Expansion Devices: Throttling from P_high to P_low', cx, 25);
+
+    /* TEV */
+    var tx = 200, ty = cy;
+    eCtx.fillStyle = '#455a64';
+    eCtx.beginPath();
+    eCtx.moveTo(tx - 30, ty - 20); eCtx.lineTo(tx, ty); eCtx.lineTo(tx - 30, ty + 20); eCtx.closePath(); eCtx.fill();
+    eCtx.beginPath();
+    eCtx.moveTo(tx + 30, ty - 20); eCtx.lineTo(tx, ty); eCtx.lineTo(tx + 30, ty + 20); eCtx.closePath(); eCtx.fill();
+    eCtx.fillStyle = '#607d8b';
+    eCtx.beginPath(); eCtx.arc(tx, ty - 35, 10, 0, Math.PI * 2); eCtx.fill();
+    eCtx.strokeStyle = '#78909c';
+    eCtx.lineWidth = 1;
+    eCtx.stroke();
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('TEV', tx, ty + 45);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Sensing bulb', tx, ty + 57);
+    eCtx.fillText('controls superheat', tx, ty + 67);
+
+    /* Capillary tube */
+    var capx = 450, capy = cy;
+    eCtx.strokeStyle = '#0097a7';
+    eCtx.lineWidth = 2;
+    eCtx.beginPath();
+    eCtx.moveTo(capx - 50, capy);
+    for (var w = 0; w < 8; w++) {
+      eCtx.lineTo(capx - 40 + w * 12, capy + (w % 2 === 0 ? -15 : 15));
+    }
+    eCtx.lineTo(capx + 50, capy);
+    eCtx.stroke();
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Capillary Tube', capx, capy + 45);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Fixed restriction', capx, capy + 57);
+    eCtx.fillText('simple, low cost', capx, capy + 67);
+
+    /* EEV */
+    var ex = 700, ey = cy;
+    eCtx.fillStyle = '#455a64';
+    eCtx.fillRect(ex - 25, ey - 25, 50, 50);
+    eCtx.strokeStyle = '#0097a7';
+    eCtx.lineWidth = 1.5;
+    eCtx.strokeRect(ex - 25, ey - 25, 50, 50);
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = '8px monospace';
+    eCtx.fillText('EEV', ex, ey + 3);
+    eCtx.fillStyle = '#607d8b';
+    eCtx.beginPath();
+    eCtx.arc(ex, ey - 35, 6, 0, Math.PI * 2);
+    eCtx.fill();
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Electronic EV', ex, ey + 45);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Stepper motor', ex, ey + 57);
+    eCtx.fillText('precise control', ex, ey + 67);
+
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 12px monospace';
+    eCtx.fillText('h3 = h4 (isenthalpic expansion)', cx, 50);
+  }
+
+  function drawExploreEvaporator() {
+    var cx = EW / 2, cy = 180;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Evaporator Types: Heat Absorption from Cooled Space', cx, 25);
+
+    /* DX Coil */
+    var dx = 200, dy = cy;
+    eCtx.fillStyle = '#1a237e';
+    eCtx.fillRect(dx - 55, dy - 35, 110, 70);
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.lineWidth = 1.5;
+    eCtx.strokeRect(dx - 55, dy - 35, 110, 70);
+    for (var i = 0; i < 5; i++) {
+      eCtx.strokeStyle = '#42a5f5';
+      eCtx.lineWidth = 1.5;
+      eCtx.beginPath();
+      eCtx.moveTo(dx - 45, dy - 22 + i * 11);
+      eCtx.lineTo(dx + 45, dy - 22 + i * 11);
+      eCtx.stroke();
+    }
+    /* Air flow arrows */
+    eCtx.strokeStyle = '#90a4ae';
+    eCtx.lineWidth = 1;
+    for (var a = -1; a <= 1; a++) {
+      eCtx.beginPath();
+      eCtx.moveTo(dx + a * 20, dy + 40);
+      eCtx.lineTo(dx + a * 20, dy + 55);
+      eCtx.stroke();
+    }
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('DX Coil', dx, dy + 55);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Direct expansion', dx, dy + 67);
+    eCtx.fillText('most common type', dx, dy + 77);
+
+    /* Flooded evaporator */
+    var fx = 450, fy = cy;
+    eCtx.fillStyle = '#0d47a1';
+    eCtx.fillRect(fx - 50, fy - 30, 100, 60);
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.strokeRect(fx - 50, fy - 30, 100, 60);
+    eCtx.fillStyle = 'rgba(66,165,245,0.3)';
+    eCtx.fillRect(fx - 48, fy - 5, 96, 33);
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Flooded', fx, fy + 55);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Tubes submerged', fx, fy + 67);
+    eCtx.fillText('in liquid ref.', fx, fy + 77);
+
+    /* Shell and tube */
+    var sx = 700, sy = cy;
+    eCtx.strokeStyle = '#607d8b';
+    eCtx.lineWidth = 2;
+    eCtx.beginPath();
+    eCtx.ellipse(sx, sy, 50, 30, 0, 0, Math.PI * 2);
+    eCtx.stroke();
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.lineWidth = 1;
+    for (var ti = 0; ti < 3; ti++) {
+      eCtx.beginPath();
+      eCtx.moveTo(sx - 40, sy - 10 + ti * 10);
+      eCtx.lineTo(sx + 40, sy - 10 + ti * 10);
+      eCtx.stroke();
+    }
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 9px sans-serif';
+    eCtx.fillText('Shell & Tube', sx, sy + 55);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Water chilling', sx, sy + 67);
+    eCtx.fillText('applications', sx, sy + 77);
+
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 12px monospace';
+    eCtx.fillText('Q_evap = m_dot \u00d7 (h1 - h4)', cx, 50);
+  }
+
+  function drawExploreVCC() {
+    var cx = EW / 2, cy = 200;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Ideal Vapor Compression Cycle \u2014 4 Processes', cx, 25);
+
+    /* Schematic loop */
+    var pts = [
+      { name: 'EVAPORATOR', x: 250, y: 280, n: '4\u21921', color: '#42a5f5' },
+      { name: 'COMPRESSOR', x: 600, y: 280, n: '1\u21922', color: '#ff5252' },
+      { name: 'CONDENSER',  x: 600, y: 120, n: '2\u21923', color: '#ffca28' },
+      { name: 'EXP. VALVE', x: 250, y: 120, n: '3\u21924', color: '#00e5ff' }
+    ];
+
+    /* Connecting lines */
+    eCtx.lineWidth = 4;
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.beginPath(); eCtx.moveTo(330, 280); eCtx.lineTo(520, 280); eCtx.stroke();
+    eCtx.strokeStyle = '#ff5252';
+    eCtx.beginPath(); eCtx.moveTo(600, 250); eCtx.lineTo(600, 150); eCtx.stroke();
+    eCtx.strokeStyle = '#ffca28';
+    eCtx.beginPath(); eCtx.moveTo(520, 120); eCtx.lineTo(330, 120); eCtx.stroke();
+    eCtx.strokeStyle = '#00e5ff';
+    eCtx.beginPath(); eCtx.moveTo(250, 150); eCtx.lineTo(250, 250); eCtx.stroke();
+
+    /* Arrows on lines */
+    var arrows = [
+      { x: 430, y: 280, dir: 0 },
+      { x: 600, y: 200, dir: -Math.PI / 2 },
+      { x: 420, y: 120, dir: Math.PI },
+      { x: 250, y: 200, dir: Math.PI / 2 }
+    ];
+    var arrowColors = ['#42a5f5', '#ff5252', '#ffca28', '#00e5ff'];
+    arrows.forEach(function (ar, idx) {
+      eCtx.save();
+      eCtx.translate(ar.x, ar.y);
+      eCtx.rotate(ar.dir);
+      eCtx.fillStyle = arrowColors[idx];
+      eCtx.beginPath();
+      eCtx.moveTo(8, 0);
+      eCtx.lineTo(-4, -5);
+      eCtx.lineTo(-4, 5);
+      eCtx.closePath();
+      eCtx.fill();
+      eCtx.restore();
+    });
+
+    /* Component boxes */
+    pts.forEach(function (pt) {
+      eCtx.fillStyle = hexToRGBA(pt.color, 0.2);
+      eCtx.fillRect(pt.x - 40, pt.y - 20, 80, 40);
+      eCtx.strokeStyle = pt.color;
+      eCtx.lineWidth = 1.5;
+      eCtx.strokeRect(pt.x - 40, pt.y - 20, 80, 40);
+      eCtx.fillStyle = pt.color;
+      eCtx.font = 'bold 8px sans-serif';
+      eCtx.textAlign = 'center';
+      eCtx.fillText(pt.name, pt.x, pt.y - 5);
+      eCtx.font = '9px monospace';
+      eCtx.fillText(pt.n, pt.x, pt.y + 10);
+    });
+
+    /* Process descriptions */
+    eCtx.font = '8px sans-serif';
+    eCtx.fillStyle = '#42a5f5';
+    eCtx.fillText('Evaporation (const P)', 430, 300);
+    eCtx.fillStyle = '#ff5252';
+    eCtx.fillText('Compression (s=const)', 640, 200);
+    eCtx.fillStyle = '#ffca28';
+    eCtx.fillText('Condensation (const P)', 430, 108);
+    eCtx.fillStyle = '#00e5ff';
+    eCtx.fillText('Throttling (h=const)', 210, 200);
+  }
+
+  function drawExplorePH() {
+    var cx = EW / 2, cy = EH / 2 + 20;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Reading the P-h Diagram', cx, 25);
+
+    /* Simplified P-h diagram */
+    var ox = 150, oy = 320, gw = 600, gh = 250;
+    eCtx.strokeStyle = '#6b7a99';
+    eCtx.lineWidth = 1.5;
+    eCtx.beginPath(); eCtx.moveTo(ox, oy - gh); eCtx.lineTo(ox, oy); eCtx.lineTo(ox + gw, oy); eCtx.stroke();
+
+    /* Saturation dome */
+    eCtx.strokeStyle = '#0097a7';
+    eCtx.lineWidth = 2;
+    eCtx.beginPath();
+    eCtx.moveTo(ox + 100, oy);
+    eCtx.bezierCurveTo(ox + 150, oy - gh * 0.8, ox + 250, oy - gh * 0.95, ox + 300, oy - gh * 0.9);
+    eCtx.stroke();
+    eCtx.beginPath();
+    eCtx.moveTo(ox + 450, oy);
+    eCtx.bezierCurveTo(ox + 420, oy - gh * 0.7, ox + 350, oy - gh * 0.9, ox + 300, oy - gh * 0.9);
+    eCtx.stroke();
+
+    /* Critical point */
+    eCtx.fillStyle = '#f5c842';
+    eCtx.beginPath(); eCtx.arc(ox + 300, oy - gh * 0.9, 5, 0, Math.PI * 2); eCtx.fill();
+    eCtx.fillStyle = '#f5c842';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Critical Point', ox + 300, oy - gh * 0.9 - 10);
+
+    /* Region labels */
+    eCtx.fillStyle = 'rgba(107,122,153,0.5)';
+    eCtx.font = '10px sans-serif';
+    eCtx.fillText('Subcooled', ox + 70, oy - gh * 0.4);
+    eCtx.fillText('Liquid', ox + 70, oy - gh * 0.3);
+    eCtx.fillText('Two-Phase', ox + 280, oy - gh * 0.3);
+    eCtx.fillText('Superheated', ox + 520, oy - gh * 0.4);
+    eCtx.fillText('Vapor', ox + 520, oy - gh * 0.3);
+
+    /* Cycle rectangle */
+    eCtx.strokeStyle = '#ff5252';
+    eCtx.lineWidth = 2;
+    eCtx.setLineDash([4, 4]);
+    eCtx.beginPath();
+    eCtx.moveTo(ox + 200, oy - gh * 0.4);
+    eCtx.lineTo(ox + 400, oy - gh * 0.4);
+    eCtx.lineTo(ox + 450, oy - gh * 0.7);
+    eCtx.lineTo(ox + 200, oy - gh * 0.7);
+    eCtx.closePath();
+    eCtx.stroke();
+    eCtx.setLineDash([]);
+
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '9px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('P (log scale)', ox - 30, oy - gh / 2);
+    eCtx.fillText('h (kJ/kg)', ox + gw / 2, oy + 20);
+  }
+
+  function drawExploreCOP() {
+    var cx = EW / 2;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Coefficient of Performance (COP)', cx, 25);
+
+    /* COP formulas */
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 14px monospace';
+    eCtx.fillText('COP_cooling = Q_evap / W_comp', cx, 60);
+    eCtx.fillStyle = '#ff8a65';
+    eCtx.font = 'bold 14px monospace';
+    eCtx.fillText('COP_heating = Q_cond / W_comp = COP_cool + 1', cx, 85);
+
+    /* Bar chart comparing COPs */
+    var data = [
+      { name: 'Window AC', cop: 2.5, color: '#42a5f5' },
+      { name: 'Split AC', cop: 3.5, color: '#4dd0e1' },
+      { name: 'Chiller', cop: 5.0, color: '#0097a7' },
+      { name: 'Heat Pump', cop: 4.5, color: '#ff8a65' },
+      { name: 'Carnot', cop: 7.0, color: '#f5c842' }
+    ];
+    var ox = 120, oy = 320, gw = 650, gh = 180;
+    var barW = gw / data.length - 15;
+
+    data.forEach(function (d, i) {
+      var bx = ox + i * (barW + 15);
+      var bh = (d.cop / 8) * gh;
+      eCtx.fillStyle = d.color;
+      eCtx.fillRect(bx, oy - bh, barW, bh);
+      eCtx.fillStyle = '#dde3f0';
+      eCtx.font = 'bold 11px sans-serif';
+      eCtx.textAlign = 'center';
+      eCtx.fillText(d.cop.toFixed(1), bx + barW / 2, oy - bh - 8);
+      eCtx.fillStyle = '#6b7a99';
+      eCtx.font = '9px sans-serif';
+      eCtx.fillText(d.name, bx + barW / 2, oy + 14);
+    });
+
+    eCtx.strokeStyle = '#6b7a99';
+    eCtx.lineWidth = 1;
+    eCtx.beginPath(); eCtx.moveTo(ox - 5, oy); eCtx.lineTo(ox + gw, oy); eCtx.stroke();
+
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '9px sans-serif';
+    eCtx.fillText('COP_Carnot = T_evap / (T_cond - T_evap)  [temperatures in Kelvin]', cx, oy + 40);
+  }
+
+  function drawExploreRefProps() {
+    var cx = EW / 2;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Refrigerant Properties Comparison', cx, 25);
+
+    /* Table */
+    var cols = ['Property', 'R-134a', 'R-410A', 'R-22', 'R-290'];
+    var rows = [
+      ['Boiling Pt (\u00b0C)', '-26.1', '-51.4', '-40.8', '-42.1'],
+      ['Critical T (\u00b0C)', '101.1', '71.4', '96.1', '96.7'],
+      ['Critical P (MPa)', '4.06', '4.90', '4.99', '4.25'],
+      ['ODP', '0', '0', '0.055', '0'],
+      ['GWP', '1430', '2088', '1810', '3']
+    ];
+
+    var tx = 130, ty = 80, colW = 145, rowH = 28;
+    /* Header */
+    eCtx.fillStyle = 'rgba(0,151,167,0.2)';
+    eCtx.fillRect(tx, ty, colW * cols.length, rowH);
+    cols.forEach(function (col, ci) {
+      eCtx.fillStyle = ci === 0 ? '#6b7a99' : REFRIGERANTS[ci - 1].color;
+      eCtx.font = 'bold 10px sans-serif';
+      eCtx.textAlign = 'center';
+      eCtx.fillText(col, tx + ci * colW + colW / 2, ty + 18);
+    });
+
+    rows.forEach(function (row, ri) {
+      var ry = ty + (ri + 1) * rowH;
+      eCtx.fillStyle = ri % 2 === 0 ? 'rgba(42,48,80,0.1)' : 'rgba(0,0,0,0)';
+      eCtx.fillRect(tx, ry, colW * cols.length, rowH);
+      row.forEach(function (val, ci) {
+        eCtx.fillStyle = ci === 0 ? '#6b7a99' : '#dde3f0';
+        eCtx.font = ci === 0 ? '9px sans-serif' : '10px monospace';
+        eCtx.textAlign = 'center';
+        eCtx.fillText(val, tx + ci * colW + colW / 2, ry + 18);
+      });
+    });
+  }
+
+  function drawExploreEnvImpact() {
+    var cx = EW / 2;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Environmental Impact: ODP and GWP', cx, 25);
+
+    /* GWP bar chart */
+    var data = [
+      { name: 'R-290', gwp: 3, color: '#66bb6a' },
+      { name: 'CO\u2082', gwp: 1, color: '#90a4ae' },
+      { name: 'R-134a', gwp: 1430, color: '#4dd0e1' },
+      { name: 'R-22', gwp: 1810, color: '#ff8a65' },
+      { name: 'R-410A', gwp: 2088, color: '#7e57c2' }
+    ];
+    var ox = 120, oy = 300, gw = 650, gh = 200;
+    var barW = gw / data.length - 15;
+    var maxGWP = 2500;
+
+    data.forEach(function (d, i) {
+      var bx = ox + i * (barW + 15);
+      var bh = (d.gwp / maxGWP) * gh;
+      bh = Math.max(bh, 5);
+      eCtx.fillStyle = d.color;
+      eCtx.fillRect(bx, oy - bh, barW, bh);
+      eCtx.fillStyle = '#dde3f0';
+      eCtx.font = 'bold 10px sans-serif';
+      eCtx.textAlign = 'center';
+      eCtx.fillText(d.gwp, bx + barW / 2, oy - bh - 8);
+      eCtx.fillStyle = '#6b7a99';
+      eCtx.font = '9px sans-serif';
+      eCtx.fillText(d.name, bx + barW / 2, oy + 14);
+    });
+
+    eCtx.strokeStyle = '#6b7a99';
+    eCtx.lineWidth = 1;
+    eCtx.beginPath(); eCtx.moveTo(ox - 5, oy); eCtx.lineTo(ox + gw, oy); eCtx.stroke();
+
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '10px sans-serif';
+    eCtx.fillText('Montreal Protocol (1987): Phase out ODP substances', cx, 55);
+    eCtx.fillText('Kigali Amendment (2016): Phase down high-GWP HFCs', cx, 72);
+    eCtx.fillText('GWP = Global Warming Potential (100-year, relative to CO\u2082)', cx, oy + 40);
+  }
+
+  function drawExploreRefSelect() {
+    var cx = EW / 2;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Refrigerant Selection Guide by Application', cx, 25);
+
+    /* Application ranges */
+    var apps = [
+      { name: 'Domestic Fridge', Tmin: -25, Tmax: -10, refs: 'R-134a, R-600a', color: '#42a5f5' },
+      { name: 'Air Conditioning', Tmin: 0, Tmax: 10, refs: 'R-410A, R-32, R-290', color: '#4dd0e1' },
+      { name: 'Heat Pump', Tmin: -15, Tmax: 5, refs: 'R-410A, R-32', color: '#ff8a65' },
+      { name: 'Low-Temp Freezer', Tmin: -45, Tmax: -20, refs: 'R-404A, R-290', color: '#7e57c2' },
+      { name: 'Industrial', Tmin: -50, Tmax: -30, refs: 'R-717 (NH\u2083)', color: '#66bb6a' }
+    ];
+
+    var ox = 150, oy = 280, gw = 600, gh = 180;
+    var Trange = [-55, 15];
+    var scale = gw / (Trange[1] - Trange[0]);
+
+    /* Temperature axis */
+    eCtx.strokeStyle = '#6b7a99';
+    eCtx.lineWidth = 1;
+    eCtx.beginPath(); eCtx.moveTo(ox, oy); eCtx.lineTo(ox + gw, oy); eCtx.stroke();
+    eCtx.font = '8px monospace';
+    eCtx.textAlign = 'center';
+    for (var t = -50; t <= 10; t += 10) {
+      var tx = ox + (t - Trange[0]) * scale;
+      eCtx.fillStyle = '#6b7a99';
+      eCtx.fillText(t + '\u00b0C', tx, oy + 14);
+    }
+    eCtx.font = '9px sans-serif';
+    eCtx.fillText('Evaporator Temperature Range', ox + gw / 2, oy + 30);
+
+    /* Application bars */
+    apps.forEach(function (a, i) {
+      var bx1 = ox + (a.Tmin - Trange[0]) * scale;
+      var bx2 = ox + (a.Tmax - Trange[0]) * scale;
+      var by = 80 + i * 38;
+      eCtx.fillStyle = hexToRGBA(a.color, 0.3);
+      eCtx.fillRect(bx1, by, bx2 - bx1, 24);
+      eCtx.strokeStyle = a.color;
+      eCtx.lineWidth = 1.5;
+      eCtx.strokeRect(bx1, by, bx2 - bx1, 24);
+      eCtx.fillStyle = a.color;
+      eCtx.font = 'bold 9px sans-serif';
+      eCtx.textAlign = 'left';
+      eCtx.fillText(a.name, bx2 + 10, by + 10);
+      eCtx.fillStyle = '#6b7a99';
+      eCtx.font = '7px sans-serif';
+      eCtx.fillText(a.refs, bx2 + 10, by + 20);
+    });
+  }
+
+  function drawExploreAC() {
+    var cx = EW / 2, cy = 200;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Split Air Conditioning System', cx, 25);
+
+    /* Indoor unit */
+    eCtx.fillStyle = '#263238';
+    eCtx.fillRect(100, cy - 40, 200, 80);
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.lineWidth = 2;
+    eCtx.strokeRect(100, cy - 40, 200, 80);
+    eCtx.fillStyle = '#42a5f5';
+    eCtx.font = 'bold 10px sans-serif';
+    eCtx.fillText('INDOOR UNIT', 200, cy - 48);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Evaporator + Blower', 200, cy - 5);
+    eCtx.fillText('Cool air out (12-15\u00b0C)', 200, cy + 10);
+    /* Air flow */
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.lineWidth = 1;
+    for (var i = 0; i < 4; i++) {
+      eCtx.beginPath();
+      eCtx.moveTo(120 + i * 50, cy + 44);
+      eCtx.lineTo(120 + i * 50, cy + 60);
+      eCtx.stroke();
+    }
+
+    /* Outdoor unit */
+    eCtx.fillStyle = '#37474f';
+    eCtx.fillRect(550, cy - 50, 220, 100);
+    eCtx.strokeStyle = '#ff5252';
+    eCtx.lineWidth = 2;
+    eCtx.strokeRect(550, cy - 50, 220, 100);
+    eCtx.fillStyle = '#ff5252';
+    eCtx.font = 'bold 10px sans-serif';
+    eCtx.fillText('OUTDOOR UNIT', 660, cy - 58);
+    eCtx.fillStyle = '#6b7a99';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Compressor + Condenser + Fan', 660, cy - 5);
+    eCtx.fillText('Heat rejected to outside', 660, cy + 10);
+    /* Heat arrows */
+    eCtx.strokeStyle = '#ff5252';
+    eCtx.lineWidth = 1;
+    for (var j = 0; j < 3; j++) {
+      eCtx.beginPath();
+      eCtx.moveTo(590 + j * 50, cy - 55);
+      eCtx.lineTo(590 + j * 50, cy - 70);
+      eCtx.stroke();
+    }
+
+    /* Refrigerant lines */
+    eCtx.strokeStyle = '#0097a7';
+    eCtx.lineWidth = 3;
+    eCtx.setLineDash([6, 4]);
+    eCtx.beginPath();
+    eCtx.moveTo(300, cy - 15);
+    eCtx.lineTo(550, cy - 15);
+    eCtx.stroke();
+    eCtx.beginPath();
+    eCtx.moveTo(300, cy + 15);
+    eCtx.lineTo(550, cy + 15);
+    eCtx.stroke();
+    eCtx.setLineDash([]);
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = '7px sans-serif';
+    eCtx.fillText('Liquid line', 425, cy - 20);
+    eCtx.fillText('Suction line', 425, cy + 28);
+
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 11px monospace';
+    eCtx.fillText('Q_cool = m_air \u00d7 cp \u00d7 (T_return - T_supply)', cx, 55);
+  }
+
+  function drawExploreHeatPump() {
+    var cx = EW / 2, cy = 200;
+    eCtx.fillStyle = '#dde3f0';
+    eCtx.font = 'bold 12px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillText('Heat Pump: Reverse Cycle for Heating', cx, 25);
+
+    /* Cooling mode (left) */
+    eCtx.fillStyle = 'rgba(66,165,245,0.1)';
+    eCtx.fillRect(50, 70, 370, 250);
+    eCtx.strokeStyle = '#42a5f5';
+    eCtx.lineWidth = 1;
+    eCtx.strokeRect(50, 70, 370, 250);
+    eCtx.fillStyle = '#42a5f5';
+    eCtx.font = 'bold 11px sans-serif';
+    eCtx.fillText('COOLING MODE', 235, 90);
+
+    /* Simplified schematic */
+    eCtx.fillStyle = '#1a237e';
+    eCtx.fillRect(100, 180, 80, 50);
+    eCtx.fillStyle = '#42a5f5';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Evap', 140, 210);
+    eCtx.fillText('(indoor)', 140, 222);
+    eCtx.fillStyle = '#5d4037';
+    eCtx.fillRect(280, 180, 80, 50);
+    eCtx.fillStyle = '#ff8a65';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Cond', 320, 210);
+    eCtx.fillText('(outdoor)', 320, 222);
+
+    /* Arrow */
+    eCtx.strokeStyle = '#0097a7';
+    eCtx.lineWidth = 2;
+    eCtx.beginPath(); eCtx.moveTo(185, 205); eCtx.lineTo(275, 205); eCtx.stroke();
+    eCtx.fillStyle = '#0097a7';
+    eCtx.beginPath(); eCtx.moveTo(275, 205); eCtx.lineTo(265, 200); eCtx.lineTo(265, 210); eCtx.closePath(); eCtx.fill();
+    eCtx.font = '7px sans-serif';
+    eCtx.fillText('Heat flow', 230, 195);
+
+    eCtx.fillStyle = '#42a5f5';
+    eCtx.font = '9px monospace';
+    eCtx.fillText('COP_cool = Q_evap / W', 235, 270);
+
+    /* Heating mode (right) */
+    eCtx.fillStyle = 'rgba(255,138,101,0.1)';
+    eCtx.fillRect(470, 70, 370, 250);
+    eCtx.strokeStyle = '#ff8a65';
+    eCtx.lineWidth = 1;
+    eCtx.strokeRect(470, 70, 370, 250);
+    eCtx.fillStyle = '#ff8a65';
+    eCtx.font = 'bold 11px sans-serif';
+    eCtx.fillText('HEATING MODE', 655, 90);
+
+    eCtx.fillStyle = '#1a237e';
+    eCtx.fillRect(520, 180, 80, 50);
+    eCtx.fillStyle = '#42a5f5';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Evap', 560, 210);
+    eCtx.fillText('(outdoor)', 560, 222);
+    eCtx.fillStyle = '#5d4037';
+    eCtx.fillRect(700, 180, 80, 50);
+    eCtx.fillStyle = '#ff8a65';
+    eCtx.font = '8px sans-serif';
+    eCtx.fillText('Cond', 740, 210);
+    eCtx.fillText('(indoor)', 740, 222);
+
+    /* Arrow */
+    eCtx.strokeStyle = '#ff8a65';
+    eCtx.lineWidth = 2;
+    eCtx.beginPath(); eCtx.moveTo(605, 205); eCtx.lineTo(695, 205); eCtx.stroke();
+    eCtx.fillStyle = '#ff8a65';
+    eCtx.beginPath(); eCtx.moveTo(695, 205); eCtx.lineTo(685, 200); eCtx.lineTo(685, 210); eCtx.closePath(); eCtx.fill();
+    eCtx.font = '7px sans-serif';
+    eCtx.fillText('Heat flow', 650, 195);
+
+    eCtx.fillStyle = '#ff8a65';
+    eCtx.font = '9px monospace';
+    eCtx.fillText('COP_heat = COP_cool + 1', 655, 270);
+
+    /* Key relationship */
+    eCtx.fillStyle = '#0097a7';
+    eCtx.font = 'bold 13px monospace';
+    eCtx.fillText('COP_heating = COP_cooling + 1', cx, 55);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S17  PRACTICE MODE
+     ═══════════════════════════════════════════════════════════════ */
+  function newPractice() {
+    state.pProb = generateProblem();
+    state.pDone = false;
+    elPracticePrompt.textContent = state.pProb.prompt;
+    elPracticeInput.value = '';
+    elPracticeUnit.textContent = state.pProb.unit;
+    elPracticeFeedback.textContent = '';
+    elPracticeFeedback.className = 'practice-feedback';
+    hide(elPracticeSolution);
+    hide(elBtnShowSol);
+    elPracticeInput.focus();
+  }
+
+  function checkPractice() {
+    if (state.pDone) return;
+    var val = parseFloat(elPracticeInput.value);
+    if (isNaN(val)) { elPracticeFeedback.textContent = 'Please enter a number.'; elPracticeFeedback.className = 'practice-feedback err'; return; }
+    state.pDone = true;
+    state.pTotal++;
+    var correct = Math.abs(val - state.pProb.answer) <= state.pProb.tol;
+    if (correct) {
+      state.pScore++;
+      elPracticeFeedback.textContent = '\u2713 Correct! Answer: ' + state.pProb.answer + ' ' + state.pProb.unit;
+      elPracticeFeedback.className = 'practice-feedback ok';
+    } else {
+      elPracticeFeedback.textContent = '\u2717 Incorrect. Correct answer: ' + state.pProb.answer + ' ' + state.pProb.unit;
+      elPracticeFeedback.className = 'practice-feedback err';
+      show(elBtnShowSol);
+    }
+    elPracticeScore.textContent = state.pScore + ' / ' + state.pTotal;
+  }
+
+  function showSolution() {
+    if (!state.pProb) return;
+    elPracticeSolution.innerHTML = state.pProb.solution.map(function (s) { return '<div>' + s + '</div>'; }).join('');
+    show(elPracticeSolution);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S18  QUIZ MODE
+     ═══════════════════════════════════════════════════════════════ */
+  function startQuiz() {
+    /* Shuffle each multiple-choice question's OPTIONS as well as the question
+       order. All ten authored MCQs put the correct answer at index 0, so the
+       first button was always right and the quiz could be passed without
+       reading a single option.
+
+       Only entries with `opts` are touched — the pool also holds numeric
+       questions where `ans` is the value rather than an index — and each
+       question is copied rather than mutated so the pool survives a restart. */
+    state.qSet = shuffleArr(QUIZ_POOL.slice()).slice(0, 5).map(function (q) {
+      if (q.type !== 'mcq' || !q.opts || !q.opts.length) return q;
+      var order = q.opts.map(function (o, i) { return { o: o, i: i }; });
+      shuffleArr(order);
+      var copy = {};
+      for (var k in q) if (Object.prototype.hasOwnProperty.call(q, k)) copy[k] = q[k];
+      copy.opts = order.map(function (e) { return e.o; });
+      copy.ans = order.findIndex(function (e) { return e.i === q.ans; });
+      return copy;
+    });
+    state.qIdx = 0;
+    state.qScore = 0;
+    state.qDone = false;
+    state.qResults = [];
+    hide(elQuizResult);
+    show(elQuizPanel);
+    showQuestion();
+  }
+
+  function showQuestion() {
+    var q = state.qSet[state.qIdx];
+    state.qAnswered = false;
+    elQuizCounter.textContent = 'Question ' + (state.qIdx + 1) + ' of ' + state.qSet.length;
+    elQuizPrompt.textContent = q.q;
+    elQuizFeedback.textContent = '';
+    elQuizFeedback.className = 'quiz-feedback';
+    hide(elBtnQuizNext);
+
+    if (q.type === 'mcq') {
+      show(elQuizOptions);
+      hide(elQuizNumRow);
+      elQuizOptions.innerHTML = '';
+      q.opts.forEach(function (opt, i) {
+        var btn = document.createElement('button');
+        btn.className = 'quiz-opt';
+        btn.textContent = opt;
+        btn.addEventListener('click', function () { handleMCQ(i); });
+        elQuizOptions.appendChild(btn);
+      });
+    } else {
+      hide(elQuizOptions);
+      show(elQuizNumRow);
+      elQuizNumInput.value = '';
+      elQuizNumUnit.textContent = q.unit || '';
+      elQuizNumInput.focus();
+    }
+  }
+
+  function handleMCQ(idx) {
+    if (state.qAnswered) return;
+    state.qAnswered = true;
+    var q = state.qSet[state.qIdx];
+    var correct = idx === q.ans;
+    var opts = elQuizOptions.querySelectorAll('.quiz-opt');
+    opts.forEach(function (o, i) {
+      o.classList.add('disabled');
+      if (i === q.ans) o.classList.add('correct');
+      if (i === idx && !correct) o.classList.add('wrong');
+    });
+    if (correct) {
+      state.qScore++;
+      elQuizFeedback.textContent = '\u2713 Correct!';
+      elQuizFeedback.className = 'quiz-feedback ok';
+    } else {
+      elQuizFeedback.textContent = '\u2717 Incorrect. Answer: ' + q.opts[q.ans];
+      elQuizFeedback.className = 'quiz-feedback err';
+    }
+    state.qResults.push({ q: q.q, correct: correct });
+    show(elBtnQuizNext);
+  }
+
+  function handleNumeric() {
+    if (state.qAnswered) return;
+    var val = parseFloat(elQuizNumInput.value);
+    if (isNaN(val)) return;
+    state.qAnswered = true;
+    var q = state.qSet[state.qIdx];
+    var correct = Math.abs(val - q.ans) <= (q.tol || 1);
+    if (correct) {
+      state.qScore++;
+      elQuizFeedback.textContent = '\u2713 Correct! Answer: ' + q.ans + ' ' + (q.unit || '');
+      elQuizFeedback.className = 'quiz-feedback ok';
+    } else {
+      elQuizFeedback.textContent = '\u2717 Incorrect. Answer: ' + q.ans + ' ' + (q.unit || '');
+      elQuizFeedback.className = 'quiz-feedback err';
+    }
+    state.qResults.push({ q: q.q, correct: correct });
+    show(elBtnQuizNext);
+  }
+
+  function advanceQuiz() {
+    state.qIdx++;
+    if (state.qIdx >= state.qSet.length) {
+      showQuizResult();
+    } else {
+      showQuestion();
+    }
+  }
+
+  function showQuizResult() {
+    state.qDone = true;
+    hide(elQuizPanel);
+    show(elQuizResult);
+
+    var pct = (state.qScore / state.qSet.length * 100).toFixed(0);
+    var stars = Math.round(state.qScore / state.qSet.length * 5);
+    elQRStars.textContent = '';
+    for (var i = 0; i < 5; i++) elQRStars.textContent += i < stars ? '\u2605' : '\u2606';
+
+    elQRScore.textContent = state.qScore + '/' + state.qSet.length + ' (' + pct + '%)';
+    elQRScore.className = 'qr-score ' + (pct == 100 ? 'perfect' : pct >= 60 ? 'good' : 'poor');
+
+    var tbody = elQRTable.querySelector('tbody');
+    tbody.innerHTML = '';
+    state.qResults.forEach(function (r, i) {
+      var tr = document.createElement('tr');
+      tr.className = 'qr-row ' + (r.correct ? 'ok' : 'err');
+      tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + r.q.substring(0, 60) + (r.q.length > 60 ? '...' : '') + '</td><td>' + (r.correct ? '\u2713' : '\u2717') + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S19  REFRIGERANT TABS
+     ═══════════════════════════════════════════════════════════════ */
+  function buildRefTabs() {
+    elRefTabs.innerHTML = '';
+    REFRIGERANTS.forEach(function (r, i) {
+      var pill = document.createElement('button');
+      pill.className = 'mat-pill' + (i === 0 ? ' active' : '');
+      pill.textContent = r.name;
+      pill.dataset.idx = i;
+      pill.style.setProperty('--chip-col', r.color); /* drives dot + border + active fill */
+      pill.addEventListener('click', function () {
+        state.refIdx = i;
+        elRefTabs.querySelectorAll('.mat-pill').forEach(function (p) { p.classList.remove('active'); });
+        pill.classList.add('active');
+        if (state.running) {
+          recalcCycle();
+          displayResults();
+        } else if (state.cycle) {
+          recalcCycle();
+          displayResults();
+          drawMachine();
+          drawPHDiagram();
+        }
+      });
+      elRefTabs.appendChild(pill);
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     S20  EVENT HANDLERS
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Mode tabs */
+  elModeTabs.addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    var m = e.target.dataset.mode;
+    elModeTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.remove('active'); });
+    e.target.classList.add('active');
+    setMode(m);
+  });
+
+  /* Sliders */
+  /* Combined temperature slider (Evap ⇔ Cond) */
+  if (elTempComboSlider) {
+    elTempComboSlider.addEventListener('input', function () {
+      var v = parseFloat(this.value);
+      if (elTempComboNum) elTempComboNum.value = v;
+      var siVal = (state.units === 'IMP') ? (v - 32) * 5 / 9 : v;
+      state[TEMP_CFG[state.tempMode].key] = siVal;
+      if (state.tempMode === 'evap') {
+        state.Tspace = state.Tevap + state.approachEvap;
+      } else {
+        state.Tamb = state.Tcond - state.approachCond;
+      }
+      updateTempDisplay();
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  if (elTempComboNum) {
+    elTempComboNum.addEventListener('input', function () {
+      var cfg = TEMP_CFG[state.tempMode];
+      var v = clamp(parseFloat(this.value), cfg.min, cfg.max);
+      if (isNaN(v)) return;
+      this.value = v;
+      if (elTempComboSlider) elTempComboSlider.value = v;
+      var siVal = (state.units === 'IMP') ? (v - 32) * 5 / 9 : v;
+      state[cfg.key] = siVal;
+      if (state.tempMode === 'evap') {
+        state.Tspace = state.Tevap + state.approachEvap;
+      } else {
+        state.Tamb = state.Tcond - state.approachCond;
+      }
+      updateTempDisplay();
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+
+  /* Temperature mode pill toggle */
+  var elTempModePills = $('temp-mode-pills');
+  if (elTempModePills) {
+    elTempModePills.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-tempmode]');
+      if (!btn) return;
+      var mode = btn.dataset.tempmode;
+      state.tempMode = mode;
+      elTempModePills.querySelectorAll('[data-tempmode]').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var cfg = TEMP_CFG[mode];
+      if (elTempComboSlider) { elTempComboSlider.min = cfg.min; elTempComboSlider.max = cfg.max; elTempComboSlider.step = cfg.step; elTempComboSlider.value = state[cfg.key]; }
+      if (elTempComboNum)    { elTempComboNum.min    = cfg.min; elTempComboNum.max    = cfg.max; elTempComboNum.step    = cfg.step; elTempComboNum.value    = state[cfg.key]; }
+      updateTempDisplay();
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+
+  elSuperheatSlider.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (elSuperheatNum) elSuperheatNum.value = v;
+    state.superheat = (state.units === 'IMP') ? v / 1.8 : v;
+    recalcCycle(); displayResults();
+    if (!state.running) { drawMachine(); drawPHDiagram(); }
+  });
+
+  elSubcoolSlider.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (elSubcoolNum) elSubcoolNum.value = v;
+    state.subcool = (state.units === 'IMP') ? v / 1.8 : v;
+    recalcCycle(); displayResults();
+    if (!state.running) { drawMachine(); drawPHDiagram(); }
+  });
+
+  elCapSlider.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (elCapNum) elCapNum.value = v;
+    state.Qcap = (state.units === 'IMP') ? v / 3412.14 : v;
+    recalcCycle(); displayResults();
+    if (!state.running) { drawMachine(); drawPHDiagram(); }
+  });
+
+  /* Compressor isentropic efficiency */
+  if (elEtaCompSlider) {
+    elEtaCompSlider.addEventListener('input', function () {
+      var v = parseFloat(this.value);
+      if (elEtaCompNum) elEtaCompNum.value = v;
+      state.etaComp = v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  if (elEtaCompNum) {
+    elEtaCompNum.addEventListener('input', function () {
+      var v = clamp(parseFloat(this.value), 50, 95);
+      if (isNaN(v)) return;
+      this.value = v; if (elEtaCompSlider) elEtaCompSlider.value = v;
+      state.etaComp = v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  /* Volumetric efficiency */
+  if (elEtaVolSlider) {
+    elEtaVolSlider.addEventListener('input', function () {
+      var v = parseFloat(this.value);
+      if (elEtaVolNum) elEtaVolNum.value = v;
+      state.etaVol = v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  if (elEtaVolNum) {
+    elEtaVolNum.addEventListener('input', function () {
+      var v = clamp(parseFloat(this.value), 60, 98);
+      if (isNaN(v)) return;
+      this.value = v; if (elEtaVolSlider) elEtaVolSlider.value = v;
+      state.etaVol = v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+
+
+  elSpeedSlider.addEventListener('input', function () {
+    state.animSpeed = parseFloat(this.value);
+    elSpeedVal.textContent = roundN(state.animSpeed, 1) + '\u00d7';
+    if (elSpeedNum) elSpeedNum.value = state.animSpeed;
+  });
+
+  /* Companion number inputs — bidirectional sync */
+  function makeNumSync(numEl, rangeEl, valEl, unitSuffix, stateProp, toVal) {
+    if (!numEl) return;
+    numEl.addEventListener('input', function () {
+      var v = parseFloat(this.value);
+      if (isNaN(v)) return;
+      v = clamp(v, parseFloat(rangeEl.min), parseFloat(rangeEl.max));
+      this.value = v;
+      rangeEl.value = v;
+      state[stateProp] = v;
+      if (valEl) valEl.textContent = toVal(v);
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  /* Unit-aware num inputs — subcool, superheat, cap */
+  if (elSubcoolNum) {
+    elSubcoolNum.addEventListener('input', function () {
+      var v = parseFloat(this.value); if (isNaN(v)) return;
+      v = clamp(v, parseFloat(elSubcoolSlider.min), parseFloat(elSubcoolSlider.max));
+      this.value = v; elSubcoolSlider.value = v;
+      state.subcool = (state.units === 'IMP') ? v / 1.8 : v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  if (elSuperheatNum) {
+    elSuperheatNum.addEventListener('input', function () {
+      var v = parseFloat(this.value); if (isNaN(v)) return;
+      v = clamp(v, parseFloat(elSuperheatSlider.min), parseFloat(elSuperheatSlider.max));
+      this.value = v; elSuperheatSlider.value = v;
+      state.superheat = (state.units === 'IMP') ? v / 1.8 : v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  if (elCapNum) {
+    elCapNum.addEventListener('input', function () {
+      var v = parseFloat(this.value); if (isNaN(v)) return;
+      v = clamp(v, parseFloat(elCapSlider.min), parseFloat(elCapSlider.max));
+      this.value = v; elCapSlider.value = v;
+      state.Qcap = (state.units === 'IMP') ? v / 3412.14 : v;
+      recalcCycle(); displayResults();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+
+  /* Stepper ±  buttons — delegate from sim-controls */
+  var elSimControls = $('sim-controls');
+  if (elSimControls) {
+    elSimControls.addEventListener('click', function (e) {
+      var btn = e.target.closest('.step-btn');
+      if (!btn) return;
+      var numEl = $( btn.dataset.for + '-num');
+      if (!numEl) return;
+      var dir  = parseInt(btn.dataset.dir, 10);
+      var step = parseFloat(numEl.step) || 1;
+      var lo   = parseFloat(numEl.min);
+      var hi   = parseFloat(numEl.max);
+      var val  = clamp(parseFloat(numEl.value) + dir * step, lo, hi);
+      /* round to avoid floating-point drift (e.g. 0.1 steps) */
+      var decimals = (step.toString().split('.')[1] || '').length;
+      val = parseFloat(val.toFixed(decimals));
+      numEl.value = val;
+      numEl.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  /* Presets dropdown */
+  if (elPresetSelect) {
+    elPresetSelect.addEventListener('change', function() {
+      if (this.value) { resetSim(); applyPreset(this.value); }
+    });
+  }
+
+  /* Unit toggle (SI ↔ IMP) */
+  if (elBtnUnits) {
+    elBtnUnits.addEventListener('click', function (e) {
+      var opt = e.target.closest('.unit-opt');
+      if (!opt) return;
+      state.units = opt.dataset.unit;
+      elBtnUnits.querySelectorAll('.unit-opt').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.unit === state.units);
+      });
+      recalcCycle();
+      displayResults();
+      syncSliderUnits();
+      updateTempDisplay();
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+
+  /* Export CSV */
+  if (elBtnExportCsv) {
+    elBtnExportCsv.addEventListener('click', exportCSV);
+  }
+
+  /* Export PNG */
+  if (elBtnExportPng) {
+    elBtnExportPng.addEventListener('click', exportPNG);
+  }
+
+  /* P-h context menu */
+  gCanvas.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    elPhCtxMenu.style.left = e.clientX + 'px';
+    elPhCtxMenu.style.top  = e.clientY + 'px';
+    elPhCtxMenu.style.display = 'block';
+  });
+  document.addEventListener('click', function() {
+    if (elPhCtxMenu) elPhCtxMenu.style.display = 'none';
+  });
+  if (elPhCtxMenu) {
+    elPhCtxMenu.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      elPhCtxMenu.style.display = 'none';
+      var action = btn.dataset.action;
+      if (action === 'export-png')   { exportPNG(); }
+      else if (action === 'copy-values') { copyValues(); }
+      else if (action === 'toggle-dome') {
+        state.showDome = !state.showDome;
+        elBtnDome.textContent = (state.showDome ? '\u25a3' : '\u25a1') + ' Sat. Dome';
+        elBtnDome.classList.toggle('active', state.showDome);
+        drawPHDiagram();
+      }
+      else if (action === 'reset')   { resetSim(); }
+    });
+  }
+
+  elBtnDome.addEventListener('click', function () {
+    state.showDome = !state.showDome;
+    elBtnDome.textContent = (state.showDome ? '\u25a3' : '\u25a1') + ' Sat. Dome';
+    elBtnDome.classList.toggle('active', state.showDome);
+    drawPHDiagram();
+  });
+
+  /* Canvas display toggles */
+  function wireToggle(id, setter) {
+    var el = document.getElementById(id); if (!el) return;
+    el.addEventListener('change', function () {
+      setter(!!el.checked);
+      if (!state.running) { drawMachine(); drawPHDiagram(); }
+    });
+  }
+  wireToggle('chk-mc-temps',       function (v) { state.mcTemps = v; });
+  wireToggle('chk-mc-pressures',   function (v) { state.mcPressures = v; });
+  wireToggle('chk-mc-heat',        function (v) { state.mcHeat = v; });
+  wireToggle('chk-mc-cop',         function (v) { state.mcCOP = v; });
+  wireToggle('chk-mc-energy',      function (v) { state.mcEnergy = v; });
+  wireToggle('chk-mc-stage',       function (v) { state.mcStage = v; });
+  wireToggle('chk-ph-statelabels', function (v) { state.phStateLabels = v; });
+  wireToggle('chk-ph-energy',      function (v) { state.phEnergyLabels = v; });
+  wireToggle('chk-ph-shading',     function (v) { state.phShading = v; });
+
+  /* Start / Pause toggle button */
+  elBtnStart.addEventListener('click', function () {
+    if (state.running) { pauseCycle(); } else { resumeCycle(); }
+  });
+
+  /* Reset button */
+  elBtnReset.addEventListener('click', function () {
+    resetSim();
+  });
+
+  /* Practice buttons */
+  elBtnCheck.addEventListener('click', checkPractice);
+  elBtnShowSol.addEventListener('click', showSolution);
+  elBtnNextProb.addEventListener('click', newPractice);
+  elPracticeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+
+  /* Quiz buttons */
+  elBtnQuizSubmit.addEventListener('click', handleNumeric);
+  elBtnQuizNext.addEventListener('click', advanceQuiz);
+  elBtnNewQuiz.addEventListener('click', startQuiz);
+  elQuizNumInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') handleNumeric(); });
+
+  /* Window resize */
+  window.addEventListener('resize', function () {
+    initCanvases();
+    fitGraphCanvas();
+    if (state.mode === 'simulate') { drawMachine(); drawPHDiagram(); }
+    if (state.mode === 'explore' && state.expIdx >= 0) { drawExploreDiagram(CONCEPTS[state.expIdx]); }
+  });
+
+  /* Keyboard shortcuts */
+  window.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === '1') setMode('simulate');
+    if (e.key === '2') setMode('explore');
+    if (e.key === '3') setMode('practice');
+    if (e.key === '4') setMode('quiz');
+    if (e.key === ' ' && state.mode === 'simulate') {
+      e.preventDefault();
+      if (state.running) { pauseCycle(); } else { resumeCycle(); }
+    }
+    if (e.key === 'r' || e.key === 'R') { if (state.mode === 'simulate') resetSim(); }
+  });
+
+  /* ═══════════════════════════════════════════════════════════════
+     S21  INIT
+     ═══════════════════════════════════════════════════════════════ */
+  initCanvases();
+  buildPipePath();
+  buildRefTabs();
+  hide(elReadoutGrid);
+  /* Initialise derived displays and slider units */
+  syncSliderUnits();
+  updateTempDisplay();
+  /* fitGraphCanvas needs the CSS column width — defer one frame for layout */
+  requestAnimationFrame(function () {
+    fitGraphCanvas();
+    setMode('simulate');
+  });
+
+})();

@@ -1,0 +1,1951 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     DATA
+     ================================================================ */
+  var CONCEPTS = [
+    /* ── Fundamentals ─────────────────────────────────────────────── */
+    {
+      id: 'hookes-law', name: "Hooke's Law", symbol: 'F = kx',
+      formula: 'F = k × x', unit: 'N',
+      cat: 'fundamentals',
+      desc: "Hooke's Law states that the force needed to extend or compress a spring is directly proportional to the displacement from its natural length, provided the elastic limit is not exceeded. The constant of proportionality is the spring constant k.",
+      diagram: 'springWithLabel',
+      example: { problem: 'A spring with k = 120 N/m is stretched by 0.05 m. Calculate the force required.', steps: ['Given: k = 120 N/m, x = 0.05 m', 'F = k × x', 'F = 120 × 0.05', 'F = 6 N'], answer: 6, unit: 'N' }
+    },
+    {
+      id: 'spring-constant', name: 'Spring Constant', symbol: 'k',
+      formula: 'k = F / x', unit: 'N/m',
+      cat: 'fundamentals',
+      desc: 'The spring constant (stiffness) measures how resistant a spring is to deformation. A higher k means a stiffer spring — more force is needed for the same extension. It equals the gradient of the linear F-x graph.',
+      diagram: 'stiffnessCompare',
+      example: { problem: 'A force of 15 N stretches a spring by 0.03 m. Find the spring constant.', steps: ['Given: F = 15 N, x = 0.03 m', 'k = F / x', 'k = 15 / 0.03', 'k = 500 N/m'], answer: 500, unit: 'N/m' }
+    },
+    {
+      id: 'extension', name: 'Extension', symbol: 'x',
+      formula: 'x = L - L₀', unit: 'm',
+      cat: 'fundamentals',
+      desc: 'Extension is the increase in length of a spring from its natural (unstretched) length L₀. It is the difference between the current length L and the natural length. Extension is always positive for stretching and can be negative for compression.',
+      diagram: 'extensionDiagram',
+      example: { problem: 'A spring has natural length 0.15 m and is stretched to 0.21 m. Find the extension.', steps: ['Given: L₀ = 0.15 m, L = 0.21 m', 'x = L - L₀', 'x = 0.21 - 0.15', 'x = 0.06 m'], answer: 0.06, unit: 'm' }
+    },
+    {
+      id: 'restoring-force', name: 'Restoring Force', symbol: 'F = -kx',
+      formula: 'F = -k × x', unit: 'N',
+      cat: 'fundamentals',
+      desc: 'The restoring force is the force exerted by the spring back toward its natural length. The negative sign indicates the force always acts opposite to the displacement direction — pulling back when stretched, pushing back when compressed.',
+      diagram: 'restoringForce',
+      example: { problem: 'A spring (k = 200 N/m) is compressed by 0.04 m. What is the restoring force?', steps: ['Given: k = 200 N/m, x = -0.04 m (compression)', 'F = -k × x', 'F = -200 × (-0.04)', 'F = +8 N (pushes outward)'], answer: 8, unit: 'N' }
+    },
+
+    /* ── Springs ──────────────────────────────────────────────────── */
+    {
+      id: 'series', name: 'Springs in Series', symbol: '1/k_eff',
+      formula: '1/k_eff = 1/k₁ + 1/k₂', unit: 'N/m',
+      cat: 'springs',
+      desc: 'When springs are connected end-to-end (in series), the effective spring constant is always less than the weakest individual spring. Each spring extends independently, so total extension adds up, making the combination softer.',
+      diagram: 'seriesDiagram',
+      example: { problem: 'Two springs (k₁ = 100 N/m, k₂ = 150 N/m) are in series. Find k_eff.', steps: ['Given: k₁ = 100 N/m, k₂ = 150 N/m', '1/k_eff = 1/k₁ + 1/k₂', '1/k_eff = 1/100 + 1/150 = 0.01 + 0.00667', '1/k_eff = 0.01667', 'k_eff = 60 N/m'], answer: 60, unit: 'N/m' }
+    },
+    {
+      id: 'parallel', name: 'Springs in Parallel', symbol: 'k_eff',
+      formula: 'k_eff = k₁ + k₂', unit: 'N/m',
+      cat: 'springs',
+      desc: 'When springs are side by side (in parallel), both share the load and extend by the same amount. The effective spring constant is the sum of individual constants — the combination is stiffer than either spring alone.',
+      diagram: 'parallelDiagram',
+      example: { problem: 'Two springs (k₁ = 80 N/m, k₂ = 120 N/m) are in parallel. Find k_eff.', steps: ['Given: k₁ = 80 N/m, k₂ = 120 N/m', 'k_eff = k₁ + k₂', 'k_eff = 80 + 120', 'k_eff = 200 N/m'], answer: 200, unit: 'N/m' }
+    },
+    {
+      id: 'elastic-limit', name: 'Elastic Limit', symbol: 'F_e',
+      formula: 'Beyond F_e → permanent deformation', unit: 'N',
+      cat: 'springs',
+      desc: "The elastic limit is the maximum force (or extension) up to which Hooke's Law holds. Beyond this point the spring deforms permanently and does not return to its natural length. The F-x graph curves away from the straight line.",
+      diagram: 'elasticLimitGraph',
+      example: { problem: "A spring obeys Hooke's Law up to F = 50 N (x = 0.1 m). What is k in the elastic region?", steps: ['Given: F_e = 50 N, x_e = 0.1 m', 'k = F / x (within elastic limit)', 'k = 50 / 0.1', 'k = 500 N/m'], answer: 500, unit: 'N/m' }
+    },
+    {
+      id: 'youngs-modulus', name: "Young's Modulus Link", symbol: 'σ = Eε',
+      formula: 'σ = E × ε  (stress = E × strain)', unit: 'Pa',
+      cat: 'springs',
+      desc: "Hooke's Law for materials: stress is proportional to strain in the elastic region. Young's Modulus E is the material equivalent of the spring constant k. It connects the macroscopic spring behaviour to microscopic material properties.",
+      diagram: 'stressStrainMini',
+      example: { problem: 'A steel rod (E = 200 GPa) has strain 0.001. Calculate stress.', steps: ['Given: E = 200 GPa = 200×10⁹ Pa, ε = 0.001', 'σ = E × ε', 'σ = 200×10⁹ × 0.001', 'σ = 200×10⁶ Pa = 200 MPa'], answer: 200, unit: 'MPa' }
+    },
+
+    /* ── Energy ───────────────────────────────────────────────────── */
+    {
+      id: 'elastic-pe', name: 'Elastic Potential Energy', symbol: 'E_p',
+      formula: 'E_p = ½ k x²', unit: 'J',
+      cat: 'energy',
+      desc: 'Energy stored in a stretched or compressed spring. It equals the area under the F-x graph (a triangle for the linear region). This energy can be recovered when the spring returns to its natural length.',
+      diagram: 'energyTriangle',
+      example: { problem: 'A spring (k = 250 N/m) is extended by 0.08 m. Calculate the energy stored.', steps: ['Given: k = 250 N/m, x = 0.08 m', 'E_p = ½ k x²', 'E_p = 0.5 × 250 × 0.08²', 'E_p = 0.5 × 250 × 0.0064', 'E_p = 0.8 J'], answer: 0.8, unit: 'J' }
+    },
+    {
+      id: 'work-done', name: 'Work Done on Spring', symbol: 'W',
+      formula: 'W = ½ F x = ½ k x²', unit: 'J',
+      cat: 'energy',
+      desc: 'The work done to stretch a spring equals the elastic potential energy stored. Since force increases linearly with extension, the average force is F/2, so W = ½ × F × x. This is the triangular area under the F-x graph.',
+      diagram: 'workDoneArea',
+      example: { problem: 'A force of 24 N stretches a spring by 0.06 m. Calculate the work done.', steps: ['Given: F = 24 N, x = 0.06 m', 'W = ½ × F × x', 'W = 0.5 × 24 × 0.06', 'W = 0.72 J'], answer: 0.72, unit: 'J' }
+    },
+    {
+      id: 'energy-conservation', name: 'Energy Conservation', symbol: 'E_k + E_p',
+      formula: '½ mv² + ½ kx² = const', unit: 'J',
+      cat: 'energy',
+      desc: 'In a spring-mass system (no friction), total mechanical energy is conserved. At maximum extension, all energy is elastic PE. At the equilibrium position, all energy is kinetic. Energy continuously converts between these two forms.',
+      diagram: 'energyBarChart',
+      example: { problem: 'A 0.5 kg mass on a spring (k = 200 N/m) is released from x = 0.1 m. Find max velocity.', steps: ['Given: m = 0.5 kg, k = 200 N/m, x = 0.1 m', 'At max extension: E_p = ½ kx² = 0.5×200×0.01 = 1 J', 'At equilibrium: E_k = ½ mv² = 1 J', 'v² = 2×1/0.5 = 4', 'v = 2 m/s'], answer: 2, unit: 'm/s' }
+    },
+
+    /* ── Applications ─────────────────────────────────────────────── */
+    {
+      id: 'applications', name: 'Real-World Applications', symbol: '—',
+      formula: 'F = kx applied everywhere', unit: '—',
+      cat: 'applications',
+      desc: "Hooke's Law governs: vehicle suspension (shock absorbers), spring balances & weighing scales, mattresses & trampolines, door-closing mechanisms, clock mechanisms (hairspring), pen click mechanisms, and engineering load calculations.",
+      diagram: 'applicationsGrid',
+      example: { problem: 'A vehicle spring (k = 40000 N/m) compresses 0.025 m when a 100 kg person sits. Verify.', steps: ['Given: k = 40000 N/m, m = 100 kg, g = 9.81 m/s²', 'F = mg = 100 × 9.81 = 981 N', 'x = F/k = 981/40000 = 0.0245 m', 'x ≈ 0.025 m ✔'], answer: 0.0245, unit: 'm' }
+    }
+  ];
+
+  var PROBLEM_GEN = [
+    function () { var k = randInt(20, 300); var x = +(Math.random() * 0.15 + 0.01).toFixed(3); var F = +(k * x).toFixed(2); return { prompt: 'A spring with k = ' + k + ' N/m is stretched by ' + x + ' m. Calculate the force (N).', steps: ['Given: k = ' + k + ' N/m, x = ' + x + ' m', 'F = k × x', 'F = ' + k + ' × ' + x, 'F = ' + F + ' N'], answer: F, unit: 'N' }; },
+    function () { var k = randInt(50, 400); var F = randInt(5, 80); var x = +(F / k).toFixed(4); return { prompt: 'A force of ' + F + ' N is applied to a spring (k = ' + k + ' N/m). Find the extension (m).', steps: ['Given: F = ' + F + ' N, k = ' + k + ' N/m', 'x = F / k', 'x = ' + F + ' / ' + k, 'x = ' + x + ' m'], answer: x, unit: 'm' }; },
+    function () { var F = randInt(10, 100); var x = +(Math.random() * 0.12 + 0.01).toFixed(3); var k = +(F / x).toFixed(1); return { prompt: 'A force of ' + F + ' N produces an extension of ' + x + ' m. Find k (N/m).', steps: ['Given: F = ' + F + ' N, x = ' + x + ' m', 'k = F / x', 'k = ' + F + ' / ' + x, 'k = ' + k + ' N/m'], answer: k, unit: 'N/m' }; },
+    function () { var k = randInt(50, 500); var x = +(Math.random() * 0.1 + 0.01).toFixed(3); var E = +(0.5 * k * x * x).toFixed(3); return { prompt: 'A spring (k = ' + k + ' N/m) is extended ' + x + ' m. Calculate elastic PE (J).', steps: ['Given: k = ' + k + ' N/m, x = ' + x + ' m', 'E_p = ½ k x²', 'E_p = 0.5 × ' + k + ' × ' + x + '²', 'E_p = 0.5 × ' + k + ' × ' + (x * x).toFixed(6), 'E_p = ' + E + ' J'], answer: E, unit: 'J' }; },
+    function () { var F = randInt(5, 80); var x = +(Math.random() * 0.1 + 0.01).toFixed(3); var W = +(0.5 * F * x).toFixed(3); return { prompt: 'A force of ' + F + ' N stretches a spring by ' + x + ' m. Calculate work done (J).', steps: ['Given: F = ' + F + ' N, x = ' + x + ' m', 'W = ½ × F × x', 'W = 0.5 × ' + F + ' × ' + x, 'W = ' + W + ' J'], answer: W, unit: 'J' }; },
+    function () { var k1 = randInt(40, 200); var k2 = randInt(40, 200); var keff = +(1 / (1 / k1 + 1 / k2)).toFixed(1); return { prompt: 'Two springs (k₁ = ' + k1 + ' N/m, k₂ = ' + k2 + ' N/m) in series. Find k_eff (N/m).', steps: ['Given: k₁ = ' + k1 + ', k₂ = ' + k2, '1/k_eff = 1/' + k1 + ' + 1/' + k2, '1/k_eff = ' + (1 / k1).toFixed(5) + ' + ' + (1 / k2).toFixed(5), 'k_eff = ' + keff + ' N/m'], answer: keff, unit: 'N/m' }; },
+    function () { var k1 = randInt(30, 200); var k2 = randInt(30, 200); var keff = k1 + k2; return { prompt: 'Two springs (k₁ = ' + k1 + ' N/m, k₂ = ' + k2 + ' N/m) in parallel. Find k_eff (N/m).', steps: ['Given: k₁ = ' + k1 + ', k₂ = ' + k2, 'k_eff = k₁ + k₂', 'k_eff = ' + k1 + ' + ' + k2, 'k_eff = ' + keff + ' N/m'], answer: keff, unit: 'N/m' }; },
+    function () { var k1 = randInt(60, 200); var k2 = randInt(60, 200); var F = randInt(10, 50); var keff = 1 / (1 / k1 + 1 / k2); var x = +(F / keff).toFixed(4); return { prompt: 'Series springs (k₁=' + k1 + ', k₂=' + k2 + ' N/m) carry ' + F + ' N. Find total extension (m).', steps: ['k_eff = 1/(1/' + k1 + '+1/' + k2 + ') = ' + keff.toFixed(1) + ' N/m', 'x = F/k_eff = ' + F + '/' + keff.toFixed(1), 'x = ' + x + ' m'], answer: x, unit: 'm' }; },
+    function () { var m = randInt(1, 20); var F = +(m * 9.81).toFixed(2); var k = randInt(50, 300); var x = +(F / k).toFixed(4); return { prompt: 'A ' + m + ' kg mass hangs from a spring (k = ' + k + ' N/m). Find extension (m). (g = 9.81)', steps: ['F = mg = ' + m + ' × 9.81 = ' + F + ' N', 'x = F/k = ' + F + '/' + k, 'x = ' + x + ' m'], answer: x, unit: 'm' }; },
+    function () { var m = randInt(1, 10); var k = randInt(50, 400); var F = +(m * 9.81).toFixed(2); var x = F / k; var E = +(0.5 * k * x * x).toFixed(3); return { prompt: 'A ' + m + ' kg mass on a spring (k = ' + k + ' N/m). Energy stored (J)? (g=9.81)', steps: ['F = mg = ' + m + '×9.81 = ' + F + ' N', 'x = F/k = ' + F + '/' + k + ' = ' + x.toFixed(4) + ' m', 'E = ½kx² = 0.5×' + k + '×' + (x * x).toFixed(6), 'E = ' + E + ' J'], answer: E, unit: 'J' }; },
+    function () { var k1 = randInt(40, 200); var k2 = randInt(40, 200); var F = randInt(10, 60); var keff = k1 + k2; var x = +(F / keff).toFixed(4); return { prompt: 'Parallel springs (k₁=' + k1 + ', k₂=' + k2 + ' N/m) carry ' + F + ' N. Find extension (m).', steps: ['k_eff = k₁+k₂ = ' + k1 + '+' + k2 + ' = ' + keff + ' N/m', 'x = F/k_eff = ' + F + '/' + keff, 'x = ' + x + ' m'], answer: x, unit: 'm' }; },
+    function () { var m = randInt(1, 15); var x = +(Math.random() * 0.1 + 0.02).toFixed(3); var F = +(m * 9.81).toFixed(2); var k = +(F / x).toFixed(1); return { prompt: 'A ' + m + ' kg mass extends a spring by ' + x + ' m. Find k (N/m). (g=9.81)', steps: ['F = mg = ' + m + '×9.81 = ' + F + ' N', 'k = F/x = ' + F + '/' + x, 'k = ' + k + ' N/m'], answer: k, unit: 'N/m' }; }
+  ];
+
+  var QUIZ_POOL = [
+    { type: 'mcq', prompt: "What does Hooke's Law state?", options: ['Force is proportional to extension', 'Force is proportional to mass', 'Energy is proportional to extension', 'Force is inversely proportional to extension'], correct: 0 },
+    { type: 'mcq', prompt: 'What is the SI unit of the spring constant k?', options: ['N/m', 'N', 'kg/m', 'J/m'], correct: 0 },
+    { type: 'mcq', prompt: 'What does the gradient of a linear F-x graph represent?', options: ['Spring constant k', 'Extension x', 'Elastic PE', 'Applied force F'], correct: 0 },
+    { type: 'mcq', prompt: 'When two springs are connected in series, the effective k is:', options: ['Less than either spring', 'Equal to the sum', 'Greater than either spring', 'Equal to the product'], correct: 0 },
+    { type: 'mcq', prompt: 'The area under the F-x graph represents:', options: ['Elastic potential energy stored', 'Spring constant', 'Maximum force', 'Natural length'], correct: 0 },
+    { type: 'mcq', prompt: 'Beyond the elastic limit, what happens?', options: ['Permanent deformation occurs', 'The spring gets stiffer', 'Energy is fully recovered', 'k increases'], correct: 0 },
+    { type: 'mcq', prompt: 'Two identical springs (k each) in parallel give k_eff =', options: ['2k', 'k/2', 'k', 'k²'], correct: 0 },
+    { type: 'mcq', prompt: 'The negative sign in F = -kx indicates:', options: ['Force opposes displacement', 'Force is always downward', 'Spring is compressed', 'Energy is lost'], correct: 0 },
+    { type: 'mcq', prompt: 'Which quantity is the material equivalent of spring constant?', options: ["Young's Modulus", 'Poisson Ratio', 'Shear Modulus', 'Bulk Modulus'], correct: 0 },
+    { type: 'mcq', prompt: 'Elastic potential energy formula is:', options: ['½kx²', 'kx', 'kx²', '½kx'], correct: 0 },
+    { type: 'numeric', prompt: 'k = 150 N/m, x = 0.04 m. Calculate F (N).', answer: 6, unit: 'N', steps: ['F = kx = 150×0.04', 'F = 6 N'] },
+    { type: 'numeric', prompt: 'F = 30 N, k = 200 N/m. Find x (m).', answer: 0.15, unit: 'm', steps: ['x = F/k = 30/200', 'x = 0.15 m'] },
+    { type: 'numeric', prompt: 'k = 400 N/m, x = 0.05 m. Calculate energy stored (J).', answer: 0.5, unit: 'J', steps: ['E = ½kx² = 0.5×400×0.0025', 'E = 0.5 J'] },
+    { type: 'numeric', prompt: 'Series: k₁=100, k₂=100 N/m. Find k_eff (N/m).', answer: 50, unit: 'N/m', steps: ['1/k_eff = 1/100+1/100 = 0.02', 'k_eff = 50 N/m'] },
+    { type: 'numeric', prompt: '3 kg mass on spring (k=300 N/m). Extension in m? (g=9.81)', answer: 0.0981, unit: 'm', steps: ['F=3×9.81=29.43N', 'x=29.43/300=0.0981 m'] }
+  ];
+
+  /* ================================================================
+     HELPERS
+     ================================================================ */
+  function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function shuffleArr(arr) { var a = arr.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function $(s) { return document.querySelector(s); }
+  function $$(s) { return document.querySelectorAll(s); }
+  function show(el) { if (el) el.style.display = ''; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* ================================================================
+     UNIT SYSTEM
+     ================================================================ */
+  var units = 'SI';   /* 'SI' | 'IMP' */
+
+  function U() {
+    if (units === 'IMP') {
+      return {
+        force:    { fromSI: function (n) { return n * 0.2248089; }, label: 'lbf',   digits: 2 },
+        length:   { fromSI: function (m) { return m * 39.3701; },   label: 'in',    digits: 3 },
+        energy:   { fromSI: function (j) { return j * 0.7375621; }, label: 'ft·lbf', digits: 3 },
+        mass:     { fromSI: function (kg){ return kg * 2.20462; },  label: 'lb',    digits: 1 },
+        kSpring:  { fromSI: function (n) { return n * 0.005710147; },label: 'lbf/in',digits: 3 }
+      };
+    }
+    return {
+      force:    { fromSI: function (n) { return n; },  label: 'N',    digits: 2 },
+      length:   { fromSI: function (m) { return m; },  label: 'm',    digits: 4 },
+      energy:   { fromSI: function (j) { return j; },  label: 'J',    digits: 3 },
+      mass:     { fromSI: function (kg){ return kg; }, label: 'kg',   digits: 1 },
+      kSpring:  { fromSI: function (n) { return n; },  label: 'N/m',  digits: 1 }
+    };
+  }
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var mode = 'simulate';
+  var springConfig = 'single';  /* single | series | parallel */
+  var kVal = 80;                /* N/m — SI internal */
+  var massVal = 0;              /* kg — SI internal */
+  var showLimit = true;
+  var showEnergy = true;
+  var showEquation = true;
+  var showGrid = false;
+  var G = 9.81;
+  var NATURAL_LEN = 160;
+  var ELASTIC_LIMIT_X = 0.12;   /* m */
+  var MAX_DRAW_EXT = 220;
+
+  /* Limits (SI) — raised to real-world ranges */
+  var K_MIN = 10, K_MAX = 1000, K_STEP = 5;
+  var M_MIN = 0,  M_MAX = 50,  M_STEP = 0.1;
+
+  var selCat = 'fundamentals';
+  var selConcept = 0;
+
+  var pProblem = null, pScore = 0, pTotal = 0, pAnswered = false;
+  var quizQs = [], quizIdx = 0, quizScore = 0, quizAnswered = false, quizResults = [];
+
+  var isDragging = false;
+  var hoverOnWeight = false;
+
+  /* Undo/redo */
+  var undoStack = [], redoStack = [];
+  var UNDO_LIMIT = 50;
+
+  /* ================================================================
+     CANVAS — DPR-aware resize
+     ================================================================ */
+  var cvs = document.getElementById('sim-canvas');
+  var ctx = cvs.getContext('2d');
+  var W = 900, H = 480;
+
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width || W;
+    var cssH = cssW * (H / W);
+    if (cssW < 50) { cssW = W; cssH = H; }
+    cvs.style.height = cssH + 'px';
+    cvs.width  = Math.round(cssW * dpr);
+    cvs.height = Math.round(cssH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(cvs.width / W, cvs.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    render();
+  }
+
+  /* ================================================================
+     PHYSICS
+     ================================================================ */
+  function getKeff() {
+    if (springConfig === 'single') return kVal;
+    if (springConfig === 'parallel') return kVal * 2;
+    return kVal / 2;
+  }
+  function getForce() { return massVal * G; }
+  function getExtension() { var k = getKeff(); return k > 0 ? getForce() / k : 0; }
+  function getEnergy() { var x = getExtension(); return 0.5 * getKeff() * x * x; }
+  function isBeyondLimit() { return getExtension() > ELASTIC_LIMIT_X; }
+
+  function extToPx(ext) {
+    var maxExt = 0.2;
+    var px = (ext / maxExt) * MAX_DRAW_EXT;
+    return Math.min(px, MAX_DRAW_EXT);
+  }
+
+  /* ================================================================
+     UNDO / REDO
+     ================================================================ */
+  function snapState() {
+    return {
+      k: kVal, m: massVal, c: springConfig,
+      sl: showLimit, se: showEnergy, seq: showEquation, sg: showGrid,
+      u: units
+    };
+  }
+  function loadState(s) {
+    if (!s) return;
+    kVal = s.k; massVal = s.m; springConfig = s.c;
+    showLimit = !!s.sl; showEnergy = !!s.se;
+    showEquation = (s.seq === undefined) ? true : !!s.seq;
+    showGrid = (s.sg === undefined) ? false : !!s.sg;
+    units = s.u || 'SI';
+    syncAllUI();
+    render();
+  }
+  function saveUndo() {
+    undoStack.push(snapState());
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack.length = 0;
+  }
+  function performUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapState());
+    loadState(undoStack.pop());
+  }
+  function performRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapState());
+    loadState(redoStack.pop());
+  }
+
+  /* ================================================================
+     DRAWING — SPRING
+     ================================================================ */
+  var COILS = 12;
+  var SPRING_WIDTH = 40;
+  var DIM_COLOR = '#8b9dc3';   /* WCAG-fixed dim text */
+
+  function drawSpring(cx, y1, y2, coils, color, lineW) {
+    var n = coils || COILS;
+    var len = y2 - y1;
+    var segH = len / (n * 2 + 2);
+    ctx.strokeStyle = color || '#26a69a';
+    ctx.lineWidth = lineW || 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, y1);
+    ctx.lineTo(cx, y1 + segH);
+    for (var i = 0; i < n; i++) {
+      var yBase = y1 + segH + i * 2 * segH;
+      var dir = (i % 2 === 0) ? 1 : -1;
+      ctx.lineTo(cx + dir * SPRING_WIDTH / 2, yBase + segH);
+      ctx.lineTo(cx - dir * SPRING_WIDTH / 2, yBase + 2 * segH);
+    }
+    ctx.lineTo(cx, y2);
+    ctx.stroke();
+  }
+
+  function drawSupport(cx, y, w) {
+    ctx.fillStyle = '#2a3050';
+    ctx.strokeStyle = '#4a5578';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(cx - w / 2, y - 12, w, 12);
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#3a4568';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < w; i += 10) {
+      ctx.beginPath();
+      ctx.moveTo(cx - w / 2 + i + 8, y - 12);
+      ctx.lineTo(cx - w / 2 + i, y);
+      ctx.stroke();
+    }
+  }
+
+  function drawWeight(cx, y, mass) {
+    var bw = 70, bh = 40;
+    ctx.fillStyle = 'rgba(38,166,154,0.35)';
+    ctx.strokeStyle = '#26a69a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(cx - bw / 2, y, bw, bh, 6);
+    else ctx.rect(cx - bw / 2, y, bw, bh);
+    ctx.fill(); ctx.stroke();
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var u = U();
+    ctx.fillText(u.mass.fromSI(mass).toFixed(u.mass.digits) + ' ' + u.mass.label, cx, y + bh / 2);
+  }
+
+  function drawForceArrow(cx, y, len, dir, color, label) {
+    if (len < 5) return;
+    var endY = y + len * dir;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.lineTo(cx, endY);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx, endY + 6 * dir);
+    ctx.lineTo(cx - 5, endY);
+    ctx.lineTo(cx + 5, endY);
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      ctx.font = '700 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx + 10, y + (len * dir) / 2);
+    }
+  }
+
+  function drawExtensionMarker(x, y1, y2) {
+    if (y2 - y1 < 5) return;
+    ctx.strokeStyle = DIM_COLOR;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 6, y1); ctx.lineTo(x + 6, y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 6, y2); ctx.lineTo(x + 6, y2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    var u = U();
+    ctx.fillText('x = ' + u.length.fromSI(getExtension()).toFixed(u.length.digits) + ' ' + u.length.label, x + 10, (y1 + y2) / 2);
+  }
+
+  function drawNaturalLengthRef(cx, y) {
+    ctx.strokeStyle = 'rgba(38,166,154,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cx - 60, y);
+    ctx.lineTo(cx + 60, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(38,166,154,0.6)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText('Natural length', cx - 65, y + 4);
+  }
+
+  /* ================================================================
+     DRAWING — GRID BG
+     ================================================================ */
+  function drawGridBg() {
+    if (!showGrid) return;
+    ctx.strokeStyle = 'rgba(139,157,195,0.08)';
+    ctx.lineWidth = 1;
+    for (var x = 0; x <= W; x += 30) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (var y = 0; y <= H; y += 30) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  /* ================================================================
+     DRAWING — F-x GRAPH
+     ================================================================ */
+  var GX = 500, GY = 50, GW = 360, GH = 340;
+
+  function drawGraph() {
+    var ext = getExtension();
+    var force = getForce();
+    var keff = getKeff();
+    ctx.strokeStyle = '#4a5578';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(GX, GY + GH); ctx.lineTo(GX, GY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(GX, GY + GH); ctx.lineTo(GX + GW, GY + GH); ctx.stroke();
+    ctx.fillStyle = '#4a5578';
+    ctx.beginPath(); ctx.moveTo(GX, GY - 4); ctx.lineTo(GX - 4, GY + 6); ctx.lineTo(GX + 4, GY + 6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(GX + GW + 4, GY + GH); ctx.lineTo(GX + GW - 6, GY + GH - 4); ctx.lineTo(GX + GW - 6, GY + GH + 4); ctx.closePath(); ctx.fill();
+
+    var u = U();
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Extension x (' + u.length.label + ')', GX + GW / 2, GY + GH + 16);
+    ctx.save();
+    ctx.translate(GX - 30, GY + GH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Force F (' + u.force.label + ')', 0, 0);
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(42,48,80,0.5)';
+    ctx.lineWidth = 0.5;
+    for (var i = 1; i <= 4; i++) {
+      var gy = GY + GH - (GH * i / 4);
+      ctx.beginPath(); ctx.moveTo(GX, gy); ctx.lineTo(GX + GW, gy); ctx.stroke();
+      var gx = GX + (GW * i / 4);
+      ctx.beginPath(); ctx.moveTo(gx, GY); ctx.lineTo(gx, GY + GH); ctx.stroke();
+    }
+
+    var maxX = 0.2;
+    var maxF = Math.max(keff * maxX, 30);
+
+    ctx.font = '600 10px "Courier New", monospace';
+    ctx.fillStyle = '#4a5578';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (var t = 1; t <= 4; t++) {
+      ctx.fillText(u.length.fromSI(maxX * t / 4).toFixed(units === 'IMP' ? 2 : 2), GX + GW * t / 4, GY + GH + 3);
+    }
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var t2 = 1; t2 <= 4; t2++) {
+      ctx.fillText(u.force.fromSI(maxF * t2 / 4).toFixed(units === 'IMP' ? 1 : 0), GX - 6, GY + GH - GH * t2 / 4);
+    }
+
+    if (showLimit) {
+      var elX = GX + (ELASTIC_LIMIT_X / maxX) * GW;
+      ctx.strokeStyle = 'rgba(255,85,85,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(elX, GY); ctx.lineTo(elX, GY + GH); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#ff5555';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText('Elastic Limit', elX + 4, GY + 14);
+    }
+
+    var lineEndX = Math.min(ELASTIC_LIMIT_X, maxX);
+    var lineEndF = keff * lineEndX;
+    var px1 = GX;
+    var py1 = GY + GH;
+    var px2 = GX + (lineEndX / maxX) * GW;
+    var py2 = GY + GH - (lineEndF / maxF) * GH;
+
+    ctx.strokeStyle = '#26a69a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(px1, py1);
+    ctx.lineTo(px2, py2);
+    ctx.stroke();
+
+    if (maxX > ELASTIC_LIMIT_X) {
+      ctx.strokeStyle = 'rgba(38,166,154,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px2, py2);
+      var steps = 40;
+      for (var s = 1; s <= steps; s++) {
+        var frac = s / steps;
+        var xm = ELASTIC_LIMIT_X + (maxX - ELASTIC_LIMIT_X) * frac;
+        var fm = keff * ELASTIC_LIMIT_X + keff * (xm - ELASTIC_LIMIT_X) * 0.3;
+        var sx = GX + (xm / maxX) * GW;
+        var sy = GY + GH - (fm / maxF) * GH;
+        ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
+
+    if (showEnergy && ext > 0.0005) {
+      var eX = Math.min(ext, ELASTIC_LIMIT_X);
+      var eF = keff * eX;
+      var epx = GX + (eX / maxX) * GW;
+      var epy = GY + GH - (eF / maxF) * GH;
+      ctx.fillStyle = 'rgba(38,166,154,0.38)';
+      ctx.beginPath();
+      ctx.moveTo(GX, GY + GH);
+      ctx.lineTo(epx, epy);
+      ctx.lineTo(epx, GY + GH);
+      ctx.closePath();
+      ctx.fill();
+      if (eX > 0.01) {
+        ctx.font = '700 11px "Segoe UI", sans-serif';
+        ctx.fillStyle = 'rgba(38,166,154,0.9)';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var labelX = GX + (eX / maxX) * GW * 0.45;
+        var labelY = GY + GH - (eF / maxF) * GH * 0.25;
+        ctx.fillText('E = ' + u.energy.fromSI(getEnergy()).toFixed(u.energy.digits) + ' ' + u.energy.label, labelX, labelY);
+      }
+    }
+
+    if (ext > 0.0005) {
+      var dotForce = isBeyondLimit() ? keff * ELASTIC_LIMIT_X + keff * (ext - ELASTIC_LIMIT_X) * 0.3 : force;
+      var dotX = GX + (ext / maxX) * GW;
+      var dotY = GY + GH - (dotForce / maxF) * GH;
+      dotX = Math.min(dotX, GX + GW - 4);
+      dotY = Math.max(dotY, GY + 4);
+      ctx.fillStyle = isBeyondLimit() ? '#ff5555' : '#26a69a';
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(38,166,154,0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(dotX, GY + GH); ctx.lineTo(dotX, dotY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(GX, dotY); ctx.lineTo(dotX, dotY); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('Force-Extension Graph', GX + GW / 2, GY - 8);
+
+    if (lineEndF > 5) {
+      ctx.font = '700 12px "Courier New", monospace';
+      ctx.fillStyle = '#80cbc4';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      var midPx = (px1 + px2) / 2;
+      var midPy = (py1 + py2) / 2;
+      ctx.fillText('F = kx', midPx + 8, midPy - 6);
+    }
+  }
+
+  /* ================================================================
+     DRAWING — CLASSICAL EQUATION OVERLAY (Pattern 3)
+     Drawn on canvas above the F-x graph title region.
+     ================================================================ */
+  function drawCanvasEquation() {
+    if (!showEquation) return;
+    var u = U();
+    var keff = getKeff();
+    var ext = getExtension();
+    var force = getForce();
+    var energy = getEnergy();
+
+    var Ftxt = u.force.fromSI(force).toFixed(u.force.digits) + ' ' + u.force.label;
+    var ktxt = u.kSpring.fromSI(keff).toFixed(u.kSpring.digits) + ' ' + u.kSpring.label;
+    var xtxt = u.length.fromSI(ext).toFixed(u.length.digits) + ' ' + u.length.label;
+    var Etxt = u.energy.fromSI(energy).toFixed(u.energy.digits) + ' ' + u.energy.label;
+
+    var cy = 415;
+    var sVar = 16, sSub = 11, sVal = 12, sEq = 18;
+    var leftBound = 40, rightBound = 470;
+    var maxW = rightBound - leftBound;
+
+    function mkFonts(s) {
+      return {
+        varFont: 'italic 700 ' + s.v + 'px "Cambria Math","Times New Roman",serif',
+        subFont: '700 ' + s.s + 'px "Cambria Math","Times New Roman",serif',
+        valFont: '700 ' + s.val + 'px "JetBrains Mono","Courier New",monospace',
+        eqFont:  '700 ' + s.e + 'px "Cambria Math","Times New Roman",serif'
+      };
+    }
+    var sz = { v: sVar, s: sSub, val: sVal, e: sEq };
+    var F = mkFonts(sz);
+
+    var C_F = '#ff8a65', C_k = '#42a5f5', C_x = '#3ddc84', C_E = '#f5c842', C_EQ = '#ffd54f';
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    function w(txt, font) { ctx.font = font; return ctx.measureText(txt).width; }
+    function segW(letter, sub, vtxt) {
+      ctx.font = F.varFont; var a = ctx.measureText(letter).width;
+      ctx.font = F.subFont; var b = sub ? ctx.measureText(sub).width : 0;
+      ctx.font = F.valFont; var c = ctx.measureText(' = ' + vtxt).width;
+      return a + b + c;
+    }
+
+    var wF = segW('F', '', Ftxt);
+    var wEq = w(' = ', F.eqFont);
+    var wK = segW('k', '', ktxt);
+    var wMul = w(' · ', F.eqFont);
+    var wX = segW('x', '', xtxt);
+    var total = wF + wEq + wK + wMul + wX;
+
+    if (total > maxW) {
+      var scale = Math.max(0.62, maxW / total);
+      sz = {
+        v: Math.max(11, Math.round(sVar * scale)),
+        s: Math.max(8,  Math.round(sSub * scale)),
+        val: Math.max(9, Math.round(sVal * scale)),
+        e: Math.max(13, Math.round(sEq * scale))
+      };
+      F = mkFonts(sz);
+      wF = segW('F', '', Ftxt);
+      wEq = w(' = ', F.eqFont);
+      wK = segW('k', '', ktxt);
+      wMul = w(' · ', F.eqFont);
+      wX = segW('x', '', xtxt);
+      total = wF + wEq + wK + wMul + wX;
+    }
+
+    var x = Math.round(leftBound + (maxW - total) / 2);
+
+    function drawSeg(cx, y, letter, sub, vtxt, vColor) {
+      ctx.font = F.varFont; ctx.fillStyle = vColor; ctx.fillText(letter, cx, y);
+      var wV = ctx.measureText(letter).width;
+      if (sub) {
+        ctx.font = F.subFont; ctx.fillText(sub, cx + wV, y + Math.round(sz.v * 0.25));
+      }
+      var wS = sub ? ctx.measureText(sub).width : 0;
+      ctx.font = F.valFont; ctx.fillStyle = '#e6edf6';
+      ctx.fillText(' = ' + vtxt, cx + wV + wS, y);
+    }
+
+    drawSeg(x, cy, 'F', '', Ftxt, C_F);    x += wF;
+    ctx.font = F.eqFont; ctx.fillStyle = C_EQ; ctx.fillText(' = ', x, cy); x += wEq;
+    drawSeg(x, cy, 'k', '', ktxt, C_k);    x += wK;
+    ctx.font = F.eqFont; ctx.fillStyle = C_EQ; ctx.fillText(' · ', x, cy); x += wMul;
+    drawSeg(x, cy, 'x', '', xtxt, C_x);
+
+    /* Second line — energy */
+    var ey = cy + 28;
+    var ws = mkFonts({ v: Math.max(13, sz.v - 1), s: Math.max(8, sz.s), val: Math.max(10, sz.val), e: Math.max(13, sz.e - 1) });
+    ctx.font = ws.varFont; ctx.fillStyle = C_E;
+    var ELabel = 'Eₚ';
+    var wEvar = w(ELabel, ws.varFont);
+    ctx.font = ws.eqFont;
+    var wEqs = w(' = ½·', ws.eqFont);
+    ctx.font = ws.valFont;
+    var wEval = w(' = ' + Etxt, ws.valFont);
+    var wEexpr = w('k·x²', ws.varFont);
+    var totalE = wEvar + wEqs + wEexpr + wEval;
+    var ex = Math.round(leftBound + (maxW - totalE) / 2);
+
+    ctx.font = ws.varFont; ctx.fillStyle = C_E; ctx.fillText(ELabel, ex, ey); ex += wEvar;
+    ctx.font = ws.eqFont; ctx.fillStyle = C_EQ; ctx.fillText(' = ½·', ex, ey); ex += wEqs;
+    ctx.font = ws.varFont; ctx.fillStyle = C_k; ctx.fillText('k', ex, ey);
+    var wKE = ctx.measureText('k').width;
+    ctx.fillStyle = C_EQ; ctx.font = ws.eqFont; ctx.fillText('·', ex + wKE, ey);
+    var wDot = ctx.measureText('·').width;
+    ctx.font = ws.varFont; ctx.fillStyle = C_x; ctx.fillText('x', ex + wKE + wDot, ey);
+    var wXE = ctx.measureText('x').width;
+    ctx.font = ws.subFont; ctx.fillText('²', ex + wKE + wDot + wXE, ey - Math.round(ws ? sz.v * 0.25 : 4));
+    ex += wEexpr;
+    ctx.font = ws.valFont; ctx.fillStyle = '#e6edf6'; ctx.fillText(' = ' + Etxt, ex, ey);
+  }
+
+  /* ================================================================
+     DRAWING — SIMULATE MODE
+     ================================================================ */
+  function drawSimulate() {
+    var ext = getExtension();
+    var extPx = extToPx(ext);
+    var SCX = 200;
+    var SUPPORT_Y = 50;
+    var SPRING_TOP = SUPPORT_Y;
+    var SPRING_BOT = SUPPORT_Y + NATURAL_LEN + extPx;
+
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    var configLabel = springConfig === 'single' ? 'Single Spring' : springConfig === 'series' ? 'Springs in Series' : 'Springs in Parallel';
+    ctx.fillText("Hooke's Law Simulator — " + configLabel, W / 2, 10);
+
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR;
+    ctx.fillText('Adjust mass and spring constant to see real-time response', W / 2, 28);
+
+    drawSupport(SCX, SUPPORT_Y, 120);
+
+    if (springConfig === 'single') {
+      drawSpring(SCX, SPRING_TOP, SPRING_BOT, COILS, '#26a69a', 3);
+    } else if (springConfig === 'series') {
+      var midY = SPRING_TOP + (SPRING_BOT - SPRING_TOP) / 2;
+      drawSpring(SCX, SPRING_TOP, midY, 8, '#26a69a', 3);
+      ctx.fillStyle = 'rgba(38,166,154,0.4)';
+      ctx.strokeStyle = '#26a69a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(SCX, midY, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      drawSpring(SCX, midY, SPRING_BOT, 8, '#80cbc4', 3);
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#26a69a';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('k₁', SCX + 30, SPRING_TOP + (midY - SPRING_TOP) / 2);
+      ctx.fillStyle = '#80cbc4';
+      ctx.fillText('k₂', SCX + 30, midY + (SPRING_BOT - midY) / 2);
+    } else {
+      var gap = 50;
+      drawSpring(SCX - gap / 2, SPRING_TOP, SPRING_BOT, COILS, '#26a69a', 2.5);
+      drawSpring(SCX + gap / 2, SPRING_TOP, SPRING_BOT, COILS, '#80cbc4', 2.5);
+      ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(SCX - gap / 2, SPRING_TOP); ctx.lineTo(SCX + gap / 2, SPRING_TOP); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(SCX - gap / 2, SPRING_BOT); ctx.lineTo(SCX + gap / 2, SPRING_BOT); ctx.stroke();
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('k₁', SCX - gap / 2, SPRING_TOP - 4);
+      ctx.fillStyle = '#80cbc4';
+      ctx.fillText('k₂', SCX + gap / 2, SPRING_TOP - 4);
+    }
+
+    if (massVal > 0) {
+      drawWeight(SCX, SPRING_BOT, massVal);
+      var arrowLen = Math.min(extPx * 0.6, 50);
+      if (arrowLen > 8) {
+        var u = U();
+        drawForceArrow(SCX - 50, SPRING_BOT + 20, arrowLen, 1, '#3ddc84', 'F = ' + u.force.fromSI(getForce()).toFixed(u.force.digits) + ' ' + u.force.label);
+        drawForceArrow(SCX + 50, SPRING_BOT + 20, arrowLen, -1, '#ff5555', 'F_r');
+      }
+      var natEndY = SUPPORT_Y + NATURAL_LEN;
+      drawExtensionMarker(SCX + 60, natEndY, SPRING_BOT);
+      drawNaturalLengthRef(SCX, natEndY);
+    } else {
+      ctx.font = '600 11px "Segoe UI", sans-serif';
+      ctx.fillStyle = DIM_COLOR;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('Add mass or drag spring', SCX, SPRING_BOT + 10);
+      ctx.fillText('to stretch', SCX, SPRING_BOT + 24);
+    }
+
+    if (isBeyondLimit()) {
+      ctx.font = '700 13px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#ff5555';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('⚠ Beyond Elastic Limit!', SCX, SPRING_BOT + (massVal > 0 ? 50 : 10));
+    }
+
+    drawGraph();
+    drawCanvasEquation();
+  }
+
+  /* ================================================================
+     DRAWING — EXPLORE MINI-DIAGRAMS (unchanged from original)
+     ================================================================ */
+  function drawConceptDiagram(concept) {
+    var fn = {
+      'springWithLabel': drawSpringWithLabel,
+      'stiffnessCompare': drawStiffnessCompare,
+      'extensionDiagram': drawExtensionDiagram,
+      'restoringForce': drawRestoringForce,
+      'seriesDiagram': drawSeriesDiagramMini,
+      'parallelDiagram': drawParallelDiagramMini,
+      'elasticLimitGraph': drawElasticLimitGraph,
+      'stressStrainMini': drawStressStrainMini,
+      'energyTriangle': drawEnergyTriangle,
+      'workDoneArea': drawWorkDoneArea,
+      'energyBarChart': drawEnergyBarChart,
+      'applicationsGrid': drawApplicationsGrid
+    };
+    if (fn[concept.diagram]) fn[concept.diagram]();
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#26a69a';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(concept.formula, W / 2, H - 16);
+  }
+
+  function drawSpringWithLabel() {
+    var cx = W / 2, sy = 80;
+    drawSupport(cx, sy, 100);
+    drawSpring(cx, sy, sy + 180, 10, '#26a69a', 3);
+    drawWeight(cx, sy + 180, 5);
+    drawForceArrow(cx - 60, sy + 200, 40, 1, '#3ddc84', 'F = kx');
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#80cbc4';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('k', cx + 30, sy + 90);
+    drawExtensionMarker(cx + 55, sy + 140, sy + 180);
+  }
+  function drawStiffnessCompare() {
+    var y = 80;
+    drawSupport(250, y, 80); drawSupport(650, y, 80);
+    drawSpring(250, y, y + 120, 10, '#26a69a', 3);
+    drawWeight(250, y + 120, 5);
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('High k (Stiff)', 250, y + 170);
+    ctx.fillText('Small extension', 250, y + 186);
+    drawSpring(650, y, y + 220, 10, '#80cbc4', 3);
+    drawWeight(650, y + 220, 5);
+    ctx.fillStyle = '#80cbc4';
+    ctx.fillText('Low k (Soft)', 650, y + 270);
+    ctx.fillText('Large extension', 650, y + 286);
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Same force F applied to both', W / 2, y - 26);
+  }
+  function drawExtensionDiagram() {
+    var cx = W / 2, y = 60;
+    drawSupport(cx - 150, y, 80);
+    drawSpring(cx - 150, y, y + 140, 10, 'rgba(38,166,154,0.4)', 2);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Natural length L₀', cx - 150, y + 150);
+    ctx.strokeStyle = DIM_COLOR; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 100, y); ctx.lineTo(cx - 100, y + 140); ctx.stroke();
+    ctx.fillText('L₀', cx - 90, y + 60);
+    drawSupport(cx + 150, y, 80);
+    drawSpring(cx + 150, y, y + 220, 10, '#26a69a', 3);
+    drawWeight(cx + 150, y + 220, 3);
+    ctx.fillStyle = '#26a69a'; ctx.fillText('Extended length L', cx + 150, y + 270);
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx + 210, y); ctx.lineTo(cx + 210, y + 220); ctx.stroke();
+    ctx.fillStyle = '#26a69a'; ctx.fillText('L', cx + 220, y + 100);
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx + 220, y + 140); ctx.lineTo(cx + 220, y + 220); ctx.stroke();
+    ctx.fillStyle = '#3ddc84'; ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.fillText('x', cx + 236, y + 175);
+  }
+  function drawRestoringForce() {
+    var cx = W / 2, sy = 100;
+    drawSupport(cx, sy, 100);
+    drawSpring(cx, sy, sy + 200, 10, '#26a69a', 3);
+    drawWeight(cx, sy + 200, 4);
+    drawForceArrow(cx - 55, sy + 220, 45, 1, '#3ddc84', 'F (applied)');
+    drawForceArrow(cx + 55, sy + 200, 45, -1, '#ff5555', 'F = -kx');
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Restoring force opposes displacement', cx, sy + 290);
+  }
+  function drawSeriesDiagramMini() {
+    var cx = W / 2, y = 60;
+    drawSupport(cx, y, 100);
+    drawSpring(cx, y, y + 120, 7, '#26a69a', 3);
+    ctx.fillStyle = 'rgba(38,166,154,0.4)'; ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, y + 120, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    drawSpring(cx, y + 120, y + 240, 7, '#80cbc4', 3);
+    drawWeight(cx, y + 240, 5);
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('k₁', cx + 35, y + 60);
+    ctx.fillStyle = '#80cbc4';
+    ctx.fillText('k₂', cx + 35, y + 180);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('1/k_eff = 1/k₁ + 1/k₂', cx, y + 300);
+    ctx.fillStyle = DIM_COLOR;
+    ctx.fillText('k_eff < min(k₁, k₂)', cx, y + 320);
+  }
+  function drawParallelDiagramMini() {
+    var cx = W / 2, y = 60, gap = 80;
+    drawSupport(cx, y, 140);
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - gap / 2, y); ctx.lineTo(cx + gap / 2, y); ctx.stroke();
+    drawSpring(cx - gap / 2, y, y + 200, 10, '#26a69a', 2.5);
+    drawSpring(cx + gap / 2, y, y + 200, 10, '#80cbc4', 2.5);
+    ctx.beginPath(); ctx.moveTo(cx - gap / 2, y + 200); ctx.lineTo(cx + gap / 2, y + 200); ctx.stroke();
+    drawWeight(cx, y + 200, 5);
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('k₁', cx - gap / 2, y - 4);
+    ctx.fillStyle = '#80cbc4';
+    ctx.fillText('k₂', cx + gap / 2, y - 4);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('k_eff = k₁ + k₂', cx, y + 260);
+    ctx.fillStyle = DIM_COLOR;
+    ctx.fillText('k_eff > max(k₁, k₂)', cx, y + 280);
+  }
+  function drawElasticLimitGraph() {
+    var ox = 180, oy = 380, gw = 550, gh = 300;
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - gh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw, oy); ctx.stroke();
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Extension x', ox + gw / 2, oy + 12);
+    ctx.save(); ctx.translate(ox - 24, oy - gh / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Force F', 0, 0); ctx.restore();
+    var lx = gw * 0.5, ly = gh * 0.6;
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + lx, oy - ly); ctx.stroke();
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(ox + lx, oy - ly);
+    for (var i = 1; i <= 30; i++) {
+      var f = i / 30;
+      var nx = lx + (gw * 0.4) * f;
+      var ny = ly + gh * 0.25 * Math.sqrt(f);
+      ctx.lineTo(ox + nx, oy - ny);
+    }
+    ctx.stroke();
+    ctx.setLineDash([5, 3]); ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ox + lx, oy); ctx.lineTo(ox + lx, oy - gh); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('Elastic Limit', ox + lx, oy - gh + 14);
+    ctx.fillStyle = 'rgba(38,166,154,0.38)';
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + lx, oy - ly); ctx.lineTo(ox + lx, oy); ctx.closePath(); ctx.fill();
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText("Hooke's Law region", ox + lx / 2, oy - ly / 3);
+    ctx.fillStyle = '#ff5555';
+    ctx.fillText('Non-linear region', ox + lx + gw * 0.2, oy - ly - gh * 0.06);
+  }
+  function drawStressStrainMini() {
+    var ox = 200, oy = 370, gw = 500, gh = 280;
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - gh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw, oy); ctx.stroke();
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Strain ε', ox + gw / 2, oy + 12);
+    ctx.save(); ctx.translate(ox - 24, oy - gh / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Stress σ', 0, 0); ctx.restore();
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw * 0.35, oy - gh * 0.55); ctx.stroke();
+    ctx.font = '700 14px "Courier New", monospace';
+    ctx.fillStyle = '#80cbc4'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText('σ = Eε', ox + gw * 0.12, oy - gh * 0.3);
+    ctx.fillText('(slope = E)', ox + gw * 0.12, oy - gh * 0.22);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText("Material version of Hooke's Law", W / 2, 50);
+    ctx.fillStyle = DIM_COLOR;
+    ctx.fillText('Spring: F = kx  ↔  Material: σ = Eε', W / 2, 70);
+  }
+  function drawEnergyTriangle() {
+    var ox = 200, oy = 380, gw = 500, gh = 280;
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - gh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw, oy); ctx.stroke();
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Extension x', ox + gw / 2, oy + 12);
+    ctx.save(); ctx.translate(ox - 24, oy - gh / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Force F', 0, 0); ctx.restore();
+    var endX = gw * 0.7, endY = gh * 0.7;
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + endX, oy - endY); ctx.stroke();
+    ctx.fillStyle = 'rgba(38,166,154,0.38)';
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + endX, oy - endY); ctx.lineTo(ox + endX, oy); ctx.closePath(); ctx.fill();
+    ctx.font = '700 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('E = ½kx²', ox + endX * 0.45, oy - endY * 0.25);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#80cbc4';
+    ctx.fillText('Area = Energy stored', ox + endX * 0.45, oy - endY * 0.15);
+  }
+  function drawWorkDoneArea() {
+    var ox = 200, oy = 380, gw = 500, gh = 280;
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - gh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw, oy); ctx.stroke();
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Extension x', ox + gw / 2, oy + 12);
+    ctx.save(); ctx.translate(ox - 24, oy - gh / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Force F', 0, 0); ctx.restore();
+    var endX = gw * 0.65, endY = gh * 0.65;
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + endX, oy - endY); ctx.stroke();
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = DIM_COLOR; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ox, oy - endY); ctx.lineTo(ox + endX, oy - endY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('F', ox - 8, oy - endY);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('x', ox + endX, oy + 4);
+    ctx.fillStyle = 'rgba(38,166,154,0.38)';
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + endX, oy - endY); ctx.lineTo(ox + endX, oy); ctx.closePath(); ctx.fill();
+    ctx.font = '700 15px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('W = ½ F x', ox + endX * 0.4, oy - endY * 0.25);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#80cbc4';
+    ctx.fillText('Average force = F/2', ox + endX * 0.4, oy - endY * 0.14);
+  }
+  function drawEnergyBarChart() {
+    var bx = 120, by = 80, bw = 100, maxH = 280;
+    var labels = ['Max ext', 'Mid', 'Equilibrium'];
+    var pe = [1, 0.5, 0];
+    var ke = [0, 0.5, 1];
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Energy Conservation in Spring-Mass System', W / 2, 30);
+    for (var i = 0; i < 3; i++) {
+      var x = bx + i * 280;
+      var peH = pe[i] * maxH;
+      var keH = ke[i] * maxH;
+      ctx.fillStyle = 'rgba(38,166,154,0.45)';
+      ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.rect(x, by + maxH - peH, bw, peH); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(245,200,66,0.45)';
+      ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.rect(x + bw + 10, by + maxH - keH, bw, keH); ctx.fill(); ctx.stroke();
+      ctx.font = '700 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(labels[i], x + bw + 5, by + maxH + 10);
+    }
+    ctx.fillStyle = 'rgba(38,166,154,0.45)';
+    ctx.fillRect(280, by + maxH + 50, 14, 14);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#26a69a'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('Elastic PE (½kx²)', 300, by + maxH + 57);
+    ctx.fillStyle = 'rgba(245,200,66,0.45)';
+    ctx.fillRect(460, by + maxH + 50, 14, 14);
+    ctx.fillStyle = '#f5c842';
+    ctx.fillText('Kinetic E (½mv²)', 480, by + maxH + 57);
+  }
+  function drawApplicationsGrid() {
+    var apps = [
+      { name: 'Vehicle Suspension', icon: drawCarIcon },
+      { name: 'Spring Balance', icon: drawBalanceIcon },
+      { name: 'Trampoline', icon: drawTrampolineIcon },
+      { name: 'Pen Mechanism', icon: drawPenIcon }
+    ];
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText("Real-World Applications of Hooke's Law", W / 2, 30);
+    for (var i = 0; i < 4; i++) {
+      var col = i % 2;
+      var row = Math.floor(i / 2);
+      var cx = 230 + col * 440;
+      var cy = 120 + row * 180;
+      ctx.fillStyle = 'rgba(38,166,154,0.08)';
+      ctx.strokeStyle = 'rgba(38,166,154,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(cx - 180, cy - 50, 360, 140, 10);
+      else ctx.rect(cx - 180, cy - 50, 360, 140);
+      ctx.fill(); ctx.stroke();
+      apps[i].icon(cx, cy);
+      ctx.font = '700 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#26a69a'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(apps[i].name, cx, cy + 50);
+    }
+  }
+  function drawCarIcon(cx, cy) {
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(cx - 40, cy - 30, 80, 30, 4);
+    else ctx.rect(cx - 40, cy - 30, 80, 30);
+    ctx.stroke();
+    drawSpring(cx - 20, cy, cy + 30, 4, '#26a69a', 2);
+    drawSpring(cx + 20, cy, cy + 30, 4, '#26a69a', 2);
+    ctx.strokeStyle = DIM_COLOR; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx - 20, cy + 35, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + 20, cy + 35, 8, 0, Math.PI * 2); ctx.stroke();
+  }
+  function drawBalanceIcon(cx, cy) {
+    ctx.fillStyle = '#2a3050'; ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(cx - 15, cy - 40, 30, 80, 4);
+    else ctx.rect(cx - 15, cy - 40, 30, 80);
+    ctx.fill(); ctx.stroke();
+    drawSpring(cx, cy - 30, cy + 10, 5, '#26a69a', 2);
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy + 20, 6, 0, Math.PI); ctx.stroke();
+  }
+  function drawTrampolineIcon(cx, cy) {
+    ctx.strokeStyle = DIM_COLOR; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 50, cy + 30); ctx.lineTo(cx - 40, cy - 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 50, cy + 30); ctx.lineTo(cx + 40, cy - 10); ctx.stroke();
+    ctx.strokeStyle = '#26a69a'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cx - 40, cy - 10); ctx.quadraticCurveTo(cx, cy + 10, cx + 40, cy - 10); ctx.stroke();
+    drawSpring(cx - 30, cy - 5, cy + 25, 3, '#26a69a', 1.5);
+    drawSpring(cx + 30, cy - 5, cy + 25, 3, '#26a69a', 1.5);
+  }
+  function drawPenIcon(cx, cy) {
+    ctx.fillStyle = '#2a3050'; ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(cx - 8, cy - 35, 16, 70, 3);
+    else ctx.rect(cx - 8, cy - 35, 16, 70);
+    ctx.fill(); ctx.stroke();
+    drawSpring(cx, cy - 20, cy + 10, 4, '#26a69a', 1.5);
+    ctx.fillStyle = '#26a69a';
+    ctx.beginPath(); ctx.moveTo(cx - 4, cy + 35); ctx.lineTo(cx + 4, cy + 35); ctx.lineTo(cx, cy + 44); ctx.closePath(); ctx.fill();
+  }
+
+  function drawMiniGraph() {
+    var ox = W / 2 - 100, oy = H - 60, gw = 300, gh = H - 120;
+    ctx.strokeStyle = 'rgba(38,166,154,0.15)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - gh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw, oy); ctx.stroke();
+    ctx.strokeStyle = 'rgba(38,166,154,0.25)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw * 0.7, oy - gh * 0.7); ctx.stroke();
+    ctx.fillStyle = 'rgba(38,166,154,0.08)';
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + gw * 0.7, oy - gh * 0.7); ctx.lineTo(ox + gw * 0.7, oy); ctx.closePath(); ctx.fill();
+    ctx.font = '700 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(mode === 'practice' ? 'Practice Mode' : 'Quiz Mode', W / 2, 20);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = DIM_COLOR;
+    ctx.fillText(mode === 'practice' ? 'Solve the problem below' : 'Answer the question below', W / 2, 42);
+  }
+
+  /* ================================================================
+     RENDER
+     ================================================================ */
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+    drawGridBg();
+
+    if (mode === 'simulate') drawSimulate();
+    else if (mode === 'explore') drawConceptDiagram(CONCEPTS[selConcept]);
+    else drawMiniGraph();
+  }
+
+  /* ================================================================
+     MODE SWITCH
+     ================================================================ */
+  function setMode(m) {
+    mode = m;
+    var pills = $$('#mode-tabs .pill');
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].classList.toggle('active', pills[i].getAttribute('data-mode') === m);
+    }
+    var simEl = $('#sim-panel');
+    var lpEl = $('#learn-panels');
+    var expCat = $('#cat-row');
+    var expSel = $('#item-selector');
+    var expInfo = $('#item-info');
+    var pracPanel = $('#practice-panel');
+    var pracBar = $('#practice-bar');
+    var quizPanel = $('#quiz-panel');
+    var quizBar = $('#quiz-bar');
+    var quizResult = $('#quiz-result');
+    var fab = $('#btn-calc');
+
+    hide(simEl); hide(lpEl); hide(expCat); hide(expSel); hide(expInfo);
+    hide(pracPanel); hide(pracBar); hide(quizPanel); hide(quizBar); hide(quizResult);
+    if (fab) fab.style.display = 'none';
+
+    if (m === 'simulate') {
+      show(simEl); show(lpEl);
+      if (fab) fab.style.display = '';
+    } else if (m === 'explore') {
+      show(expCat); show(expSel); show(expInfo);
+      buildConceptGrid();
+      selectConcept(0);
+    } else if (m === 'practice') {
+      show(pracPanel); show(pracBar);
+      newPractice();
+    } else if (m === 'quiz') {
+      show(quizPanel); show(quizBar);
+      startQuiz();
+    }
+    render();
+  }
+
+  /* ================================================================
+     SIMULATE CONTROLS — sliders + steppers + presets
+     ================================================================ */
+  function setK(v) { kVal = clamp(v, K_MIN, K_MAX); }
+  function setM(v) { massVal = clamp(v, M_MIN, M_MAX); massVal = Math.round(massVal * 10) / 10; }
+
+  function syncAllUI() {
+    var u = U();
+    /* Sliders */
+    var kSlider = $('#k-slider'); if (kSlider) kSlider.value = kVal;
+    var mSlider = $('#mass-slider'); if (mSlider) mSlider.value = massVal;
+    /* Stepper text */
+    var kNum = $('#k-num');
+    if (kNum && document.activeElement !== kNum) kNum.value = u.kSpring.fromSI(kVal).toFixed(u.kSpring.digits);
+    var mNum = $('#mass-num');
+    if (mNum && document.activeElement !== mNum) mNum.value = u.mass.fromSI(massVal).toFixed(u.mass.digits);
+    /* Unit labels next to steppers */
+    var kUL = $('#k-unit'); if (kUL) kUL.textContent = u.kSpring.label;
+    var mUL = $('#mass-unit'); if (mUL) mUL.textContent = u.mass.label;
+    /* Slider value spans (right of slider) */
+    var kVL = $('#k-val'); if (kVL) kVL.textContent = u.kSpring.fromSI(kVal).toFixed(u.kSpring.digits) + ' ' + u.kSpring.label;
+    var mVL = $('#mass-val'); if (mVL) mVL.textContent = u.mass.fromSI(massVal).toFixed(u.mass.digits) + ' ' + u.mass.label;
+    /* Config pills */
+    var cfgPills = $$('#config-tabs .pill');
+    for (var i = 0; i < cfgPills.length; i++) {
+      cfgPills[i].classList.toggle('active', cfgPills[i].getAttribute('data-cfg') === springConfig);
+    }
+    /* Toggles */
+    var lc = $('#chk-limit'); if (lc) lc.checked = !!showLimit;
+    var ec = $('#chk-energy'); if (ec) ec.checked = !!showEnergy;
+    var eq = $('#chk-equation'); if (eq) eq.checked = !!showEquation;
+    /* Unit toggle */
+    var uPills = $$('#units-tabs .pill');
+    for (var u2 = 0; u2 < uPills.length; u2++) {
+      uPills[u2].classList.toggle('active', uPills[u2].getAttribute('data-u') === units);
+    }
+    /* Mass presets */
+    updateMassPresets();
+    updateKPresets();
+    updateReadouts();
+    updateLearnPanels();
+  }
+
+  function wireSimControls() {
+    var kSlider = $('#k-slider');
+    var mSlider = $('#mass-slider');
+
+    /* k slider */
+    if (kSlider) {
+      kSlider.addEventListener('input', function () {
+        saveUndo();
+        setK(parseFloat(this.value));
+        syncAllUI(); render();
+      });
+    }
+    /* k stepper */
+    var kDec = $('#k-dec'), kInc = $('#k-inc'), kNum = $('#k-num');
+    if (kDec) kDec.addEventListener('click', function () { saveUndo(); setK(kVal - K_STEP); syncAllUI(); render(); });
+    if (kInc) kInc.addEventListener('click', function () { saveUndo(); setK(kVal + K_STEP); syncAllUI(); render(); });
+    if (kNum) kNum.addEventListener('change', function () {
+      var raw = parseFloat(this.value); if (isNaN(raw)) { syncAllUI(); return; }
+      var u = U();
+      var siVal = (units === 'IMP') ? (raw / 0.005710147) : raw;
+      saveUndo(); setK(siVal); syncAllUI(); render();
+    });
+
+    /* mass slider */
+    if (mSlider) {
+      mSlider.addEventListener('input', function () {
+        saveUndo();
+        setM(parseFloat(this.value));
+        syncAllUI(); render();
+      });
+    }
+    /* mass stepper */
+    var mDec = $('#mass-dec'), mInc = $('#mass-inc'), mNum = $('#mass-num');
+    if (mDec) mDec.addEventListener('click', function () { saveUndo(); setM(massVal - M_STEP); syncAllUI(); render(); });
+    if (mInc) mInc.addEventListener('click', function () { saveUndo(); setM(massVal + M_STEP); syncAllUI(); render(); });
+    if (mNum) mNum.addEventListener('change', function () {
+      var raw = parseFloat(this.value); if (isNaN(raw)) { syncAllUI(); return; }
+      var siVal = (units === 'IMP') ? (raw / 2.20462) : raw;
+      saveUndo(); setM(siVal); syncAllUI(); render();
+    });
+
+    /* mass presets */
+    var mPresets = $$('.mass-btn');
+    for (var i = 0; i < mPresets.length; i++) {
+      mPresets[i].addEventListener('click', function () {
+        saveUndo();
+        setM(parseFloat(this.getAttribute('data-mass')));
+        syncAllUI(); render();
+      });
+    }
+    /* k presets */
+    var kPresets = $$('.k-btn');
+    for (var kp = 0; kp < kPresets.length; kp++) {
+      kPresets[kp].addEventListener('click', function () {
+        saveUndo();
+        setK(parseFloat(this.getAttribute('data-k')));
+        syncAllUI(); render();
+      });
+    }
+
+    /* config pills */
+    var cfgPills = $$('#config-tabs .pill');
+    for (var j = 0; j < cfgPills.length; j++) {
+      cfgPills[j].addEventListener('click', function () {
+        saveUndo();
+        springConfig = this.getAttribute('data-cfg');
+        syncAllUI(); render();
+      });
+    }
+
+    /* unit toggle */
+    var uPills = $$('#units-tabs .pill');
+    for (var up = 0; up < uPills.length; up++) {
+      uPills[up].addEventListener('click', function () {
+        saveUndo();
+        units = this.getAttribute('data-u');
+        syncAllUI(); render();
+      });
+    }
+
+    /* toggles */
+    var limCheck = $('#chk-limit');
+    var engCheck = $('#chk-energy');
+    var eqCheck = $('#chk-equation');
+    if (limCheck) limCheck.addEventListener('change', function () { saveUndo(); showLimit = this.checked; render(); });
+    if (engCheck) engCheck.addEventListener('change', function () { saveUndo(); showEnergy = this.checked; render(); });
+    if (eqCheck) eqCheck.addEventListener('change', function () { saveUndo(); showEquation = this.checked; render(); });
+
+    /* reset */
+    var rst = $('#btn-reset');
+    if (rst) rst.addEventListener('click', resetAll);
+  }
+
+  function updateMassPresets() {
+    var btns = $$('.mass-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', parseFloat(btns[i].getAttribute('data-mass')) === massVal);
+    }
+  }
+  function updateKPresets() {
+    var btns = $$('.k-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', parseFloat(btns[i].getAttribute('data-k')) === kVal);
+    }
+  }
+
+  function updateReadouts() {
+    var u = U();
+    var ext = getExtension();
+    var force = getForce();
+    var energy = getEnergy();
+    var keff = getKeff();
+    var beyond = isBeyondLimit();
+
+    var rForce = $('#r-force');
+    var rExt = $('#r-ext');
+    var rEnergy = $('#r-energy');
+    var rKeff = $('#r-keff');
+    var uForce = $('#r-force-unit');
+    var uExt = $('#r-ext-unit');
+    var uEnergy = $('#r-energy-unit');
+    var uKeff = $('#r-keff-unit');
+
+    if (rForce) { rForce.textContent = u.force.fromSI(force).toFixed(u.force.digits); rForce.classList.toggle('warn', beyond); }
+    if (rExt) { rExt.textContent = u.length.fromSI(ext).toFixed(u.length.digits); rExt.classList.toggle('warn', beyond); }
+    if (rEnergy) rEnergy.textContent = u.energy.fromSI(energy).toFixed(u.energy.digits);
+    if (rKeff) rKeff.textContent = u.kSpring.fromSI(keff).toFixed(u.kSpring.digits);
+    if (uForce) uForce.textContent = ' ' + u.force.label;
+    if (uExt) uExt.textContent = ' ' + u.length.label;
+    if (uEnergy) uEnergy.textContent = ' ' + u.energy.label;
+    if (uKeff) uKeff.textContent = ' ' + u.kSpring.label;
+  }
+
+  function resetAll() {
+    saveUndo();
+    kVal = 80; massVal = 0; springConfig = 'single';
+    showLimit = true; showEnergy = true; showEquation = true; showGrid = false;
+    units = 'SI';
+    syncAllUI();
+    render();
+  }
+
+  /* ================================================================
+     LEARNING PANELS — Live equations (KaTeX)
+     ================================================================ */
+  var _learnCache = { eq: '', co: '' };
+  function updateLearnPanels() {
+    var eq = $('#lp-eq-body');
+    if (eq) {
+      var u = U();
+      var ext = getExtension();
+      var force = getForce();
+      var energy = getEnergy();
+      var keff = getKeff();
+      var Fv = u.force.fromSI(force).toFixed(u.force.digits);
+      var Kv = u.kSpring.fromSI(keff).toFixed(u.kSpring.digits);
+      var Xv = u.length.fromSI(ext).toFixed(u.length.digits);
+      var Ev = u.energy.fromSI(energy).toFixed(u.energy.digits);
+      var Mv = u.mass.fromSI(massVal).toFixed(u.mass.digits);
+      var uF = u.force.label, uK = u.kSpring.label, uL = u.length.label, uE = u.energy.label, uM = u.mass.label;
+      var cfgLine = '';
+      if (springConfig === 'series') {
+        cfgLine = '<div class="eq-line">\\[ \\dfrac{1}{k_{\\text{eff}}} = \\dfrac{1}{k_1} + \\dfrac{1}{k_2} \\Rightarrow k_{\\text{eff}} = \\mathbf{' + Kv + '\\;\\mathrm{' + uK.replace('/', '/') + '}} \\]</div>';
+      } else if (springConfig === 'parallel') {
+        cfgLine = '<div class="eq-line">\\[ k_{\\text{eff}} = k_1 + k_2 \\Rightarrow k_{\\text{eff}} = \\mathbf{' + Kv + '\\;\\mathrm{' + uK + '}} \\]</div>';
+      } else {
+        cfgLine = '<div class="eq-line">\\(k_{\\text{eff}} = k = \\mathbf{' + Kv + '\\;\\mathrm{' + uK + '}}\\) (single spring)</div>';
+      }
+      var html = '';
+      html += cfgLine;
+      html += '<div class="eq-line">\\[ F = m \\cdot g \\;\\Rightarrow\\; F = ' + Mv + '\\;\\mathrm{' + uM + '} \\cdot 9.81\\;\\mathrm{m/s^2} = \\mathbf{' + Fv + '\\;\\mathrm{' + uF + '}} \\]</div>';
+      html += '<div class="eq-line">\\[ x = \\dfrac{F}{k_{\\text{eff}}} = \\dfrac{' + Fv + '}{' + Kv + '} = \\mathbf{' + Xv + '\\;\\mathrm{' + uL + '}} \\]</div>';
+      html += '<div class="eq-line">\\[ E_p = \\tfrac{1}{2}\\,k_{\\text{eff}}\\,x^2 = \\tfrac{1}{2}\\cdot ' + Kv + ' \\cdot (' + Xv + ')^2 = \\mathbf{' + Ev + '\\;\\mathrm{' + uE.replace('·', '\\cdot ') + '}} \\]</div>';
+      if (html !== _learnCache.eq) { eq.innerHTML = html; _learnCache.eq = html; }
+    }
+
+    var co = $('#lp-coach-body');
+    if (co) {
+      var hints = [];
+      var ext2 = getExtension();
+      if (massVal === 0) hints.push('Add mass or drag the spring downward to load it.');
+      if (isBeyondLimit()) hints.push('⚠ Past the elastic limit (x &gt; 0.12 m). Real springs would deform permanently here.');
+      else if (ext2 > 0.08) hints.push('Approaching the elastic limit — try increasing k or reducing mass to stay safely linear.');
+      if (springConfig === 'series') hints.push('Series makes the combination softer: k_eff = k/2 with equal springs.');
+      if (springConfig === 'parallel') hints.push('Parallel makes the combination stiffer: k_eff = 2k with equal springs.');
+      if (kVal < 30 && massVal > 3) hints.push('Soft spring + heavy mass = very large extension. Try a stiffer spring.');
+      if (kVal > 500) hints.push('Stiff spring — even 50 kg produces only a small extension; great for vehicle suspension.');
+      if (!hints.length) hints.push('System is safely within the linear Hooke\'s region. Try larger mass or compare configs.');
+      var html2 = '<ul class="coach-list">' + hints.map(function (h) { return '<li>' + h + '</li>'; }).join('') + '</ul>';
+      if (html2 !== _learnCache.co) { co.innerHTML = html2; _learnCache.co = html2; }
+    }
+  }
+
+  function wireLearnPanels() {
+    var expAll = $('#learn-expand-all');
+    var colAll = $('#learn-collapse-all');
+    var cards = [].slice.call($$('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+  }
+
+  /* ================================================================
+     CALC MODAL — Show Calculations (Pattern 2)
+     ================================================================ */
+  function calcStep(num, title, formula, calc, result) {
+    var h = '<div class="cs-step"><div class="cs-step-hd">';
+    h += '<span class="cs-num">Step ' + num + '</span>';
+    h += '<span class="cs-title">' + title + '</span></div>';
+    if (formula) h += '<div class="cs-formula">' + formula + '</div>';
+    if (calc) h += '<div class="cs-calc">' + calc + '</div>';
+    if (result != null) h += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+    h += '</div>';
+    return h;
+  }
+  function rN(x, d) { var p = Math.pow(10, d || 0); return (Math.round(x * p) / p).toString(); }
+
+  function buildCalcSteps() {
+    var keff = getKeff();
+    var force = getForce();
+    var ext = getExtension();
+    var energy = getEnergy();
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Given — Current State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>k = ' + rN(kVal, 2) + ' N/m</span>';
+    html += '<span>m = ' + rN(massVal, 2) + ' kg</span>';
+    html += '<span>Config = ' + springConfig + '</span>';
+    html += '<span>g = 9.81 m/s²</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">ⓘ All steps in SI. Displayed unit follows the SI / Imperial toggle.</p></div>';
+
+    var keffFormula;
+    if (springConfig === 'series') {
+      keffFormula = '\\[ k_{\\text{eff}} = \\dfrac{1}{\\tfrac{1}{k_1}+\\tfrac{1}{k_2}} = \\dfrac{k}{2} \\]';
+    } else if (springConfig === 'parallel') {
+      keffFormula = '\\[ k_{\\text{eff}} = k_1 + k_2 = 2k \\]';
+    } else {
+      keffFormula = '\\[ k_{\\text{eff}} = k \\]';
+    }
+    html += calcStep(1, 'Effective spring constant',
+      keffFormula,
+      '\\(k_{\\text{eff}} = ' + rN(keff, 2) + '\\;\\mathrm{N/m}\\)',
+      rN(keff, 2) + ' N/m');
+
+    html += calcStep(2, 'Weight (force on spring)',
+      '\\[ F = m \\cdot g \\]',
+      '\\(F = ' + rN(massVal, 2) + ' \\cdot 9.81 = ' + rN(force, 3) + '\\;\\mathrm{N}\\)',
+      rN(force, 3) + ' N');
+
+    html += calcStep(3, "Extension from Hooke's Law",
+      '\\[ x = \\dfrac{F}{k_{\\text{eff}}} \\]',
+      '\\(x = \\dfrac{' + rN(force, 3) + '}{' + rN(keff, 2) + '} = ' + rN(ext, 5) + '\\;\\mathrm{m}\\)',
+      rN(ext, 5) + ' m');
+
+    html += calcStep(4, 'Elastic potential energy',
+      '\\[ E_p = \\tfrac{1}{2}\\,k_{\\text{eff}}\\,x^2 \\]',
+      '\\(E_p = 0.5 \\cdot ' + rN(keff, 2) + ' \\cdot (' + rN(ext, 5) + ')^2 = ' + rN(energy, 4) + '\\;\\mathrm{J}\\)',
+      rN(energy, 4) + ' J');
+
+    var limitNote = isBeyondLimit()
+      ? '⚠ x &gt; 0.12 m — past the elastic limit. Linear F=kx no longer applies; the spring would deform permanently.'
+      : '✔ x &lt; 0.12 m — safely within the linear elastic region. Hooke\'s Law (F=kx) is valid.';
+    html += calcStep(5, 'Elastic-limit check',
+      '\\[ x_{\\text{limit}} = 0.12\\;\\mathrm{m} \\]',
+      limitNote, '');
+
+    return html;
+  }
+
+  function openCalcModal() {
+    var modal = $('#calc-modal');
+    var body = $('#calc-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildCalcSteps();
+    modal.classList.add('active');
+    var cb = $('#calc-modal-close'); if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    var modal = $('#calc-modal'); if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = $('#btn-calc'); if (b) b.focus();
+  }
+  function wireCalcModal() {
+    var b = $('#btn-calc'); if (b) b.addEventListener('click', openCalcModal);
+    var c = $('#calc-modal-close'); if (c) c.addEventListener('click', closeCalcModal);
+    var m = $('#calc-modal');
+    if (m) m.addEventListener('click', function (e) { if (e.target === m) closeCalcModal(); });
+  }
+
+  /* ================================================================
+     CONTEXT MENU + EXPORT
+     ================================================================ */
+  var ctxMenu = null;
+  function ensureCtxMenu() {
+    if (ctxMenu) return ctxMenu;
+    ctxMenu = document.createElement('div');
+    ctxMenu.className = 'canvas-ctx-menu';
+    ctxMenu.innerHTML =
+      '<button data-act="copy">Copy current values</button>' +
+      '<button data-act="csv">Export CSV (k sweep)</button>' +
+      '<button data-act="png">Export PNG</button>' +
+      '<button data-act="grid">Toggle grid</button>' +
+      '<button data-act="reset">Reset</button>';
+    document.body.appendChild(ctxMenu);
+    ctxMenu.addEventListener('click', function (e) {
+      var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+      if (!act) return;
+      hideCtxMenu();
+      if (act === 'copy') copyValues();
+      else if (act === 'csv') exportCSV();
+      else if (act === 'png') exportPNG();
+      else if (act === 'grid') { saveUndo(); showGrid = !showGrid; render(); }
+      else if (act === 'reset') resetAll();
+    });
+    return ctxMenu;
+  }
+  function showCtxMenu(x, y) {
+    var m = ensureCtxMenu();
+    m.style.display = 'block';
+    var rect = m.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var px = Math.min(x, vw - rect.width - 8);
+    var py = Math.min(y, vh - rect.height - 8);
+    m.style.left = px + 'px';
+    m.style.top  = py + 'px';
+  }
+  function hideCtxMenu() { if (ctxMenu) ctxMenu.style.display = 'none'; }
+
+  function copyValues() {
+    var u = U();
+    var txt =
+      'k = ' + u.kSpring.fromSI(kVal).toFixed(u.kSpring.digits) + ' ' + u.kSpring.label +
+      ', m = ' + u.mass.fromSI(massVal).toFixed(u.mass.digits) + ' ' + u.mass.label +
+      ', F = ' + u.force.fromSI(getForce()).toFixed(u.force.digits) + ' ' + u.force.label +
+      ', x = ' + u.length.fromSI(getExtension()).toFixed(u.length.digits) + ' ' + u.length.label +
+      ', E = ' + u.energy.fromSI(getEnergy()).toFixed(u.energy.digits) + ' ' + u.energy.label;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
+  }
+
+  function exportCSV() {
+    /* Sweep mass 0 → M_MAX with current k & config */
+    var lines = [];
+    lines.push('# NHIT VisualLab — Hooke\'s Law data');
+    lines.push('# k=' + kVal + ' N/m, config=' + springConfig + ', k_eff=' + getKeff().toFixed(2) + ' N/m');
+    lines.push('mass_kg,force_N,extension_m,energy_J,beyond_limit');
+    var keff = getKeff();
+    var N = 50;
+    for (var i = 0; i <= N; i++) {
+      var m = (M_MAX * i / N);
+      var f = m * G;
+      var x = keff > 0 ? f / keff : 0;
+      var e = 0.5 * keff * x * x;
+      var bl = x > ELASTIC_LIMIT_X ? 'true' : 'false';
+      lines.push(m.toFixed(3) + ',' + f.toFixed(3) + ',' + x.toFixed(5) + ',' + e.toFixed(5) + ',' + bl);
+    }
+    var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'hookes-law-' + springConfig + '-k' + kVal + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function exportPNG() {
+    /* Render with watermark to an offscreen canvas */
+    var off = document.createElement('canvas');
+    off.width = cvs.width; off.height = cvs.height;
+    var octx = off.getContext('2d');
+    octx.drawImage(cvs, 0, 0);
+    octx.font = '600 12px "Segoe UI", sans-serif';
+    octx.fillStyle = 'rgba(139,157,195,0.55)';
+    octx.textAlign = 'right'; octx.textBaseline = 'bottom';
+    octx.fillText('NHIT VisualLab — Hooke\'s Law', off.width - 12, off.height - 8);
+    off.toBlob(function (blob) {
+      if (!blob) return;
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'hookes-law-' + springConfig + '.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
+  }
+
+  function wireCtxMenu() {
+    cvs.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      showCtxMenu(e.clientX, e.clientY);
+    });
+    document.addEventListener('click', function (e) {
+      if (ctxMenu && ctxMenu.style.display === 'block' && !ctxMenu.contains(e.target)) hideCtxMenu();
+    });
+    window.addEventListener('scroll', hideCtxMenu, true);
+    window.addEventListener('resize', hideCtxMenu);
+  }
+
+  /* ================================================================
+     EXPLORE (unchanged)
+     ================================================================ */
+  function buildConceptGrid() {
+    var grid = $('#concept-grid'); if (!grid) return;
+    grid.innerHTML = '';
+    var filtered = [];
+    for (var i = 0; i < CONCEPTS.length; i++) if (CONCEPTS[i].cat === selCat) filtered.push({ idx: i, c: CONCEPTS[i] });
+    for (var j = 0; j < filtered.length; j++) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn';
+      btn.setAttribute('data-idx', filtered[j].idx);
+      btn.innerHTML = '<span class="is-btn-name">' + filtered[j].c.name + '</span><span class="is-btn-sym">' + filtered[j].c.symbol + '</span>';
+      btn.addEventListener('click', function () { selectConcept(parseInt(this.getAttribute('data-idx'))); });
+      grid.appendChild(btn);
+    }
+  }
+  function selectConcept(idx) {
+    selConcept = idx;
+    var c = CONCEPTS[idx];
+    var btns = $$('#concept-grid .is-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', parseInt(btns[i].getAttribute('data-idx')) === idx);
+    }
+    var infoEl = $('#item-info'); if (!infoEl) return;
+    infoEl.innerHTML =
+      '<div class="ii-top"><span class="ii-name">' + c.name + '</span><span class="ii-cat-badge">' + c.cat + '</span></div>' +
+      '<p class="ii-desc">' + c.desc + '</p>' +
+      '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span><span class="fb-unit">Unit: ' + c.unit + '</span></div>' +
+      '<div class="example-box"><h4>Example Calculation</h4><p class="ex-problem">' + c.example.problem + '</p>' +
+      c.example.steps.map(function (s) { return '<p class="ex-step">' + s.replace(/=\s*([\d.]+)\s*(N\/m|N|m|J|Pa|MPa|m\/s)/g, '= <strong>$1 $2</strong>') + '</p>'; }).join('') +
+      '</div>';
+    render();
+  }
+  function wireCategoryTabs() {
+    var catPills = $$('#cat-tabs .pill');
+    for (var i = 0; i < catPills.length; i++) {
+      catPills[i].addEventListener('click', function () {
+        selCat = this.getAttribute('data-cat');
+        for (var c = 0; c < catPills.length; c++) catPills[c].classList.toggle('active', catPills[c] === this);
+        buildConceptGrid();
+        for (var j = 0; j < CONCEPTS.length; j++) if (CONCEPTS[j].cat === selCat) { selectConcept(j); break; }
+      });
+    }
+  }
+
+  /* ================================================================
+     PRACTICE
+     ================================================================ */
+  function newPractice() {
+    pProblem = PROBLEM_GEN[randInt(0, PROBLEM_GEN.length - 1)]();
+    pAnswered = false;
+    var prompt = $('#pp-prompt'); if (prompt) prompt.textContent = pProblem.prompt;
+    var inp = $('#pp-input'); if (inp) { inp.value = ''; inp.disabled = false; inp.focus(); }
+    var fb = $('#pp-feedback'); if (fb) fb.textContent = '';
+    var sol = $('#pp-solution'); if (sol) sol.style.display = 'none';
+    var nxt = $('#pp-next'); if (nxt) nxt.style.display = 'none';
+    var chk = $('#pp-check'); if (chk) chk.disabled = false;
+    var unit = $('#pp-unit'); if (unit) unit.textContent = pProblem.unit;
+    render();
+  }
+  function checkPractice() {
+    if (pAnswered || !pProblem) return;
+    var inp = $('#pp-input');
+    var val = parseFloat(inp.value);
+    if (isNaN(val)) return;
+    pAnswered = true;
+    inp.disabled = true;
+    var tol = Math.max(Math.abs(pProblem.answer) * 0.01, 0.00001);
+    var ok = Math.abs(val - pProblem.answer) <= tol;
+    pTotal++; if (ok) pScore++;
+    var fb = $('#pp-feedback');
+    fb.textContent = ok ? '✓ Correct!' : '✗ Incorrect — answer: ' + pProblem.answer + ' ' + pProblem.unit;
+    fb.className = 'feedback ' + (ok ? 'ok' : 'err');
+    var sol = $('#pp-solution');
+    sol.style.display = '';
+    sol.innerHTML = '<h4>Step-by-step Solution</h4>' +
+      pProblem.steps.map(function (s) { return '<p class="sol-step">' + s.replace(/=\s*([\d.]+)/g, '= <strong>$1</strong>') + '</p>'; }).join('');
+    $('#pp-next').style.display = '';
+    $('#pp-check').disabled = true;
+    var sc = $('#pbar-score-val'); if (sc) sc.textContent = pScore + ' / ' + pTotal;
+  }
+  function wirePractice() {
+    var chk = $('#pp-check'); if (chk) chk.addEventListener('click', checkPractice);
+    var nxt = $('#pp-next'); if (nxt) nxt.addEventListener('click', newPractice);
+    var inp = $('#pp-input'); if (inp) inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+  }
+
+  /* ================================================================
+     QUIZ
+     ================================================================ */
+  function startQuiz() {
+    quizQs = shuffleArr(QUIZ_POOL).slice(0, 5);
+    quizIdx = 0; quizScore = 0; quizAnswered = false; quizResults = [];
+    hide($('#quiz-result')); show($('#quiz-panel')); show($('#quiz-bar'));
+    showQuizQuestion();
+    render();
+  }
+  function showQuizQuestion() {
+    var q = quizQs[quizIdx];
+    var panel = $('#quiz-panel'); if (!panel) return;
+    var html = '<p class="qp-prompt">Q' + (quizIdx + 1) + '. ' + q.prompt + '</p>';
+    if (q.type === 'mcq') {
+      html += '<div class="answer-grid">';
+      var opts = q.options.slice();
+      var indices = []; for (var i = 0; i < opts.length; i++) indices.push(i);
+      indices = shuffleArr(indices);
+      for (var j = 0; j < indices.length; j++) {
+        html += '<button class="answer-btn" data-aidx="' + indices[j] + '">' + opts[indices[j]] + '</button>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="quiz-input-row"><input class="qi-input" id="qi-val" type="number" step="any" placeholder="Answer"><span class="qi-unit">' + q.unit + '</span><button class="btn btn-primary" id="qi-submit">Submit</button></div>';
+    }
+    html += '<div class="quiz-feedback" id="quiz-fb"></div>';
+    html += '<button class="btn btn-ghost" id="quiz-next" style="display:none;margin-top:10px;">Next →</button>';
+    panel.innerHTML = html;
+    if (q.type === 'mcq') {
+      var btns = panel.querySelectorAll('.answer-btn');
+      for (var b = 0; b < btns.length; b++) btns[b].addEventListener('click', function () { answerMCQ(parseInt(this.getAttribute('data-aidx'))); });
+    } else {
+      var sub = panel.querySelector('#qi-submit');
+      if (sub) sub.addEventListener('click', answerNumeric);
+      var qiVal = panel.querySelector('#qi-val');
+      if (qiVal) { qiVal.focus(); qiVal.addEventListener('keydown', function (e) { if (e.key === 'Enter') answerNumeric(); }); }
+    }
+    var nxt = panel.querySelector('#quiz-next');
+    if (nxt) nxt.addEventListener('click', nextQuizQ);
+    var cNum = $('#qbar-num'); if (cNum) cNum.textContent = quizIdx + 1;
+    quizAnswered = false;
+  }
+  function answerMCQ(aidx) {
+    if (quizAnswered) return;
+    quizAnswered = true;
+    var q = quizQs[quizIdx];
+    var ok = aidx === q.correct;
+    if (ok) quizScore++;
+    quizResults.push(!!ok);
+    var btns = $$('#quiz-panel .answer-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var idx = parseInt(btns[i].getAttribute('data-aidx'));
+      btns[i].classList.add('locked');
+      if (idx === q.correct) btns[i].classList.add('correct');
+      else if (idx === aidx && !ok) btns[i].classList.add('wrong');
+    }
+    var fb = $('#quiz-fb');
+    fb.textContent = ok ? '✓ Correct!' : '✗ Wrong';
+    fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    $('#quiz-next').style.display = '';
+  }
+  function answerNumeric() {
+    if (quizAnswered) return;
+    var inp = $('#qi-val');
+    var val = parseFloat(inp.value); if (isNaN(val)) return;
+    quizAnswered = true; inp.disabled = true;
+    var q = quizQs[quizIdx];
+    var tol = Math.max(Math.abs(q.answer) * 0.01, 0.00001);
+    var ok = Math.abs(val - q.answer) <= tol;
+    if (ok) quizScore++;
+    quizResults.push(!!ok);
+    var fb = $('#quiz-fb');
+    fb.textContent = ok ? '✓ Correct!' : '✗ Answer: ' + q.answer + ' ' + q.unit;
+    fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    if (q.steps) {
+      var solHtml = '<div class="solution-panel" style="margin-top:10px;"><h4>Solution</h4>';
+      for (var s = 0; s < q.steps.length; s++) solHtml += '<p class="sol-step">' + q.steps[s] + '</p>';
+      solHtml += '</div>';
+      fb.insertAdjacentHTML('afterend', solHtml);
+    }
+    $('#quiz-next').style.display = '';
+    var sub = $('#qi-submit'); if (sub) sub.disabled = true;
+  }
+  function nextQuizQ() { quizIdx++; if (quizIdx >= quizQs.length) showQuizResult(); else showQuizQuestion(); }
+  function showQuizResult() {
+    hide($('#quiz-panel')); hide($('#quiz-bar'));
+    var res = $('#quiz-result'); show(res);
+    var pct = quizScore / quizQs.length;
+    var stars = pct >= 1 ? '⭐⭐⭐' : pct >= 0.6 ? '⭐⭐' : pct > 0 ? '⭐' : '';
+    var cls = pct >= 1 ? 'perfect' : pct >= 0.6 ? 'good' : 'poor';
+    var verdict = pct >= 1 ? 'Outstanding!' : pct >= 0.8 ? 'Great work!' : pct >= 0.6 ? 'Good effort!' : pct >= 0.4 ? 'Keep practising!' : 'Review the concepts';
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><div class="qr-title">Quiz Complete</div><div class="qr-stars">' + stars + '</div></div>';
+    html += '<div class="qr-score-wrap"><div class="qr-score ' + cls + '">' + quizScore + '/' + quizQs.length + '</div><div class="qr-verdict">' + verdict + '</div></div></div>';
+    html += '<div class="qr-rows">';
+    for (var i = 0; i < quizQs.length; i++) {
+      var q = quizQs[i];
+      var qOk = !!quizResults[i];
+      html += '<div class="qr-row ' + (qOk ? 'ok' : 'err') + '"><span class="qr-qnum">Q' + (i + 1) + '</span><span class="qr-detail">' + q.prompt.substring(0, 60) + (q.prompt.length > 60 ? '...' : '') + '</span><span class="qr-mark">' + (qOk ? '✓' : '✗') + '</span></div>';
+    }
+    html += '</div>';
+    html += '<button class="btn btn-primary" id="quiz-retry" style="align-self:center;margin-top:8px;">Retry Quiz</button>';
+    res.innerHTML = html;
+    $('#quiz-retry').addEventListener('click', startQuiz);
+    render();
+  }
+
+  /* ================================================================
+     CANVAS DRAG (weight) + cursor feedback
+     ================================================================ */
+  function getCanvasXY(e) {
+    var rect = cvs.getBoundingClientRect();
+    var scaleX = W / rect.width;
+    var scaleY = H / rect.height;
+    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+  function inWeightZone(p) {
+    if (mode !== 'simulate') return false;
+    var ext = getExtension();
+    var extPx = extToPx(ext);
+    var SCX = 200, SUPPORT_Y = 50;
+    var SPRING_BOT = SUPPORT_Y + NATURAL_LEN + extPx;
+    /* Generous zone: spring area + weight */
+    return p.x > 100 && p.x < 320 && p.y > SUPPORT_Y && p.y < SPRING_BOT + 60;
+  }
+  function applyDrag(canvasY) {
+    var SUPPORT_Y = 50;
+    var natEnd = SUPPORT_Y + NATURAL_LEN;
+    var dragExt = canvasY - natEnd;
+    if (dragExt < 0) dragExt = 0;
+    var extM = (dragExt / MAX_DRAW_EXT) * 0.2;
+    var keff = getKeff();
+    var newMass = (keff * extM) / G;
+    setM(newMass);
+    syncAllUI(); render();
+  }
+  function wireCanvasDrag() {
+    cvs.addEventListener('pointerdown', function (e) {
+      if (mode !== 'simulate') return;
+      var p = getCanvasXY(e);
+      if (!inWeightZone(p)) return;
+      saveUndo();
+      isDragging = true;
+      try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
+      cvs.style.cursor = 'grabbing';
+      applyDrag(p.y);
+    });
+    cvs.addEventListener('pointermove', function (e) {
+      var p = getCanvasXY(e);
+      if (isDragging) { applyDrag(p.y); return; }
+      var over = inWeightZone(p);
+      if (over !== hoverOnWeight) {
+        hoverOnWeight = over;
+        cvs.style.cursor = over ? 'grab' : 'default';
+      }
+    });
+    cvs.addEventListener('pointerup', function () {
+      isDragging = false;
+      cvs.style.cursor = hoverOnWeight ? 'grab' : 'default';
+    });
+    cvs.addEventListener('pointerleave', function () {
+      hoverOnWeight = false; cvs.style.cursor = 'default';
+    });
+  }
+
+  /* ================================================================
+     HINT BANNER
+     ================================================================ */
+  function wireHintBanner() {
+    var hint = $('#hint-banner');
+    if (!hint) return;
+    var dismissed = false;
+    try { dismissed = localStorage.getItem('hookes-hint-dismissed') === '1'; } catch (e) {}
+    if (dismissed) { hide(hint); return; }
+    var btn = $('#hint-close');
+    if (btn) btn.addEventListener('click', function () {
+      hide(hint);
+      try { localStorage.setItem('hookes-hint-dismissed', '1'); } catch (e) {}
+    });
+  }
+
+  /* ================================================================
+     KEYBOARD SHORTCUTS
+     ================================================================ */
+  function wireKeyboard() {
+    document.addEventListener('keydown', function (e) {
+      var modal = $('#calc-modal');
+      if (e.key === 'Escape' && modal && modal.classList.contains('active')) { closeCalcModal(); return; }
+      if (e.key === 'Escape') { hideCtxMenu(); return; }
+      var meta = e.ctrlKey || e.metaKey;
+      if (meta && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        e.preventDefault(); performUndo();
+      } else if (meta && ((e.key === 'z' || e.key === 'Z') && e.shiftKey || e.key === 'y')) {
+        e.preventDefault(); performRedo();
+      }
+    });
+  }
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  function init() {
+    /* Mode tabs */
+    var modePills = $$('#mode-tabs .pill');
+    for (var i = 0; i < modePills.length; i++) {
+      modePills[i].addEventListener('click', function () { setMode(this.getAttribute('data-mode')); });
+    }
+    /* Slider min/max from JS so DOM stays in sync */
+    var ks = $('#k-slider');
+    if (ks) { ks.min = K_MIN; ks.max = K_MAX; ks.step = K_STEP; ks.value = kVal; }
+    var ms = $('#mass-slider');
+    if (ms) { ms.min = M_MIN; ms.max = M_MAX; ms.step = M_STEP; ms.value = massVal; }
+
+    wireSimControls();
+    wireLearnPanels();
+    wireCalcModal();
+    wireCtxMenu();
+    wireCategoryTabs();
+    wirePractice();
+    wireCanvasDrag();
+    wireHintBanner();
+    wireKeyboard();
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    if (typeof ResizeObserver !== 'undefined') {
+      try { new ResizeObserver(resizeCanvas).observe(cvs); } catch (e) {}
+    }
+
+    syncAllUI();
+    setMode('simulate');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+})();

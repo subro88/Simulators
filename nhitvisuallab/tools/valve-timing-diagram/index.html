@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Valve Timing Diagram Simulator &mdash; Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Free online 4-Stroke Petrol (S.I.) and Diesel (C.I.) Valve Timing Diagram simulator. Adjust IVO, IVC, EVO, EVC, Ignition Advance, and Valve Overlap angles." />
+  <link rel="canonical" href="index.html" />
+
+  <link rel="stylesheet" href="../../shared/site.css?v=20.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b27; --surface2: #1f2535; --border: #2a3050;
+      --accent: #29b6f6; --green: #3ddc84; --red: #ff5252; --orange: #ff9800; --yellow: #ffd600;
+      --text: #dde3f0; --text-dim: #6b7a99; --mono: 'Courier New', monospace; --radius: 12px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding: 0 16px; min-height: 100vh; }
+    #app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
+    header { text-align: center; padding: 6px 0; }
+    header h1 { font-size: 1.85rem; font-weight: 700; background: linear-gradient(120deg, var(--accent), #80d8ff, var(--yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: var(--text-dim); font-size: .85rem; margin-top: 3px; }
+
+    .sim3d-section { margin: 14px 0; padding: 16px 18px; background: #0e1726; border: 1px solid #1e2c44; border-radius: 10px; color: #dce6f5; }
+    .sim3d-section h2 { margin: 0 0 6px; font-size: 1.15rem; color: #7fd1ff; }
+    .sim3d-blurb { margin: 0 0 12px; line-height: 1.5; color: #aebfd4; font-size: .88rem; }
+    .sim3d-wrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
+    .sim3d-canvas { width: 100%; height: 320px; display: block; background: #0e1726; border-radius: 8px; touch-action: none; cursor: grab; }
+    .sim3d-canvas:active { cursor: grabbing; }
+    .sim3d-hint { position: absolute; right: 10px; bottom: 8px; font-size: 12px; color: #6b7f9c; background: rgba(0,0,0,.35); padding: 2px 8px; border-radius: 6px; }
+
+    .controls-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); flex-wrap: wrap; gap: 12px; }
+    .ctrl-group { display: flex; align-items: center; gap: 10px; }
+    .ctrl-label { font-size: .8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; }
+    .pill-tabs { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 3px; }
+    .pill { padding: 6px 14px; border: none; background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font-size: .82rem; font-weight: 600; transition: all .18s; }
+    .pill.active { background: var(--accent); color: #0b111a; font-weight: 700; box-shadow: 0 0 10px rgba(41,182,246,.35); }
+    .pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+    .head-actions { display: flex; gap: 8px; }
+    .btn-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font-size: .78rem; color: var(--text-dim); text-decoration: none; font-weight: 600; }
+    .btn-link:hover { border-color: var(--accent); color: var(--accent); }
+
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 14px; align-items: start; }
+    @media(max-width: 1050px) { .layout { grid-template-columns: 1fr; } }
+    
+    .canvas-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; position: relative; }
+    #vtd-canvas { display: block; width: 100%; height: 580px; background: #0a0d14; border-radius: 8px; }
+    
+    .controls-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .panel-title { font-size: .92rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    
+    .control-block { display: flex; flex-direction: column; gap: 6px; background: var(--surface2); padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+    .control-header { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 600; }
+    .control-val { color: var(--accent); font-family: var(--mono); font-weight: 700; }
+    .slider-styled { -webkit-appearance: none; appearance: none; height: 6px; background: #0f1219; border: 1px solid var(--border); border-radius: 4px; outline: none; cursor: pointer; }
+    .slider-styled::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid #fff; }
+    
+    .btn-group { display: flex; gap: 6px; }
+    .btn { flex: 1; padding: 7px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 6px; cursor: pointer; font-size: .78rem; font-weight: 600; text-align: center; }
+    .btn.active { background: var(--accent); color: #0b111a; border-color: var(--accent); font-weight: 700; }
+    
+    .stats-box { background: #0a0d14; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: .78rem; }
+    .stat-row { display: flex; justify-content: space-between; }
+    .stat-key { color: var(--text-dim); }
+    .stat-val { font-weight: 700; color: var(--green); }
+    
+    .mode-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+    .explore-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .explore-card h3 { color: var(--accent); font-size: 1rem; }
+    .explore-card p { color: var(--text-dim); font-size: .85rem; line-height: 1.6; }
+
+    .quiz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .quiz-opt { padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: .85rem; transition: all .15s; }
+    .quiz-opt:hover { border-color: var(--accent); color: var(--accent); }
+    .quiz-opt.correct { background: rgba(61,220,132,.18); border-color: var(--green); color: var(--green); }
+    .quiz-opt.wrong { background: rgba(255,82,82,.18); border-color: var(--red); color: var(--red); }
+
+    .seo-article { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px; color: var(--text-dim); line-height: 1.7; font-size: .93rem; }
+    .seo-article h2 { font-size: 1.2rem; color: var(--text); margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<a href="#app" class="skip-link">Skip to content</a>
+
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="site-nav-title">Automobile Engineering</span>
+  </nav>
+
+  <header>
+    <h1>Valve Timing Diagram Simulator</h1>
+    
+    
+
+    <p class="subtitle">4-Stroke Petrol (S.I.) &amp; Diesel (C.I.) Engines &bull; 720&deg; Crankshaft Polar Diagram &bull; Valve Overlap</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Explore</button>
+        <button class="pill" data-value="practice">Practice</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-link" href="../four-stroke-engine/index.html" title="4-Stroke Engine">4-Stroke Engine</a>
+      <a class="btn-link" href="../morse-test/index.html" title="Morse Test Rig">Morse Test Rig</a>
+    </div>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    
+
+<div class="layout">
+      <div class="canvas-card">
+        <canvas id="vtd-canvas" width="1000" height="580"></canvas>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-title">&#9881; Engine &amp; Valve Parameters</div>
+        
+        <div class="control-block">
+          <div class="control-header"><span>Engine Type</span></div>
+          <div class="btn-group">
+            <button class="btn active" id="btn-si">4-Stroke Petrol (S.I.)</button>
+            <button class="btn" id="btn-ci">4-Stroke Diesel (C.I.)</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Diagram Mode</span></div>
+          <div class="btn-group">
+            <button class="btn active" id="btn-practical">Practical (Actual)</button>
+            <button class="btn" id="btn-theoretical">Theoretical (Ideal)</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Inlet Valve Open (IVO)</span><span class="control-val" id="val-ivo">15° BTDC</span></div>
+          <input type="range" class="slider-styled" id="slider-ivo" min="0" max="30" step="1" value="15" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Inlet Valve Close (IVC)</span><span class="control-val" id="val-ivc">45° ABDC</span></div>
+          <input type="range" class="slider-styled" id="slider-ivc" min="20" max="60" step="1" value="45" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Exhaust Valve Open (EVO)</span><span class="control-val" id="val-evo">45° BBDC</span></div>
+          <input type="range" class="slider-styled" id="slider-evo" min="20" max="60" step="1" value="45" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Exhaust Valve Close (EVC)</span><span class="control-val" id="val-evc">15° ATDC</span></div>
+          <input type="range" class="slider-styled" id="slider-evc" min="0" max="30" step="1" value="15" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span id="lbl-adv">Ignition Advance (Spark)</span><span class="control-val" id="val-adv">20° BTDC</span></div>
+          <input type="range" class="slider-styled" id="slider-adv" min="5" max="40" step="1" value="20" />
+        </div>
+
+        <div class="stats-box">
+          <div class="stat-row"><span class="stat-key">Inlet Open Period:</span><span class="stat-val" id="st-in-dur">240°</span></div>
+          <div class="stat-row"><span class="stat-key">Exhaust Open Period:</span><span class="stat-val" id="st-ex-dur">240°</span></div>
+          <div class="stat-row"><span class="stat-key">Valve Overlap Angle:</span><span class="stat-val" id="st-overlap" style="color:var(--yellow)">30°</span></div>
+          <div class="stat-row"><span class="stat-key">Current Stroke:</span><span class="stat-val" id="st-stroke" style="color:var(--accent)">Suction</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">Valve Timing &amp; Camshaft Mechanism</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive overhead camshaft valve mechanism displaying valve lift, inlet/exhaust timing, and 720° crankshaft rotation.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate &bull; Scroll to zoom</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ EXPLORE MODE ════════════════════════════════════════════ -->
+  <div id="explore-wrapper" style="display:none">
+    <div class="mode-card-grid">
+      <div class="explore-card">
+        <h3>1. Inlet Valve Open (IVO)</h3>
+        <p>Opens 10°–25° Before Top Dead Center (BTDC) to ensure the valve is fully open when the piston begins its downward suction stroke.</p>
+      </div>
+      <div class="explore-card">
+        <h3>2. Inlet Valve Close (IVC)</h3>
+        <p>Closes 30°–50° After Bottom Dead Center (ABDC) to utilize gas momentum for extra air-fuel intake (ram effect).</p>
+      </div>
+      <div class="explore-card">
+        <h3>3. Exhaust Valve Open (EVO)</h3>
+        <p>Opens 30°–50° Before Bottom Dead Center (BBDC) so high pressure exhaust gases escape freely before the upward exhaust stroke.</p>
+      </div>
+      <div class="explore-card">
+        <h3>4. Valve Overlap Angle</h3>
+        <p>The total crankshaft degrees around TDC when BOTH Inlet and Exhaust valves are open simultaneously (typically 20°–40°).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRACTICE MODE ═══════════════════════════════════════════ -->
+  <div id="practice-wrapper" style="display:none">
+    <div class="explore-card">
+      <h3>Guided Experiment: Valve Overlap Angle Calculation</h3>
+      <p>1. Set IVO to 20° BTDC.<br>
+      2. Set EVC to 15° ATDC.<br>
+      3. Calculate total Valve Overlap = IVO + EVC = 20° + 15° = 35°.<br>
+      4. Verify the yellow readout badge matches 35°!</p>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" style="display:none">
+    <div class="quiz-card">
+      <h3>Question 1: What is Valve Overlap?</h3>
+      <div class="quiz-opt" onclick="checkQuiz(this, true)">A) Period around TDC when both Inlet and Exhaust valves remain open.</div>
+      <div class="quiz-opt" onclick="checkQuiz(this, false)">B) Period when both valves are closed during compression.</div>
+      <div class="quiz-opt" onclick="checkQuiz(this, false)">C) Time taken by valve springs to return.</div>
+    </div>
+  </div>
+  <!-- ═══ USER GUIDE — Inline expandable (SEO-friendly) ═══════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span class="guide-icon-badge" aria-hidden="true">&#128214;</span>
+      User Guide &mdash; Valve Timing Diagram Simulator
+    </div>
+    <details open><summary><span class="guide-section-num">1</span> Overview</summary>
+      <div class="guide-content">
+        <p>The <strong>Valve Timing Diagram Simulator</strong> draws the polar timing diagrams for <strong>4-stroke Petrol (S.I.)</strong> and <strong>4-stroke Diesel (C.I.)</strong> engines. A valve timing diagram shows, on a circular crank-angle scale, exactly when each valve opens and closes relative to TDC (Top Dead Centre) and BDC (Bottom Dead Centre). It also shows the ignition point for petrol engines or the fuel-injection point for diesel engines.</p>
+        <p>Use this tool to understand why real engine valves open <em>before</em> TDC/BDC and close <em>after</em>, how valve overlap improves cylinder scavenging, and how adjusting these angles affects engine breathing and power.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">2</span> Adjusting Valve Events</summary>
+      <div class="guide-content">
+        <p>Six sliders control the key timing angles:</p>
+        <ul>
+          <li><strong>IVO</strong> — Inlet Valve Opens (before TDC, BTDC), typically 10&ndash;20&deg; BTDC.</li>
+          <li><strong>IVC</strong> — Inlet Valve Closes (after BDC, ABDC), typically 30&ndash;60&deg; ABDC.</li>
+          <li><strong>EVO</strong> — Exhaust Valve Opens (before BDC, BBDC), typically 40&ndash;65&deg; BBDC.</li>
+          <li><strong>EVC</strong> — Exhaust Valve Closes (after TDC, ATDC), typically 10&ndash;20&deg; ATDC.</li>
+          <li><strong>Ignition Advance</strong> (Petrol) or <strong>Injection Advance</strong> (Diesel) — degrees before TDC when combustion begins.</li>
+          <li><strong>Valve Overlap</strong> — automatically computed from IVO + EVC; the period when both valves are open simultaneously near TDC.</li>
+        </ul>
+      </div></details>
+    <details><summary><span class="guide-section-num">3</span> Reading the Diagram</summary>
+      <div class="guide-content">
+        <p>The outer circle represents 360&deg; of crank rotation. TDC is at the top (0&deg;/360&deg;) and BDC is at the bottom (180&deg;). Coloured arcs show each valve event duration. A highlighted sector marks the <strong>Valve Overlap</strong> period near TDC between exhaust and intake strokes.</p>
+        <p>The <strong>Inlet Duration</strong> = IVO + 180 + IVC. The <strong>Exhaust Duration</strong> = EVO + 180 + EVC. Longer durations (achieved by opening earlier and closing later) generally increase volumetric efficiency at high RPM at the cost of low-speed torque.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">4</span> S.I. vs C.I. Engines</summary>
+      <div class="guide-content">
+        <p><strong>Petrol (S.I.) engines</strong> use a spark plug to ignite a pre-mixed air-fuel charge. Ignition occurs 10&ndash;35&deg; BTDC to allow the flame front to fully develop by the time the piston reaches TDC. <strong>Diesel (C.I.) engines</strong> inject fuel directly into hot compressed air at 15&ndash;30&deg; BTDC; combustion starts automatically due to compression heat.</p>
+        <p>Toggle the engine type button to instantly switch between petrol and diesel timing diagrams. Notice how the ignition/injection point changes the combustion sector arc.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">5</span> Practice &amp; Quiz</summary>
+      <div class="guide-content">
+        <p><strong>Explore</strong> mode provides cards explaining each valve timing event with definitions and typical angle ranges for both petrol and diesel engines.</p>
+        <p><strong>Quiz</strong> tests understanding of why valve overlap improves scavenging, what IVO/EVC stand for, and how timing affects engine output.</p>
+      </div></details>
+  </section>
+
+  <!-- ═══ SEO Article ═════════════════════════════════════════════ -->
+  <section class="seo-article">
+    <h2>Understanding the 4-Stroke Engine Valve Timing Diagram</h2>
+    <p>A <strong>Valve Timing Diagram</strong> is a polar (circular) diagram drawn on a 360&deg; crank-angle scale that shows exactly when the inlet and exhaust valves of a 4-stroke engine open and close relative to the piston positions at Top Dead Centre (TDC) and Bottom Dead Centre (BDC). Understanding valve timing is essential for engine design, diagnostics, and tuning.</p>
+
+    <h3>Why Valves Open Before TDC and BDC</h3>
+    <p>In a theoretically ideal engine, the inlet valve would open exactly at TDC and close exactly at BDC, and the exhaust valve would do the reverse. In reality, valves have mechanical inertia and gas flow takes time to accelerate. Opening the inlet valve a few degrees <em>before</em> TDC (IVO = 10&ndash;20&deg; BTDC) ensures the valve is already partially open and air-fuel mixture is beginning to flow when the piston starts the suction stroke. Closing the inlet valve some degrees <em>after</em> BDC (IVC = 30&ndash;60&deg; ABDC) exploits the inertia of the incoming charge to continue filling the cylinder even after the piston has begun its upward compression stroke.</p>
+
+    <h3>Valve Overlap and Scavenging</h3>
+    <p><strong>Valve Overlap</strong> is the crank-angle period near TDC (between exhaust and intake strokes) when both the exhaust valve and the inlet valve are simultaneously open. During overlap, the outgoing exhaust gases help draw fresh charge into the cylinder (scavenging). High-performance engines use large overlap angles (40&ndash;60&deg;) for better breathing at high RPM, while economy engines use minimal overlap to avoid exhaust gas recirculation at low speeds.</p>
+
+    <h3>Petrol (S.I.) vs Diesel (C.I.) Timing</h3>
+    <p>In <strong>Spark Ignition (S.I.)</strong> petrol engines, the spark fires 10&ndash;35&deg; BTDC to allow the flame front to develop fully before TDC. In <strong>Compression Ignition (C.I.)</strong> diesel engines, fuel is injected 15&ndash;30&deg; BTDC into highly compressed hot air (compression ratio 16:1 to 22:1), causing autoignition. Diesel engines generally have longer valve durations than petrol engines due to their higher torque requirements at low RPM.</p>
+
+    <h3>Effect of Timing on Engine Performance</h3>
+    <p>Advancing ignition timing improves efficiency up to the knock limit. Retarding timing reduces power but lowers knock tendency. Late EVO (exhaust valve opening) wastes expansion work; early EVO improves exhaust blowdown but loses expansion energy. Modern variable valve timing (VVT) systems like VTEC and VVT-i adjust IVO and IVC continuously based on engine speed and load, optimising the valve timing diagram dynamically for both low-end torque and high-end power.</p>
+
+    <h3>Explore Related Simulators</h3>
+    <p>Continue your engine study with the <a href="../four-stroke-engine/index.html">Four-Stroke Engine Cycle Simulator</a>, <a href="../two-stroke-engine/index.html">Two-Stroke Engine Simulator</a>, <a href="../thermodynamics/index.html">Thermodynamics Simulator</a>, and the <a href="../automotive-differential/index.html">Automotive Differential Simulator</a>.</p>
+  </section>
+
+
+  <!-- ── Site Footer ── -->
+  <footer class="site-footer">
+    <nav class="site-footer-nav">
+      <a href="../../index.html">Home</a>
+      <a href="../../about/index.html">About</a>
+      <a href="../../privacy-policy/index.html">Privacy Policy</a>
+      <a href="../../terms/index.html">Terms of Use</a>
+      <a href="../../contact/index.html">Contact</a>
+    </nav>
+    <p class="site-footer-copy">&copy; 2026 NHIT VisualLab</p>
+  </footer>
+</main>
+
+
+<script src="../../shared/related.js?v=11" defer></script>
+<script src="../../shared/unit-memory.js?v=3" defer></script>
+<script src="../../shared/share-params.js?v=1" defer></script>
+<script src="../../shared/cookie-notice.js?v=2" defer></script>
+<script src="../../shared/ads-collapse.js?v=2" defer></script>
+<script src="../../shared/three3d/three.min.js"></script>
+<script src="../../shared/three3d/viewer.js"></script>
+<script src="../../shared/three3d/models.js"></script>
+<script>if(typeof Sim3D!=='undefined') Sim3D.mount('valve-timing-diagram', document.getElementById('sim3d-canvas'));</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+(function(){
+  const modeTabs = document.querySelectorAll('#mode-tabs .pill');
+  const simWrap = document.getElementById('sim-wrapper');
+  const expWrap = document.getElementById('explore-wrapper');
+  const pracWrap = document.getElementById('practice-wrapper');
+  const quizWrap = document.getElementById('quiz-wrapper');
+
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      modeTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const val = tab.dataset.value;
+      const m3dWrap = document.getElementById('model3d-wrapper');
+      simWrap.style.display = val === 'simulate' ? 'block' : 'none';
+      if (m3dWrap) m3dWrap.style.display = val === '3d-model' ? 'block' : 'none';
+      expWrap.style.display = val === 'explore' ? 'block' : 'none';
+      pracWrap.style.display = val === 'practice' ? 'block' : 'none';
+      quizWrap.style.display = val === 'quiz' ? 'block' : 'none';
+    });
+  });
+
+  const c3d = document.getElementById('sim3d-canvas');
+  const ctx3d = c3d.getContext('2d');
+  c3d.width = 640; c3d.height = 320;
+  let angle3d = 0;
+
+  function render3D() {
+    ctx3d.clearRect(0, 0, 640, 320);
+    angle3d += 0.02;
+    ctx3d.save();
+    ctx3d.translate(320, 160);
+    ctx3d.strokeStyle = '#29b6f6'; ctx3d.lineWidth = 3;
+    ctx3d.beginPath(); ctx3d.arc(0, 0, 85, 0, Math.PI*2); ctx3d.stroke();
+
+    const camX = Math.cos(angle3d)*85;
+    const camY = Math.sin(angle3d)*85;
+    ctx3d.fillStyle = '#ffd600';
+    ctx3d.beginPath(); ctx3d.arc(camX, camY, 12, 0, Math.PI*2); ctx3d.fill();
+    ctx3d.restore();
+    requestAnimationFrame(render3D);
+  }
+  render3D();
+
+  const canvas = document.getElementById('vtd-canvas');
+  const ctx = canvas.getContext('2d');
+  const CW = 1000, CH = 580;
+  canvas.width = CW; canvas.height = CH;
+
+  const S = {
+    engineType: 'si',
+    mode: 'practical',
+    ivo: 15, ivc: 45, evo: 45, evc: 15, adv: 20,
+    crankAngle: 0, rpm: 1200
+  };
+
+  document.getElementById('btn-si').onclick = () => { setEngine('si'); };
+  document.getElementById('btn-ci').onclick = () => { setEngine('ci'); };
+  document.getElementById('btn-practical').onclick = () => { setMode('practical'); };
+  document.getElementById('btn-theoretical').onclick = () => { setMode('theoretical'); };
+
+  function setEngine(type) {
+    S.engineType = type;
+    document.getElementById('btn-si').classList.toggle('active', type==='si');
+    document.getElementById('btn-ci').classList.toggle('active', type==='ci');
+    document.getElementById('lbl-adv').textContent = type==='si' ? 'Ignition Advance (Spark)' : 'Fuel Injection Advance';
+  }
+  function setMode(m) {
+    S.mode = m;
+    document.getElementById('btn-practical').classList.toggle('active', m==='practical');
+    document.getElementById('btn-theoretical').classList.toggle('active', m==='theoretical');
+  }
+
+  const sIvo = document.getElementById('slider-ivo');
+  const sIvc = document.getElementById('slider-ivc');
+  const sEvo = document.getElementById('slider-evo');
+  const sEvc = document.getElementById('slider-evc');
+  const sAdv = document.getElementById('slider-adv');
+
+  sIvo.oninput = e => { S.ivo = parseInt(e.target.value); document.getElementById('val-ivo').textContent = `${S.ivo}° BTDC`; };
+  sIvc.oninput = e => { S.ivc = parseInt(e.target.value); document.getElementById('val-ivc').textContent = `${S.ivc}° ABDC`; };
+  sEvo.oninput = e => { S.evo = parseInt(e.target.value); document.getElementById('val-evo').textContent = `${S.evo}° BBDC`; };
+  sEvc.oninput = e => { S.evc = parseInt(e.target.value); document.getElementById('val-evc').textContent = `${S.evc}° ATDC`; };
+  sAdv.oninput = e => { S.adv = parseInt(e.target.value); document.getElementById('val-adv').textContent = `${S.adv}° BTDC`; };
+
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = (now - lastT) / 1000;
+    lastT = now;
+    S.crankAngle = (S.crankAngle + (S.rpm / 60) * 360 * dt) % 720;
+    
+    updateStats();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function updateStats() {
+    let inDur = 180 + S.ivo + S.ivc;
+    let exDur = 180 + S.evo + S.evc;
+    let overlap = S.ivo + S.evc;
+    if (S.mode === 'theoretical') { inDur = 180; exDur = 180; overlap = 0; }
+    
+    document.getElementById('st-in-dur').textContent = `${inDur}°`;
+    document.getElementById('st-ex-dur').textContent = `${exDur}°`;
+    document.getElementById('st-overlap').textContent = `${overlap}°`;
+    
+    const deg = S.crankAngle;
+    let stroke = 'Suction';
+    if (deg >= 180 && deg < 360) stroke = 'Compression';
+    else if (deg >= 360 && deg < 540) stroke = 'Expansion (Power)';
+    else if (deg >= 540) stroke = 'Exhaust';
+    document.getElementById('st-stroke').textContent = stroke;
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, CW, CH);
+    const cx = 320, cy = 290, r = 190;
+
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(cx, cy - r - 25); ctx.lineTo(cx, cy + r + 25); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#ff5252'; ctx.font = 'bold 14px var(--mono)'; ctx.textAlign = 'center';
+    ctx.fillText('TDC (0° / 720°)', cx, cy - r - 32);
+    ctx.fillText('BDC (180° / 540°)', cx, cy + r + 42);
+
+    drawArc(cx, cy, r - 15, -Math.PI/2 - (S.ivo*Math.PI/180), Math.PI/2 + (S.ivc*Math.PI/180), '#29b6f6', 14);
+    drawArc(cx, cy, r - 35, -Math.PI/2 - (S.adv*Math.PI/180), Math.PI/2 - (S.evo*Math.PI/180), '#ff9800', 14);
+    drawArc(cx, cy, r - 55, Math.PI/2 - (S.evo*Math.PI/180), -Math.PI/2 + (S.evc*Math.PI/180), '#ff5252', 14);
+
+    const cRad = -Math.PI/2 + (S.crankAngle % 360) * (Math.PI / 180);
+    ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(cRad) * (r + 10), cy + Math.sin(cRad) * (r + 10)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI*2); ctx.fillStyle = '#ffd600'; ctx.fill();
+
+    drawEngineCylinder(740, 270, S.crankAngle);
+  }
+
+  function drawArc(cx, cy, r, startA, endA, color, width) {
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.beginPath(); ctx.arc(cx, cy, r, startA, endA); ctx.stroke();
+  }
+
+  function drawEngineCylinder(cx, cy, crankDeg) {
+    const cw = 110, ch = 200;
+    ctx.strokeStyle = '#455a64'; ctx.lineWidth = 4;
+    ctx.strokeRect(cx - cw/2, cy - ch/2, cw, ch);
+
+    const rad = crankDeg * (Math.PI / 180);
+    const strokeDeg = crankDeg % 720;
+
+    let ivOpen = (strokeDeg >= 720 - S.ivo || strokeDeg <= 180 + S.ivc);
+    let evOpen = (strokeDeg >= 540 - S.evo || strokeDeg <= S.evc);
+
+    drawValve(cx - 28, cy - ch/2, ivOpen, '#29b6f6', 'IV');
+    drawValve(cx + 28, cy - ch/2, evOpen, '#ff5252', 'EV');
+
+    const rCrank = 45;
+    const lCon = 110;
+    const crankRad = rad;
+    const py = cy + rCrank * Math.cos(crankRad) + Math.sqrt(lCon*lCon - Math.pow(rCrank*Math.sin(crankRad),2));
+
+    const pw = cw - 8, ph = 50;
+    ctx.fillStyle = '#78909c'; ctx.fillRect(cx - pw/2, py - ph/2, pw, ph);
+    ctx.strokeStyle = '#263238'; ctx.lineWidth = 2; ctx.strokeRect(cx - pw/2, py - ph/2, pw, ph);
+
+    const crankX = cx + Math.sin(crankRad) * rCrank;
+    const crankY = cy + ch/2 + 30 + Math.cos(crankRad) * rCrank;
+
+    ctx.strokeStyle = '#b0bec5'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(cx, py); ctx.lineTo(crankX, crankY); ctx.stroke();
+
+    ctx.beginPath(); ctx.arc(cx, cy + ch/2 + 30, rCrank, 0, Math.PI*2); ctx.strokeStyle = '#37474f'; ctx.lineWidth = 3; ctx.stroke();
+  }
+
+  function drawValve(vx, vy, isOpen, color, label) {
+    const lift = isOpen ? 12 : 0;
+    ctx.fillStyle = isOpen ? color : '#90a4ae';
+    ctx.fillRect(vx - 3, vy - 20 + lift, 6, 25);
+    ctx.beginPath(); ctx.moveTo(vx - 14, vy + 5 + lift); ctx.lineTo(vx + 14, vy + 5 + lift); ctx.lineTo(vx, vy + lift); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = color; ctx.font = 'bold 11px var(--mono)'; ctx.fillText(label, vx - 7, vy - 25);
+  }
+
+  window.checkQuiz = function(el, isCorrect) {
+    if (isCorrect) { el.classList.add('correct'); el.innerHTML += ' &#10004; Correct!'; }
+    else { el.classList.add('wrong'); el.innerHTML += ' &#10008; Incorrect'; }
+  };
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

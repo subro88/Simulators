@@ -1,0 +1,942 @@
+(function () {
+  'use strict';
+
+  /* ═══════════════════════════════════════════════════════════════
+     Simple Pendulum Simulator
+     ═══════════════════════════════════════════════════════════════ */
+
+  var $ = function (id) { return document.getElementById(id); };
+  var TAU = Math.PI * 2;
+  var MAX_DROP_ANGLE = 170 * Math.PI / 180;   /* clamp manual-drop away from the unstable 180° equilibrium */
+  var WAVE_CYCLES = 3.5;      /* target number of oscillation periods visible in the waveform panel */
+  var WAVE_WINDOW_MIN = 1.5;  /* s — floor, so very fast (short-L / high-g) swings still show several cycles */
+  var WAVE_WINDOW_MAX = 45;   /* s — ceiling on both the display window and the retained sample buffer */
+
+  var state = {
+    L: 1,            /* m */
+    g: 9.81,         /* m/s^2 */
+    amp: 20 * Math.PI / 180,   /* rad (amplitude) */
+    mass: 1,         /* kg */
+    damp: false,
+    rightPanelMode: 'waveform',  /* 'energy' | 'waveform' — mutually exclusive canvas side panel */
+    showAngle: true,       /* angle arc + label + vertical reference line */
+    showSwingPath: true,   /* faint dashed full-amplitude sweep guide */
+    showTrail: true,       /* motion afterimage while running */
+    showVelocity: true,    /* velocity streak while running */
+    showPeriod: true,      /* period text readout on the canvas */
+    theta: 20 * Math.PI / 180, /* current angle from vertical (rad) */
+    omega: 0,        /* rad/s */
+    running: false,
+    mode: 'simulate',
+    soundOn: true,
+    imperial: false,
+    audioCtx: null,
+    raf: null,
+    last: 0,
+    maxSpeed: 0,
+    trail: [],       /* recent theta samples for the swing afterimage */
+    manualDrop: false,  /* manual-drop interaction mode armed */
+    dragging: false,    /* actively dragging the bob right now */
+    waveform: [],        /* {t, theta} samples straight from the physics engine, sim-time based */
+    simTime: 0,           /* cumulative elapsed sim time since the last fresh release (s) */
+    waveScale: 20 * Math.PI / 180  /* fixed y-axis half-range, locked at each fresh release so decay is visible */
+  };
+
+  var canvas = $('pendulum-canvas');
+  var ctx = canvas.getContext('2d');
+
+  /* ═══════════════ Units (display-only; internals stay SI) ═══════════════ */
+  var FT = 3.280839895, LB = 2.204622622, FTLBF = 0.737562149;
+  function uLen()  { return state.imperial ? 'ft'    : 'm'; }
+  function uSpd()  { return state.imperial ? 'ft/s'  : 'm/s'; }
+  function uAcc()  { return state.imperial ? 'ft/s²' : 'm/s²'; }
+  function uMass() { return state.imperial ? 'lb'    : 'kg'; }
+  function uEner() { return state.imperial ? 'ft·lbf': 'J'; }
+  function cLen(m)  { return state.imperial ? m * FT    : m; }
+  function cSpd(v)  { return state.imperial ? v * FT    : v; }
+  function cAcc(a)  { return state.imperial ? a * FT    : a; }
+  function cMass(k) { return state.imperial ? k * LB    : k; }
+  function cEner(j) { return state.imperial ? j * FTLBF : j; }
+
+  /* ═══════════════ Sound ═══════════════ */
+  function getAudioCtx() {
+    if (!state.audioCtx) { try { state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { state.audioCtx = null; } }
+    return state.audioCtx;
+  }
+  function playTone(freq, dur, type, vol) {
+    if (!state.soundOn) return;
+    var ac = getAudioCtx(); if (!ac) return;
+    try {
+      var o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.value = freq; gn.gain.value = vol || 0.05;
+      o.connect(gn); gn.connect(ac.destination);
+      var t = ac.currentTime;
+      gn.gain.setValueAtTime(vol || 0.05, t);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  function playClick()   { playTone(740, 0.05, 'square', 0.035); }
+  function playSuccess() { playTone(880, 0.12, 'sine', 0.1); setTimeout(function(){ playTone(1100, 0.15, 'sine', 0.1); }, 110); }
+  function playError()   { playTone(300, 0.2, 'sawtooth', 0.06); }
+  var lastTick = 0;
+  function tickSound() {                 /* soft tick as it passes the bottom */
+    if (!state.soundOn) return;
+    var now = (getAudioCtx() ? getAudioCtx().currentTime : 0);
+    if (now - lastTick > 0.15) { playTone(520, 0.03, 'sine', 0.03); lastTick = now; }
+  }
+
+  /* ═══════════════ Physics ═══════════════ */
+  function periodSmall() { return TAU * Math.sqrt(state.L / state.g); }
+  function periodLarge() {
+    var a = state.amp;
+    return periodSmall() * (1 + a * a / 16 + 11 * Math.pow(a, 4) / 3072);
+  }
+  function frequency() { return 1 / periodSmall(); }
+  /* Waveform time window scales with the ACTUAL period (large-angle corrected)
+     so a slow, long-L / low-g swing still shows several full cycles instead of
+     the wave running off the right edge before completing even one. */
+  function waveDisplayWindow() {
+    var w = periodLarge() * WAVE_CYCLES;
+    return Math.min(WAVE_WINDOW_MAX, Math.max(WAVE_WINDOW_MIN, w));
+  }
+  function maxSpeedTheory() {            /* v at bottom from energy, ideal */
+    return Math.sqrt(2 * state.g * state.L * (1 - Math.cos(state.amp)));
+  }
+  function energyTotal() { return state.mass * state.g * state.L * (1 - Math.cos(state.amp)); }
+  function energyKE() { var v = state.L * state.omega; return 0.5 * state.mass * v * v; }
+  function energyPE() { return state.mass * state.g * state.L * (1 - Math.cos(state.theta)); }
+
+  function step(dt) {
+    var sub = Math.max(1, Math.ceil(dt / 0.002));
+    var h = dt / sub;
+    var b = state.damp ? 0.4 : 0;
+    for (var i = 0; i < sub; i++) {
+      var a = -(state.g / state.L) * Math.sin(state.theta) - b * state.omega;
+      state.omega += a * h;
+      var prev = state.theta;
+      state.theta += state.omega * h;
+      if (prev * state.theta < 0) tickSound();   /* crossed the bottom */
+    }
+    var sp = Math.abs(state.L * state.omega);
+    if (sp > state.maxSpeed) state.maxSpeed = sp;
+  }
+
+  /* ═══════════════ Canvas ═══════════════ */
+  var CW = 0, CH = 0;                 /* cached logical (CSS-px) canvas size */
+  function sizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth || canvas.parentElement.clientWidth || 640;
+    var h = Math.max(320, Math.min(440, Math.round(w * 0.5)));
+    canvas.style.height = h + 'px';
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    CW = w; CH = h;
+  }
+
+  /* Studio gradient + accent spotlight — grounds the flat scene. */
+  function drawSceneBackground(w, h, glowX, glowY) {
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#12172a'); g.addColorStop(0.55, '#0c1020'); g.addColorStop(1, '#080b14');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    var rad = ctx.createRadialGradient(glowX, glowY, 10, glowX, glowY, h * 0.95);
+    rad.addColorStop(0, 'rgba(255,117,151,0.12)'); rad.addColorStop(1, 'rgba(255,117,151,0)');
+    ctx.fillStyle = rad; ctx.fillRect(0, 0, w, h);
+  }
+
+  /* Wall-mounted bracket + shaded hinge pin at the pivot. */
+  function drawMount(px, py) {
+    ctx.save();
+    /* shadow under the bracket */
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(px - 46, py - 4, 92, 6);
+    /* bracket plate — brushed-steel vertical gradient */
+    var mg = ctx.createLinearGradient(0, py - 14, 0, py);
+    mg.addColorStop(0, '#4a536e'); mg.addColorStop(0.5, '#39415a'); mg.addColorStop(1, '#242a3d');
+    ctx.fillStyle = mg;
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(px - 46, py - 14, 92, 14, 3); ctx.fill(); }
+    else ctx.fillRect(px - 46, py - 14, 92, 14);
+    /* top highlight */
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(px - 46, py - 14, 92, 2);
+    /* fixing bolts */
+    ctx.fillStyle = '#11151f';
+    [-36, 36].forEach(function (dx) { ctx.beginPath(); ctx.arc(px + dx, py - 7, 2.4, 0, TAU); ctx.fill(); });
+    /* diagonal ribs */
+    ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+    for (var i = -40; i <= 40; i += 10) { ctx.beginPath(); ctx.moveTo(px + i, py - 12); ctx.lineTo(px + i - 6, py); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  /* Shaded hinge pin — sits on top of the rope so the joint reads as metal. */
+  function drawPivot(px, py) {
+    var pg = ctx.createRadialGradient(px - 1.5, py - 1.5, 0.5, px, py, 5);
+    pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.5, '#c3ccdf'); pg.addColorStop(1, '#6c7690');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  /* Single source of truth for pivot position + rope length — shared by
+     draw() and the manual-drop pointer math so dragging always maps to
+     exactly the geometry that gets rendered (no drift between the two). */
+  function pendulumGeometry() {
+    var w = CW, h = CH;
+    var px = w * 0.5, py = h * 0.14;
+    /* map the FULL slider range (0.2–4 m) linearly into the available height —
+       no clamp, so every length change is visible (old min() saturated at ~3 m) */
+    var ropeLen = h * 0.18 + (state.L - 0.2) / 3.8 * (h * 0.54);
+    return { px: px, py: py, ropeLen: ropeLen };
+  }
+
+  function draw(opts) {
+    opts = opts || {};
+    if (!CW) sizeCanvas();
+    var w = CW, h = CH;
+
+    var geo = pendulumGeometry();
+    var px = geo.px, py = geo.py, ropeLen = geo.ropeLen;
+    var bx = px + ropeLen * Math.sin(state.theta);
+    var by = py + ropeLen * Math.cos(state.theta);
+    var r = 5 + Math.cbrt(state.mass) * 11;  /* ∛mass = real volume feel, ~10→24 px across the slider */
+
+    /* background (spotlight follows the bob) */
+    drawSceneBackground(w, h, bx, by);
+
+    /* swing-path guide arc (faint, full amplitude sweep) */
+    if (state.showSwingPath) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1.5; ctx.setLineDash([2, 6]);
+      ctx.beginPath();
+      ctx.arc(px, py, ropeLen, Math.PI / 2 - state.amp, Math.PI / 2 + state.amp);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* motion afterimage — fading ghosts of recent bob positions */
+    if (state.showTrail && state.running && state.trail.length > 1) {
+      for (var t = 0; t < state.trail.length; t++) {
+        var frac = (t + 1) / state.trail.length;      /* older = smaller index = fainter */
+        var th = state.trail[t];
+        var gx = px + ropeLen * Math.sin(th), gy = py + ropeLen * Math.cos(th);
+        ctx.globalAlpha = 0.22 * frac;
+        ctx.fillStyle = '#ff5d86';
+        ctx.beginPath(); ctx.arc(gx, gy, r * (0.55 + 0.4 * frac), 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    /* vertical reference + angle arc */
+    if (state.showAngle) {
+      ctx.save(); ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py + ropeLen + 24); ctx.stroke(); ctx.restore();
+      var arcR = Math.min(60, ropeLen * 0.42);
+      ctx.strokeStyle = '#ff7597'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      var a0 = Math.PI / 2, a1 = Math.PI / 2 - state.theta;
+      ctx.arc(px, py, arcR, Math.min(a0, a1), Math.max(a0, a1)); ctx.stroke();
+      ctx.fillStyle = '#ff7597'; ctx.font = '700 12px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((state.theta * 180 / Math.PI).toFixed(0) + '°', px + (arcR + 14) * Math.sin(state.theta / 2), py + (arcR + 14) * Math.cos(state.theta / 2));
+    }
+
+    /* ceiling mount (behind rope) */
+    drawMount(px, py);
+
+    /* velocity streak — tapered motion blur along the tangent, behind the bob */
+    var speed = Math.abs(state.L * state.omega);       /* m/s */
+    if (state.showVelocity && state.running && speed > 0.15) {
+      var dir = state.omega >= 0 ? 1 : -1;             /* tangent points along +θ when ω>0 */
+      var tx = Math.cos(state.theta) * dir, ty = -Math.sin(state.theta) * dir;   /* unit tangent (screen) */
+      var len = Math.min(70, speed * 16);
+      var sx = bx - tx * len, sy = by - ty * len;      /* trail behind the motion */
+      var vg = ctx.createLinearGradient(bx, by, sx, sy);
+      vg.addColorStop(0, 'rgba(79,195,247,0.42)'); vg.addColorStop(1, 'rgba(79,195,247,0)');
+      var nx = -ty, ny = tx;                            /* normal for the taper width */
+      ctx.fillStyle = vg;
+      ctx.beginPath();
+      ctx.moveTo(bx + nx * r * 0.7, by + ny * r * 0.7);
+      ctx.lineTo(bx - nx * r * 0.7, by - ny * r * 0.7);
+      ctx.lineTo(sx, sy);
+      ctx.closePath(); ctx.fill();
+    }
+
+    /* rope — thin cylindrical shading (dark core + highlight) */
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#6b7590'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.strokeStyle = 'rgba(220,227,240,0.55)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(bx, by); ctx.stroke();
+
+    /* pivot pin */
+    drawPivot(px, py);
+
+    /* bob — sphere with drop shadow, body gradient, rim light, specular */
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 5;
+    var grad = ctx.createRadialGradient(bx - r * 0.35, by - r * 0.4, r * 0.15, bx, by, r);
+    grad.addColorStop(0, '#ffd0dc'); grad.addColorStop(0.45, '#ff8aa8'); grad.addColorStop(1, '#e33f68');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, TAU); ctx.fill();
+    ctx.restore();
+    /* rim light (lower-right) */
+    ctx.strokeStyle = 'rgba(255,190,205,0.5)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(bx, by, r - 0.7, Math.PI * 0.05, Math.PI * 0.75); ctx.stroke();
+    /* dark edge (upper-left) */
+    ctx.strokeStyle = 'rgba(90,0,25,0.35)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(bx, by, r - 0.5, Math.PI * 1.05, Math.PI * 1.75); ctx.stroke();
+    /* specular glint */
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.arc(bx - r * 0.32, by - r * 0.36, r * 0.16, 0, TAU); ctx.fill();
+
+    /* right-side panel — energy bars XOR waveform, never both at once */
+    if (!opts.hideEnergy) {
+      if (state.rightPanelMode === 'energy') {
+        var tot = energyTotal() || 1;
+        var ke = energyKE(), pe = energyPE();
+        var bw = 18, bh = h * 0.5, bxx = w - 78, byy = h * 0.28;
+        drawBar(bxx, byy, bw, bh, ke / tot, '#4fc3f7', '#0288d1', 'KE');
+        drawBar(bxx + 34, byy, bw, bh, Math.min(1, pe / tot), '#ff7597', '#c2185b', 'PE');
+      } else if (state.rightPanelMode === 'waveform') {
+        drawWaveform(w, h);
+      }
+    }
+
+    /* period overlay — starts below the "Display Controls" canvas overlay (top-left) so the two never collide */
+    if (opts.hideValues) {
+      ctx.fillStyle = '#8b9dc3'; ctx.font = '600 13px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('Find the period', w / 2, 12);
+    } else if (state.showPeriod) {
+      ctx.fillStyle = '#8b9dc3'; ctx.font = '600 12px "Segoe UI", sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('T (small angle) = ' + periodSmall().toFixed(3) + ' s', 14, 44);
+      if (state.amp > 0.26) {
+        ctx.fillStyle = '#f5c842';
+        ctx.fillText('T (actual ≈) = ' + periodLarge().toFixed(3) + ' s', 14, 62);
+      }
+    }
+
+    /* manual-drop hint — only while armed, idle, and not mid-drag */
+    if (state.manualDrop && !state.running && !state.dragging && !opts.hideValues) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '600 12px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('✋ Drag anywhere to position the bob, release to drop', w / 2, 12);
+    }
+  }
+
+  function drawBar(x, y, w, h, frac, cHi, cLo, label) {
+    frac = Math.max(0, Math.min(1, frac));
+    ctx.fillStyle = 'rgba(255,255,255,.05)';
+    ctx.fillRect(x, y, w, h);
+    if (frac > 0.001) {
+      var fy = y + h * (1 - frac);
+      var bg = ctx.createLinearGradient(x, fy, x, y + h);
+      bg.addColorStop(0, cHi); bg.addColorStop(1, cLo);
+      ctx.fillStyle = bg;
+      ctx.fillRect(x, fy, w, h * frac);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, fy, w, 1.5);  /* top sheen */
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = '#8b9dc3'; ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(label, x + w / 2, y + h + 4);
+  }
+
+  /* Time-domain waveform panel — plots θ(t) straight from state.waveform,
+     the samples loop() takes directly off the physics engine each frame.
+     The y-scale is FIXED to state.waveScale (the release amplitude) rather
+     than auto-rescaling to the current instantaneous peak — auto-rescaling
+     would erase exactly the thing this view exists to show: the amplitude
+     visibly shrinking swing-to-swing when Damping is on. */
+  function drawWaveform(w, h) {
+    var wx = w - 160, wy = h * 0.20, ww = 148, wh = h * 0.56;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,14,24,0.55)';
+    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(wx, wy, ww, wh, 6); ctx.fill(); ctx.stroke(); }
+    else { ctx.fillRect(wx, wy, ww, wh); ctx.strokeRect(wx, wy, ww, wh); }
+
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(wx, wy, ww, wh, 6); else ctx.rect(wx, wy, ww, wh);
+    ctx.clip();
+
+    var midY = wy + wh / 2;
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(wx, midY); ctx.lineTo(wx + ww, midY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    var wf = state.waveform;
+    var dispWindow = waveDisplayWindow();   /* seconds — scales with the actual period, so a long-T swing never overflows the box */
+    if (wf.length > 1) {
+      var scale = Math.max(state.waveScale, 2 * Math.PI / 180);
+      var t0 = Math.max(0, state.simTime - dispWindow);
+      ctx.strokeStyle = '#ff7597'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(255,117,151,0.55)'; ctx.shadowBlur = 4;
+      ctx.beginPath();
+      for (var i = 0; i < wf.length; i++) {
+        var s = wf[i];
+        var x = wx + (s.t - t0) / dispWindow * ww;
+        var y = midY - (s.theta / scale) * (wh / 2 * 0.92);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();   /* undo clip */
+
+    ctx.fillStyle = '#8b9dc3'; ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('θ(t)', wx + 5, wy + 3);
+    ctx.textAlign = 'right';
+    ctx.fillText('±' + (state.waveScale * 180 / Math.PI).toFixed(0) + '°', wx + ww - 5, wy + 3);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(139,157,195,0.85)'; ctx.font = '600 9px "Segoe UI", sans-serif';
+    ctx.fillText('window ' + dispWindow.toFixed(1) + ' s', wx + ww - 5, wy + wh - 4);
+    ctx.restore();
+  }
+
+  /* ═══════════════ Animation loop ═══════════════ */
+  function loop(ts) {
+    if (!state.running) return;
+    if (!state.last) state.last = ts;
+    var dt = (ts - state.last) / 1000;
+    state.last = ts;
+    if (dt > 0.05) dt = 0.05;
+    step(dt);
+    state.trail.push(state.theta);
+    if (state.trail.length > 14) state.trail.shift();
+    /* waveform: sample straight off the physics state every frame — this is
+       the actual θ(t) the engine computed, not a synthesized curve, so
+       damping's amplitude decay (or its absence) shows up exactly as the
+       integrator produced it. */
+    state.simTime += dt;
+    state.waveform.push({ t: state.simTime, theta: state.theta });
+    /* retain enough history for the largest possible display window (a long-T,
+       low-g, large-amplitude drop) — drawWaveform() picks the actual visible
+       slice from this buffer each frame based on the CURRENT period. */
+    var wfCutoff = state.simTime - WAVE_WINDOW_MAX;
+    while (state.waveform.length > 2 && state.waveform[0].t < wfCutoff) state.waveform.shift();
+    draw();
+    if (state.mode === 'simulate') updateReadouts();
+    state.raf = requestAnimationFrame(loop);
+  }
+  function start() {
+    if (state.running) return;
+    state.running = true; state.last = 0;
+    $('btn-play').innerHTML = '❚❚ Pause';
+    state.raf = requestAnimationFrame(loop);
+  }
+  function pause() {
+    state.running = false;
+    if (state.raf) cancelAnimationFrame(state.raf);
+    $('btn-play').innerHTML = '▶ Start';
+  }
+  function armWaveform() {
+    state.waveform = []; state.simTime = 0;
+    state.waveScale = Math.max(state.amp, 2 * Math.PI / 180);   /* fixed for this run, avoid a near-zero scale */
+  }
+  function reset() {
+    pause();
+    state.theta = state.amp; state.omega = 0; state.maxSpeed = 0; state.trail = [];
+    armWaveform();
+    draw(); updateReadouts();
+  }
+
+  /* ═══════════════ Readouts ═══════════════ */
+  function updateReadouts() {
+    /* T = 2π√(L/g) is the SMALL-ANGLE period. The amplitude slider reaches 80°,
+       where the true period is 13.6% longer — and the integrator is fully
+       nonlinear, so the bob really does swing at the longer period. A student
+       timing the swing against an unqualified "Period T" badge would find it
+       disagrees. Show the actual period alongside once the correction becomes
+       visible (>1%, i.e. beyond about 23°). The canvas overlay already
+       distinguishes the two; this brings the always-visible badge into line. */
+    var Tsmall = periodSmall(), Tactual = periodLarge();
+    var deviates = (Tactual - Tsmall) / Tsmall > 0.01;
+    $('rb-period').textContent = Tsmall.toFixed(3) + ' s' +
+      (deviates ? ' → ' + Tactual.toFixed(3) + ' s actual' : '');
+    $('rb-freq').textContent = (deviates ? (1 / Tactual) : frequency()).toFixed(3) + ' Hz';
+    $('rb-vmax').textContent = cSpd(maxSpeedTheory()).toFixed(2) + ' ' + uSpd();
+    $('rb-angle').textContent = (state.theta * 180 / Math.PI).toFixed(1) + '°';
+    $('rb-energy').textContent = cEner(energyTotal()).toFixed(2) + ' ' + uEner();
+    updateEquations();
+  }
+
+  /* ═══════════════ KaTeX live equations ═══════════════ */
+  function renderMath(el) {
+    if (el && window.renderMathInElement) {
+      try {
+        window.renderMathInElement(el, {
+          delimiters: [{ left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }],
+          throwOnError: false
+        });
+      } catch (e) {}
+    }
+  }
+  var _eqCache = '';
+  function updateEquations() {
+    var eq = $('lp-eq-body'); if (!eq) return;
+    var T = periodSmall(), f = frequency(), w = Math.sqrt(state.g / state.L);
+    var E = energyTotal(), vmax = maxSpeedTheory();
+    var uL = uLen(), uA = uAcc();
+    var html = '';
+    html += '<div class="eq-line">\\[ T = 2\\pi\\sqrt{\\dfrac{L}{g}} = 2\\pi\\sqrt{\\dfrac{' + cLen(state.L).toFixed(2) + '\\,\\mathrm{' + uL + '}}{' + cAcc(state.g).toFixed(2) + '\\,\\mathrm{' + uA + '}}} = \\mathbf{' + T.toFixed(3) + '\\,\\mathrm{s}} \\]</div>';
+    html += '<div class="eq-line">\\( f = \\dfrac{1}{T} = ' + f.toFixed(3) + '\\,\\mathrm{Hz}, \\quad \\omega = \\sqrt{g/L} = ' + w.toFixed(3) + '\\,\\mathrm{rad/s} \\)</div>';
+    html += '<div class="eq-line">\\( v_{\\max} = \\sqrt{2gL(1-\\cos\\theta_0)} = ' + cSpd(vmax).toFixed(2) + '\\,\\mathrm{' + uSpd() + '} \\)</div>';
+    html += '<div class="eq-line">\\( E = mgL(1-\\cos\\theta_0) = ' + cEner(E).toFixed(2) + '\\,\\mathrm{' + uEner() + '} \\)</div>';
+    if (state.amp > 0.26) {
+      html += '<div class="eq-line">\\( T_{\\text{large}} \\approx T\\left(1+\\dfrac{\\theta_0^{2}}{16}\\right) = ' + periodLarge().toFixed(3) + '\\,\\mathrm{s} \\)</div>';
+    }
+    if (html !== _eqCache) { eq.innerHTML = html; _eqCache = html; renderMath(eq); }
+  }
+
+  /* ═══════════════ Show-Calculations modal ═══════════════ */
+  function openCalc() {
+    var T = periodSmall(), f = frequency();
+    var ampDeg = (state.amp * 180 / Math.PI).toFixed(0);
+    var ratio = state.L / state.g;
+    var uL = uLen(), uA = uAcc();
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Inputs</span><div class="cs-given">' +
+      '<span>\\(L = ' + cLen(state.L).toFixed(2) + '\\,\\mathrm{' + uL + '}\\)</span>' +
+      '<span>\\(g = ' + cAcc(state.g).toFixed(2) + '\\,\\mathrm{' + uA + '}\\)</span>' +
+      '<span>\\(\\theta_0 = ' + ampDeg + '^\\circ\\)</span>' +
+      '<span>\\(m = ' + cMass(state.mass).toFixed(1) + '\\,\\mathrm{' + uMass() + '}\\)</span>' +
+      '</div><p class="cs-si-note">The small-angle formula assumes \\(\\sin\\theta \\approx \\theta\\) (good below ~10&deg;).</p></div>';
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 1</span><span class="cs-title">Ratio L / g</span></div>' +
+      '<div class="cs-calc">\\[ \\dfrac{L}{g} = \\dfrac{' + cLen(state.L).toFixed(2) + '}{' + cAcc(state.g).toFixed(2) + '} = ' + ratio.toFixed(4) + '\\,\\mathrm{s^2} \\]</div></div>';
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 2</span><span class="cs-title">Period</span></div>' +
+      '<div class="cs-formula">\\[ T = 2\\pi\\sqrt{\\dfrac{L}{g}} \\]</div>' +
+      '<div class="cs-calc">\\( = 2\\pi\\sqrt{' + ratio.toFixed(4) + '} \\)</div>' +
+      '<div class="cs-result">= <strong>' + T.toFixed(3) + ' s</strong></div></div>';
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 3</span><span class="cs-title">Frequency</span></div>' +
+      '<div class="cs-formula">\\[ f = \\dfrac{1}{T} \\]</div>' +
+      '<div class="cs-result">= <strong>' + f.toFixed(3) + ' Hz</strong></div></div>';
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 4</span><span class="cs-title">Energy &amp; max speed</span></div>' +
+      '<div class="cs-formula">\\[ E = mgL(1-\\cos\\theta_0), \\quad v_{\\max} = \\sqrt{2gL(1-\\cos\\theta_0)} \\]</div>' +
+      '<div class="cs-result">E = <strong>' + cEner(energyTotal()).toFixed(2) + ' ' + uEner() + '</strong>, v<sub>max</sub> = <strong>' + cSpd(maxSpeedTheory()).toFixed(2) + ' ' + uSpd() + '</strong></div></div>';
+    if (state.amp > 0.26) {
+      html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 5</span><span class="cs-title">Large-amplitude correction</span></div>' +
+        '<div class="cs-formula">\\[ T_{\\text{large}} \\approx T\\left(1+\\dfrac{\\theta_0^{2}}{16}\\right) \\]</div>' +
+        '<div class="cs-result">= <strong>' + periodLarge().toFixed(3) + ' s</strong> (θ₀ = ' + ampDeg + '°)</div></div>';
+    }
+    $('calc-modal-body').innerHTML = html;
+    $('calc-modal').classList.add('active');
+    renderMath($('calc-modal-body'));
+  }
+  function closeCalc() { $('calc-modal').classList.remove('active'); }
+
+  /* ═══════════════ Sliders ═══════════════ */
+  function syncSliders() {
+    $('sl-len').value = state.L; $('val-len').textContent = cLen(state.L).toFixed(2) + ' ' + uLen();
+    $('sl-amp').value = Math.round(state.amp * 180 / Math.PI); $('val-amp').textContent = Math.round(state.amp * 180 / Math.PI) + '°';
+    $('sl-mass').value = state.mass; $('val-mass').textContent = cMass(state.mass).toFixed(1) + ' ' + uMass();
+    $('sl-grav').value = state.g; $('val-grav').textContent = cAcc(state.g).toFixed(2) + ' ' + uAcc();
+    markUnitPills();
+  }
+  function markUnitPills() {
+    document.querySelectorAll('#unit-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', (p.getAttribute('data-unit') === 'imp') === state.imperial);
+    });
+  }
+
+  /* ═══════════════ Gravity — merged preset pills + custom slider ═══════════════ */
+  function markGravityPill() {
+    document.querySelectorAll('#gravity-tabs .pill').forEach(function (q) {
+      q.classList.toggle('active', Math.abs(parseFloat(q.getAttribute('data-g')) - state.g) < 0.005);
+    });
+    updateGravityPlanet();
+  }
+  /* Swap the rotating-planet icon to match the selected gravity, and pulse
+     it briefly when the body changes so the change is easy to notice. */
+  var lastPlanetClass = '';
+  function updateGravityPlanet() {
+    var el = $('gravity-planet'); if (!el) return;
+    var cls = 'gp-earth', label = 'Earth';
+    if (Math.abs(state.g - 1.62) < 0.1) { cls = 'gp-moon'; label = 'Moon'; }
+    else if (Math.abs(state.g - 3.71) < 0.1) { cls = 'gp-mars'; label = 'Mars'; }
+    else if (Math.abs(state.g - 24.79) < 0.5) { cls = 'gp-jupiter'; label = 'Jupiter'; }
+    el.className = 'gravity-planet ' + cls;
+    el.setAttribute('title', label + ' gravity');
+    el.setAttribute('aria-label', label + ' gravity selected');
+    if (cls !== lastPlanetClass) {
+      void el.offsetWidth;            /* reflow so the pulse re-triggers */
+      el.classList.add('gp-notice');
+      lastPlanetClass = cls;
+    }
+  }
+
+  /* ═══════════════ Mode switching ═══════════════ */
+  function hideAll() {
+    ['sim-panel','cat-row','item-selector','item-info',
+     'practice-panel','practice-bar','quiz-panel','quiz-bar','quiz-result'].forEach(function (id) {
+      var el = $(id); if (el) el.style.display = 'none';
+    });
+  }
+  var SECTIONS = {
+    simulate: ['sim-panel'],
+    explore:  ['cat-row', 'item-selector', 'item-info'],
+    practice: ['practice-panel', 'practice-bar'],
+    quiz:     ['quiz-panel', 'quiz-bar']
+  };
+  var simSnap = null;
+  function setMode(mode) {
+    if (state.mode === 'simulate' && mode !== 'simulate') {
+      simSnap = { L: state.L, g: state.g, amp: state.amp, mass: state.mass, damp: state.damp };
+    }
+    pause();
+    state.mode = mode;
+    hideAll();
+    $('canvas-card').style.display = (mode === 'explore') ? 'none' : '';
+    if (mode !== 'explore') sizeCanvas();   /* canvas just became visible — re-measure */
+    var actionBar = $('action-bar'), canvasToggles = $('canvas-toggles');
+    if (actionBar) actionBar.style.display = (mode === 'simulate') ? '' : 'none';
+    if (canvasToggles) canvasToggles.style.display = (mode === 'simulate') ? '' : 'none';
+    (SECTIONS[mode] || []).forEach(function (id) { var el = $(id); if (el) el.style.display = ''; });
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-mode') === mode); });
+    if (mode === 'simulate') {
+      if (simSnap) { state.L = simSnap.L; state.g = simSnap.g; state.amp = simSnap.amp; state.mass = simSnap.mass; state.damp = simSnap.damp; }
+      state.theta = state.amp; state.omega = 0; state.trail = [];
+      armWaveform();
+      markGravityPill();
+      $('chk-damp').checked = state.damp;
+      var dampToggle = $('damp-toggle'); if (dampToggle) dampToggle.classList.toggle('checked', state.damp);
+      syncSliders(); updateReadouts(); draw();
+    }
+    else if (mode === 'explore') renderExplore();
+    else if (mode === 'practice') newPractice();
+    else if (mode === 'quiz') startQuiz();
+    if (mode !== 'simulate') updateGravityPlanet();   /* keep the planet icon in sync in practice/quiz too */
+    playClick();
+  }
+
+  /* ═══════════════ Explore ═══════════════ */
+  var EXPLORE = {
+    basics: [
+      { name: 'What is a simple pendulum?', body: 'A simple pendulum is an idealised model: a point mass (the bob) on a light, inextensible string swinging freely under gravity. Real pendulums approximate it well when the bob is small and heavy and the string is light.', note: 'The length L is measured from the pivot to the centre of the bob.' },
+      { name: 'The restoring force', body: 'When the bob is displaced by angle θ, gravity provides a restoring force component <strong>mg·sinθ</strong> back toward the bottom. For small θ this is nearly proportional to θ — the condition for simple harmonic motion.', formula: 'F_restore = −mg·sinθ ≈ −mg·θ', note: 'Proportional restoring force ⇒ SHM.' },
+      { name: 'Simple harmonic motion', body: 'For small swings the motion is sinusoidal: the angle, angular velocity and acceleration all vary as sine/cosine of time. The pendulum is the textbook example of SHM alongside the spring-mass system.', note: 'See the SHM simulator for the spring-mass view.' }
+    ],
+    period: [
+      { name: 'The period formula', body: 'The period is the time for one complete swing (there and back). For small amplitudes it depends only on length and gravity.', formula: 'T = 2π·√(L/g)', note: 'L = 1 m on Earth → T = 2.006 s.' },
+      { name: 'Frequency & angular frequency', body: 'Frequency is the number of swings per second; angular frequency ω relates to the SHM description.', formula: 'f = 1/T     ω = √(g/L)', note: 'T = 2 s → f = 0.5 Hz.' },
+      { name: 'Large-amplitude correction', body: 'The simple formula assumes sinθ ≈ θ. For bigger swings the period grows: about +4% at 45° and +18% at 90°.', formula: 'T ≈ T₀(1 + θ₀²/16 + …)', note: 'The simulator shows both T₀ and the corrected period.' }
+    ],
+    energy: [
+      { name: 'Potential energy', body: 'At the extremes the bob is highest and momentarily at rest — all the energy is gravitational potential energy.', formula: 'PE = mgL(1 − cosθ)', note: 'Maximum at the amplitude angle.' },
+      { name: 'Kinetic energy', body: 'At the bottom the bob moves fastest and all the energy is kinetic. Its speed there follows from energy conservation.', formula: 'KE = ½mv²,  v_max = √(2gL(1 − cosθ₀))', note: 'Toggle the energy bars to watch the trade.' },
+      { name: 'Conservation of energy', body: 'Without friction the total mechanical energy KE + PE stays constant; energy simply shuttles between the two forms each swing. Add damping and the total slowly decreases.', formula: 'E = KE + PE = constant', note: 'Mass affects energy but not period.' }
+    ],
+    factors: [
+      { name: 'Length', body: 'Period grows with √L. Quadruple the length and the period doubles; a quarter of the length halves it.', formula: 'T ∝ √L', note: 'Drag the Length slider and watch T.' },
+      { name: 'Gravity', body: 'A stronger gravitational field shortens the period (T ∝ 1/√g). On the Moon the same pendulum swings ~2.5× slower than on Earth.', formula: 'T ∝ 1/√g', note: 'Try the Moon and Jupiter presets.' },
+      { name: 'Mass — no effect', body: 'The period is independent of the bob mass, because mass appears in both the driving force and the inertia and cancels out. Change the mass slider — the period does not move.', note: 'Mass changes the energy, not the timing.' },
+      { name: 'Amplitude — small effect', body: 'For small swings the period barely changes with amplitude (isochronism). Only large swings noticeably lengthen the period.', note: 'Keep amplitude under ~10° for the textbook formula.' }
+    ],
+    applications: [
+      { name: 'Pendulum clocks', body: 'A 1 m pendulum beats almost exactly once per second — the “seconds pendulum”. Clocks are tuned by moving a nut to change L by millimetres.', note: 'Galileo and Huygens built the first pendulum clocks.' },
+      { name: 'Measuring g', body: 'Timing many swings of a known-length pendulum gives a classic laboratory measurement of g via g = 4π²L/T².', formula: 'g = 4π²L / T²', note: 'A staple first-year physics experiment.' },
+      { name: 'Metronomes & seismometers', body: 'Inverted and damped pendulums set musical tempo and detect ground motion; the same period physics underlies both.', note: 'Damped pendulums lose amplitude but keep their period.' }
+    ]
+  };
+  var exploreCat = 'basics', exploreIdx = 0;
+  function renderExplore() {
+    var grid = $('concept-grid'); grid.innerHTML = '';
+    EXPLORE[exploreCat].forEach(function (item, i) {
+      var card = document.createElement('div');
+      card.className = 'is-card' + (i === exploreIdx ? ' active' : '');
+      card.innerHTML = '<div class="is-card-name">' + item.name + '</div>';
+      card.addEventListener('click', function () { exploreIdx = i; renderExplore(); playClick(); });
+      grid.appendChild(card);
+    });
+    var item = EXPLORE[exploreCat][exploreIdx];
+    var html = '<h3>' + item.name + '</h3><p>' + item.body + '</p>';
+    if (item.formula) html += '<div class="formula-box">' + item.formula + '</div>';
+    if (item.note) html += '<div class="example-box"><div class="step">💡 ' + item.note + '</div></div>';
+    $('item-info').innerHTML = html;
+  }
+
+  /* ═══════════════ Practice ═══════════════ */
+  var practiceScore = { correct: 0, total: 0 };
+  var pAnswer = 0;
+  var GRAVS = [{ n: 'Earth', g: 9.81 }, { n: 'Moon', g: 1.62 }, { n: 'Mars', g: 3.71 }, { n: 'Jupiter', g: 24.79 }];
+  function randInt(n) { return Math.floor(Math.random() * n); }
+  function newPractice() {
+    var Lp = (randInt(36) + 5) / 10;     /* 0.5 – 4.0 m */
+    var body = GRAVS[randInt(GRAVS.length)];
+    state.L = Lp; state.g = body.g; state.amp = 15 * Math.PI / 180; state.theta = state.amp; state.omega = 0;
+    updateGravityPlanet();
+    pAnswer = TAU * Math.sqrt(Lp / body.g);
+    draw({ hideValues: true, hideEnergy: true });
+    $('pp-prompt').innerHTML = 'A simple pendulum of length <strong>' + Lp.toFixed(1) + ' m</strong> swings on <strong>' + body.n + '</strong> (g = ' + body.g + ' m/s²). Find its period <strong>T</strong> (small-angle).';
+    $('pp-unit').textContent = 's';
+    $('pp-input').value = ''; $('pp-input').disabled = false;
+    $('pp-feedback').textContent = ''; $('pp-feedback').className = 'feedback';
+    $('pp-solution').style.display = 'none';
+    $('pp-check').style.display = ''; $('pp-next').style.display = 'none';
+  }
+  function checkPractice() {
+    var v = parseFloat($('pp-input').value);
+    if (isNaN(v)) { $('pp-feedback').textContent = 'Enter a number first.'; $('pp-feedback').className = 'feedback wrong'; return; }
+    var ok = Math.abs(v - pAnswer) / pAnswer < 0.02;
+    practiceScore.total++;
+    if (ok) { practiceScore.correct++; $('pp-feedback').textContent = '✓ Correct!'; $('pp-feedback').className = 'feedback correct'; playSuccess(); }
+    else { $('pp-feedback').textContent = '✗ Not quite.'; $('pp-feedback').className = 'feedback wrong'; playError(); }
+    $('pbar-score-val').textContent = practiceScore.correct + ' / ' + practiceScore.total;
+    $('pp-solution').style.display = '';
+    $('pp-solution').innerHTML = 'T = 2π·√(L/g) = 2π·√(' + state.L.toFixed(1) + ' / ' + state.g + ') = <strong>' + pAnswer.toFixed(3) + ' s</strong>' +
+      '<br>Frequency f = 1/T = ' + (1 / pAnswer).toFixed(3) + ' Hz.';
+    $('pp-input').disabled = true; $('pp-check').style.display = 'none'; $('pp-next').style.display = '';
+  }
+
+  /* ═══════════════ Quiz ═══════════════ */
+  var QUIZ_SIZE = 5;
+  var quiz = { qs: [], idx: 0, score: 0, answered: false };
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = randInt(i + 1); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function buildQuizQuestion() {
+    var type = randInt(5);
+    if (type === 0) {
+      var Lp = (randInt(30) + 5) / 10, body = GRAVS[randInt(GRAVS.length)];
+      var T = TAU * Math.sqrt(Lp / body.g);
+      state.L = Lp; state.g = body.g; state.amp = 15 * Math.PI / 180; state.theta = state.amp; state.omega = 0;
+      updateGravityPlanet();
+      var opts = [T.toFixed(2)];
+      [T * 1.41, T / 1.41, T * 2].forEach(function (x) { var s = x.toFixed(2); if (opts.indexOf(s) === -1) opts.push(s); });
+      return { draw: true, prompt: 'Find the period of a ' + Lp.toFixed(1) + ' m pendulum on ' + body.n + ' (g = ' + body.g + ').',
+               options: shuffle(opts).map(function (s) { return s + ' s'; }), answer: T.toFixed(2) + ' s', explain: 'T = 2π√(L/g) = ' + T.toFixed(2) + ' s.' };
+    }
+    var pool = [
+      { p: 'If you quadruple the length of a pendulum, its period…', a: 'doubles', o: ['doubles', 'halves', 'quadruples', 'stays the same'], e: 'T ∝ √L, and √4 = 2.' },
+      { p: 'Doubling the mass of the bob changes the period by…', a: 'no change', o: ['no change', 'doubles it', 'halves it', '√2 times'], e: 'Period is independent of mass.' },
+      { p: 'The same pendulum on the Moon (smaller g) will swing…', a: 'slower', o: ['slower', 'faster', 'at the same rate', 'not at all'], e: 'T ∝ 1/√g, so smaller g means a longer period.' },
+      { p: 'For small swings, the period of a pendulum depends on…', a: 'length and gravity', o: ['length and gravity', 'mass and amplitude', 'mass only', 'amplitude only'], e: 'T = 2π√(L/g): only L and g.' },
+      { p: 'At the lowest point of the swing the energy is mostly…', a: 'kinetic', o: ['kinetic', 'potential', 'zero', 'thermal'], e: 'Speed is maximum at the bottom, so KE is maximum.' },
+      { p: 'At the extreme ends of the swing the bob’s speed is…', a: 'zero', o: ['zero', 'maximum', 'half the maximum', 'constant'], e: 'The bob momentarily stops before reversing.' },
+      { p: 'A “seconds pendulum” on Earth has a length of about…', a: '1 m', o: ['1 m', '0.25 m', '2 m', '10 m'], e: 'A ~1 m pendulum has a period near 2 s.' }
+    ];
+    var q = pool[randInt(pool.length)];
+    return { draw: false, prompt: q.p, options: shuffle(q.o.slice()), answer: q.a, explain: q.e };
+  }
+  function startQuiz() {
+    quiz.qs = []; quiz.idx = 0; quiz.score = 0;
+    for (var i = 0; i < QUIZ_SIZE; i++) quiz.qs.push(buildQuizQuestion());
+    $('quiz-result').style.display = 'none'; $('quiz-panel').style.display = ''; $('quiz-bar').style.display = '';
+    renderQuiz();
+  }
+  function renderQuiz() {
+    var q = quiz.qs[quiz.idx]; quiz.answered = false;
+    $('qbar-num').textContent = (quiz.idx + 1);
+    var cc = $('canvas-card');
+    if (q.draw) { cc.style.display = ''; state.theta = state.amp; draw({ hideValues: true, hideEnergy: true }); }
+    else { cc.style.display = 'none'; }
+    var html = '<p class="q-prompt">' + q.prompt + '</p><div class="q-options">';
+    q.options.forEach(function (opt) { html += '<button class="q-opt" data-opt="' + String(opt).replace(/"/g, '&quot;') + '">' + opt + '</button>'; });
+    html += '</div>';
+    $('quiz-panel').innerHTML = html;
+    $('quiz-panel').querySelectorAll('.q-opt').forEach(function (b) { b.addEventListener('click', function () { answerQuiz(b.getAttribute('data-opt'), b); }); });
+  }
+  function answerQuiz(choice, btn) {
+    if (quiz.answered) return; quiz.answered = true;
+    var q = quiz.qs[quiz.idx]; var correct = String(q.answer);
+    $('quiz-panel').querySelectorAll('.q-opt').forEach(function (b) {
+      var v = b.getAttribute('data-opt');
+      if (v === correct) b.classList.add('correct'); else if (b === btn) b.classList.add('wrong');
+      b.style.pointerEvents = 'none';
+    });
+    if (choice === correct) { quiz.score++; playSuccess(); } else { playError(); }
+    if (q.draw) draw();
+    var exp = document.createElement('div'); exp.className = 'solution-panel'; exp.style.display = '';
+    exp.innerHTML = (choice === correct ? '<strong style="color:var(--green)">Correct!</strong> ' : '<strong style="color:var(--red)">Not quite.</strong> ') + q.explain;
+    $('quiz-panel').appendChild(exp);
+    var next = document.createElement('button'); next.className = 'btn btn-primary'; next.style.marginTop = '12px';
+    next.textContent = (quiz.idx < QUIZ_SIZE - 1) ? 'Next Question →' : 'See Results';
+    next.addEventListener('click', function () { if (quiz.idx < QUIZ_SIZE - 1) { quiz.idx++; renderQuiz(); } else showQuizResult(); });
+    $('quiz-panel').appendChild(next);
+  }
+  function showQuizResult() {
+    $('quiz-panel').style.display = 'none'; $('quiz-bar').style.display = 'none'; $('canvas-card').style.display = '';
+    var pct = quiz.score / QUIZ_SIZE;
+    var stars = pct >= 1 ? 5 : pct >= 0.8 ? 4 : pct >= 0.6 ? 3 : pct >= 0.4 ? 2 : pct >= 0.2 ? 1 : 0;
+    var s = ''; for (var i = 0; i < 5; i++) s += i < stars ? '★' : '☆';
+    var msg = pct >= 0.8 ? 'Excellent — you understand pendulum motion!' : pct >= 0.6 ? 'Good — review the Factors and Energy cards.' : 'Revisit Explore and try again.';
+    var res = $('quiz-result'); res.style.display = '';
+    res.innerHTML = '<h3>Quiz Complete</h3><div class="stars">' + s + '</div><div class="score">' + quiz.score + ' / ' + QUIZ_SIZE + '</div>' +
+      '<p style="color:var(--text-dim);margin:8px 0 14px">' + msg + '</p><button class="btn btn-primary" id="quiz-retry">Try Again</button>';
+    $('quiz-retry').addEventListener('click', startQuiz);
+    playSuccess();
+  }
+
+  /* ═══════════════ Export / ctx ═══════════════ */
+  function exportPNG() {
+    var tmp = document.createElement('canvas'); tmp.width = canvas.width; tmp.height = canvas.height;
+    var tc = tmp.getContext('2d'); tc.fillStyle = '#0a0e14'; tc.fillRect(0, 0, tmp.width, tmp.height); tc.drawImage(canvas, 0, 0);
+    var fs = Math.round(tmp.width * 0.022); if (fs < 11) fs = 11;
+    tc.font = '600 ' + fs + 'px "Segoe UI", system-ui, sans-serif';
+    tc.textAlign = 'right'; tc.textBaseline = 'bottom'; tc.fillStyle = 'rgba(255,255,255,0.28)';
+    tc.fillText('NHIT VisualLab', tmp.width - 12, tmp.height - 8);
+    var a = document.createElement('a'); a.href = tmp.toDataURL('image/png'); a.download = 'simple_pendulum.png'; a.click();
+  }
+  function copyData() {
+    var txt = 'Simple pendulum: L=' + cLen(state.L).toFixed(2) + ' ' + uLen() + ', g=' + cAcc(state.g).toFixed(2) + ' ' + uAcc() + ', T=' + periodSmall().toFixed(3) + ' s, f=' + frequency().toFixed(3) + ' Hz';
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+  }
+
+  /* ═══════════════ Init ═══════════════ */
+  function init() {
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () { setMode(p.getAttribute('data-mode')); });
+    });
+    document.querySelectorAll('#gravity-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        state.g = parseFloat(p.getAttribute('data-g'));
+        markGravityPill();
+        syncSliders(); if (!state.running) { state.theta = state.amp; draw(); } updateReadouts(); playClick();
+      });
+    });
+    $('btn-play').addEventListener('click', function () { if (state.running) pause(); else start(); playClick(); });
+    $('btn-reset').addEventListener('click', function () { reset(); playClick(); });
+    $('btn-calc').addEventListener('click', function () { openCalc(); playClick(); });
+    $('calc-modal-close').addEventListener('click', closeCalc);
+    $('calc-modal').addEventListener('click', function (e) { if (e.target === $('calc-modal')) closeCalc(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCalc(); });
+    $('chk-damp').addEventListener('change', function () {
+      state.damp = this.checked;
+      var t = $('damp-toggle'); if (t) t.classList.toggle('checked', state.damp);
+      playClick();
+    });
+    $('chk-manualdrop').addEventListener('change', function () {
+      state.manualDrop = this.checked;
+      var t = $('manualdrop-toggle'); if (t) t.classList.toggle('checked', state.manualDrop);
+      canvas.classList.toggle('manual-drop-mode', state.manualDrop);
+      if (!state.manualDrop && state.dragging) { state.dragging = false; canvas.classList.remove('dragging'); }
+      if (!state.running) draw();
+      playClick();
+    });
+
+    /* ── Manual drop: click/drag anywhere on the canvas to set the release
+       angle (rope length is fixed, so only the ANGLE from the pivot is taken
+       from the pointer — the bob always stays on the rope's circle). Release
+       hands off to the same start()/step() engine used everywhere else, so
+       the drop obeys identical physics — no special-cased motion. */
+    function canvasPointToTheta(clientX, clientY) {
+      var rect = canvas.getBoundingClientRect();
+      var mx = (clientX - rect.left) * (CW / rect.width);
+      var my = (clientY - rect.top) * (CH / rect.height);
+      var geo = pendulumGeometry();
+      var th = Math.atan2(mx - geo.px, my - geo.py);
+      return Math.max(-MAX_DROP_ANGLE, Math.min(MAX_DROP_ANGLE, th));
+    }
+    function armDrag(clientX, clientY, pointerId) {
+      pause();
+      state.dragging = true;
+      canvas.classList.add('dragging');
+      if (pointerId !== undefined) { try { canvas.setPointerCapture(pointerId); } catch (e) {} }
+      var th = canvasPointToTheta(clientX, clientY);
+      state.theta = th; state.omega = 0; state.amp = Math.abs(th); state.trail = [];
+      syncSliders(); updateReadouts(); draw();
+    }
+    function moveDrag(clientX, clientY) {
+      var th = canvasPointToTheta(clientX, clientY);
+      state.theta = th; state.omega = 0; state.amp = Math.abs(th);
+      syncSliders(); updateReadouts(); draw();
+    }
+    function releaseDrag() {
+      state.dragging = false;
+      canvas.classList.remove('dragging');
+      armWaveform();   /* lock the waveform scale to the FINAL (released) angle, not the initial touch point */
+      playClick();
+      start();   /* the release IS the drop — hands straight to the normal loop */
+    }
+    canvas.addEventListener('pointerdown', function (e) {
+      if (!state.manualDrop || state.mode !== 'simulate') return;
+      e.preventDefault();
+      armDrag(e.clientX, e.clientY, e.pointerId);
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!state.dragging) return;
+      e.preventDefault();
+      moveDrag(e.clientX, e.clientY);
+    });
+    canvas.addEventListener('pointerup', function (e) { if (state.dragging) releaseDrag(); });
+    canvas.addEventListener('pointercancel', function (e) { if (state.dragging) releaseDrag(); });
+    document.querySelectorAll('#viewmode-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        var mode = p.getAttribute('data-view');
+        if (mode === state.rightPanelMode) return;
+        state.rightPanelMode = mode;
+        document.querySelectorAll('#viewmode-tabs .pill').forEach(function (q) { q.classList.toggle('active', q === p); });
+        if (!state.running) draw();
+        playClick();
+      });
+    });
+    $('chk-angle').addEventListener('change', function () { state.showAngle = this.checked; if (!state.running) draw(); });
+    $('chk-swingpath').addEventListener('change', function () { state.showSwingPath = this.checked; if (!state.running) draw(); });
+    $('chk-trail').addEventListener('change', function () { state.showTrail = this.checked; if (!this.checked) state.trail = []; if (!state.running) draw(); });
+    $('chk-velocity').addEventListener('change', function () { state.showVelocity = this.checked; if (!state.running) draw(); });
+    $('chk-period').addEventListener('change', function () { state.showPeriod = this.checked; if (!state.running) draw(); });
+    $('btn-sound').addEventListener('click', function () {
+      state.soundOn = !state.soundOn;
+      $('btn-sound').textContent = state.soundOn ? '🔊' : '🔇';
+      $('btn-sound').setAttribute('aria-pressed', state.soundOn);
+      if (state.soundOn) playClick();
+    });
+    document.querySelectorAll('#unit-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        var imp = p.getAttribute('data-unit') === 'imp';
+        if (imp === state.imperial) return;
+        state.imperial = imp;
+        syncSliders(); updateReadouts(); playClick();
+      });
+    });
+
+    /* sliders */
+    $('sl-len').addEventListener('input', function () { state.L = parseFloat(this.value); $('val-len').textContent = cLen(state.L).toFixed(2) + ' ' + uLen(); if (!state.running) { state.theta = state.amp; draw(); } updateReadouts(); });
+    $('sl-amp').addEventListener('input', function () { state.amp = parseFloat(this.value) * Math.PI / 180; $('val-amp').textContent = parseFloat(this.value).toFixed(0) + '°'; state.theta = state.amp; state.omega = 0; state.trail = []; armWaveform(); if (!state.running) draw(); updateReadouts(); });
+    $('sl-mass').addEventListener('input', function () { state.mass = parseFloat(this.value); $('val-mass').textContent = cMass(state.mass).toFixed(1) + ' ' + uMass(); if (!state.running) draw(); updateReadouts(); });
+    $('sl-grav').addEventListener('input', function () { state.g = parseFloat(this.value); $('val-grav').textContent = cAcc(state.g).toFixed(2) + ' ' + uAcc(); markGravityPill(); if (!state.running) draw(); updateReadouts(); });
+
+    document.querySelectorAll('#cat-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        exploreCat = p.getAttribute('data-cat'); exploreIdx = 0;
+        document.querySelectorAll('#cat-tabs .pill').forEach(function (q) { q.classList.remove('active'); });
+        p.classList.add('active'); renderExplore(); playClick();
+      });
+    });
+    $('pp-check').addEventListener('click', checkPractice);
+    $('pp-next').addEventListener('click', newPractice);
+    $('pp-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+
+    $('canvas-export-btn').addEventListener('click', exportPNG);
+    var menu = $('ctx-menu');
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var rect = canvas.parentElement.getBoundingClientRect();
+      menu.style.left = (e.clientX - rect.left) + 'px'; menu.style.top = (e.clientY - rect.top) + 'px';
+      menu.style.display = 'block';
+    });
+    document.addEventListener('click', function () { menu.style.display = 'none'; });
+    menu.querySelectorAll('.ctx-item').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var act = b.getAttribute('data-action');
+        if (act === 'save-img') exportPNG();
+        else if (act === 'copy-data') copyData();
+        else if (act === 'reset') reset();
+        menu.style.display = 'none';
+      });
+    });
+
+    window.addEventListener('resize', function () {
+      if (state.mode === 'explore') return;
+      sizeCanvas();                       /* re-measure backing store on viewport change */
+      if (!state.running) draw(state.mode === 'practice' ? { hideValues: true, hideEnergy: true } : (state.mode === 'quiz' ? { hideValues: true, hideEnergy: true } : {}));
+    });
+
+    sizeCanvas();
+    syncSliders();
+    setMode('simulate');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();

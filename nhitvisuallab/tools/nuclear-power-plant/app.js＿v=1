@@ -1,0 +1,1088 @@
+/* ═══════════════════════════════════════════════════════════════
+   Dalton NRS 4-Loop PWR Simulator — app.js
+   Full 3D/2D Hybrid Canvas Engine | Virtual Tour Mode | Audio
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+/* ── DOM Elements ── */
+const plantCanvas   = document.getElementById('plant-canvas');
+const plantCtx      = plantCanvas.getContext('2d');
+const topTicker     = document.getElementById('top-ticker');
+const lcdDemand     = document.getElementById('lcd-demand');
+const lcdOutput     = document.getElementById('lcd-output');
+const lcdDay        = document.getElementById('lcd-day');
+const lcdScore      = document.getElementById('lcd-score');
+
+// Gauges
+const gaugePump     = document.getElementById('gauge-pump');
+const gaugeCore     = document.getElementById('gauge-core');
+const gaugeSteam    = document.getElementById('gauge-steam');
+const ctxPump       = gaugePump.getContext('2d');
+const ctxCore       = gaugeCore.getContext('2d');
+const ctxSteam      = gaugeSteam.getContext('2d');
+
+// Operator Controls
+const btnPumpSwitch = document.getElementById('btn-pump-switch');
+const txtPumpState  = document.getElementById('txt-pump-state');
+const sliderRods    = document.getElementById('slider-rods');
+const badgeRodPos   = document.getElementById('badge-rod-pos');
+const sliderSteam   = document.getElementById('slider-steam');
+const badgeSteamPos = document.getElementById('badge-steam-pos');
+
+// View Controls
+const btnPanLR      = document.getElementById('btn-pan-lr');
+const btnZoomIn     = document.getElementById('btn-zoom-in');
+const btnZoomOut    = document.getElementById('btn-zoom-out');
+const btnViewMode   = document.getElementById('btn-view-mode');
+const txtViewMode   = document.getElementById('txt-view-mode');
+
+// Virtual Tour Elements
+const tourOverlay   = document.getElementById('tour-overlay');
+const tourStepBadge = document.getElementById('tour-step-badge');
+const tourTitle     = document.getElementById('tour-title');
+const tourText      = document.getElementById('tour-text');
+const btnTourVoice  = document.getElementById('btn-tour-voice');
+const btnTourPrev   = document.getElementById('btn-tour-prev');
+const btnTourPlay   = document.getElementById('btn-tour-play');
+const btnTourNext   = document.getElementById('btn-tour-next');
+const tourDots      = document.querySelectorAll('.tour-dot');
+
+// Modal & Utils
+const btnAudio      = document.getElementById('btn-audio');
+const btnHowToPlay  = document.getElementById('btn-how-to-play');
+const btnCloseModal = document.getElementById('btn-close-modal');
+const modalHowTo    = document.getElementById('how-to-play-modal');
+const btnRestart    = document.getElementById('btn-restart');
+const tooltip       = document.getElementById('tooltip');
+const expPanel      = document.getElementById('explore-panel');
+
+/* ── Canvas Dimensions ── */
+const CW = 1180, CH = 660;
+plantCanvas.width  = CW;
+plantCanvas.height = CH;
+
+/* ── Virtual Tour Stops (Matching Reference Video) ── */
+const TOUR_STOPS = [
+  {
+    title: '1. Plant Overview & Containment Structure',
+    badge: 'STEP 1 OF 8',
+    targetZoom: 0.95, targetPanX: 0, targetPanY: 0,
+    highlight: 'overview',
+    text: 'The 4-Loop Pressurised Water Reactor (PWR) nuclear station generates base-load electricity using nuclear fission. The heavy reinforced concrete containment shield building houses the reactor vessel and primary loops, isolating all radioactive components from the turbine hall and the outside environment.'
+  },
+  {
+    title: '2. Reactor Pressure Vessel & Fuel Assemblies',
+    badge: 'STEP 2 OF 8',
+    targetZoom: 1.55, targetPanX: 180, targetPanY: -80,
+    highlight: 'core',
+    text: 'At the heart of the nuclear island is the Reactor Pressure Vessel (RPV). Inside the core barrel, enriched Uranium-235 fuel assemblies undergo controlled chain fission reactions, generating intense thermal energy. Vertical control rods withdraw or insert to regulate neutron flux and power.'
+  },
+  {
+    title: '3. Coolant Pressuriser & 155 bar Pressure Regulation',
+    badge: 'STEP 3 OF 8',
+    targetZoom: 1.65, targetPanX: 180, targetPanY: 130,
+    highlight: 'pressuriser',
+    text: 'Primary coolant water circulates through the core at over 320°C. To prevent this extreme heat from boiling into steam inside the reactor vessel, the vertical Pressuriser uses electric immersion heaters and water spray nozzles to maintain pressure at a constant 155 bar (2250 psi).'
+  },
+  {
+    title: '4. 4-Loop Steam Generators (Primary/Secondary Heat Transfer)',
+    badge: 'STEP 4 OF 8',
+    targetZoom: 1.30, targetPanX: 160, targetPanY: 40,
+    highlight: 'steam_gen',
+    text: 'Hot primary water flows through thousands of inverted Inconel U-tubes inside the 4 Steam Generators. Secondary clean water surrounds the outside of the tubes, absorbing heat and boiling into high-pressure saturated steam at 65 bar. The radioactive primary loop never mixes with the secondary steam!'
+  },
+  {
+    title: '5. Reactor Coolant Pumps (Forced Circulation)',
+    badge: 'STEP 5 OF 8',
+    targetZoom: 1.55, targetPanX: 160, targetPanY: -120,
+    highlight: 'pumps',
+    text: 'Four massive Reactor Coolant Pumps (RCPs) continuously force 95,000 m³/hr of subcooled water back into the reactor vessel cold leg nozzles. Large built-in flywheels provide rotational inertia during grid disturbances to ensure continuous core cooling.'
+  },
+  {
+    title: '6. High & Low Pressure Steam Turbines',
+    badge: 'STEP 6 OF 8',
+    targetZoom: 1.45, targetPanX: -220, targetPanY: 40,
+    highlight: 'turbines',
+    text: 'High-pressure dry steam expands across the High-Pressure (HP) Turbine, passes through moisture separator reheaters, and drives three double-flow Low-Pressure (LP) Turbines. The expanding steam spins the heavy turbine shaft synchronously at 1500 RPM.'
+  },
+  {
+    title: '7. Synchronous Electrical Turbogenerator',
+    badge: 'STEP 7 OF 8',
+    targetZoom: 1.70, targetPanX: -420, targetPanY: 40,
+    highlight: 'generator',
+    text: 'The spinning turbine shaft drives the 4-pole rotor of the synchronous generator. Electromagnetic induction inside heavy water-cooled copper stator windings produces up to 1000 Megawatts of 3-phase AC electricity at 22,000 Volts.'
+  },
+  {
+    title: '8. Surface Condenser & Closed Feedwater Cycle',
+    badge: 'STEP 8 OF 8',
+    targetZoom: 1.40, targetPanX: -260, targetPanY: -100,
+    highlight: 'condenser',
+    text: 'Exhaust steam leaves the turbines and discharges into the condenser hotwell, where cold sea water circulating through titanium tubes condenses the steam into liquid water. High-pressure feedwater pumps return this pure water to the steam generators to repeat the closed Rankine cycle.'
+  }
+];
+
+/* ── Simulation State ── */
+const S = {
+  running: true,
+  t: 0,
+  daySeconds: 120,
+  day: 1,
+  timeOfDay: 0.61,
+  
+  // Game & Dispatch
+  demandMW: 1160,
+  outputMW: 733,
+  score: 0,
+  audioMuted: true,
+  mode: 'simulate', // 'simulate' | 'tour' | 'explore' | 'info'
+  viewMode: '3d',   // '3d' | '2d'
+  
+  // Controls
+  pumpsOn: true,
+  pumpSpeed: 100,
+  rodTarget: 65,
+  rodActual: 65,
+  steamTarget: 60,
+  steamActual: 60,
+  
+  // Reactor Physics
+  Tcore: 312.0,
+  TcoreGauge: 0.55,
+  Ps: 64.0,
+  PsGauge: 0.50,
+  
+  // Camera & Pan/Zoom
+  zoom: 1.0,
+  targetZoom: 1.0,
+  panX: 0,
+  targetPanX: 0,
+  panY: 0,
+  targetPanY: 0,
+  dragStart: null,
+  
+  // Virtual Tour Player
+  tourStep: 0,
+  tourPlaying: false,
+  tourTimer: 0,
+  voiceEnabled: false
+};
+
+/* ── Web Audio Synthesizer ── */
+let audioCtx = null, humOsc = null, humGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+    humOsc = audioCtx.createOscillator();
+    humGain = audioCtx.createGain();
+    humOsc.type = 'sawtooth';
+    humOsc.frequency.setValueAtTime(50, audioCtx.currentTime);
+    humGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+    humOsc.connect(humGain);
+    humGain.connect(audioCtx.destination);
+    humOsc.start();
+  } catch (e) {}
+}
+
+function updateAudio() {
+  if (!audioCtx || S.audioMuted) {
+    if (humGain) humGain.gain.setValueAtTime(0.0, audioCtx ? audioCtx.currentTime : 0);
+    return;
+  }
+  const targetGain = S.pumpsOn ? (0.02 + (S.outputMW / 1500) * 0.04) : 0.005;
+  humGain.gain.setValueAtTime(targetGain, audioCtx.currentTime);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   VIRTUAL TOUR CONTROLLER & SPEECH NARRATION
+   ───────────────────────────────────────────────────────────── */
+function setTourStep(stepIdx) {
+  S.tourStep = Math.max(0, Math.min(TOUR_STOPS.length - 1, stepIdx));
+  const stop = TOUR_STOPS[S.tourStep];
+  
+  // Smooth Camera Target
+  S.targetZoom = stop.targetZoom;
+  S.targetPanX = stop.targetPanX;
+  S.targetPanY = stop.targetPanY;
+  
+  // Update Tour Card
+  tourStepBadge.textContent = stop.badge;
+  tourTitle.textContent = stop.title;
+  tourText.textContent = stop.text;
+  
+  // Update step dots
+  tourDots.forEach((dot, idx) => {
+    dot.classList.toggle('active', idx === S.tourStep);
+  });
+  
+  // Voice Narration
+  if (S.voiceEnabled && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(stop.text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
+function nextTourStep() {
+  if (S.tourStep < TOUR_STOPS.length - 1) {
+    setTourStep(S.tourStep + 1);
+  } else {
+    setTourStep(0);
+  }
+}
+
+function prevTourStep() {
+  if (S.tourStep > 0) {
+    setTourStep(S.tourStep - 1);
+  } else {
+    setTourStep(TOUR_STOPS.length - 1);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   GRID DEMAND & REACTOR DYNAMICS
+   ───────────────────────────────────────────────────────────── */
+function updateSimulation(dt) {
+  S.t += dt;
+  
+  // Day-Night progression
+  const dayProgress = (S.t % S.daySeconds) / S.daySeconds;
+  S.day = 1 + Math.floor(S.t / S.daySeconds);
+  S.timeOfDay = dayProgress;
+  
+  const totalMinutes = Math.floor(dayProgress * 24 * 60);
+  const hours24 = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const hours12 = (hours24 % 12) || 12;
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  const minStr = mins < 10 ? `0${mins}` : `${mins}`;
+  const icon = (hours24 >= 6 && hours24 < 19) ? '&#9728;' : '&#9790;';
+  lcdDay.innerHTML = `${icon} DAY ${S.day}: ${hours12}:${minStr} ${ampm}`;
+  
+  // Demand Curve
+  const p = dayProgress;
+  const morning = Math.exp(-Math.pow((p - 0.38) / 0.12, 2));
+  const evening = Math.exp(-Math.pow((p - 0.82) / 0.11, 2));
+  const demandShape = 0.45 + 0.55 * Math.max(morning, evening);
+  const scale = 1000 + 450 * demandShape + Math.sin(S.t * 0.4) * 25;
+  S.demandMW = Math.round(scale);
+  lcdDemand.textContent = `${S.demandMW} MW`;
+  
+  // Controls Smoothing
+  S.rodActual += (S.rodTarget - S.rodActual) * Math.min(1, 2.0 * dt);
+  S.steamActual += (S.steamTarget - S.steamActual) * Math.min(1, 2.5 * dt);
+  const targetPump = S.pumpsOn ? 100 : 0;
+  S.pumpSpeed += (targetPump - S.pumpSpeed) * Math.min(1, 1.8 * dt);
+  
+  // Kinetics
+  const fissionPower = S.rodActual * 14.5;
+  const coolantFactor = S.pumpSpeed / 100.0;
+  const coolingRate = coolantFactor * 12.0;
+  
+  const targetTcore = 260 + (fissionPower * 0.12) - (coolingRate * 3.5);
+  S.Tcore += (targetTcore - S.Tcore) * Math.min(1, 0.8 * dt);
+  
+  const heatTransferred = Math.max(0, (S.Tcore - 240) * 8.5 * coolantFactor);
+  const steamExtracted = S.steamActual * 12.0;
+  const targetPs = 20 + (heatTransferred - steamExtracted * 0.6) * 0.15;
+  S.Ps += (targetPs - S.Ps) * Math.min(1, 1.2 * dt);
+  
+  const drive = Math.min(1.4, S.Ps / 50.0);
+  const generatedMW = Math.round((S.steamActual / 100.0) * 1400 * drive);
+  S.outputMW = Math.max(0, generatedMW);
+  lcdOutput.textContent = `${S.outputMW} MW`;
+  
+  // Score & Ticker
+  const err = S.outputMW - S.demandMW;
+  const matchTolerance = S.demandMW * 0.08;
+  
+  if (Math.abs(err) <= matchTolerance) {
+    S.score += Math.round(15 * dt);
+    topTicker.textContent = 'OUTPUT MATCHES GRID DEMAND. SYSTEM OPTIMAL!';
+    topTicker.style.color = '#00e676';
+  } else if (err < 0) {
+    const pen = Math.round(Math.abs(err) / 100);
+    S.score -= Math.round(8 * dt);
+    topTicker.textContent = `WARNING: ENERGY OUTPUT TOO LOW. PENALTY: ${pen} POINTS`;
+    topTicker.style.color = '#ffd600';
+  } else {
+    topTicker.textContent = 'WARNING: ENERGY OUTPUT TOO HIGH. WASTING STEAM!';
+    topTicker.style.color = '#ff3b30';
+  }
+  
+  lcdScore.textContent = `SCORE: ${S.score >= 0 ? '+' : ''}${S.score} PT`;
+  lcdScore.className = `lcd-val ${S.score >= 0 ? 'val-score' : 'val-demand'}`;
+  
+  S.TcoreGauge = Math.max(0, Math.min(1, (S.Tcore - 240) / 140.0));
+  S.PsGauge = Math.max(0, Math.min(1, S.Ps / 90.0));
+  
+  // Virtual Tour Auto-Play Timer
+  if (S.mode === 'tour' && S.tourPlaying) {
+    S.tourTimer += dt;
+    if (S.tourTimer >= 10.0) {
+      S.tourTimer = 0;
+      nextTourStep();
+    }
+  }
+  
+  // Smooth Camera Interpolation
+  S.zoom += (S.targetZoom - S.zoom) * Math.min(1, 3.5 * dt);
+  S.panX += (S.targetPanX - S.panX) * Math.min(1, 3.5 * dt);
+  S.panY += (S.targetPanY - S.panY) * Math.min(1, 3.5 * dt);
+  
+  updateAudio();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANALOG DIAL GAUGES
+   ───────────────────────────────────────────────────────────── */
+function drawGauge(ctx, val) {
+  ctx.clearRect(0, 0, 180, 120);
+  const cx = 90, cy = 95, r = 70;
+  
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'butt';
+  
+  ctx.strokeStyle = '#d32f2f';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 0.85, Math.PI * 1.15); ctx.stroke();
+  
+  ctx.strokeStyle = '#00e676';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+  
+  ctx.strokeStyle = '#d32f2f';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 1.85, Math.PI * 2.15); ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fillStyle = '#334155';
+  ctx.fill();
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  const clampedVal = Math.max(0, Math.min(1, val));
+  const needleAngle = Math.PI * 0.85 + clampedVal * (Math.PI * 1.3);
+  
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(needleAngle) * (r + 4), cy + Math.sin(needleAngle) * (r + 4));
+  ctx.strokeStyle = '#f8fafc';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+function renderGauges() {
+  drawGauge(ctxPump, S.pumpSpeed / 100.0);
+  drawGauge(ctxCore, S.TcoreGauge);
+  drawGauge(ctxSteam, S.PsGauge);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   3D PLANT CANVAS RENDERER
+   ───────────────────────────────────────────────────────────── */
+function render3DPlant() {
+  plantCtx.clearRect(0, 0, CW, CH);
+  plantCtx.save();
+  
+  // Apply Zoom & Pan
+  plantCtx.translate(CW/2 + S.panX, CH/2 + S.panY);
+  plantCtx.scale(S.zoom, S.zoom);
+  plantCtx.translate(-CW/2, -CH/2);
+  
+  if (S.viewMode === '2d') {
+    draw2DPAndID();
+    plantCtx.restore();
+    return;
+  }
+  
+  const t = S.t * 2.0;
+  
+  // 1. 4 Steam Generators
+  draw3DSteamGenerator(160, 360, 68, 230, 'SG 1');
+  draw3DSteamGenerator(270, 310, 68, 230, 'SG 2');
+  draw3DSteamGenerator(420, 310, 68, 230, 'SG 3');
+  draw3DSteamGenerator(530, 360, 68, 230, 'SG 4');
+  
+  // 2. Reactor Core (Center)
+  draw3DReactorCore(350, 420);
+  
+  // 3. Pressuriser
+  draw3DPressuriser(350, 210);
+  
+  // 4. 4 Reactor Coolant Pumps
+  draw3DCoolantPump(200, 460);
+  draw3DCoolantPump(280, 420);
+  draw3DCoolantPump(420, 420);
+  draw3DCoolantPump(500, 460);
+  
+  // 5. Primary Loops
+  drawPrimaryPipes(t);
+  
+  // 6. Secondary Steam
+  drawSecondarySteamPipes(t);
+  
+  // 7. Turbine - Generator Train
+  draw3DTurbineGeneratorTrain(t);
+  
+  // 8. Condenser & Sea Cooling
+  draw3DCondenserAndSea(t);
+  
+  // 9. Feedwater Return
+  drawFeedwaterReturnPipes(t);
+  
+  // 10. Labels
+  drawDiagramLabels();
+  
+  // 11. Virtual Tour Spotlight Beacon
+  if (S.mode === 'tour') {
+    drawTourSpotlight();
+  }
+  
+  plantCtx.restore();
+}
+
+/* ─── Virtual Tour Spotlight Beacon ─── */
+function drawTourSpotlight() {
+  const stop = TOUR_STOPS[S.tourStep];
+  let hx = 350, hy = 350, hr = 90;
+  
+  if (stop.highlight === 'core')        { hx = 350; hy = 420; hr = 75; }
+  else if (stop.highlight === 'pressuriser') { hx = 350; hy = 210; hr = 60; }
+  else if (stop.highlight === 'steam_gen')   { hx = 350; hy = 330; hr = 180; }
+  else if (stop.highlight === 'pumps')       { hx = 350; hy = 450; hr = 140; }
+  else if (stop.highlight === 'turbines')    { hx = 760; hy = 316; hr = 110; }
+  else if (stop.highlight === 'generator')   { hx = 930; hy = 316; hr = 60; }
+  else if (stop.highlight === 'condenser')   { hx = 800; hy = 420; hr = 120; }
+  else if (stop.highlight === 'overview')    { hx = 550; hy = 330; hr = 380; }
+  
+  const pulse = Math.sin(S.t * 6) * 6;
+  plantCtx.strokeStyle = '#00e5ff';
+  plantCtx.lineWidth = 3;
+  plantCtx.setLineDash([8, 6]);
+  plantCtx.beginPath();
+  plantCtx.arc(hx, hy, hr + pulse, 0, Math.PI * 2);
+  plantCtx.stroke();
+  plantCtx.setLineDash([]);
+}
+
+/* ─── 3D Reactor Core with Moving Control Rods ─── */
+function draw3DReactorCore(cx, cy) {
+  const cw = 75, ch = 130;
+  
+  plantCtx.beginPath();
+  plantCtx.roundRect(cx - cw/2, cy - ch/2, cw, ch - 15, [10, 10, 0, 0]);
+  plantCtx.arc(cx, cy + ch/2 - 15, cw/2, 0, Math.PI);
+  plantCtx.closePath();
+  
+  const rpvGrad = plantCtx.createLinearGradient(cx - cw/2, cy, cx + cw/2, cy);
+  rpvGrad.addColorStop(0, '#334155');
+  rpvGrad.addColorStop(0.3, '#64748b');
+  rpvGrad.addColorStop(0.7, '#94a3b8');
+  rpvGrad.addColorStop(1, '#1e293b');
+  plantCtx.fillStyle = rpvGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#0f172a';
+  plantCtx.lineWidth = 2.5;
+  plantCtx.stroke();
+  
+  for (let r = 0; r < 5; r++) {
+    const rx = cx - 24 + r * 12;
+    plantCtx.strokeStyle = '#1e293b';
+    plantCtx.lineWidth = 2;
+    plantCtx.beginPath();
+    plantCtx.moveTo(rx, cy - ch/2 + 20);
+    plantCtx.lineTo(rx, cy + ch/2 - 20);
+    plantCtx.stroke();
+  }
+  
+  plantCtx.fillStyle = '#0f172a';
+  plantCtx.fillRect(cx - cw/2 - 2, cy + 20, cw + 4, 12);
+  
+  // Moving Control Rods
+  const rodLift = (S.rodActual / 100.0) * 35;
+  const rodBaseY = cy - ch/2 - 15 - rodLift;
+  
+  plantCtx.fillStyle = '#f8fafc';
+  plantCtx.strokeStyle = '#94a3b8';
+  plantCtx.lineWidth = 1;
+  for (let i = 0; i < 9; i++) {
+    const rx = cx - 28 + i * 7;
+    plantCtx.fillRect(rx, rodBaseY, 4, 38 + rodLift);
+    plantCtx.strokeRect(rx, rodBaseY, 4, 38 + rodLift);
+  }
+  
+  plantCtx.fillStyle = '#cbd5e1';
+  plantCtx.fillRect(cx - 32, rodBaseY - 6, 64, 8);
+  plantCtx.strokeStyle = '#64748b';
+  plantCtx.strokeRect(cx - 32, rodBaseY - 6, 64, 8);
+  
+  // Cherenkov Glow
+  const coreGlow = plantCtx.createRadialGradient(cx, cy + 15, 2, cx, cy + 15, 30);
+  const tempFrac = S.TcoreGauge;
+  coreGlow.addColorStop(0, `rgba(0, 229, 255, ${0.8 * tempFrac})`);
+  coreGlow.addColorStop(0.6, `rgba(2, 136, 209, ${0.4 * tempFrac})`);
+  coreGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  plantCtx.fillStyle = coreGlow;
+  plantCtx.fillRect(cx - cw/2 + 6, cy - 20, cw - 12, 60);
+}
+
+/* ─── 3D Pressuriser ─── */
+function draw3DPressuriser(px, py) {
+  const pw = 40, ph = 140;
+  plantCtx.beginPath();
+  plantCtx.roundRect(px - pw/2, py - ph/2, pw, ph, 18);
+  
+  const pzrGrad = plantCtx.createLinearGradient(px - pw/2, py, px + pw/2, py);
+  pzrGrad.addColorStop(0, '#475569');
+  pzrGrad.addColorStop(0.4, '#94a3b8');
+  pzrGrad.addColorStop(1, '#334155');
+  plantCtx.fillStyle = pzrGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#1e293b';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  plantCtx.beginPath();
+  plantCtx.arc(px, py - ph/2 + 10, 12, 0, Math.PI * 2);
+  plantCtx.fillStyle = '#64748b';
+  plantCtx.fill();
+}
+
+/* ─── 3D Steam Generator Tower ─── */
+function draw3DSteamGenerator(sx, sy, sw, sh, label) {
+  const lowerH = sh * 0.58;
+  const lowerY = sy + sh/2 - lowerH;
+  
+  plantCtx.beginPath();
+  plantCtx.roundRect(sx - sw/2, lowerY, sw, lowerH, [0, 0, 8, 8]);
+  const sgGrad = plantCtx.createLinearGradient(sx - sw/2, sy, sx + sw/2, sy);
+  sgGrad.addColorStop(0, '#7c2d12');
+  sgGrad.addColorStop(0.3, '#c2410c');
+  sgGrad.addColorStop(0.7, '#ea580c');
+  sgGrad.addColorStop(1, '#9a3412');
+  plantCtx.fillStyle = sgGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#431407';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  for (let r = 1; r < 4; r++) {
+    const ry = lowerY + r * (lowerH / 4);
+    plantCtx.strokeStyle = '#431407';
+    plantCtx.lineWidth = 2;
+    plantCtx.beginPath();
+    plantCtx.moveTo(sx - sw/2, ry); plantCtx.lineTo(sx + sw/2, ry);
+    plantCtx.stroke();
+  }
+  
+  const midY = lowerY - 26;
+  plantCtx.fillStyle = '#475569';
+  plantCtx.fillRect(sx - sw/2 - 4, midY, sw + 8, 26);
+  plantCtx.strokeStyle = '#1e293b';
+  plantCtx.strokeRect(sx - sw/2 - 4, midY, sw + 8, 26);
+  
+  for (let i = 0; i < 7; i++) {
+    const tx = sx - sw/2 + 6 + i * 8;
+    plantCtx.fillStyle = '#cbd5e1';
+    plantCtx.fillRect(tx, midY + 3, 4, 20);
+  }
+  
+  const topH = sh * 0.32;
+  const topY = midY - topH;
+  plantCtx.beginPath();
+  plantCtx.roundRect(sx - sw/2 + 2, topY, sw - 4, topH, [20, 20, 0, 0]);
+  plantCtx.fillStyle = 'rgba(71, 85, 105, 0.55)';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#64748b';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  for (let c = 0; c < 3; c++) {
+    const cx = sx - 16 + c * 16;
+    plantCtx.fillStyle = '#94a3b8';
+    plantCtx.fillRect(cx - 4, topY + 10, 8, topH - 15);
+  }
+}
+
+/* ─── 3D Coolant Pump ─── */
+function draw3DCoolantPump(px, py) {
+  plantCtx.fillStyle = '#1e40af';
+  plantCtx.fillRect(px - 14, py - 24, 28, 24);
+  plantCtx.strokeStyle = '#172554';
+  plantCtx.lineWidth = 1.5;
+  plantCtx.strokeRect(px - 14, py - 24, 28, 24);
+  
+  for (let r = 0; r < 4; r++) {
+    const ry = py - 20 + r * 5;
+    plantCtx.strokeStyle = '#60a5fa';
+    plantCtx.lineWidth = 1;
+    plantCtx.beginPath();
+    plantCtx.moveTo(px - 14, ry); plantCtx.lineTo(px + 14, ry);
+    plantCtx.stroke();
+  }
+  
+  plantCtx.beginPath();
+  plantCtx.arc(px, py + 6, 15, 0, Math.PI * 2);
+  plantCtx.fillStyle = '#2563eb';
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#1e3a8a';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+}
+
+/* ─── Primary Loop Pipes ─── */
+function drawPrimaryPipes(t) {
+  const flow = S.pumpsOn ? t : 0;
+  drawFlowPipe([[320, 420], [230, 440], [160, 440]], '#dc2626', 8, flow * 1.5, '#facc15');
+  drawFlowPipe([[320, 400], [270, 390]], '#dc2626', 8, flow * 1.5 + 0.2, '#facc15');
+  drawFlowPipe([[380, 400], [420, 390]], '#dc2626', 8, flow * 1.5 + 0.4, '#facc15');
+  drawFlowPipe([[380, 420], [470, 440], [530, 440]], '#dc2626', 8, flow * 1.5 + 0.6, '#facc15');
+  
+  drawFlowPipe([[160, 480], [200, 480], [240, 480], [330, 460]], '#eab308', 8, flow * 1.5, '#1e293b');
+  drawFlowPipe([[270, 430], [280, 440], [330, 440]], '#eab308', 8, flow * 1.5 + 0.3, '#1e293b');
+  drawFlowPipe([[420, 430], [420, 440], [370, 440]], '#eab308', 8, flow * 1.5 + 0.5, '#1e293b');
+  drawFlowPipe([[530, 480], [500, 480], [460, 480], [370, 460]], '#eab308', 8, flow * 1.5 + 0.7, '#1e293b');
+}
+
+/* ─── Secondary Steam Pipes ─── */
+function drawSecondarySteamPipes(t) {
+  const flow = S.steamActual > 5 ? t * 1.8 : 0;
+  drawFlowPipe([[160, 200], [160, 160], [580, 160], [580, 310], [620, 310]], '#f1f5f9', 9, flow, '#64748b');
+  drawFlowPipe([[270, 175], [270, 160]], '#f1f5f9', 7, flow + 0.2, '#64748b');
+  drawFlowPipe([[420, 175], [420, 140], [565, 140], [565, 320], [620, 320]], '#f1f5f9', 9, flow + 0.4, '#64748b');
+  drawFlowPipe([[530, 200], [530, 140]], '#f1f5f9', 7, flow + 0.6, '#64748b');
+}
+
+/* ─── 3D Turbine - Generator Train ─── */
+function draw3DTurbineGeneratorTrain(t) {
+  plantCtx.fillStyle = '#94a3b8';
+  plantCtx.fillRect(620, 312, 360, 8);
+  plantCtx.strokeStyle = '#334155';
+  plantCtx.lineWidth = 1;
+  plantCtx.strokeRect(620, 312, 360, 8);
+  
+  const hx = 645, hy = 316;
+  plantCtx.beginPath();
+  plantCtx.moveTo(hx - 20, hy - 18);
+  plantCtx.lineTo(hx + 20, hy - 26);
+  plantCtx.lineTo(hx + 20, hy + 26);
+  plantCtx.lineTo(hx - 20, hy + 18);
+  plantCtx.closePath();
+  
+  const hpGrad = plantCtx.createLinearGradient(hx - 20, hy, hx + 20, hy);
+  hpGrad.addColorStop(0, '#64748b');
+  hpGrad.addColorStop(0.5, '#cbd5e1');
+  hpGrad.addColorStop(1, '#475569');
+  plantCtx.fillStyle = hpGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#1e293b';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  const lps = [720, 785, 850];
+  const rotAngle = S.outputMW > 10 ? t * 8.0 : 0;
+  
+  for (let i = 0; i < 3; i++) {
+    const lx = lps[i];
+    plantCtx.beginPath();
+    plantCtx.moveTo(lx - 22, hy - 32);
+    plantCtx.lineTo(lx, hy - 18);
+    plantCtx.lineTo(lx + 22, hy - 32);
+    plantCtx.lineTo(lx + 22, hy + 32);
+    plantCtx.lineTo(lx, hy + 18);
+    plantCtx.lineTo(lx - 22, hy + 32);
+    plantCtx.closePath();
+    
+    plantCtx.fillStyle = '#475569';
+    plantCtx.fill();
+    plantCtx.strokeStyle = '#0f172a';
+    plantCtx.lineWidth = 2;
+    plantCtx.stroke();
+    
+    for (let b = 0; b < 4; b++) {
+      const a = rotAngle + (b / 4) * Math.PI * 2;
+      plantCtx.strokeStyle = '#38bdf8';
+      plantCtx.lineWidth = 2;
+      plantCtx.beginPath();
+      plantCtx.moveTo(lx, hy);
+      plantCtx.lineTo(lx + Math.cos(a) * 18, hy + Math.sin(a) * 26);
+      plantCtx.stroke();
+    }
+  }
+  
+  const gx = 930, gy = hy, gw = 70, gh = 46;
+  plantCtx.beginPath();
+  plantCtx.roundRect(gx - gw/2, gy - gh/2, gw, gh, 8);
+  
+  const genGrad = plantCtx.createLinearGradient(gx - gw/2, gy, gx + gw/2, gy);
+  genGrad.addColorStop(0, '#b45309');
+  genGrad.addColorStop(0.3, '#f59e0b');
+  genGrad.addColorStop(0.7, '#fbbf24');
+  genGrad.addColorStop(1, '#92400e');
+  plantCtx.fillStyle = genGrad;
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#451a03';
+  plantCtx.lineWidth = 2;
+  plantCtx.stroke();
+  
+  for (let w = 1; w < 6; w++) {
+    const wx = gx - gw/2 + w * (gw / 6);
+    plantCtx.strokeStyle = '#78350f';
+    plantCtx.lineWidth = 2;
+    plantCtx.beginPath();
+    plantCtx.moveTo(wx, gy - gh/2 + 2);
+    plantCtx.lineTo(wx, gy + gh/2 - 2);
+    plantCtx.stroke();
+  }
+}
+
+/* ─── 3D Steam Condenser & Sea Cooling ─── */
+function draw3DCondenserAndSea(t) {
+  const cx = 785, cy = 410, cw = 210, ch = 68;
+  
+  plantCtx.fillStyle = '#1e3a8a';
+  plantCtx.fillRect(cx - cw/2, cy - ch/2, cw, ch);
+  plantCtx.strokeStyle = '#172554';
+  plantCtx.lineWidth = 2.5;
+  plantCtx.strokeRect(cx - cw/2, cy - ch/2, cw, ch);
+  
+  for (let r = 1; r < 7; r++) {
+    const rx = cx - cw/2 + r * (cw / 7);
+    plantCtx.strokeStyle = '#3b82f6';
+    plantCtx.lineWidth = 1.5;
+    plantCtx.beginPath();
+    plantCtx.moveTo(rx, cy - ch/2); plantCtx.lineTo(rx, cy + ch/2);
+    plantCtx.stroke();
+  }
+  
+  const lps = [720, 785, 850];
+  for (let lx of lps) {
+    plantCtx.fillStyle = '#64748b';
+    plantCtx.fillRect(lx - 8, 348, 16, 28);
+    plantCtx.strokeStyle = '#334155';
+    plantCtx.strokeRect(lx - 8, 348, 16, 28);
+  }
+  
+  const seaFlow = t * 1.5;
+  drawFlowPipe([[890, 420], [980, 420]], '#1d4ed8', 10, seaFlow, '#93c5fd');
+  drawFlowPipe([[890, 440], [980, 440]], '#1e40af', 10, seaFlow + 0.3, '#93c5fd');
+  
+  plantCtx.fillStyle = '#38bdf8';
+  plantCtx.font = 'italic bold 22px "Times New Roman", serif';
+  plantCtx.fillText('Sea', 1000, 436);
+  
+  plantCtx.strokeStyle = '#60a5fa';
+  plantCtx.lineWidth = 2;
+  for (let w = 0; w < 3; w++) {
+    const wy = 415 + w * 12;
+    plantCtx.beginPath();
+    plantCtx.moveTo(1040, wy);
+    plantCtx.quadraticCurveTo(1055, wy - 4, 1070, wy);
+    plantCtx.quadraticCurveTo(1085, wy + 4, 1100, wy);
+    plantCtx.stroke();
+  }
+}
+
+/* ─── Feedwater Return Pipes ─── */
+function drawFeedwaterReturnPipes(t) {
+  const flow = S.steamActual > 5 ? t * 1.4 : 0;
+  
+  plantCtx.fillStyle = '#0284c7';
+  plantCtx.beginPath();
+  plantCtx.arc(580, 500, 14, 0, Math.PI * 2);
+  plantCtx.fill();
+  plantCtx.strokeStyle = '#0369a1';
+  plantCtx.stroke();
+  
+  drawFlowPipe([[680, 444], [680, 500], [580, 500]], '#06b6d4', 8, flow, '#ffffff');
+  drawFlowPipe([[580, 500], [520, 500], [270, 500], [270, 400]], '#06b6d4', 6, flow + 0.2, '#ffffff');
+  drawFlowPipe([[270, 500], [160, 500], [160, 400]], '#06b6d4', 6, flow + 0.4, '#ffffff');
+  drawFlowPipe([[580, 500], [580, 520], [420, 520], [420, 400]], '#06b6d4', 6, flow + 0.3, '#ffffff');
+  drawFlowPipe([[420, 520], [530, 520], [530, 400]], '#06b6d4', 6, flow + 0.5, '#ffffff');
+}
+
+/* ─── Diagram Text Labels ─── */
+function drawDiagramLabels() {
+  plantCtx.fillStyle = '#cbd5e1';
+  plantCtx.font = 'bold 11px Segoe UI, sans-serif';
+  plantCtx.textAlign = 'center';
+  
+  plantCtx.fillText('Steam Generator', 215, 230);
+  plantCtx.fillText('Coolant Pressuriser', 350, 290);
+  plantCtx.fillText('Control Rods', 350, 360);
+  plantCtx.fillText('Reactor Core', 350, 510);
+  plantCtx.fillText('Coolant Pump', 460, 520);
+  
+  plantCtx.fillText('High Pressure Turbine', 645, 275);
+  plantCtx.fillText('Low Pressure Turbine', 785, 260);
+  plantCtx.fillText('Electrical Generator', 930, 275);
+  plantCtx.fillText('Steam Condenser', 785, 465);
+}
+
+function drawFlowPipe(pts, color, width, flowPhase, dashColor) {
+  plantCtx.strokeStyle = '#0f172a';
+  plantCtx.lineWidth = width + 4;
+  plantCtx.lineCap = 'round';
+  plantCtx.lineJoin = 'round';
+  plantCtx.beginPath();
+  plantCtx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) plantCtx.lineTo(pts[i][0], pts[i][1]);
+  plantCtx.stroke();
+  
+  plantCtx.strokeStyle = color;
+  plantCtx.lineWidth = width;
+  plantCtx.stroke();
+  
+  if (S.running && flowPhase !== 0) {
+    plantCtx.strokeStyle = dashColor || '#ffffff';
+    plantCtx.lineWidth = width * 0.55;
+    plantCtx.setLineDash([8, 14]);
+    plantCtx.lineDashOffset = -flowPhase * 30;
+    plantCtx.stroke();
+    plantCtx.setLineDash([]);
+  }
+}
+
+/* ─── 2D P&ID Engineering Schematic Mode ─── */
+function draw2DPAndID() {
+  plantCtx.fillStyle = '#0f172a';
+  plantCtx.fillRect(40, 40, CW - 80, CH - 80);
+  plantCtx.strokeStyle = '#334155';
+  plantCtx.lineWidth = 2;
+  plantCtx.strokeRect(40, 40, CW - 80, CH - 80);
+  
+  plantCtx.fillStyle = '#00e5ff';
+  plantCtx.font = 'bold 16px var(--mono)';
+  plantCtx.textAlign = 'left';
+  plantCtx.fillText('4-LOOP PWR PROCESS & INSTRUMENTATION DIAGRAM (P&ID)', 70, 80);
+  
+  draw2DBlock(160, 300, 100, 180, 'REACTOR CORE\n2900 MWth\n155 bar', '#dc2626');
+  draw2DBlock(340, 200, 80, 100, 'PRESSURISER\n155 bar\nHeaters/Spray', '#64748b');
+  draw2DBlock(480, 300, 110, 200, '4x STEAM\nGENERATORS\n65 bar Saturated', '#ea580c');
+  draw2DBlock(700, 280, 100, 100, 'HP & 3x LP\nTURBINES\n1500 RPM', '#475569');
+  draw2DBlock(870, 280, 100, 100, 'GENERATOR\n1000 MWe\n22 kV 50Hz', '#f59e0b');
+  draw2DBlock(700, 440, 100, 70, 'CONDENSER\n0.05 bar\nSea Cooled', '#1d4ed8');
+  
+  plantCtx.strokeStyle = '#dc2626';
+  plantCtx.lineWidth = 4;
+  plantCtx.beginPath(); plantCtx.moveTo(260, 330); plantCtx.lineTo(480, 330); plantCtx.stroke();
+  
+  plantCtx.strokeStyle = '#eab308';
+  plantCtx.lineWidth = 4;
+  plantCtx.beginPath(); plantCtx.moveTo(480, 440); plantCtx.lineTo(260, 440); plantCtx.stroke();
+  
+  plantCtx.strokeStyle = '#f1f5f9';
+  plantCtx.lineWidth = 4;
+  plantCtx.beginPath(); plantCtx.moveTo(590, 310); plantCtx.lineTo(700, 310); plantCtx.stroke();
+  
+  plantCtx.strokeStyle = '#06b6d4';
+  plantCtx.lineWidth = 4;
+  plantCtx.beginPath(); plantCtx.moveTo(700, 480); plantCtx.lineTo(540, 480); plantCtx.stroke();
+}
+
+function draw2DBlock(x, y, w, h, text, color) {
+  plantCtx.fillStyle = '#1e293b';
+  plantCtx.fillRect(x - w/2, y - h/2, w, h);
+  plantCtx.strokeStyle = color;
+  plantCtx.lineWidth = 3;
+  plantCtx.strokeRect(x - w/2, y - h/2, w, h);
+  
+  plantCtx.fillStyle = '#f8fafc';
+  plantCtx.font = 'bold 11px Segoe UI, sans-serif';
+  plantCtx.textAlign = 'center';
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    plantCtx.fillText(lines[i], x, y - 10 + i * 16);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANIMATION LOOP
+   ───────────────────────────────────────────────────────────── */
+let lastFrameTime = performance.now();
+
+function mainLoop(now) {
+  const dt = Math.min(0.1, (now - lastFrameTime) / 1000.0);
+  lastFrameTime = now;
+  
+  if (S.running) {
+    updateSimulation(dt);
+  }
+  
+  render3DPlant();
+  renderGauges();
+  
+  requestAnimationFrame(mainLoop);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   EVENT LISTENERS
+   ───────────────────────────────────────────────────────────── */
+
+// Mode Switcher (Simulate | Tour | Explore | Info)
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    S.mode = btn.dataset.mode;
+    
+    if (S.mode === 'tour') {
+      tourOverlay.classList.add('active');
+      setTourStep(0);
+    } else {
+      tourOverlay.classList.remove('active');
+      S.tourPlaying = false;
+      S.targetZoom = 1.0;
+      S.targetPanX = 0;
+      S.targetPanY = 0;
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+  });
+});
+
+// Virtual Tour Controls
+btnTourPlay.addEventListener('click', () => {
+  S.tourPlaying = !S.tourPlaying;
+  btnTourPlay.innerHTML = S.tourPlaying ? '&#9616;&#9616; Pause' : '&#9654; Auto-Play';
+});
+
+btnTourNext.addEventListener('click', () => { nextTourStep(); });
+btnTourPrev.addEventListener('click', () => { prevTourStep(); });
+
+tourDots.forEach(dot => {
+  dot.addEventListener('click', () => {
+    const step = parseInt(dot.dataset.step, 10);
+    setTourStep(step);
+  });
+});
+
+btnTourVoice.addEventListener('click', () => {
+  S.voiceEnabled = !S.voiceEnabled;
+  btnTourVoice.innerHTML = S.voiceEnabled ? '&#128266; Voice: ON' : '&#128263; Voice: OFF';
+  if (S.voiceEnabled) {
+    setTourStep(S.tourStep);
+  } else if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+});
+
+// Coolant Pumps Power Switch
+btnPumpSwitch.addEventListener('click', () => {
+  initAudio();
+  S.pumpsOn = !S.pumpsOn;
+  btnPumpSwitch.classList.toggle('on', S.pumpsOn);
+  txtPumpState.textContent = S.pumpsOn ? 'ON' : 'OFF';
+  txtPumpState.className = `switch-status-text ${S.pumpsOn ? 'on' : 'off'}`;
+});
+
+// Control Rods Slider
+sliderRods.addEventListener('input', e => {
+  initAudio();
+  S.rodTarget = parseFloat(e.target.value);
+  badgeRodPos.textContent = `${S.rodTarget}%`;
+});
+
+// Steam Output Slider
+sliderSteam.addEventListener('input', e => {
+  initAudio();
+  S.steamTarget = parseFloat(e.target.value);
+  badgeSteamPos.textContent = `${S.steamTarget}%`;
+});
+
+// Keyboard Controls (Q/A for Rods, P/L for Steam)
+window.addEventListener('keydown', e => {
+  const key = e.key.toUpperCase();
+  if (key === 'Q') {
+    initAudio();
+    S.rodTarget = Math.min(100, S.rodTarget + 5);
+    sliderRods.value = S.rodTarget;
+    badgeRodPos.textContent = `${S.rodTarget}%`;
+  } else if (key === 'A') {
+    initAudio();
+    S.rodTarget = Math.max(0, S.rodTarget - 5);
+    sliderRods.value = S.rodTarget;
+    badgeRodPos.textContent = `${S.rodTarget}%`;
+  } else if (key === 'P') {
+    initAudio();
+    S.steamTarget = Math.min(100, S.steamTarget + 5);
+    sliderSteam.value = S.steamTarget;
+    badgeSteamPos.textContent = `${S.steamTarget}%`;
+  } else if (key === 'L') {
+    initAudio();
+    S.steamTarget = Math.max(0, S.steamTarget - 5);
+    sliderSteam.value = S.steamTarget;
+    badgeSteamPos.textContent = `${S.steamTarget}%`;
+  }
+});
+
+// Navigation & Zoom Controls
+btnZoomIn.addEventListener('click', () => { S.targetZoom = Math.min(3.5, S.zoom * 1.15); });
+btnZoomOut.addEventListener('click', () => { S.targetZoom = Math.max(0.4, S.zoom * 0.88); });
+btnPanLR.addEventListener('click', () => { S.targetPanX = S.panX === 0 ? 80 : 0; });
+
+btnViewMode.addEventListener('click', () => {
+  S.viewMode = S.viewMode === '3d' ? '2d' : '3d';
+  txtViewMode.textContent = S.viewMode === '3d' ? 'Show 2D Diagram ▲' : 'Show 3D View ▲';
+});
+
+// Mouse Wheel Zoom & Drag Pan
+plantCanvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  S.targetZoom = Math.max(0.4, Math.min(4.0, S.zoom * factor));
+}, { passive: false });
+
+plantCanvas.addEventListener('mousedown', e => {
+  if (e.button === 0) S.dragStart = { x: e.clientX - S.panX, y: e.clientY - S.panY };
+});
+window.addEventListener('mousemove', e => {
+  if (S.dragStart) {
+    S.panX = e.clientX - S.dragStart.x;
+    S.targetPanX = S.panX;
+    S.panY = e.clientY - S.dragStart.y;
+    S.targetPanY = S.panY;
+  }
+});
+window.addEventListener('mouseup', () => { S.dragStart = null; });
+
+btnAudio.addEventListener('click', () => {
+  initAudio();
+  S.audioMuted = !S.audioMuted;
+  btnAudio.innerHTML = S.audioMuted ? '&#128263;' : '&#128266;';
+  updateAudio();
+});
+
+btnHowToPlay.addEventListener('click', () => { modalHowTo.classList.add('open'); });
+btnCloseModal.addEventListener('click', () => { modalHowTo.classList.remove('open'); });
+
+btnRestart.addEventListener('click', () => {
+  S.t = 0;
+  S.score = 0;
+  S.rodTarget = 65;
+  S.rodActual = 65;
+  sliderRods.value = 65;
+  badgeRodPos.textContent = '65%';
+  S.steamTarget = 60;
+  S.steamActual = 60;
+  sliderSteam.value = 60;
+  badgeSteamPos.textContent = '60%';
+  S.pumpsOn = true;
+  btnPumpSwitch.classList.add('on');
+  txtPumpState.textContent = 'ON';
+  txtPumpState.className = 'switch-status-text on';
+  S.targetZoom = 1.0;
+  S.targetPanX = 0; S.targetPanY = 0;
+});
+
+/* ─────────────────────────────────────────────────────────────
+   START APPLICATION
+   ───────────────────────────────────────────────────────────── */
+requestAnimationFrame(mainLoop);
+
+})();

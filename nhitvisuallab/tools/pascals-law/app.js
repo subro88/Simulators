@@ -1,0 +1,3619 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     DATA
+     ================================================================ */
+
+  var CONCEPTS = [
+    /* ── Fundamentals ─────────────────────────────────────────────── */
+    {
+      id: 'pascals-law', name: "Pascal's Law", symbol: 'P = F/A',
+      formula: 'P\u2081 = P\u2082  \u2192  F\u2081/A\u2081 = F\u2082/A\u2082', unit: 'Pa',
+      cat: 'fundamentals',
+      desc: "Pascal's Law states that pressure applied to an enclosed fluid is transmitted undiminished in all directions throughout the fluid. This means a small force on a small piston creates the same pressure on a larger piston, producing a proportionally larger force.",
+      diagram: 'basicPascal',
+      example: { problem: 'A force of 50 N is applied to a piston of area 0.002 m\u00B2. What pressure is transmitted through the fluid?', steps: ['Given: F = 50 N, A = 0.002 m\u00B2', 'P = F / A', 'P = 50 / 0.002', 'P = 25000 Pa = 25 kPa'], answer: 25000, unit: 'Pa' }
+    },
+    {
+      id: 'pressure', name: 'Pressure', symbol: 'P',
+      formula: 'P = F / A', unit: 'Pa (N/m\u00B2)',
+      cat: 'fundamentals',
+      desc: 'Pressure is the force per unit area. In hydraulic systems, pressure acts equally in all directions within the enclosed fluid. The SI unit is the Pascal (Pa), where 1 Pa = 1 N/m\u00B2. Larger units include kPa (1000 Pa) and MPa (10\u2076 Pa).',
+      diagram: 'pressureDiagram',
+      example: { problem: 'A hydraulic cylinder has a piston area of 0.01 m\u00B2 and operates at 500 kPa. What force does it produce?', steps: ['Given: A = 0.01 m\u00B2, P = 500 kPa = 500000 Pa', 'F = P \u00D7 A', 'F = 500000 \u00D7 0.01', 'F = 5000 N'], answer: 5000, unit: 'N' }
+    },
+    {
+      id: 'force-area', name: 'Force & Area Relationship', symbol: 'F = PA',
+      formula: 'F = P \u00D7 A', unit: 'N',
+      cat: 'fundamentals',
+      desc: 'Force and area are directly proportional when pressure is constant. In a hydraulic system, the same pressure acts on both pistons. A piston with double the area experiences double the force. This is the foundation of hydraulic force multiplication.',
+      diagram: 'forceAreaBars',
+      example: { problem: 'Two pistons share a pressure of 200 kPa. A\u2081 = 0.005 m\u00B2, A\u2082 = 0.04 m\u00B2. Find both forces.', steps: ['Given: P = 200000 Pa, A\u2081 = 0.005 m\u00B2, A\u2082 = 0.04 m\u00B2', 'F\u2081 = P \u00D7 A\u2081 = 200000 \u00D7 0.005 = 1000 N', 'F\u2082 = P \u00D7 A\u2082 = 200000 \u00D7 0.04 = 8000 N', 'Ratio: F\u2082/F\u2081 = 8000/1000 = 8'], answer: 8000, unit: 'N' }
+    },
+    {
+      id: 'hydraulic-principle', name: 'Hydraulic Principle', symbol: 'F\u2082 = F\u2081\u00D7A\u2082/A\u2081',
+      formula: 'F\u2082 = F\u2081 \u00D7 (A\u2082 / A\u2081)', unit: 'N',
+      cat: 'fundamentals',
+      desc: 'The hydraulic principle combines Pascal\u2019s Law with different piston areas to achieve force multiplication. A small input force on a small piston creates high pressure, which acts on a larger piston to produce a much larger output force. The ratio A\u2082/A\u2081 is the mechanical advantage.',
+      diagram: 'hydraulicPrinciple',
+      example: { problem: 'F\u2081 = 200 N on a piston of area 0.004 m\u00B2. Output piston area = 0.08 m\u00B2. Find F\u2082.', steps: ['Given: F\u2081 = 200 N, A\u2081 = 0.004 m\u00B2, A\u2082 = 0.08 m\u00B2', 'F\u2082 = F\u2081 \u00D7 (A\u2082/A\u2081)', 'F\u2082 = 200 \u00D7 (0.08/0.004)', 'F\u2082 = 200 \u00D7 20 = 4000 N'], answer: 4000, unit: 'N' }
+    },
+
+    /* ── Systems ───────────────────────────────────────────────────── */
+    {
+      id: 'hydraulic-press', name: 'Hydraulic Press', symbol: 'F\u2082/F\u2081',
+      formula: 'Mechanical Advantage = A\u2082 / A\u2081', unit: '\u2014',
+      cat: 'systems',
+      desc: 'A hydraulic press uses Pascal\u2019s Law to multiply force. The operator pushes a small piston with modest effort; hydraulic oil transmits the pressure to a large-diameter ram that crushes, bends, or stamps metal. Industrial presses can generate forces exceeding 1 MN.',
+      diagram: 'hydraulicPress',
+      example: { problem: 'A hydraulic press has pistons of diameter 30 mm and 150 mm. Input force = 400 N. Find output force.', steps: ['A\u2081 = \u03C0(0.015)\u00B2 = 7.069\u00D710\u207B\u2074 m\u00B2', 'A\u2082 = \u03C0(0.075)\u00B2 = 1.767\u00D710\u207B\u00B2 m\u00B2', 'MA = A\u2082/A\u2081 = 25', 'F\u2082 = 400 \u00D7 25 = 10000 N'], answer: 10000, unit: 'N' }
+    },
+    {
+      id: 'hydraulic-jack', name: 'Hydraulic Jack', symbol: 'Lift',
+      formula: 'F\u2082 = F\u2081 \u00D7 (d\u2082/d\u2081)\u00B2', unit: 'N',
+      cat: 'systems',
+      desc: 'A hydraulic jack lifts heavy loads (vehicles, machinery) by pumping fluid from a small cylinder to a large cylinder. The user applies a small force repeatedly via a lever; each pump stroke pushes fluid into the main cylinder, raising the load incrementally.',
+      diagram: 'hydraulicJack',
+      example: { problem: 'A car jack: d\u2081 = 20 mm, d\u2082 = 100 mm. Pump force = 150 N. What load can it lift?', steps: ['Ratio = (d\u2082/d\u2081)\u00B2 = (100/20)\u00B2 = 25', 'F\u2082 = 150 \u00D7 25 = 3750 N', 'Load \u2248 3750 N \u2248 382 kg'], answer: 3750, unit: 'N' }
+    },
+    {
+      id: 'hydraulic-brakes', name: 'Hydraulic Brakes', symbol: 'Brake',
+      formula: 'F_brake = F_pedal \u00D7 (A_caliper / A_master)', unit: 'N',
+      cat: 'systems',
+      desc: 'Vehicle braking systems use Pascal\u2019s Law. Pressing the brake pedal pressurises fluid in a small master cylinder. This pressure transmits equally to larger brake caliper pistons at each wheel, multiplying the driver\u2019s foot force into the clamping force needed to stop the vehicle.',
+      diagram: 'hydraulicBrakes',
+      example: { problem: 'Master cylinder A = 3 cm\u00B2, caliper A = 12 cm\u00B2. Pedal force = 80 N. Find brake force per caliper.', steps: ['Given: A\u2081 = 3 cm\u00B2, A\u2082 = 12 cm\u00B2, F\u2081 = 80 N', 'MA = A\u2082/A\u2081 = 12/3 = 4', 'F_brake = 80 \u00D7 4 = 320 N per caliper'], answer: 320, unit: 'N' }
+    },
+    {
+      id: 'hydraulic-lift', name: 'Hydraulic Lift', symbol: 'Lift',
+      formula: 'W = F\u2081 \u00D7 (A\u2082/A\u2081)', unit: 'N',
+      cat: 'systems',
+      desc: 'Hydraulic lifts (elevators, vehicle hoists, wheelchair platforms) use a large-diameter cylinder beneath the platform. A pump pressurises fluid, pushing the piston upward. The lift can support heavy loads because the large piston area multiplies the hydraulic pressure into a large upward force.',
+      diagram: 'hydraulicLift',
+      example: { problem: 'A car hoist has a 200 mm diameter ram. Pump pressure = 1.2 MPa. What weight can it lift?', steps: ['A = \u03C0(0.1)\u00B2 = 0.03142 m\u00B2', 'F = P \u00D7 A = 1200000 \u00D7 0.03142', 'F = 37699 N \u2248 37.7 kN', 'Can lift \u2248 3843 kg'], answer: 37699, unit: 'N' }
+    },
+
+    /* ── Calculations ──────────────────────────────────────────────── */
+    {
+      id: 'mechanical-advantage', name: 'Mechanical Advantage', symbol: 'MA',
+      formula: 'MA = A\u2082/A\u2081 = (d\u2082/d\u2081)\u00B2 = F\u2082/F\u2081', unit: '\u2014',
+      cat: 'calculations',
+      desc: 'Mechanical advantage (MA) in a hydraulic system is the ratio of output force to input force. It equals the ratio of piston areas, which is the square of the diameter ratio. A MA of 10 means the output force is 10 times the input force.',
+      diagram: 'maDiagram',
+      example: { problem: 'Small piston d = 25 mm, large piston d = 100 mm. Calculate the mechanical advantage.', steps: ['d\u2081 = 25 mm, d\u2082 = 100 mm', 'MA = (d\u2082/d\u2081)\u00B2', 'MA = (100/25)\u00B2', 'MA = 4\u00B2 = 16'], answer: 16, unit: '' }
+    },
+    {
+      id: 'volume-conservation', name: 'Volume Conservation', symbol: 'A\u2081d\u2081=A\u2082d\u2082',
+      formula: 'A\u2081 \u00D7 d\u2081 = A\u2082 \u00D7 d\u2082', unit: 'm\u00B3',
+      cat: 'calculations',
+      desc: 'Hydraulic fluid is essentially incompressible, so the volume displaced by one piston equals the volume received by the other. If the output piston has 10\u00D7 the area, it moves only 1/10th the distance. Force is multiplied but distance is reduced \u2014 energy is conserved.',
+      diagram: 'volumeDiagram',
+      example: { problem: 'Small piston (A=0.002 m\u00B2) moves 0.3 m. Large piston (A=0.02 m\u00B2). How far does it move?', steps: ['Given: A\u2081=0.002, d\u2081=0.3, A\u2082=0.02', 'A\u2081d\u2081 = A\u2082d\u2082', '0.002 \u00D7 0.3 = 0.02 \u00D7 d\u2082', 'd\u2082 = 0.0006/0.02 = 0.03 m'], answer: 0.03, unit: 'm' }
+    },
+    {
+      id: 'work-energy', name: 'Work & Energy', symbol: 'W\u2081=W\u2082',
+      formula: 'F\u2081 \u00D7 d\u2081 = F\u2082 \u00D7 d\u2082 (ideal)', unit: 'J',
+      cat: 'calculations',
+      desc: 'In an ideal hydraulic system (no friction, no leaks), the work input equals the work output. The small piston travels a greater distance with less force; the large piston travels a shorter distance with more force. Energy is conserved \u2014 you cannot get more energy out than you put in.',
+      diagram: 'workEnergyDiagram',
+      example: { problem: 'Input: F\u2081=100 N, d\u2081=0.4 m. Output: F\u2082=2000 N. Find output distance d\u2082.', steps: ['W\u2081 = F\u2081 \u00D7 d\u2081 = 100 \u00D7 0.4 = 40 J', 'W\u2082 = W\u2081 = 40 J (ideal)', 'd\u2082 = W\u2082/F\u2082 = 40/2000', 'd\u2082 = 0.02 m = 20 mm'], answer: 0.02, unit: 'm' }
+    },
+    {
+      id: 'pressure-units', name: 'Pressure Units', symbol: 'Pa,bar,PSI',
+      formula: '1 bar = 100 kPa = 14.504 PSI', unit: 'various',
+      cat: 'calculations',
+      desc: 'Pressure is measured in several units: Pascal (Pa, SI standard), bar (1 bar = 100000 Pa), PSI (pounds per square inch, 1 PSI \u2248 6894.76 Pa), atmosphere (1 atm = 101325 Pa). Hydraulic systems typically operate at 10\u2013350 bar (150\u20135000 PSI).',
+      diagram: 'unitConversion',
+      example: { problem: 'Convert 250 bar to kPa and PSI.', steps: ['Given: 250 bar', '250 bar \u00D7 100 = 25000 kPa', '250 bar \u00D7 14.504 = 3626 PSI'], answer: 25000, unit: 'kPa' }
+    }
+  ];
+
+  var PROBLEM_GEN = [
+    /* 0 — Pressure from force and area */
+    function () {
+      var F = randInt(50, 5000);
+      var A = +(Math.random() * 0.08 + 0.002).toFixed(4);
+      var P = +(F / A).toFixed(0);
+      return { prompt: 'A force of ' + F + ' N acts on a piston of area ' + A + ' m\u00B2. Calculate the pressure (Pa).', steps: ['Given: F = ' + F + ' N, A = ' + A + ' m\u00B2', 'P = F / A', 'P = ' + F + ' / ' + A, 'P = ' + P + ' Pa'], answer: P, unit: 'Pa' };
+    },
+    /* 1 — Force from pressure and area */
+    function () {
+      var P = randInt(50, 2000) * 1000;
+      var A = +(Math.random() * 0.05 + 0.001).toFixed(4);
+      var F = +(P * A).toFixed(1);
+      return { prompt: 'Pressure in a hydraulic system is ' + (P / 1000) + ' kPa. Piston area = ' + A + ' m\u00B2. Find force (N).', steps: ['Given: P = ' + (P / 1000) + ' kPa = ' + P + ' Pa, A = ' + A + ' m\u00B2', 'F = P \u00D7 A', 'F = ' + P + ' \u00D7 ' + A, 'F = ' + F + ' N'], answer: F, unit: 'N' };
+    },
+    /* 2 — Output force from F1, A1, A2 */
+    function () {
+      var F1 = randInt(50, 500);
+      var A1 = +(Math.random() * 0.005 + 0.001).toFixed(4);
+      var A2 = +(A1 * randInt(3, 20)).toFixed(4);
+      var F2 = +(F1 * A2 / A1).toFixed(1);
+      return { prompt: 'F\u2081 = ' + F1 + ' N, A\u2081 = ' + A1 + ' m\u00B2, A\u2082 = ' + A2 + ' m\u00B2. Find F\u2082 (N).', steps: ['Given: F\u2081 = ' + F1 + ', A\u2081 = ' + A1 + ', A\u2082 = ' + A2, 'F\u2082 = F\u2081 \u00D7 (A\u2082/A\u2081)', 'F\u2082 = ' + F1 + ' \u00D7 (' + A2 + '/' + A1 + ')', 'F\u2082 = ' + F2 + ' N'], answer: F2, unit: 'N' };
+    },
+    /* 3 — Input force from F2, A1, A2 */
+    function () {
+      var F2 = randInt(1000, 20000);
+      var A1 = +(Math.random() * 0.005 + 0.001).toFixed(4);
+      var A2 = +(A1 * randInt(4, 15)).toFixed(4);
+      var F1 = +(F2 * A1 / A2).toFixed(1);
+      return { prompt: 'F\u2082 = ' + F2 + ' N, A\u2081 = ' + A1 + ' m\u00B2, A\u2082 = ' + A2 + ' m\u00B2. Find F\u2081 (N).', steps: ['Given: F\u2082 = ' + F2 + ', A\u2081 = ' + A1 + ', A\u2082 = ' + A2, 'F\u2081 = F\u2082 \u00D7 (A\u2081/A\u2082)', 'F\u2081 = ' + F2 + ' \u00D7 (' + A1 + '/' + A2 + ')', 'F\u2081 = ' + F1 + ' N'], answer: F1, unit: 'N' };
+    },
+    /* 4 — Mechanical advantage from diameters */
+    function () {
+      var d1 = randInt(10, 50);
+      var d2 = randInt(60, 200);
+      var MA = +((d2 / d1) * (d2 / d1)).toFixed(2);
+      return { prompt: 'Small piston d\u2081 = ' + d1 + ' mm, large piston d\u2082 = ' + d2 + ' mm. Find the mechanical advantage.', steps: ['MA = (d\u2082/d\u2081)\u00B2', 'MA = (' + d2 + '/' + d1 + ')\u00B2', 'MA = ' + (d2 / d1).toFixed(2) + '\u00B2', 'MA = ' + MA], answer: MA, unit: '' };
+    },
+    /* 5 — Output distance from volume conservation */
+    function () {
+      var A1 = +(Math.random() * 0.005 + 0.001).toFixed(4);
+      var A2 = +(A1 * randInt(3, 15)).toFixed(4);
+      var d1 = +(Math.random() * 0.4 + 0.05).toFixed(3);
+      var d2 = +(A1 * d1 / A2).toFixed(4);
+      return { prompt: 'Small piston (A=' + A1 + ' m\u00B2) moves ' + d1 + ' m. Large piston (A=' + A2 + ' m\u00B2). How far does it move (m)?', steps: ['A\u2081d\u2081 = A\u2082d\u2082', d1 + ' \u00D7 ' + A1 + ' = ' + A2 + ' \u00D7 d\u2082', 'd\u2082 = ' + (A1 * d1).toFixed(6) + ' / ' + A2, 'd\u2082 = ' + d2 + ' m'], answer: d2, unit: 'm' };
+    },
+    /* 6 — Work done input */
+    function () {
+      var F = randInt(50, 500);
+      var d = +(Math.random() * 0.5 + 0.05).toFixed(3);
+      var W = +(F * d).toFixed(2);
+      return { prompt: 'Input force = ' + F + ' N moves piston ' + d + ' m. Calculate work done (J).', steps: ['W = F \u00D7 d', 'W = ' + F + ' \u00D7 ' + d, 'W = ' + W + ' J'], answer: W, unit: 'J' };
+    },
+    /* 7 — Area from F and P */
+    function () {
+      var F = randInt(100, 10000);
+      var P = randInt(50, 2000) * 1000;
+      var A = +(F / P).toFixed(5);
+      return { prompt: 'Force = ' + F + ' N, Pressure = ' + (P / 1000) + ' kPa. Find the piston area (m\u00B2).', steps: ['A = F / P', 'A = ' + F + ' / ' + P, 'A = ' + A + ' m\u00B2'], answer: A, unit: 'm\u00B2' };
+    },
+    /* 8 — Output force with diameters */
+    function () {
+      var d1 = randInt(10, 40);
+      var d2 = randInt(60, 180);
+      var F1 = randInt(50, 500);
+      var MA = (d2 / d1) * (d2 / d1);
+      var F2 = +(F1 * MA).toFixed(1);
+      return { prompt: 'd\u2081 = ' + d1 + ' mm, d\u2082 = ' + d2 + ' mm, F\u2081 = ' + F1 + ' N. Find F\u2082 (N).', steps: ['MA = (d\u2082/d\u2081)\u00B2 = (' + d2 + '/' + d1 + ')\u00B2 = ' + MA.toFixed(2), 'F\u2082 = F\u2081 \u00D7 MA', 'F\u2082 = ' + F1 + ' \u00D7 ' + MA.toFixed(2), 'F\u2082 = ' + F2 + ' N'], answer: F2, unit: 'N' };
+    },
+    /* 9 — Pressure unit conversion bar to kPa */
+    function () {
+      var bar = randInt(1, 350);
+      var kPa = bar * 100;
+      return { prompt: 'Convert ' + bar + ' bar to kPa.', steps: ['1 bar = 100 kPa', bar + ' bar \u00D7 100', '= ' + kPa + ' kPa'], answer: kPa, unit: 'kPa' };
+    },
+    /* 10 — Pressure unit conversion bar to PSI */
+    function () {
+      var bar = randInt(1, 100);
+      var psi = +(bar * 14.504).toFixed(1);
+      return { prompt: 'Convert ' + bar + ' bar to PSI.', steps: ['1 bar = 14.504 PSI', bar + ' bar \u00D7 14.504', '= ' + psi + ' PSI'], answer: psi, unit: 'PSI' };
+    },
+    /* 11 — Force from weight (mass) */
+    function () {
+      var m = randInt(500, 5000);
+      var d1 = randInt(15, 40);
+      var d2 = randInt(80, 200);
+      var F2 = +(m * 9.81).toFixed(1);
+      var MA = (d2 / d1) * (d2 / d1);
+      var F1 = +(F2 / MA).toFixed(1);
+      return { prompt: 'A ' + m + ' kg car needs lifting. Jack: d\u2081=' + d1 + 'mm, d\u2082=' + d2 + 'mm. Find pump force F\u2081 (N). (g=9.81)', steps: ['F\u2082 = mg = ' + m + '\u00D79.81 = ' + F2 + ' N', 'MA = (d\u2082/d\u2081)\u00B2 = (' + d2 + '/' + d1 + ')\u00B2 = ' + MA.toFixed(2), 'F\u2081 = F\u2082/MA = ' + F2 + '/' + MA.toFixed(2), 'F\u2081 = ' + F1 + ' N'], answer: F1, unit: 'N' };
+    }
+  ];
+
+  var QUIZ_POOL = [
+    /* MCQ 0-9 */
+    { type: 'mcq', prompt: "Pascal's Law states that pressure in an enclosed fluid:", options: ['Transmits equally in all directions', 'Acts only downward', 'Decreases with distance', 'Depends on container shape'], correct: 0 },
+    { type: 'mcq', prompt: 'In a hydraulic press, the output force is greater because:', options: ['The output piston has a larger area', 'Fluid creates extra energy', 'Pressure increases in the pipe', 'The fluid is compressible'], correct: 0 },
+    { type: 'mcq', prompt: 'The SI unit of pressure is:', options: ['Pascal (Pa)', 'Newton (N)', 'Joule (J)', 'Bar'], correct: 0 },
+    { type: 'mcq', prompt: 'If the area ratio A\u2082/A\u2081 = 10, and F\u2081 = 50 N, then F\u2082 =', options: ['500 N', '5 N', '5000 N', '50 N'], correct: 0 },
+    { type: 'mcq', prompt: 'Hydraulic fluid is assumed to be:', options: ['Incompressible', 'Compressible', 'Elastic', 'Gaseous'], correct: 0 },
+    { type: 'mcq', prompt: 'When the output piston area doubles, the output force:', options: ['Doubles', 'Halves', 'Stays the same', 'Quadruples'], correct: 0 },
+    { type: 'mcq', prompt: 'Volume conservation in hydraulics means:', options: ['A\u2081d\u2081 = A\u2082d\u2082', 'F\u2081d\u2081 = F\u2082d\u2082', 'P\u2081 > P\u2082', 'Energy is created'], correct: 0 },
+    { type: 'mcq', prompt: 'Mechanical advantage of a hydraulic system depends on:', options: ['Ratio of piston areas', 'Type of fluid used', 'Length of connecting pipe', 'Colour of the pistons'], correct: 0 },
+    { type: 'mcq', prompt: 'The output piston moves a shorter distance because:', options: ['It must displace the same volume of fluid', 'Friction slows it down', 'Pressure decreases', 'Force is weaker'], correct: 0 },
+    { type: 'mcq', prompt: "Which is NOT a real-world application of Pascal's Law?", options: ['Electric motor', 'Hydraulic brakes', 'Hydraulic jack', 'Hydraulic press'], correct: 0 },
+    /* Numeric 10-14 */
+    { type: 'numeric', prompt: 'F\u2081 = 100 N, A\u2081 = 0.005 m\u00B2, A\u2082 = 0.05 m\u00B2. Find F\u2082 (N).', answer: 1000, unit: 'N', steps: ['F\u2082 = F\u2081\u00D7(A\u2082/A\u2081) = 100\u00D710', 'F\u2082 = 1000 N'] },
+    { type: 'numeric', prompt: 'Pressure = 200 kPa, Area = 0.03 m\u00B2. Find force (N).', answer: 6000, unit: 'N', steps: ['F = P\u00D7A = 200000\u00D70.03', 'F = 6000 N'] },
+    { type: 'numeric', prompt: 'd\u2081 = 20 mm, d\u2082 = 80 mm. Find mechanical advantage.', answer: 16, unit: '', steps: ['MA = (d\u2082/d\u2081)\u00B2 = (80/20)\u00B2 = 4\u00B2', 'MA = 16'] },
+    { type: 'numeric', prompt: 'Small piston (A=0.001 m\u00B2) moves 0.5 m. Large piston (A=0.01 m\u00B2). Distance moved (m)?', answer: 0.05, unit: 'm', steps: ['A\u2081d\u2081 = A\u2082d\u2082', 'd\u2082 = 0.001\u00D70.5/0.01 = 0.05 m'] },
+    { type: 'numeric', prompt: 'Convert 15 bar to kPa.', answer: 1500, unit: 'kPa', steps: ['1 bar = 100 kPa', '15\u00D7100 = 1500 kPa'] }
+  ];
+
+  /* ================================================================
+     HELPERS
+     ================================================================ */
+  function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function shuffleArr(arr) { var a = arr.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function $(s) { return document.querySelector(s); }
+  function $$(s) { return document.querySelectorAll(s); }
+  function show(el) { if (el) el.style.display = ''; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+
+  /* ================================================================
+     CANVAS SETUP
+     ================================================================ */
+  var cvs = document.getElementById('sim-canvas');
+  var ctx = cvs.getContext('2d');
+  var W = 900, H = 480;             /* logical coordinate system */
+  function resizeCanvas() {
+    /* Clamp DPR: >3 costs 4K-class backing stores for invisible gains */
+    var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+    /* Measure the actual CSS-displayed size (canvas is width:100%, auto height). */
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width  || W;
+    var cssH = rect.height || (cssW * (H / W));
+    /* Keep a fixed aspect ratio so logical coords stay valid. */
+    var targetH = cssW * (H / W);
+    if (Math.abs(cssH - targetH) > 1) {
+      cvs.style.height = targetH + 'px';
+      cssH = targetH;
+    }
+    /* Backing store exactly matches physical pixels — no browser resampling. */
+    cvs.width  = Math.round(cssW * dpr);
+    cvs.height = Math.round(cssH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    /* Scale so drawing in (W,H) logical coords fills the physical backing store. */
+    ctx.scale(cvs.width / W, cvs.height / H);
+    /* Crisper text rendering hints (ignored on browsers that don't support them). */
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    render();
+  }
+  resizeCanvas();
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var mode = 'simulate';
+  var inputForce = 100;     /* N */
+  var d1mm = 20;            /* small piston diameter mm */
+  var d2mm = 80;            /* large piston diameter mm */
+  var loadKg = 120;         /* mass of load on the OUTPUT ram (kg) */
+  var G = 9.81;             /* m/s² */
+  var showPressure = true;
+  var showVolume = true;
+  var showEquation = true;
+  var showGrid = false;
+  var soundOn = true;
+  var units = 'si';         /* 'si' or 'imp' */
+
+  /* Explore */
+  var selCat = 'fundamentals';
+  var selConcept = 0;
+
+  /* Practice */
+  var pProblem = null, pScore = 0, pTotal = 0, pAnswered = false;
+
+  /* Quiz */
+  var quizQs = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+  /* Per-question outcome, parallel to quizQs. Needed because the result
+     screen must report which questions were right, not just how many. */
+  var quizResults = [];
+
+  /* Drag */
+  var isDragging = false;
+  var dragTarget = null;
+
+  /* Undo/Redo */
+  var undoStack = [], redoStack = [];
+  var UNDO_MAX = 40;
+  function snapState() { return { f: inputForce, d1: d1mm, d2: d2mm, ld: loadKg, sp: showPressure, sv: showVolume, se: showEquation, sg: showGrid }; }
+  function loadState(s) {
+    if (!s) return;
+    inputForce = s.f; d1mm = s.d1; d2mm = s.d2;
+    loadKg = (s.ld === undefined) ? loadKg : s.ld;
+    showPressure = s.sp; showVolume = s.sv;
+    showEquation = (s.se === undefined) ? true : !!s.se;
+    showGrid = !!s.sg;
+    var pc = document.getElementById('chk-pressure'); if (pc) pc.checked = !!showPressure;
+    var vc = document.getElementById('chk-volume');   if (vc) vc.checked = !!showVolume;
+    var ec = document.getElementById('chk-equation'); if (ec) ec.checked = !!showEquation;
+    refreshToggleChips();
+    syncInputs(); updateReadouts(); invalidateOutput(); render();
+  }
+  /* Reflect each checkbox's state onto its chip label (.checked → accent chip).
+     Called wherever the boxes are set programmatically (load/undo/reset). */
+  function refreshToggleChips() {
+    ['chk-pressure', 'chk-volume', 'chk-equation'].forEach(function (id) {
+      var cb = document.getElementById(id);
+      var lab = cb && cb.closest('.sim-toggle');
+      if (lab) lab.classList.toggle('checked', cb.checked);
+    });
+  }
+  function saveUndo() {
+    undoStack.push(snapState());
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    redoStack.length = 0;
+    refreshUndoBtns();
+  }
+  function performUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapState());
+    loadState(undoStack.pop());
+    refreshUndoBtns();
+  }
+  function performRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapState());
+    loadState(redoStack.pop());
+    refreshUndoBtns();
+  }
+  function refreshUndoBtns() {
+    var u = document.getElementById('btn-undo');
+    var r = document.getElementById('btn-redo');
+    if (u) u.disabled = !undoStack.length;
+    if (r) r.disabled = !redoStack.length;
+  }
+
+  /* ================================================================
+     UNIT SYSTEM
+     ================================================================ */
+  var UNITS = {
+    si: {
+      force: { label: 'N', fromSI: function (v) { return v; }, toSI: function (v) { return v; }, digits: 0 },
+      forceLabel: 'Input Force (N)',
+      len:   { label: 'mm', fromSI: function (mm) { return mm; }, toSI: function (v) { return v; }, digits: 1 },
+      d1Label: 'd\u2081 (input, mm)', d2Label: 'd\u2082 (output, mm)',
+      area:  { label: 'cm\u00B2', fromSIm2: function (m2) { return m2 * 1e4; }, digits: 2 },
+      mass:  { label: 'kg', fromSI: function (kg) { return kg; }, toSI: function (v) { return v; }, digits: 0 },
+      press: function (pa) {
+        if (pa >= 1e6) return (pa / 1e6).toFixed(2) + ' MPa';
+        return (pa / 1000).toFixed(1) + ' kPa';
+      }
+    },
+    imp: {
+      force: { label: 'lbf', fromSI: function (v) { return v * 0.2248; }, toSI: function (v) { return v / 0.2248; }, digits: 1 },
+      forceLabel: 'Input Force (lbf)',
+      len:   { label: 'in', fromSI: function (mm) { return mm * 0.03937; }, toSI: function (v) { return v / 0.03937; }, digits: 3 },
+      d1Label: 'd\u2081 (input, in)', d2Label: 'd\u2082 (output, in)',
+      area:  { label: 'in\u00B2', fromSIm2: function (m2) { return m2 * 1550.003; }, digits: 3 },
+      mass:  { label: 'lb', fromSI: function (kg) { return kg * 2.20462; }, toSI: function (v) { return v / 2.20462; }, digits: 0 },
+      press: function (pa) { return (pa * 0.00014504).toFixed(2) + ' psi'; }
+    }
+  };
+  function U() { return UNITS[units]; }
+
+  /* ================================================================
+     INPUT RANGES — single source of truth
+     ----------------------------------------------------------------
+     The slider's own min/max attributes are authoritative. Steppers and the
+     share-URL loader both clamp to these, so a typed or hand-edited value can
+     never land outside what the slider can represent (which previously left
+     the slider pinned at its max while the number box showed something else).
+     ================================================================ */
+  function rangeOf(sliderId, fbMin, fbMax) {
+    var el = document.getElementById(sliderId);
+    var mn = el ? parseFloat(el.min) : NaN;
+    var mx = el ? parseFloat(el.max) : NaN;
+    return { min: isFinite(mn) ? mn : fbMin, max: isFinite(mx) ? mx : fbMax };
+  }
+  function forceRange() { return rangeOf('force-slider', 10, 10000); }
+  function d1Range()    { return rangeOf('d1-slider', 10, 60); }
+  function d2Range()    { return rangeOf('d2-slider', 30, 200); }
+  function loadRange()  { return rangeOf('load-slider', 0, 5000); }   /* kg */
+
+  /* ================================================================
+     PHYSICS
+     ================================================================ */
+  /* Real-world pressure bands, aligned with the 10–350 bar (1–35 MPa) typical
+     operating range quoted in the Explore content and the SEO article. Single
+     source of truth so the What-if coach and the Show-Calculations modal can
+     never quote conflicting figures. */
+  function pressureContext(pa) {
+    var mpa = pa / 1e6;
+    /* Each `text` is a predicate that reads naturally after a subject such as
+       "System pressure 12.4 MPa (124 bar)" or "This pressure". */
+    if (mpa > 35) return {
+      level: 'over',
+      label: 'above the general-purpose ceiling',
+      text: 'exceeds 35 MPa (350 bar), the upper limit of general-purpose hydraulic components — pumps, hoses and seals would all need high-pressure ratings. Reduce F₁ or enlarge d₁.'
+    };
+    if (mpa >= 10) return {
+      level: 'industrial',
+      label: 'standard industrial range',
+      text: 'sits in the standard industrial hydraulic range of 10–35 MPa (100–350 bar) — workshop presses, excavators and machine tools operate here.'
+    };
+    if (mpa >= 1) return {
+      level: 'moderate',
+      label: 'moderate duty',
+      text: 'is moderate duty, comparable to automotive brake lines and power steering, which peak around 10 MPa.'
+    };
+    return {
+      level: 'low',
+      label: 'low-pressure regime',
+      text: 'is a low-pressure regime, below 1 MPa (10 bar) — fine for demonstration rigs and light-duty mechanisms.'
+    };
+  }
+
+  /* ── Auto-ranging pressure-gauge face ──────────────────────────────
+     A real gauge is SELECTED so the working pressure sits mid-dial (rule of
+     thumb: full-scale ≈ 1.5× the operating pressure). This tool's realistic
+     pressures span ~0.3 kPa … 130 MPa across the sliders, so any FIXED face
+     pegs the needle near zero for most settings (the 40 MPa face left every
+     preset at ~1%). Instead pick the smallest standard full-scale that keeps
+     the pressure under ~72% of the dial, then present it in the active unit.
+     The needle stays responsive to every slider move and the tool also models
+     correct gauge selection. */
+  var GAUGE_LADDER = [1e5, 1.6e5, 2.5e5, 4e5, 6e5, 1e6, 1.6e6, 2.5e6, 4e6, 6e6,
+                      1e7, 1.6e7, 2.5e7, 4e7, 6e7, 1e8, 1.6e8];
+  function fmtGaugeLabel(v) {
+    if (v === 0) return '0';
+    if (v >= 100) return String(Math.round(v));
+    if (v >= 10)  return String(Math.round(v * 10) / 10);
+    return String(Math.round(v * 100) / 100);
+  }
+  function gaugeFace(pPa) {
+    var fs = GAUGE_LADDER[GAUGE_LADDER.length - 1];
+    for (var i = 0; i < GAUGE_LADDER.length; i++) {
+      if (GAUGE_LADDER[i] >= pPa / 0.72) { fs = GAUGE_LADDER[i]; break; }
+    }
+    var unit, div;
+    if (units === 'si') {
+      if (fs < 1e6) { unit = 'kPa'; div = 1e3; } else { unit = 'MPa'; div = 1e6; }
+    } else {
+      var PSI = 6894.757;
+      if (fs / PSI < 2000) { unit = 'psi'; div = PSI; } else { unit = 'kpsi'; div = PSI * 1000; }
+    }
+    var majors = [];
+    for (var k = 0; k <= 4; k++) majors.push(fmtGaugeLabel(fs * k / 4 / div));
+    return { maxPa: fs, unit: unit, majors: majors, minorsPerMajor: 5 };
+  }
+
+  function getA1() { var r = d1mm / 2000; return Math.PI * r * r; }
+  function getA2() { var r = d2mm / 2000; return Math.PI * r * r; }
+  function getPressure() { var a = getA1(); return a > 0 ? inputForce / a : 0; }
+  function getF2() { return getPressure() * getA2(); }
+  function getMA() { return (d2mm / d1mm) * (d2mm / d1mm); }
+
+  /* ── Load on the output ram ──────────────────────────────────────
+     The load is a genuine, independent input (the DEMAND), distinct from F₂
+     (the press CAPACITY). Comparing them answers "will it lift?":
+        F₂ > W → lifts   |   F₂ ≈ W → balances   |   F₂ < W → too heavy.
+     Minimum input force to just lift W is F₁ = W / MA. */
+  function getLoadW() { return loadKg * G; }                 /* N */
+  function reqF1ForLoad() { var ma = getMA(); return ma > 0 ? getLoadW() / ma : 0; }
+  function liftInfo() {
+    var cap = getF2();          /* capacity the press can deliver */
+    var w   = getLoadW();       /* what's actually sitting on the ram */
+    var k;
+    /* ±1% band around equality reads as "balanced" (a real knife-edge). */
+    if (w <= cap * 0.99)      k = 'lift';
+    else if (w <= cap * 1.01) k = 'balance';
+    else                      k = 'toolow';
+    return { k: k, cap: cap, w: w, margin: cap - w, reqF1: reqF1ForLoad() };
+  }
+  function isLiftable() { return liftInfo().k === 'lift'; }
+  /* MA display precision: sub-10 values (incl. MA<1 force-reduction setups)
+     need 2 decimals — toFixed(1) shows 0.25× as "0.3×". */
+  function fmtMA(ma) { return ma < 10 ? ma.toFixed(2) : ma.toFixed(1); }
+  function getD1travel() { return 0.3; /* fixed small piston stroke 0.3 m for visual */ }
+  function getD2travel() { var a1 = getA1(), a2 = getA2(); return a2 > 0 ? (a1 * getD1travel()) / a2 : 0; }
+  function getWorkIn() { return inputForce * getD1travel(); }
+
+  /* Map diameter to pixel radius for drawing.
+     STRICTLY proportional (0.6 px/mm, no floor) so:
+     (a) every slider position produces a visibly different piston — the old
+         max(12,·)/max(25,·) floors made d₁ 10–20 mm and d₂ 30–42 mm draw
+         identically (dead slider zones), and
+     (b) the drawn width ratio always equals the true d₂/d₁ ratio — inside the
+         clamped zones the picture lied about the geometry (d₁=10, d₂=30 drew
+         as 2.08:1 instead of 3:1). Slider minima (10 / 30 mm) keep the
+         smallest tube at 6 px radius, still comfortably drawable. */
+  var PX_PER_MM = 0.6;
+  function d1Px() { return d1mm * PX_PER_MM; }
+  function d2Px() { return d2mm * PX_PER_MM; }
+
+  /* ================================================================
+     SIMULATION ANIMATION ENGINE
+     ------------------------------------------------------------------
+     Models a full hydraulic press cycle (press -> hold -> return).
+     Governing physics (incompressible coupled pistons):
+        A1 * v1 = A2 * v2      (continuity / volume conservation)
+        s2 = s1 * (A1 / A2)    (position coupling, integrated)
+     Applied input force F1 builds through a ramp, drives the small
+     piston through its stroke, holds at peak pressure, then returns.
+     Animation timing is independent of simulation force values so the
+     motion is always educationally clear. Positions are eased with a
+     smooth (ease-in-out cubic) profile that mimics the real-world
+     acceleration / deceleration of a coupled fluid column under a
+     compliant load (implicit damping).
+     ================================================================ */
+  var anim = {
+    running: false,
+    startTime: 0,     /* performance.now() at phase-'press' start */
+    pausedAt: 0,
+    phase: 'idle',    /* 'idle' | 'press' | 'hold' | 'held' */
+    t: 0,             /* cycle-local time ms (speed-adjusted) */
+    stroke1Px: 0,     /* small-piston downward displacement in px */
+    stroke2Px: 0,     /* large-piston upward displacement in px */
+    flowT: 0,         /* 0..1 looping phase for flow-arrow animation */
+    forceScale: 0,    /* 0..1 scaling factor for live F1/F2/P readouts */
+    rafId: 0,
+    speed: 0.5
+  };
+  /* Durations (ms, at speed = 1x).
+     Cycle = press then settle; pistons stay at final displacement after
+     the cycle so the user can inspect the end result. Press Run again
+     (or Reset) to return to zero. */
+  var ANIM_PRESS  = 1400;
+  var ANIM_HOLD   = 400;  /* brief settle at peak */
+  var ANIM_TOTAL  = ANIM_PRESS + ANIM_HOLD;
+  /* Max small-piston stroke in canvas px (visual budget in the left tube) */
+  var MAX_STROKE1_PX = 70;
+  /* Minimum large-piston visual stroke so motion is always visible */
+  var MIN_STROKE2_PX = 12;
+
+  /* Visual scaling for the large-piston stroke.
+     True physics: s2 = s1 * (A1/A2)  (area ratio).
+     For high mechanical-advantage setups (e.g. MA=16) the large piston
+     moves only 1/16th the small-piston stroke, which is too small to
+     see. For rendering only we use the LINEAR diameter ratio d1/d2,
+     which is physically anchored (= sqrt of area ratio) and always
+     produces visible motion. Numeric stroke readouts remain true to
+     area-ratio physics. */
+  function visualStrokeRatio() {
+    return (d1mm / Math.max(d2mm, 1e-9));
+  }
+
+  function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function easeOutCubic(t)   { return 1 - Math.pow(1 - t, 3); }
+  function easeInCubic(t)    { return t * t * t; }
+
+  /* Largest safe small-piston stroke given current geometry:
+     - must leave room above the base
+     - fluid column on the right must not overshoot the tube top */
+  function maxSafeStroke1() {
+    var vRatio = visualStrokeRatio(); /* s2_visual / s1 */
+    /* Left tube has ~180 px of fluid above base; cap at MAX_STROKE1_PX.
+       Right tube top must not exceed 90 px from canvas top (wall top),
+       so stroke2 <= ~70 px (FLUID_TOP_R 180 - 110 clearance). */
+    var limitFromRight = 70 / Math.max(vRatio, 1e-9);
+    return Math.min(MAX_STROKE1_PX, limitFromRight);
+  }
+
+  function simSetStatus(text, cls) {
+    var el = document.getElementById('sim-status');
+    var t = el && el.querySelector('.sim-status-text');
+    if (t) t.textContent = text;
+    if (el) {
+      el.classList.remove('running', 'hold', 'return');
+      if (cls) el.classList.add(cls);
+    }
+  }
+
+  /* Uniform line-icon set (SVG, currentColor) for the dynamic dock buttons. */
+  var ICON_PLAY  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="7 4 20 12 7 20"></polygon></svg>';
+  var ICON_STOP  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2.5"></rect></svg>';
+  var ICON_SNDON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19" fill="currentColor" stroke="none"></polygon><path d="M15.5 8.5a5 5 0 0 1 0 7"></path><path d="M18.5 5.5a9 9 0 0 1 0 13"></path></svg>';
+  var ICON_SNDOFF= '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19" fill="currentColor" stroke="none"></polygon><line x1="16" y1="9" x2="21" y2="15"></line><line x1="21" y1="9" x2="16" y2="15"></line></svg>';
+
+  function simButton() { return document.getElementById('btn-sim-run'); }
+  function simSetButton(running) {
+    var b = simButton();
+    if (!b) return;
+    b.classList.toggle('running', running);
+    var lbl = b.querySelector('.btn-run-label');
+    var icn = b.querySelector('.btn-run-icon');
+    if (running) { if (lbl) lbl.textContent = 'Stop'; if (icn) icn.innerHTML = ICON_STOP; b.setAttribute('aria-label', 'Stop simulation'); }
+    else         { if (lbl) lbl.textContent = 'Run Simulation'; if (icn) icn.innerHTML = ICON_PLAY; b.setAttribute('aria-label', 'Run simulation'); }
+  }
+
+  /* Time-history samples collected during a run (populates the mini chart). */
+  var history = { samples: [], maxP: 0, maxF2: 0, maxS1: 0, duration: ANIM_TOTAL };
+  function resetHistory() {
+    history.samples = [];
+    history.maxP = 0;
+    history.maxF2 = 0;
+    history.maxS1 = 0;
+    history.duration = ANIM_TOTAL;
+    drawHistory();
+  }
+  function recordHistory(tMs) {
+    /* Sample pressure, F2, stroke1 (mm) at current anim state */
+    var P = getPressure();
+    var F2 = getF2();
+    /* Actual physical small-piston displacement in mm (from visual stroke ratio) */
+    var maxPhys_mm = 300; /* matches the stroke-readout max used elsewhere */
+    var stroke1Max = maxSafeStroke1();
+    var s1frac = stroke1Max > 0 ? (anim.stroke1Px / stroke1Max) : 0;
+    var s1_mm = s1frac * maxPhys_mm;
+    history.samples.push({ t: tMs, P: P, F2: F2, s1: s1_mm });
+    if (P > history.maxP) history.maxP = P;
+    if (F2 > history.maxF2) history.maxF2 = F2;
+    if (s1_mm > history.maxS1) history.maxS1 = s1_mm;
+  }
+
+  function startSimulation() {
+    if (anim.running) return;
+    /* Load check: the ram only rises if the press capacity F₂ can overcome the
+       load W. If it can't (or exactly balances), there's no lift — show the
+       verdict and stall instead of animating a lift that can't happen. */
+    var info = liftInfo();
+    if (info.k !== 'lift') {
+      var u = U();
+      anim.running = false; anim.phase = 'idle';
+      anim.stroke1Px = 0; anim.stroke2Px = 0;
+      /* Show pressure/F₂ at full value (you ARE applying F₁; it just can't
+         move the load) so the gauge and equation read the real values. */
+      anim.forceScale = 1;
+      simSetButton(false);
+      if (info.k === 'balance') {
+        simSetStatus('═ Balanced — capacity ≈ load. The ram holds the weight but does not rise. Increase F₁ or d₂ to lift.', 'hold');
+      } else {
+        simSetStatus('✖ Too heavy — capacity ' + u.force.fromSI(info.cap).toFixed(0) + ' ' + u.force.label +
+          ' < load ' + u.force.fromSI(info.w).toFixed(0) + ' ' + u.force.label +
+          '. Need F₁ ≥ ' + u.force.fromSI(info.reqF1).toFixed(0) + ' ' + u.force.label + ' (or a larger d₂).', 'hold');
+        playDrop();
+      }
+      render();
+      return;
+    }
+    /* If pistons are at their held end position from a previous run,
+       snap back to zero so the press motion animates from the start. */
+    anim.running = true;
+    anim.phase = 'press';
+    anim.t = 0;
+    anim.startTime = performance.now();
+    anim.stroke1Px = 0;
+    anim.stroke2Px = 0;
+    anim.forceScale = 0;
+    resetHistory();
+    simSetButton(true);
+    simSetStatus('Pressing \u2014 small piston descends, pressure building\u2026', 'running');
+    playWhoosh(false);
+    if (anim.rafId) cancelAnimationFrame(anim.rafId);
+    anim.rafId = requestAnimationFrame(tickSim);
+  }
+  /* Abort mid-cycle: stops animation but keeps whatever displacement
+     we'd reached so far, so the user still sees a non-zero output. */
+  function stopSimulation() {
+    if (!anim.running) return;
+    anim.running = false;
+    if (anim.rafId) cancelAnimationFrame(anim.rafId);
+    anim.rafId = 0;
+    anim.phase = 'held';
+    simSetButton(false);
+    simSetStatus('Stopped \u2014 pistons held at current displacement. Press Run to restart.', 'hold');
+    render();
+  }
+  /* Fully reset pistons to zero displacement (called by the Reset button). */
+  function resetSimulationPose() {
+    if (anim.rafId) cancelAnimationFrame(anim.rafId);
+    anim.rafId = 0;
+    anim.running = false;
+    anim.phase = 'idle';
+    anim.stroke1Px = 0;
+    anim.stroke2Px = 0;
+    anim.forceScale = 0;
+    simSetButton(false);
+    simSetStatus('Idle \u2014 adjust values, then press Run (in the toolbar below the canvas) to animate the hydraulic press.', null);
+  }
+  function toggleSimulation() { anim.running ? stopSimulation() : startSimulation(); }
+  /* Mark the output stale — F2/P in the on-canvas equation revert to dashes
+     until the user runs the simulation again. Called after every input
+     change. A no-op while the simulation is actively running. */
+  function invalidateOutput() {
+    if (anim.running) return;
+    anim.forceScale = 0;
+    anim.phase = 'idle';
+    anim.stroke1Px = 0;
+    anim.stroke2Px = 0;
+  }
+
+  /* ── Output-display state ──────────────────────────────────────────
+     F₂ and P are RESULTS of running the press, so every on-canvas display of
+     them must agree: roll 0→final while the press animates, and revert to an
+     em-dash the moment an input changes. Shared by the equation, the F₂ arrow,
+     the LOAD tag and the gauge so they can never disagree about whether the
+     result is current.
+
+     F₁ is subtler: the slider sets the TARGET force, but physically the
+     applied force RAMPS from 0 to that target during the press (that ramp is
+     exactly what anim.forceScale models). While the animation is live the
+     equation therefore shows F₁ · forceScale — this keeps the displayed chain
+     F₁/A₁ = F₂/A₂ = P numerically TRUE at every frame, instead of pairing a
+     full F₁ with a partial F₂ (a false equality). When idle, F₁ shows the
+     typed target (it is an input, never a dash). */
+  function outputRolling() { return Math.max(0, Math.min(1, anim.forceScale || 0)); }
+  function outputStale()   { return outputRolling() < 0.001 && !anim.running; }
+  function displayF2()     { return getF2() * outputRolling(); }
+  function displayF1()     { return anim.running ? inputForce * outputRolling() : inputForce; }
+  function displayP()      { return getPressure() * outputRolling(); }
+
+  /* Force → arrow-length mapping, shared by the F₁ and F₂ arrows.
+     The old mapping saturated at 900 N (F₁) / 6 kN (F₂), so ~91% of the force
+     slider produced no visible change. A √F law is monotonic over the whole
+     10 N – 4 MN range AND keeps the arrow-length ratio physically meaningful:
+     len₂/len₁ = √(F₂/F₁) = √MA = d₂/d₁ — the same linear-diameter convention
+     the piston-stroke exaggeration already uses (documented at
+     visualStrokeRatio). Lengths are indicative, not to scale; the labels carry
+     the numbers. */
+  function forceArrowLen(F) {
+    return 15 + 60 * Math.sqrt(Math.max(F, 0) / 10000);
+  }
+
+  function tickSim(now) {
+    if (!anim.running) return;
+    /* Speed-adjusted elapsed time */
+    var realElapsed = now - anim.startTime;
+    var t = realElapsed * anim.speed;
+    anim.t = t;
+
+    var stroke1Max = maxSafeStroke1();
+    var vRatio = visualStrokeRatio();
+
+    if (t < ANIM_PRESS) {
+      anim.phase = 'press';
+      var p = t / ANIM_PRESS;
+      /* Force ramps up quickly (first 30%), then piston position follows eased curve */
+      anim.forceScale = Math.min(1, p / 0.30);
+      anim.stroke1Px = stroke1Max * easeInOutCubic(p);
+      simSetStatus('Pressing \u2014 F\u2081 drives fluid, F\u2082 lifts load', 'running');
+    } else if (t < ANIM_TOTAL) {
+      anim.phase = 'hold';
+      anim.forceScale = 1;
+      anim.stroke1Px = stroke1Max;
+      simSetStatus('Holding \u2014 pistons at peak displacement, pressure uniform', 'hold');
+    } else {
+      /* Cycle complete: hold pistons at final displacement so the user
+         can inspect the end result. Press Run again to re-press. */
+      anim.phase = 'held';
+      anim.forceScale = 1;
+      anim.stroke1Px = stroke1Max;
+      anim.stroke2Px = Math.max(stroke1Max * vRatio, MIN_STROKE2_PX);
+      anim.running = false;
+      simSetButton(false);
+      simSetStatus('Completed \u2014 large piston has lifted the load. Press Run to repeat.', 'hold');
+      playDrop();
+      recordHistory(ANIM_TOTAL);
+      drawHistory();
+      render();
+      return;
+    }
+    /* Visual stroke: linear diameter ratio for rendering. Apply a minimum
+       floor (scaled by press-phase progress) so even extreme MA setups
+       show visible large-piston motion. */
+    var phaseProgress = anim.stroke1Px / Math.max(stroke1Max, 1e-9);
+    var s2Raw = anim.stroke1Px * vRatio;
+    var s2Floor = MIN_STROKE2_PX * phaseProgress;
+    anim.stroke2Px = Math.max(s2Raw, s2Floor);
+    /* Flow-arrow animation loops independently, scaled by piston velocity */
+    anim.flowT = (anim.flowT + 0.02 * anim.speed) % 1;
+    recordHistory(t);
+    drawHistory();
+    render();
+    anim.rafId = requestAnimationFrame(tickSim);
+  }
+
+  /* Soft whoosh for press start */
+  function playWhoosh() {
+    var a = ensureAudio && ensureAudio(); if (!a) return;
+    var osc = a.createOscillator();
+    var g = a.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80, a.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(240, a.currentTime + 0.45);
+    g.gain.setValueAtTime(0.0001, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.05, a.currentTime + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.55);
+    osc.connect(g); g.connect(a.destination);
+    osc.start(); osc.stop(a.currentTime + 0.6);
+  }
+
+  /* ================================================================
+     DRAWING — SIMULATE MODE
+     ================================================================ */
+  function drawSimulate() {
+    /* ── Studio background: vertical depth gradient + accent glow centred on
+       the apparatus, so the rig sits in a lit space instead of floating on a
+       flat fill (graphics-upgrade 'ground a flat scene' recipe). */
+    var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#10141d');
+    bgGrad.addColorStop(1, '#090c12');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+    var glow = ctx.createRadialGradient(W / 2, 300, 30, W / 2, 300, 520);
+    glow.addColorStop(0, 'rgba(66,165,245,0.10)');
+    glow.addColorStop(1, 'rgba(66,165,245,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    /* Title */
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText("Pascal\u2019s Law Simulator \u2014 Hydraulic Force Multiplication", W / 2, 10);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('Adjust input force and piston diameters to see force multiplication', W / 2, 28);
+
+    /* ── Live lift verdict banner — the "will it lift?" answer ──
+       Compares press capacity F₂ against the load W = m·g and updates the
+       instant any slider moves. */
+    (function drawVerdictBanner() {
+      var info = liftInfo();
+      var u = U();
+      var VC = info.k === 'lift' ? '#3ddc84' : info.k === 'balance' ? '#f5c842' : '#ff5555';
+      var capT = u.force.fromSI(info.cap).toFixed(0) + ' ' + u.force.label;
+      var wT   = u.force.fromSI(info.w).toFixed(0) + ' ' + u.force.label;
+      var txt;
+      if (info.k === 'lift') {
+        txt = '✔ LIFTS   —   capacity ' + capT + '  >  load ' + wT +
+              '   (margin +' + u.force.fromSI(info.margin).toFixed(0) + ' ' + u.force.label + ')';
+      } else if (info.k === 'balance') {
+        txt = '═ BALANCED   —   capacity ≈ load  (' + capT + ')';
+      } else {
+        txt = '✖ TOO HEAVY   —   need F₁ ≥ ' + u.force.fromSI(info.reqF1).toFixed(0) + ' ' + u.force.label +
+              '   (capacity ' + capT + '  <  load ' + wT + ')';
+      }
+      ctx.font = '700 12px "Segoe UI", sans-serif';
+      var bw = ctx.measureText(txt).width + 26;
+      var bx = W / 2 - bw / 2, by = 42, bh = 22;
+      ctx.save();
+      ctx.fillStyle = 'rgba(16,20,32,0.92)';
+      ctx.strokeStyle = VC; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 11); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = VC;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, W / 2, by + bh / 2 + 0.5);
+      ctx.restore();
+    })();
+
+    var LCX = 200;  /* left piston center x */
+    var RCX = 700;  /* right piston center x */
+    var BASEY = 340; /* base of fluid chamber */
+    var FLUID_TOP_L_REST = 160; /* rest position: top of fluid in left tube */
+    var FLUID_TOP_R_REST = 180; /* rest position: top of fluid in right tube */
+
+    /* Animated fluid-surface positions (press moves left DOWN, right UP) */
+    var s1 = anim.stroke1Px || 0;
+    var s2 = anim.stroke2Px || 0;
+    var FLUID_TOP_L = FLUID_TOP_L_REST + s1;
+    var FLUID_TOP_R = FLUID_TOP_R_REST - s2;
+
+    var r1 = d1Px();
+    var r2 = d2Px();
+
+    /* ── Soft ground shadow beneath the vessel (grounds the whole rig) ── */
+    ctx.save();
+    var shGrad = ctx.createRadialGradient((LCX + RCX) / 2, BASEY + 74, 10, (LCX + RCX) / 2, BASEY + 74, (RCX - LCX) / 2 + r2 + 40);
+    shGrad.addColorStop(0, 'rgba(0,0,0,0.35)');
+    shGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shGrad;
+    ctx.beginPath();
+    ctx.ellipse((LCX + RCX) / 2, BASEY + 76, (RCX - LCX) / 2 + r2 + 40, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    /* ── Fluid body (U-tube shape) ──
+       One shared vertical gradient (depth lighting: lighter surface → deeper
+       base) reused for all three regions so the connected fluid reads as ONE
+       body. Colour intensity rises with pressure — uniformly across the whole
+       body, because that uniformity IS Pascal's law. Scaled against the SAME
+       auto-ranged full-scale as the gauge (so the tint is visible at realistic
+       sub-MPa pressures instead of vanishing on a fixed 35 MPa scale), and
+       live while adjusting / ramping during a press, matching the needle. */
+    var pTintNow  = anim.running ? displayP() : getPressure();
+    var pTintFrac = Math.max(0, Math.min(1, pTintNow / gaugeFace(getPressure()).maxPa));
+    var fluidGrad = ctx.createLinearGradient(0, Math.min(FLUID_TOP_L, FLUID_TOP_R), 0, BASEY + 70);
+    fluidGrad.addColorStop(0, 'rgba(110,195,255,' + (0.26 + 0.26 * pTintFrac).toFixed(3) + ')');
+    fluidGrad.addColorStop(1, 'rgba(30,110,205,'  + (0.44 + 0.26 * pTintFrac).toFixed(3) + ')');
+
+    /* Bottom connection */
+    ctx.fillStyle = fluidGrad;
+    ctx.beginPath();
+    ctx.moveTo(LCX - r1 - 10, BASEY);
+    ctx.lineTo(LCX - r1 - 10, BASEY + 40);
+    ctx.quadraticCurveTo(LCX - r1 - 10, BASEY + 70, LCX + 20, BASEY + 70);
+    ctx.lineTo(RCX - 20, BASEY + 70);
+    ctx.quadraticCurveTo(RCX + r2 + 10, BASEY + 70, RCX + r2 + 10, BASEY + 40);
+    ctx.lineTo(RCX + r2 + 10, BASEY);
+    ctx.lineTo(RCX - r2 - 10, BASEY);
+    ctx.lineTo(RCX - r2 - 10, FLUID_TOP_R);
+    ctx.lineTo(RCX + r2 + 10, FLUID_TOP_R);
+    ctx.lineTo(RCX + r2 + 10, BASEY);
+    ctx.closePath();
+    ctx.fill();
+
+    /* Left tube fluid */
+    ctx.fillStyle = fluidGrad;
+    ctx.beginPath();
+    ctx.rect(LCX - r1 - 10, FLUID_TOP_L, (r1 + 10) * 2, BASEY - FLUID_TOP_L);
+    ctx.fill();
+
+    /* Right tube fluid */
+    ctx.beginPath();
+    ctx.rect(RCX - r2 - 10, FLUID_TOP_R, (r2 + 10) * 2, BASEY - FLUID_TOP_R);
+    ctx.fill();
+
+    /* ── Pressure arrows — the textbook figure ──
+       While pressurised, small EQUAL-LENGTH arrows act perpendicular to every
+       wetted surface: up on both piston faces, outward on the walls, down on
+       the base. Equal length everywhere = pressure transmitted undiminished
+       in all directions. Gated on the pressure toggle and on a live result. */
+    if (showPressure && outputRolling() > 0.02) {
+      var pa = 0.35 + 0.5 * outputRolling();
+      ctx.save();
+      ctx.strokeStyle = 'rgba(127,212,255,' + pa.toFixed(2) + ')';
+      ctx.fillStyle   = 'rgba(127,212,255,' + pa.toFixed(2) + ')';
+      ctx.lineWidth = 1.6;
+      function pArrow(x1, y1, x2, y2) {
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        var ang = Math.atan2(y2 - y1, x2 - x1);
+        ctx.beginPath();
+        ctx.moveTo(x2 + Math.cos(ang) * 4, y2 + Math.sin(ang) * 4);
+        ctx.lineTo(x2 + Math.cos(ang + 2.6) * 5, y2 + Math.sin(ang + 2.6) * 5);
+        ctx.lineTo(x2 + Math.cos(ang - 2.6) * 5, y2 + Math.sin(ang - 2.6) * 5);
+        ctx.closePath(); ctx.fill();
+      }
+      var AL = 12; /* one uniform length — the whole point */
+      /* Up onto both piston faces (offset off-centre to clear the d-brackets) */
+      pArrow(LCX - r1 * 0.55, FLUID_TOP_L + 6 + AL, LCX - r1 * 0.55, FLUID_TOP_L + 6);
+      pArrow(LCX + r1 * 0.55, FLUID_TOP_L + 6 + AL, LCX + r1 * 0.55, FLUID_TOP_L + 6);
+      pArrow(RCX - r2 * 0.55, FLUID_TOP_R + 6 + AL, RCX - r2 * 0.55, FLUID_TOP_R + 6);
+      pArrow(RCX + r2 * 0.55, FLUID_TOP_R + 6 + AL, RCX + r2 * 0.55, FLUID_TOP_R + 6);
+      /* Outward onto the outer walls at mid-fluid height */
+      var wyL = (FLUID_TOP_L + BASEY) / 2;
+      var wyR = (FLUID_TOP_R + BASEY) / 2;
+      pArrow(LCX - r1 - 10 + 6 + AL, wyL, LCX - r1 - 10 + 6, wyL);
+      pArrow(RCX + r2 + 10 - 6 - AL, wyR, RCX + r2 + 10 - 6, wyR);
+      /* Down onto the base of the connecting tube */
+      var bx1 = LCX + (RCX - LCX) * 0.33, bx2 = LCX + (RCX - LCX) * 0.67;
+      pArrow(bx1, BASEY + 64 - AL, bx1, BASEY + 64);
+      pArrow(bx2, BASEY + 64 - AL, bx2, BASEY + 64);
+      ctx.restore();
+    }
+
+    /* ── Animated flow arrows in the connecting U-tube ── */
+    if (anim.running && anim.phase !== 'hold') {
+      /* Flow is always left→right: the cycle is press → hold → held, with no
+         return stroke (Run re-presses from zero). */
+      var dir = 1;
+      var flowY = BASEY + 55;
+      var flowStartX = LCX + 20;
+      var flowEndX = RCX - 20;
+      var flowW = flowEndX - flowStartX;
+      var nArrows = 5;
+      ctx.save();
+      for (var fa = 0; fa < nArrows; fa++) {
+        /* Stagger arrows along the tube, shift by flowT */
+        var frac = ((fa / nArrows) + anim.flowT) % 1;
+        var fx = flowStartX + frac * flowW;
+        var alpha = 0.25 + 0.55 * Math.sin(frac * Math.PI); /* fade at ends */
+        ctx.strokeStyle = 'rgba(100, 200, 255,' + alpha.toFixed(2) + ')';
+        ctx.fillStyle = 'rgba(100, 200, 255,' + alpha.toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(fx - 10 * dir, flowY);
+        ctx.lineTo(fx + 6 * dir, flowY);
+        ctx.stroke();
+        /* arrowhead */
+        ctx.beginPath();
+        ctx.moveTo(fx + 12 * dir, flowY);
+        ctx.lineTo(fx + 4 * dir, flowY - 4);
+        ctx.lineTo(fx + 4 * dir, flowY + 4);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    /* ── Tube walls — layered strokes along the SAME paths (dark base →
+       steel mid → rim light) so the vessel reads as machined metal without
+       touching any geometry. ── */
+    function pathOuter() {
+      ctx.beginPath();
+      ctx.moveTo(LCX - r1 - 10, 90);
+      ctx.lineTo(LCX - r1 - 10, BASEY + 40);
+      ctx.quadraticCurveTo(LCX - r1 - 10, BASEY + 70, LCX + 20, BASEY + 70);
+      ctx.lineTo(RCX - 20, BASEY + 70);
+      ctx.quadraticCurveTo(RCX + r2 + 10, BASEY + 70, RCX + r2 + 10, BASEY + 40);
+      ctx.lineTo(RCX + r2 + 10, 90);
+    }
+    function pathInnerL() { ctx.beginPath(); ctx.moveTo(LCX + r1 + 10, 90); ctx.lineTo(LCX + r1 + 10, BASEY); }
+    function pathInnerR() { ctx.beginPath(); ctx.moveTo(RCX - r2 - 10, 90); ctx.lineTo(RCX - r2 - 10, BASEY); }
+    ctx.lineCap = 'round';
+    [pathOuter, pathInnerL, pathInnerR].forEach(function (build) {
+      build(); ctx.strokeStyle = '#141a2a'; ctx.lineWidth = 6.5; ctx.stroke();
+      build(); ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 3.5; ctx.stroke();
+      build(); ctx.strokeStyle = 'rgba(190,215,255,0.30)'; ctx.lineWidth = 1.1; ctx.stroke();
+    });
+    ctx.lineCap = 'butt';
+    /* Flange rims (cylinder-head glands) at each bore mouth */
+    function drawFlange(cx, radius) {
+      var fw = (radius + 16) * 2;
+      var fg = ctx.createLinearGradient(cx - fw / 2, 0, cx + fw / 2, 0);
+      fg.addColorStop(0, '#3a4560'); fg.addColorStop(0.5, '#7a8bad'); fg.addColorStop(1, '#2a3350');
+      ctx.fillStyle = fg;
+      ctx.strokeStyle = '#141a2a';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(cx - fw / 2, 85, fw, 6, 2); ctx.fill(); ctx.stroke();
+      /* bolt dots */
+      ctx.fillStyle = 'rgba(220,232,250,0.5)';
+      ctx.beginPath(); ctx.arc(cx - fw / 2 + 5, 88, 1.3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + fw / 2 - 5, 88, 1.3, 0, Math.PI * 2); ctx.fill();
+    }
+    drawFlange(LCX, r1);
+    drawFlange(RCX, r2);
+
+    /* ── Cylinder wall shading (depth gradient) ── */
+    function shadeCylinderWall(cx, radius, topY, bottomY) {
+      var grad = ctx.createLinearGradient(cx - radius - 10, 0, cx + radius + 10, 0);
+      grad.addColorStop(0, 'rgba(255,255,255,0.08)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.25)');
+      ctx.save();
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - radius - 10, topY, (radius + 10) * 2, bottomY - topY);
+      ctx.restore();
+    }
+    shadeCylinderWall(LCX, r1, 90, BASEY);
+    shadeCylinderWall(RCX, r2, 90, BASEY);
+
+    /* Piston body helper with metallic gradient + O-ring seals */
+    function drawPistonBody(cx, radius, topY, pistonH) {
+      var grad = ctx.createLinearGradient(cx - radius, 0, cx + radius, 0);
+      grad.addColorStop(0, '#5a6b8a');
+      grad.addColorStop(0.5, '#a0b4d4');
+      grad.addColorStop(1, '#3a4866');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#8ab0e0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cx - radius, topY, radius * 2, pistonH, 4);
+      ctx.fill(); ctx.stroke();
+      /* O-ring seals: dark bands at 25% and 75% of piston height */
+      ctx.fillStyle = '#1a1f30';
+      ctx.beginPath(); ctx.rect(cx - radius, topY + pistonH * 0.22, radius * 2, 2.5); ctx.fill();
+      ctx.beginPath(); ctx.rect(cx - radius, topY + pistonH * 0.68, radius * 2, 2.5); ctx.fill();
+      /* subtle centre highlight line */
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - radius + 3, topY + 2); ctx.lineTo(cx - radius + 3, topY + pistonH - 2);
+      ctx.stroke();
+    }
+    /* Metallic rod helper */
+    function drawRod(cx, halfWidth, topY, length) {
+      var grad = ctx.createLinearGradient(cx - halfWidth, 0, cx + halfWidth, 0);
+      grad.addColorStop(0, '#1e2438');
+      grad.addColorStop(0.4, '#6a7a9c');
+      grad.addColorStop(0.5, '#c0ccdc');
+      grad.addColorStop(0.6, '#6a7a9c');
+      grad.addColorStop(1, '#1e2438');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#4a5578';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(cx - halfWidth, topY, halfWidth * 2, length);
+      ctx.fill(); ctx.stroke();
+    }
+
+    /* Weight-stack load graphic — industrial plates, count scales with F2 */
+    function drawWeightStack(cx, pistonTopY, pistonR) {
+      /* The stack now depicts the ACTUAL load W = m·g placed on the ram (an
+         input), not the press capacity. Plate count scales with the mass;
+         the label tag is tinted by the lift verdict (green lifts / amber
+         balances / red too-heavy). */
+      var info = liftInfo();
+      var VC = info.k === 'lift' ? '#3ddc84' : info.k === 'balance' ? '#f5c842' : '#ff5555';
+      var stackTop = pistonTopY - 80; /* top of stack (keeps arrow logic intact) */
+      var stackBot = pistonTopY - 4;   /* just above piston top */
+      var stackH = stackBot - stackTop;
+      var baseW = Math.min(pistonR * 2 + 24, 150);
+
+      /* Platform beneath stack (sits on piston rod head) */
+      var platY = stackBot;
+      ctx.fillStyle = '#3a4362';
+      ctx.strokeStyle = '#1e2438';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(cx - baseW / 2 - 2, platY, baseW + 4, 4);
+      ctx.fill(); ctx.stroke();
+
+      /* Plate count grows with the mass (0 plates when unloaded). */
+      var nPlates = loadKg <= 0 ? 0 : Math.max(1, Math.min(6, Math.round(1 + Math.log10(Math.max(loadKg, 1)))));
+      var plateH = nPlates > 0 ? stackH / nPlates : 0;
+      /* Industrial cast-iron plates; a red wash if the load is too heavy. */
+      var tooHeavy = info.k === 'toolow';
+      for (var i = 0; i < nPlates; i++) {
+        var py = stackBot - (i + 1) * plateH + 1;
+        var pw = baseW - i * 6; /* slight taper upward */
+        var grad = ctx.createLinearGradient(cx - pw / 2, py, cx + pw / 2, py);
+        if (tooHeavy) {
+          grad.addColorStop(0, '#6b2222'); grad.addColorStop(0.3, '#a03333');
+          grad.addColorStop(0.5, '#d04a4a'); grad.addColorStop(0.7, '#a03333'); grad.addColorStop(1, '#6b2222');
+          ctx.strokeStyle = '#4a0e0e';
+        } else {
+          grad.addColorStop(0, '#2c3242'); grad.addColorStop(0.3, '#49515f');
+          grad.addColorStop(0.5, '#69717f'); grad.addColorStop(0.7, '#49515f'); grad.addColorStop(1, '#2c3242');
+          ctx.strokeStyle = '#1a1f2c';
+        }
+        ctx.fillStyle = grad;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.rect(cx - pw / 2, py, pw, plateH - 2);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(cx - pw / 2 + 4, py + 2, 3, 2);
+        ctx.fillRect(cx + pw / 2 - 7, py + 2, 3, 2);
+      }
+
+      /* Top label tag: "LOAD m kg" (with weight in N), verdict-tinted border. */
+      var u = U();
+      var loadTxt = loadKg <= 0 ? 'NO LOAD'
+        : u.mass.fromSI(loadKg).toFixed(u.mass.digits) + ' ' + u.mass.label +
+          '  (' + u.force.fromSI(getLoadW()).toFixed(0) + ' ' + u.force.label + ')';
+      ctx.font = '700 10.5px "Segoe UI", sans-serif';
+      var labelW = Math.max(96, ctx.measureText('LOAD ' + loadTxt).width + 18);
+      var labelY = stackTop - 15;
+      ctx.fillStyle = 'rgba(16,20,32,0.9)';
+      ctx.strokeStyle = VC;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.roundRect(cx - labelW / 2, labelY, labelW, 18, 4);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#e6edf6';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      var glyph = info.k === 'lift' ? '↑ ' : info.k === 'balance' ? '═ ' : '↓ ';
+      ctx.fillText('LOAD ' + loadTxt, cx, labelY + 9);
+      /* small verdict glyph chip on the tag's left */
+      ctx.fillStyle = VC;
+      ctx.font = '800 11px "Segoe UI", sans-serif';
+      ctx.fillText(glyph, cx - labelW / 2 + 8, labelY + 9);
+    }
+
+    /* ── Left piston ── */
+    var pistonH = 24;
+    var p1Y = FLUID_TOP_L - pistonH;
+    drawPistonBody(LCX, r1, p1Y, pistonH);
+    drawRod(LCX, 4, p1Y - 44, 44);
+    /* T-handle on the input rod — where the operator's force is applied;
+       the F₁ arrow presses onto it. */
+    (function drawHandle() {
+      var hw = 46, hh = 7, hy = p1Y - 50;
+      var hg = ctx.createLinearGradient(0, hy, 0, hy + hh);
+      hg.addColorStop(0, '#8a9cc0'); hg.addColorStop(0.45, '#5a6b8e'); hg.addColorStop(1, '#2e3852');
+      ctx.fillStyle = hg;
+      ctx.strokeStyle = '#141a2a';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(LCX - hw / 2, hy, hw, hh, 3.5); ctx.fill(); ctx.stroke();
+      /* grip notches */
+      ctx.strokeStyle = 'rgba(20,26,42,0.55)';
+      for (var gk = -2; gk <= 2; gk++) {
+        ctx.beginPath();
+        ctx.moveTo(LCX + gk * 7, hy + 1.5);
+        ctx.lineTo(LCX + gk * 7, hy + hh - 1.5);
+        ctx.stroke();
+      }
+    })();
+
+    /* ── Right piston ── */
+    var p2Y = FLUID_TOP_R - pistonH;
+    drawPistonBody(RCX, r2, p2Y, pistonH);
+    drawRod(RCX, 6, p2Y - 45, 45);
+    /* Load: stylized weight-stack that scales with F2 */
+    drawWeightStack(RCX, p2Y, r2);
+
+    /* ── Force arrows ── */
+    /* Input force arrow (down on left piston).
+       Length follows the shared √F mapping over the FULL slider range (the
+       old /15 law saturated at 900 N), and during the press it grows with the
+       physical force ramp (displayF1). */
+    var f1Len = forceArrowLen(displayF1());
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(LCX, p1Y - 70);
+    ctx.lineTo(LCX, p1Y - 70 + f1Len);
+    ctx.stroke();
+    ctx.fillStyle = '#3ddc84';
+    ctx.beginPath();
+    ctx.moveTo(LCX, p1Y - 70 + f1Len + 6);
+    ctx.lineTo(LCX - 5, p1Y - 70 + f1Len);
+    ctx.lineTo(LCX + 5, p1Y - 70 + f1Len);
+    ctx.closePath(); ctx.fill();
+    /* F1 label */
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('F\u2081 = ' + U().force.fromSI(displayF1()).toFixed(U().force.digits) + ' ' + U().force.label, LCX + 14, p1Y - 70 + f1Len / 2);
+
+    /* Output force arrow (up on right piston) — clamped so it never
+       leaves the canvas when the load block rises to the top. */
+    var f2Stale = outputStale();
+    var loadTop = p2Y - 96;          /* top of load label tag (above weight stack) */
+    var minArrowTop = 6;              /* min y (canvas-relative top margin) */
+    var arrowBase = loadTop - 5;      /* arrow starts just above the load */
+    /* Length tracks the ROLLING output so the arrow visibly grows as pressure
+       builds; a stale result collapses to a dimmed stub with an em-dash label,
+       matching the on-canvas equation and the LOAD tag. */
+    var desiredLen = f2Stale ? 15 : forceArrowLen(displayF2());
+    var availLen = Math.max(10, arrowBase - minArrowTop - 4);
+    var f2Len = Math.min(desiredLen, availLen);
+    var arrowTip = arrowBase - f2Len;
+    ctx.save();
+    if (f2Stale) ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = '#ff5555';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(RCX, arrowBase);
+    ctx.lineTo(RCX, arrowTip);
+    ctx.stroke();
+    ctx.fillStyle = '#ff5555';
+    ctx.beginPath();
+    ctx.moveTo(RCX, arrowTip - 6);
+    ctx.lineTo(RCX - 5, arrowTip);
+    ctx.lineTo(RCX + 5, arrowTip);
+    ctx.closePath(); ctx.fill();
+    /* F2 label — placed beside the arrow, clamped to stay on canvas */
+    ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    var f2LabelY = Math.max(arrowTip + f2Len / 2, minArrowTop + 8);
+    var f2ArrowTxt = f2Stale
+      ? '— ' + U().force.label
+      : U().force.fromSI(displayF2()).toFixed(U().force.digits) + ' ' + U().force.label;
+    ctx.fillText('F₂ = ' + f2ArrowTxt, RCX + 14, f2LabelY);
+    ctx.restore();
+
+    /* ── Diameter labels ── */
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#90caf9';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    /* d1 bracket */
+    ctx.beginPath();
+    ctx.strokeStyle = '#90caf9'; ctx.lineWidth = 1;
+    ctx.moveTo(LCX - r1, FLUID_TOP_L + 4);
+    ctx.lineTo(LCX - r1, FLUID_TOP_L + 14);
+    ctx.moveTo(LCX + r1, FLUID_TOP_L + 4);
+    ctx.lineTo(LCX + r1, FLUID_TOP_L + 14);
+    ctx.moveTo(LCX - r1, FLUID_TOP_L + 10);
+    ctx.lineTo(LCX + r1, FLUID_TOP_L + 10);
+    ctx.stroke();
+    ctx.fillText('d\u2081 = ' + U().len.fromSI(d1mm).toFixed(U().len.digits) + ' ' + U().len.label, LCX, FLUID_TOP_L + 16);
+    /* d2 bracket */
+    ctx.beginPath();
+    ctx.moveTo(RCX - r2, FLUID_TOP_R + 4);
+    ctx.lineTo(RCX - r2, FLUID_TOP_R + 14);
+    ctx.moveTo(RCX + r2, FLUID_TOP_R + 4);
+    ctx.lineTo(RCX + r2, FLUID_TOP_R + 14);
+    ctx.moveTo(RCX - r2, FLUID_TOP_R + 10);
+    ctx.lineTo(RCX + r2, FLUID_TOP_R + 10);
+    ctx.stroke();
+    ctx.fillText('d\u2082 = ' + U().len.fromSI(d2mm).toFixed(U().len.digits) + ' ' + U().len.label, RCX, FLUID_TOP_R + 16);
+
+    /* ── Analog pressure gauge (mounted on connecting tube) ──
+       Modelled on a real Bourdon gauge, with an AUTO-RANGED face (gaugeFace)
+       so the needle stays readable across the whole pressure range instead of
+       pinning near zero. The needle reads LIVE pressure the instant a slider
+       moves (pressure is set by the applied force, not by the animation);
+       during a press it sweeps up with the force ramp. A red over-limit arc
+       appears only when the 350-bar (35 MPa) ceiling falls on the current
+       face. */
+    if (showPressure) {
+      var gcx = (LCX + RCX) / 2;
+      var gcy = BASEY + 35;
+      var gR = 36;
+      /* Live while adjusting; ramps during the press. Pressure is never
+         "stale" the way the lifted-load output is — it exists as soon as F₁
+         is applied. */
+      var Pgauge = anim.running ? displayP() : getPressure();
+
+      /* Auto-ranged face: scale on the final pressure so the dial is stable
+         during a run while the needle sweeps to it. */
+      var FACE = gaugeFace(getPressure());
+      var RED_START_PA = 35e6; /* 350 bar — general-purpose hydraulic ceiling */
+
+      /* Mounting pipe from tube up to gauge */
+      ctx.strokeStyle = '#4a5578';
+      ctx.fillStyle = '#2a3050';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(gcx - 4, gcy + gR - 2, 8, 12);
+      ctx.fill(); ctx.stroke();
+
+      /* Gauge body (outer ring) */
+      var bodyGrad = ctx.createRadialGradient(gcx - 9, gcy - 9, 4, gcx, gcy, gR + 5);
+      bodyGrad.addColorStop(0, '#d8e2f0');
+      bodyGrad.addColorStop(0.6, '#8a9cba');
+      bodyGrad.addColorStop(1, '#3a4866');
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath(); ctx.arc(gcx, gcy, gR + 5, 0, Math.PI * 2); ctx.fill();
+      /* Gauge face */
+      ctx.fillStyle = '#f4f6fb';
+      ctx.beginPath(); ctx.arc(gcx, gcy, gR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1a1f30';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      /* Scale geometry: 270° sweep from 135° (low) to 405° (high) */
+      var startAng = Math.PI * 0.75;
+      var endAng   = Math.PI * 2.25;
+      var sweep    = endAng - startAng;
+      var frac = Math.max(0, Math.min(1, Pgauge / FACE.maxPa));
+
+      /* Red over-limit arc — only when the 350-bar ceiling is on this face
+         (small auto-ranged faces are nowhere near danger, so no red). */
+      if (RED_START_PA < FACE.maxPa) {
+        var redFrac = RED_START_PA / FACE.maxPa;
+        ctx.strokeStyle = '#c0302a';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(gcx, gcy, gR - 5, startAng + sweep * redFrac, endAng);
+        ctx.stroke();
+      }
+
+      /* Graduations: labelled majors, short minors */
+      var nMaj = FACE.majors.length - 1;
+      var nTicks = nMaj * FACE.minorsPerMajor;
+      for (var tk = 0; tk <= nTicks; tk++) {
+        var tf = tk / nTicks;
+        var isMaj = (tk % FACE.minorsPerMajor === 0);
+        var ta = startAng + sweep * tf;
+        var r1t = gR - 4, r2t = gR - (isMaj ? 10 : 7);
+        ctx.strokeStyle = '#2a3040';
+        ctx.lineWidth = isMaj ? 1.6 : 0.8;
+        ctx.beginPath();
+        ctx.moveTo(gcx + Math.cos(ta) * r1t, gcy + Math.sin(ta) * r1t);
+        ctx.lineTo(gcx + Math.cos(ta) * r2t, gcy + Math.sin(ta) * r2t);
+        ctx.stroke();
+        if (isMaj) {
+          var lab = FACE.majors[tk / FACE.minorsPerMajor];
+          ctx.font = '700 7.5px "Segoe UI", sans-serif';
+          ctx.fillStyle = '#1a1f30';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(lab, gcx + Math.cos(ta) * (gR - 16), gcy + Math.sin(ta) * (gR - 16));
+        }
+      }
+      /* Face unit */
+      ctx.font = '600 6.5px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#4a5578';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(FACE.unit, gcx, gcy + gR * 0.42);
+
+      /* Needle — follows rolling pressure; rests on the zero pin when stale */
+      var needleAng = startAng + sweep * frac;
+      ctx.strokeStyle = '#c0302a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(gcx, gcy);
+      ctx.lineTo(gcx + Math.cos(needleAng) * (gR - 7), gcy + Math.sin(needleAng) * (gR - 7));
+      ctx.stroke();
+      /* Needle back-stub */
+      ctx.strokeStyle = '#6a2020';
+      ctx.beginPath();
+      ctx.moveTo(gcx, gcy);
+      ctx.lineTo(gcx + Math.cos(needleAng + Math.PI) * 6, gcy + Math.sin(needleAng + Math.PI) * 6);
+      ctx.stroke();
+      /* Hub */
+      ctx.fillStyle = '#1a1f30';
+      ctx.beginPath(); ctx.arc(gcx, gcy, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#6a7a9c'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(gcx, gcy, 3.5, 0, Math.PI * 2); ctx.stroke();
+
+      /* Digital readout below gauge — live exact pressure */
+      ctx.font = '700 12px "Courier New", monospace';
+      ctx.fillStyle = '#42a5f5';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('P = ' + U().press(Pgauge), gcx, gcy + gR + 14);
+      ctx.font = '600 9px "Segoe UI", sans-serif';
+      ctx.fillStyle = 'rgba(139,157,195,.85)';
+      ctx.fillText('Equal throughout · range ' + FACE.majors[FACE.majors.length - 1] + ' ' + FACE.unit, gcx, gcy + gR + 30);
+    }
+
+    /* ── Volume / distance trade-off + stroke rulers ── */
+    if (showVolume) {
+      var MAX_S1_MM = 300;                        /* nominal full-stroke in real mm */
+      var strokeMaxPx = maxSafeStroke1();
+      /* Current animated displacement in real mm (0 when idle) */
+      var s1CurMM = strokeMaxPx > 0 ? (s1 / strokeMaxPx) * MAX_S1_MM : 0;
+      /* Large piston stroke via TRUE physics (area ratio), not visual */
+      var s2CurMM = s1CurMM * (getA1() / Math.max(getA2(), 1e-9));
+      var dispText1 = U().len.fromSI(s1CurMM).toFixed(U().len.digits) + ' ' + U().len.label;
+      var fullS1Text = U().len.fromSI(MAX_S1_MM).toFixed(U().len.digits) + ' ' + U().len.label;
+      var dispText2 = U().len.fromSI(s2CurMM).toFixed(U().len.digits) + ' ' + U().len.label;
+      var fullS2Text = U().len.fromSI(getD2travel() * 1000).toFixed(U().len.digits) + ' ' + U().len.label;
+
+      /* Ruler helper: vertical scale with zero-line (rest) and current-position tick */
+      function drawRuler(cx, pistonTopY, restY, isLeft) {
+        var rulerX = isLeft ? (cx - d1Px() - 26) : (cx + d2Px() + 26);
+        var tickDir = isLeft ? -1 : 1;
+        /* Main vertical line from rest to piston-top */
+        ctx.strokeStyle = 'rgba(139,157,195,.45)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(rulerX, restY); ctx.lineTo(rulerX, pistonTopY); ctx.stroke();
+        ctx.setLineDash([]);
+        /* Zero-line tick (rest position) */
+        ctx.strokeStyle = '#8b9dc3';
+        ctx.beginPath(); ctx.moveTo(rulerX, restY); ctx.lineTo(rulerX + 8 * tickDir, restY); ctx.stroke();
+        ctx.font = '600 9px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#8b9dc3';
+        ctx.textAlign = isLeft ? 'right' : 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText('0', rulerX + 10 * tickDir, restY);
+        /* Current-position tick (red) */
+        if (Math.abs(pistonTopY - restY) > 1.5) {
+          ctx.strokeStyle = '#ff5555';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(rulerX, pistonTopY); ctx.lineTo(rulerX + 10 * tickDir, pistonTopY); ctx.stroke();
+          /* Bracket endpoints */
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#ff5555';
+          ctx.beginPath();
+          ctx.moveTo(rulerX - 3, restY); ctx.lineTo(rulerX + 3, restY);
+          ctx.moveTo(rulerX - 3, pistonTopY); ctx.lineTo(rulerX + 3, pistonTopY);
+          ctx.stroke();
+        }
+      }
+      /* Rest positions: piston top at rest = FLUID_TOP_L_REST - pistonH */
+      var restP1Y = FLUID_TOP_L_REST - pistonH;
+      var restP2Y = FLUID_TOP_R_REST - pistonH;
+      drawRuler(LCX, p1Y, restP1Y, true);
+      drawRuler(RCX, p2Y, restP2Y, false);
+
+      /* Stroke readouts */
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#8b9dc3';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      var leftLabel = (s1 > 0.5) ? ('s\u2081: ' + dispText1 + ' / ' + fullS1Text) : ('Max stroke: ' + fullS1Text);
+      var rightLabel = (s2 > 0.5) ? ('s\u2082: ' + dispText2 + ' / ' + fullS2Text) : ('Max stroke: ' + fullS2Text);
+      ctx.fillText(leftLabel, LCX, p1Y - 75);
+      var strokeRY = Math.max(arrowTip - 8, 14);
+      ctx.fillText(rightLabel, RCX, strokeRY);
+    }
+
+    /* ── Classical math equation above the MA badge ──
+       F₁/A₁ = F₂/A₂ = P — colored italic variables, small, no background.
+       Gated on the "Show Equation" toggle. */
+    if (showEquation) (function drawPascalEq() {
+      var u = U();
+      /* F2 and P are OUTPUTS of the simulation — roll from 0 to final
+         while the press phase animates (tied to anim.forceScale, 0..1),
+         and revert to "—" whenever any input changes (invalidateOutput).
+         F1 and A1/A2 are user-set INPUTS and always display as-entered. */
+      var rolling = outputRolling();
+      var stale   = outputStale();
+      var F2final = getF2();
+      var Pfinal  = getPressure();
+      var F1txt = u.force.fromSI(displayF1()).toFixed(u.force.digits) + ' ' + u.force.label;
+      var F2txt = stale
+        ? '\u2014 ' + u.force.label
+        : u.force.fromSI(F2final * rolling).toFixed(u.force.digits) + ' ' + u.force.label;
+      var A1txt = u.area.fromSIm2(getA1()).toFixed(u.area.digits) + ' ' + u.area.label;
+      var A2txt = u.area.fromSIm2(getA2()).toFixed(u.area.digits) + ' ' + u.area.label;
+      var Ptxt  = stale ? '\u2014' : u.press(Pfinal * rolling);
+
+      var cy = 195;          /* vertical center of the equation */
+      /* Base font sizes (px). If the equation is wider than the gap
+         between the two cylinder walls at large d2 settings, all sizes
+         scale down by the same factor so nothing overlaps the cylinders. */
+      var sVar = 17, sSub = 11, sVal = 12, sEq = 20;
+      var gapLeft  = LCX + r1 + 14;            /* just past left cylinder wall */
+      var gapRight = RCX - r2 - 14;            /* just before right cylinder wall */
+      var maxW     = Math.max(120, gapRight - gapLeft);
+      /* First measurement pass at base sizes */
+      function mkFonts(s) {
+        return {
+          varFont: 'italic 700 ' + s.v + 'px "Cambria Math","Times New Roman",serif',
+          subFont: '700 ' + s.s + 'px "Cambria Math","Times New Roman",serif',
+          valFont: '700 ' + s.val + 'px "JetBrains Mono","Courier New",monospace',
+          eqFont:  '700 ' + s.e + 'px "Cambria Math","Times New Roman",serif'
+        };
+      }
+      var sz = { v: sVar, s: sSub, val: sVal, e: sEq };
+      var F = mkFonts(sz);
+      var varFont = F.varFont, subFont = F.subFont, valFont = F.valFont, eqFont = F.eqFont;
+      var C_F = '#ff8a65', C_A = '#42a5f5', C_P = '#3ddc84', C_EQ = '#ffd54f';
+
+      /* Measure each term's width so we can center the whole expression. */
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      function wText(txt, font) { ctx.font = font; return ctx.measureText(txt).width; }
+
+      /* Widths for each fraction: max(numerator, denominator) where
+         numerator = "F₁ = 100 N" (var + subscript + space + value).
+         Measure the ACTUAL letter for each row — 'A' is wider than 'F' in the
+         serif face, so measuring 'F' for the denominator under-reports the row
+         width and shifts the centring by a pixel or two. */
+      function fracWidth(letter, sub, vtxt) {
+        ctx.font = varFont;  var wVar = ctx.measureText(letter).width;
+        ctx.font = subFont;  var wSub = ctx.measureText(sub).width;
+        ctx.font = valFont;  var wVal = ctx.measureText(' = ' + vtxt).width;
+        return wVar + wSub + wVal;
+      }
+      var wFrac1 = Math.max(fracWidth('F', '1', F1txt), fracWidth('A', '1', A1txt));
+      var wFrac2 = Math.max(fracWidth('F', '2', F2txt), fracWidth('A', '2', A2txt));
+      var wEq    = wText(' = ', eqFont);
+      var wP     = (function(){
+        ctx.font = varFont; var a = ctx.measureText('P').width;
+        ctx.font = valFont; var b = ctx.measureText(' = ' + Ptxt).width;
+        return a + b;
+      })();
+
+      var total = wFrac1 + wEq + wFrac2 + wEq + wP;
+
+      /* If the equation is wider than the clear gap between the two
+         cylinder walls (big d2 / long numbers), scale the fonts down
+         uniformly and re-measure so it always fits without overlapping. */
+      if (total > maxW) {
+        var scale = Math.max(0.62, maxW / total);
+        sz = {
+          v: Math.max(11, Math.round(sVar * scale)),
+          s: Math.max(8,  Math.round(sSub * scale)),
+          val: Math.max(9, Math.round(sVal * scale)),
+          e: Math.max(13, Math.round(sEq  * scale))
+        };
+        F = mkFonts(sz);
+        varFont = F.varFont; subFont = F.subFont; valFont = F.valFont; eqFont = F.eqFont;
+        wFrac1 = Math.max(fracWidth('F', '1', F1txt), fracWidth('A', '1', A1txt));
+        wFrac2 = Math.max(fracWidth('F', '2', F2txt), fracWidth('A', '2', A2txt));
+        wEq    = wText(' = ', eqFont);
+        wP     = (function(){
+          ctx.font = varFont; var a = ctx.measureText('P').width;
+          ctx.font = valFont; var b = ctx.measureText(' = ' + Ptxt).width;
+          return a + b;
+        })();
+        total = wFrac1 + wEq + wFrac2 + wEq + wP;
+      }
+
+      var x = Math.round((W - total) / 2); /* snap to integer for crisp text */
+
+      /* Helper: draw "V<sub> = value" starting at x,y, returns advance width */
+      function drawLine(cx, y, letter, sub, vtxt, vColor) {
+        ctx.font = varFont; ctx.fillStyle = vColor;
+        ctx.fillText(letter, cx, y);
+        var wV = ctx.measureText(letter).width;
+        ctx.font = subFont;
+        ctx.fillText(sub, cx + wV, y + Math.round(sz.v * 0.25));
+        var wS = ctx.measureText(sub).width;
+        ctx.font = valFont; ctx.fillStyle = '#e6edf6';
+        ctx.fillText(' = ' + vtxt, cx + wV + wS, y);
+      }
+
+      /* Vertical half-spacing for numerator/denominator scales with var size */
+      var vSpan = Math.max(8, Math.round(sz.v * 0.6));
+
+      /* Fraction 1 */
+      drawLine(x, cy - vSpan, 'F', '1', F1txt, C_F);
+      drawLine(x, cy + vSpan, 'A', '1', A1txt, C_A);
+      ctx.strokeStyle = '#e0e7ef'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - 2, cy); ctx.lineTo(x + wFrac1 + 2, cy); ctx.stroke();
+      x += wFrac1;
+
+      /* = */
+      ctx.font = eqFont; ctx.fillStyle = C_EQ;
+      ctx.fillText(' = ', x, cy);
+      x += wEq;
+
+      /* Fraction 2 */
+      drawLine(x, cy - vSpan, 'F', '2', F2txt, C_F);
+      drawLine(x, cy + vSpan, 'A', '2', A2txt, C_A);
+      ctx.strokeStyle = '#e0e7ef'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - 2, cy); ctx.lineTo(x + wFrac2 + 2, cy); ctx.stroke();
+      x += wFrac2;
+
+      /* = */
+      ctx.font = eqFont; ctx.fillStyle = C_EQ;
+      ctx.fillText(' = ', x, cy);
+      x += wEq;
+
+      /* P = value */
+      drawLine(x, cy, 'P', '', Ptxt, C_P);
+    })();
+
+    /* ── MA badge (placed above the pressure gauge, between the two
+       cylinders, with solid background for legibility) ── */
+    var ma = getMA();
+    var maBW = 170;
+    var maBH = 54;
+    var maBX = W / 2 - maBW / 2;
+    var maBY = 240; /* well above the gauge at BASEY+35 and below the pistons */
+    /* Drop shadow for separation */
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = 'rgba(15,22,42,0.95)';
+    ctx.strokeStyle = '#42a5f5';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(maBX, maBY, maBW, maBH, 10);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = '#42a5f5';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(maBX, maBY, maBW, maBH, 10);
+    ctx.stroke();
+    /* Label line (uppercase, letter-spaced visually via kerning tweak) */
+    ctx.font = '700 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#b6c3e0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('MECHANICAL ADVANTAGE', W / 2, maBY + 8);
+    /* Value line */
+    ctx.font = '700 22px "JetBrains Mono", "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5';
+    ctx.fillText(fmtMA(ma) + ' \u00D7', W / 2, maBY + 24);
+
+    /* ── Fluid surface highlight ──
+       Deliberately NOT air bubbles: entrained air in hydraulic oil is a fault
+       condition (it is compressible and causes cavitation/sponginess), and the
+       whole simulation rests on the fluid being incompressible. A bright
+       meniscus line reads as liquid without teaching aeration as normal. */
+    ctx.save();
+    ctx.strokeStyle = 'rgba(150,215,255,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(LCX - r1 - 9, FLUID_TOP_L + 0.5);
+    ctx.lineTo(LCX + r1 + 9, FLUID_TOP_L + 0.5);
+    ctx.moveTo(RCX - r2 - 9, FLUID_TOP_R + 0.5);
+    ctx.lineTo(RCX + r2 + 9, FLUID_TOP_R + 0.5);
+    ctx.stroke();
+    ctx.restore();
+
+    /* ── A1, A2 labels ── */
+    ctx.font = '600 11px "Courier New", monospace';
+    ctx.fillStyle = '#90caf9';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('A\u2081 = ' + U().area.fromSIm2(getA1()).toFixed(U().area.digits) + ' ' + U().area.label, LCX, FLUID_TOP_L + 30);
+    ctx.fillText('A\u2082 = ' + U().area.fromSIm2(getA2()).toFixed(U().area.digits) + ' ' + U().area.label, RCX, FLUID_TOP_R + 30);
+  }
+
+  /* ================================================================
+     DRAWING — EXPLORE MINI-DIAGRAMS
+     ================================================================ */
+  function drawConceptDiagram(concept) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    var fn = {
+      'basicPascal': drawBasicPascal,
+      'pressureDiagram': drawPressureDiagram,
+      'forceAreaBars': drawForceAreaBars,
+      'hydraulicPrinciple': drawHydraulicPrinciple,
+      'hydraulicPress': drawHydraulicPressMini,
+      'hydraulicJack': drawHydraulicJackMini,
+      'hydraulicBrakes': drawHydraulicBrakesMini,
+      'hydraulicLift': drawHydraulicLiftMini,
+      'maDiagram': drawMADiagram,
+      'volumeDiagram': drawVolumeDiagram,
+      'workEnergyDiagram': drawWorkEnergyDiagram,
+      'unitConversion': drawUnitConversion
+    };
+
+    if (fn[concept.diagram]) {
+      fn[concept.diagram]();
+    }
+
+    /* Formula at bottom */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(concept.formula, W / 2, H - 16);
+  }
+
+  /* Helper: draw a simple piston pair */
+  function drawMiniPistonPair(lx, rx, y, r1, r2, fluidH, label1, label2) {
+    /* Fluid */
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.beginPath();
+    ctx.rect(lx - r1 - 5, y, (r1 + 5) * 2, fluidH);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.rect(lx - r1 - 5, y + fluidH, rx - lx + r2 + 5 - (lx - r1 - 5), 25);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.rect(rx - r2 - 5, y + 10, (r2 + 5) * 2, fluidH - 10);
+    ctx.fill();
+    /* Tube outlines */
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(lx - r1 - 5, y - 20, (r1 + 5) * 2, fluidH + 45);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.rect(rx - r2 - 5, y - 10, (r2 + 5) * 2, fluidH + 35);
+    ctx.stroke();
+    /* Connection at bottom */
+    ctx.strokeStyle = '#4a5578';
+    ctx.beginPath();
+    ctx.moveTo(lx + r1 + 5, y + fluidH);
+    ctx.lineTo(rx - r2 - 5, y + fluidH);
+    ctx.stroke();
+    /* Pistons */
+    ctx.fillStyle = 'rgba(66,165,245,0.45)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(lx - r1, y - 16, r1 * 2, 14, 3);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(rx - r2, y - 6, r2 * 2, 14, 3);
+    ctx.fill(); ctx.stroke();
+    /* Labels */
+    if (label1) {
+      ctx.font = '600 11px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#90caf9';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(label1, lx, y + fluidH + 48);
+    }
+    if (label2) {
+      ctx.fillText(label2, rx, y + fluidH + 48);
+    }
+  }
+
+  function drawBasicPascal() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText("Pascal\u2019s Law \u2014 Pressure Transmits Equally", W / 2, 30);
+
+    drawMiniPistonPair(250, 650, 140, 20, 50, 150, 'Small piston (A\u2081)', 'Large piston (A\u2082)');
+
+    /* Pressure arrows in fluid */
+    ctx.strokeStyle = 'rgba(66,165,245,0.6)'; ctx.lineWidth = 1.5;
+    ctx.fillStyle = 'rgba(66,165,245,0.6)';
+    var pcx = 450, pcy = 280;
+    for (var a = 0; a < 6; a++) {
+      var ang = (a / 6) * Math.PI * 2;
+      var ax = pcx + Math.cos(ang) * 10;
+      var ay = pcy + Math.sin(ang) * 10;
+      var bx = pcx + Math.cos(ang) * 30;
+      var by = pcy + Math.sin(ang) * 30;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx, by, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.font = '700 13px "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('P\u2081 = P\u2082', pcx, pcy + 35);
+
+    /* Force arrows */
+    drawArrow(250, 80, 250, 120, '#3ddc84', 'F\u2081');
+    drawArrow(650, 80, 650, 130, '#ff5555', 'F\u2082');
+  }
+
+  function drawPressureDiagram() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Pressure = Force / Area', W / 2, 30);
+
+    /* A box representing area with force arrows */
+    var bx = W / 2 - 80, by = 120, bw = 160, bh = 160;
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.stroke();
+
+    /* Force arrows pressing down */
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2;
+    for (var i = 0; i < 5; i++) {
+      var ax = bx + 20 + i * 30;
+      ctx.beginPath(); ctx.moveTo(ax, by - 30); ctx.lineTo(ax, by + 10); ctx.stroke();
+      ctx.fillStyle = '#3ddc84';
+      ctx.beginPath(); ctx.moveTo(ax, by + 14); ctx.lineTo(ax - 4, by + 6); ctx.lineTo(ax + 4, by + 6); ctx.closePath(); ctx.fill();
+    }
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('Force (F)', W / 2, by - 34);
+
+    /* Area label inside */
+    ctx.font = '700 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Area (A)', W / 2, by + bh / 2);
+
+    /* P = F/A result */
+    ctx.font = '700 16px "Courier New", monospace';
+    ctx.fillStyle = '#dde3f0'; ctx.textBaseline = 'top';
+    ctx.fillText('P = F / A', W / 2, by + bh + 30);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('1 Pascal = 1 N/m\u00B2', W / 2, by + bh + 55);
+  }
+
+  function drawForceAreaBars() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Same Pressure \u2192 Force Proportional to Area', W / 2, 30);
+
+    var bars = [
+      { label: 'A\u2081 (small)', area: 1, color: '#42a5f5' },
+      { label: '2\u00D7A\u2081', area: 2, color: '#66bb6a' },
+      { label: '4\u00D7A\u2081', area: 4, color: '#ffca28' }
+    ];
+    var maxH = 250, bw = 90, gap = 100;
+    var startX = W / 2 - (bars.length * (bw + gap) - gap) / 2;
+
+    for (var i = 0; i < bars.length; i++) {
+      var x = startX + i * (bw + gap);
+      var h = (bars[i].area / 4) * maxH;
+      var y = 340 - h;
+
+      ctx.fillStyle = bars[i].color + '55';
+      ctx.strokeStyle = bars[i].color;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.rect(x, y, bw, h); ctx.fill(); ctx.stroke();
+
+      ctx.font = '700 14px "Segoe UI", sans-serif';
+      ctx.fillStyle = bars[i].color;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('F=' + bars[i].area + 'P\u00D7A', x + bw / 2, y + h / 2);
+
+      ctx.font = '600 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#dde3f0';
+      ctx.textBaseline = 'top';
+      ctx.fillText(bars[i].label, x + bw / 2, 348);
+    }
+  }
+
+  function drawHydraulicPrinciple() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Hydraulic Principle \u2014 Force Multiplication', W / 2, 30);
+
+    drawMiniPistonPair(220, 680, 130, 18, 55, 160, 'A\u2081 (small)', 'A\u2082 (large)');
+
+    /* Force arrows */
+    drawArrow(220, 70, 220, 110, '#3ddc84', 'F\u2081 (small)');
+    drawArrow(680, 70, 680, 120, '#ff5555', 'F\u2082 (LARGE)');
+
+    /* Formula in centre */
+    ctx.font = '700 14px "Courier New", monospace';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('F\u2082 = F\u2081 \u00D7 (A\u2082 / A\u2081)', W / 2, 310);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('Larger area \u2192 Larger force', W / 2, 335);
+  }
+
+  function drawHydraulicPressMini() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Hydraulic Press', W / 2, 30);
+
+    drawMiniPistonPair(230, 670, 130, 16, 60, 150, 'Pump cylinder', 'Press ram');
+
+    /* Press frame */
+    ctx.strokeStyle = '#8b9dc3'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(600, 80); ctx.lineTo(600, 60); ctx.lineTo(740, 60); ctx.lineTo(740, 80);
+    ctx.stroke();
+    /* Workpiece */
+    ctx.fillStyle = 'rgba(255,202,40,0.35)';
+    ctx.strokeStyle = '#ffca28'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(650, 85, 40, 20, 3); ctx.fill(); ctx.stroke();
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ffca28'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Workpiece', 670, 108);
+
+    drawArrow(230, 70, 230, 110, '#3ddc84', 'Pump');
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Used for crushing, bending, stamping metal', W / 2, 350);
+  }
+
+  function drawHydraulicJackMini() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Hydraulic Jack', W / 2, 30);
+
+    drawMiniPistonPair(230, 670, 140, 14, 50, 140, 'Pump handle', 'Lifting ram');
+
+    /* Car outline on top of right piston */
+    ctx.strokeStyle = '#8b9dc3'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(620, 70, 100, 35, 8);
+    ctx.stroke();
+    /* Wheels */
+    ctx.beginPath(); ctx.arc(640, 110, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(700, 110, 8, 0, Math.PI * 2); ctx.stroke();
+
+    drawArrow(230, 85, 230, 120, '#3ddc84', 'F\u2081');
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Small repeated pumps lift heavy vehicle', W / 2, 350);
+  }
+
+  function drawHydraulicBrakesMini() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Hydraulic Braking System', W / 2, 30);
+
+    /* Master cylinder (left) */
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(120, 180, 80, 60, 6); ctx.fill(); ctx.stroke();
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#90caf9'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Master Cylinder', 160, 248);
+
+    /* Brake lines */
+    ctx.strokeStyle = 'rgba(66,165,245,0.5)'; ctx.lineWidth = 2;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(200, 210);
+    ctx.lineTo(380, 150);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(200, 210);
+    ctx.lineTo(380, 270);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(200, 210);
+    ctx.lineTo(600, 150);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(200, 210);
+    ctx.lineTo(600, 270);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Wheel brake calipers */
+    var wheels = [
+      { x: 380, y: 150, label: 'FL' },
+      { x: 380, y: 270, label: 'RL' },
+      { x: 600, y: 150, label: 'FR' },
+      { x: 600, y: 270, label: 'RR' }
+    ];
+    for (var i = 0; i < wheels.length; i++) {
+      ctx.fillStyle = 'rgba(255,85,85,0.25)';
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(wheels[i].x, wheels[i].y, 25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(wheels[i].label, wheels[i].x, wheels[i].y);
+    }
+
+    /* Pedal arrow */
+    drawArrow(100, 180, 115, 200, '#3ddc84', 'Pedal');
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Pedal force multiplied at each wheel caliper', W / 2, 350);
+  }
+
+  function drawHydraulicLiftMini() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Hydraulic Lift / Elevator', W / 2, 30);
+
+    /* Platform */
+    ctx.fillStyle = '#2a3050';
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(350, 100, 200, 12); ctx.fill(); ctx.stroke();
+    /* Car on platform */
+    ctx.strokeStyle = '#8b9dc3'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(390, 60, 120, 38, 8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(410, 102, 7, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(490, 102, 7, 0, Math.PI * 2); ctx.stroke();
+
+    /* Ram cylinder */
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(435, 112, 30, 180); ctx.fill(); ctx.stroke();
+    /* Piston inside */
+    ctx.fillStyle = 'rgba(66,165,245,0.6)';
+    ctx.beginPath(); ctx.rect(438, 115, 24, 15); ctx.fill();
+
+    /* Pump unit */
+    ctx.fillStyle = 'rgba(66,165,245,0.2)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(200, 260, 80, 50, 6); ctx.fill(); ctx.stroke();
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#90caf9'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Pump', 240, 285);
+
+    /* Pipe from pump to ram */
+    ctx.strokeStyle = 'rgba(66,165,245,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(280, 285);
+    ctx.lineTo(450, 285);
+    ctx.lineTo(450, 292);
+    ctx.stroke();
+
+    /* Force arrow */
+    drawArrow(450, 180, 450, 120, '#3ddc84', '');
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Upward force', 450, 186);
+
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('Large ram area provides high lifting force', W / 2, 350);
+  }
+
+  function drawMADiagram() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Mechanical Advantage = Area Ratio', W / 2, 30);
+
+    /* Two circles showing area comparison */
+    var cy = 200;
+    /* Small circle */
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(250, cy, 30, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('A\u2081', 250, cy);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#90caf9'; ctx.textBaseline = 'top';
+    ctx.fillText('d\u2081', 250, cy + 40);
+
+    /* Large circle */
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(650, cy, 90, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.font = '700 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#42a5f5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('A\u2082', 650, cy);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#90caf9'; ctx.textBaseline = 'top';
+    ctx.fillText('d\u2082', 650, cy + 100);
+
+    /* Arrow between */
+    ctx.strokeStyle = '#8b9dc3'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(290, cy); ctx.lineTo(550, cy); ctx.stroke();
+    ctx.fillStyle = '#8b9dc3';
+    ctx.beginPath(); ctx.moveTo(554, cy); ctx.lineTo(546, cy - 4); ctx.lineTo(546, cy + 4); ctx.closePath(); ctx.fill();
+
+    ctx.font = '700 14px "Courier New", monospace';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('MA = A\u2082/A\u2081 = (d\u2082/d\u2081)\u00B2', W / 2, 340);
+  }
+
+  function drawVolumeDiagram() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Volume Conservation \u2014 A\u2081d\u2081 = A\u2082d\u2082', W / 2, 30);
+
+    /* Left piston with long stroke */
+    var ly = 120, lh = 180;
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.rect(180, ly, 40, lh); ctx.fill(); ctx.stroke();
+    /* Stroke arrow */
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(200, ly + 10); ctx.lineTo(200, ly + lh - 10); ctx.stroke();
+    ctx.fillStyle = '#3ddc84'; ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('d\u2081 (long)', 230, ly + lh / 2);
+
+    /* Right piston with short stroke */
+    var rh = 40;
+    ctx.fillStyle = 'rgba(66,165,245,0.38)';
+    ctx.strokeStyle = '#4a5578'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.rect(580, ly + 70, 140, rh); ctx.fill(); ctx.stroke();
+    /* Stroke arrow */
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(650, ly + 74); ctx.lineTo(650, ly + 70 + rh - 4); ctx.stroke();
+    ctx.fillStyle = '#ff5555'; ctx.font = '700 12px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('d\u2082 (short)', 730, ly + 70 + rh / 2);
+
+    /* = sign */
+    ctx.font = '700 20px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('=', 450, ly + lh / 2);
+
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Small area \u00D7 long distance = Large area \u00D7 short distance', W / 2, 340);
+    ctx.fillText('Volume of fluid displaced is the same on both sides', W / 2, 358);
+  }
+
+  function drawWorkEnergyDiagram() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Work & Energy Conservation', W / 2, 30);
+
+    /* Two bars: Work in = Work out */
+    var bw = 140, maxH = 200, by = 330;
+
+    /* Work in bar */
+    ctx.fillStyle = 'rgba(61,220,132,0.45)';
+    ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(220, by - maxH, bw, maxH); ctx.fill(); ctx.stroke();
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('W\u2081 = F\u2081 \u00D7 d\u2081', 220 + bw / 2, by - maxH / 2);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3ddc84'; ctx.textBaseline = 'top';
+    ctx.fillText('Work Input', 220 + bw / 2, by + 10);
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('Small F, Long d', 220 + bw / 2, by + 28);
+
+    /* Equals sign */
+    ctx.font = '700 28px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('=', W / 2, by - maxH / 2);
+
+    /* Work out bar */
+    ctx.fillStyle = 'rgba(255,85,85,0.45)';
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(540, by - maxH, bw, maxH); ctx.fill(); ctx.stroke();
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('W\u2082 = F\u2082 \u00D7 d\u2082', 540 + bw / 2, by - maxH / 2);
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555'; ctx.textBaseline = 'top';
+    ctx.fillText('Work Output', 540 + bw / 2, by + 10);
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('Large F, Short d', 540 + bw / 2, by + 28);
+  }
+
+  function drawUnitConversion() {
+    ctx.font = '700 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('Pressure Unit Conversions', W / 2, 30);
+
+    var units = [
+      { name: '1 Pa', equiv: '1 N/m\u00B2', color: '#42a5f5' },
+      { name: '1 kPa', equiv: '1000 Pa', color: '#66bb6a' },
+      { name: '1 bar', equiv: '100 000 Pa', color: '#ffca28' },
+      { name: '1 atm', equiv: '101 325 Pa', color: '#ff7043' },
+      { name: '1 PSI', equiv: '6 894.76 Pa', color: '#ab47bc' }
+    ];
+
+    var startY = 90;
+    for (var i = 0; i < units.length; i++) {
+      var y = startY + i * 60;
+      ctx.fillStyle = units[i].color + '22';
+      ctx.strokeStyle = units[i].color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(200, y, 500, 44, 8); ctx.fill(); ctx.stroke();
+
+      ctx.font = '700 14px "Courier New", monospace';
+      ctx.fillStyle = units[i].color;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(units[i].name, 220, y + 22);
+
+      ctx.font = '600 12px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#dde3f0';
+      ctx.textAlign = 'center';
+      ctx.fillText('=', 380, y + 22);
+
+      ctx.font = '700 13px "Courier New", monospace';
+      ctx.fillStyle = units[i].color;
+      ctx.textAlign = 'left';
+      ctx.fillText(units[i].equiv, 410, y + 22);
+    }
+  }
+
+  /* Arrow helper for explore diagrams */
+  function drawArrow(x1, y1, x2, y2, color, label) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 2) return;
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    /* Arrowhead */
+    var ang = Math.atan2(dy, dx);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x2 + Math.cos(ang) * 6, y2 + Math.sin(ang) * 6);
+    ctx.lineTo(x2 + Math.cos(ang + 2.5) * 8, y2 + Math.sin(ang + 2.5) * 8);
+    ctx.lineTo(x2 + Math.cos(ang - 2.5) * 8, y2 + Math.sin(ang - 2.5) * 8);
+    ctx.closePath(); ctx.fill();
+    if (label) {
+      ctx.font = '700 11px "Segoe UI", sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, x2 + 10, (y1 + y2) / 2);
+    }
+  }
+
+  /* ================================================================
+     DRAWING — PRACTICE & QUIZ (mini background)
+     ================================================================ */
+  function drawMiniGraph() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    /* Simple hydraulic outline in background */
+    ctx.strokeStyle = 'rgba(66,165,245,0.12)'; ctx.lineWidth = 2;
+    /* Left tube */
+    ctx.beginPath(); ctx.rect(300, 100, 60, 280); ctx.stroke();
+    /* Right tube */
+    ctx.beginPath(); ctx.rect(500, 100, 120, 280); ctx.stroke();
+    /* Connection */
+    ctx.beginPath(); ctx.moveTo(360, 350); ctx.lineTo(500, 350); ctx.stroke();
+    /* Fluid fill */
+    ctx.fillStyle = 'rgba(66,165,245,0.06)';
+    ctx.beginPath(); ctx.rect(302, 180, 56, 198); ctx.fill();
+    ctx.beginPath(); ctx.rect(502, 200, 116, 178); ctx.fill();
+    ctx.beginPath(); ctx.rect(358, 340, 144, 20); ctx.fill();
+
+    /* Title */
+    ctx.font = '700 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#dde3f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(mode === 'practice' ? 'Practice Mode' : 'Quiz Mode', W / 2, 20);
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText(mode === 'practice' ? 'Solve the problem below' : 'Answer the question below', W / 2, 42);
+  }
+
+  /* ================================================================
+     RENDER
+     ================================================================ */
+  function drawGrid() {
+    if (!showGrid) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(139,157,195,.12)';
+    ctx.lineWidth = 1;
+    for (var x = 0; x < W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (var y = 0; y < H; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+    drawGrid();
+
+    if (mode === 'simulate') {
+      drawSimulate();
+    } else if (mode === 'explore') {
+      drawConceptDiagram(CONCEPTS[selConcept]);
+    } else {
+      drawMiniGraph();
+    }
+  }
+
+  /* ================================================================
+     UI — MODE SWITCHING
+     ================================================================ */
+  function setMode(m) {
+    mode = m;
+    var pills = $$('#mode-tabs .pill');
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].classList.toggle('active', pills[i].getAttribute('data-mode') === m);
+    }
+    var simEl = $('#sim-panel');
+    var expCat = $('#cat-row');
+    var expSel = $('#item-selector');
+    var expInfo = $('#item-info');
+    var pracPanel = $('#practice-panel');
+    var pracBar = $('#practice-bar');
+    var quizPanel = $('#quiz-panel');
+    var quizBar = $('#quiz-bar');
+    var quizResult = $('#quiz-result');
+
+    hide(simEl); hide(expCat); hide(expSel); hide(expInfo);
+    hide(pracPanel); hide(pracBar); hide(quizPanel); hide(quizBar); hide(quizResult);
+
+    if (m === 'simulate') {
+      show(simEl);
+    } else if (m === 'explore') {
+      show(expCat); show(expSel); show(expInfo);
+      buildConceptGrid();
+      selectConcept(0);
+    } else if (m === 'practice') {
+      show(pracPanel); show(pracBar);
+      newPractice();
+    } else if (m === 'quiz') {
+      show(quizPanel); show(quizBar);
+      startQuiz();
+    }
+    render();
+  }
+
+  /* ================================================================
+     UI — SIMULATE CONTROLS
+     ================================================================ */
+  function syncInputs() {
+    /* Push current SI state into all slider + stepper inputs, unit-aware */
+    var u = U();
+    var fSlider = $('#force-slider'); if (fSlider) fSlider.value = inputForce;
+    var d1Slider = $('#d1-slider'); if (d1Slider) d1Slider.value = d1mm;
+    var d2Slider = $('#d2-slider'); if (d2Slider) d2Slider.value = d2mm;
+    var loadSlider = $('#load-slider'); if (loadSlider) loadSlider.value = loadKg;
+
+    var fInput = $('#force-input');
+    var d1Input = $('#d1-input');
+    var d2Input = $('#d2-input');
+    var loadInput = $('#load-input');
+    if (fInput && document.activeElement !== fInput) fInput.value = +u.force.fromSI(inputForce).toFixed(u.force.digits);
+    if (d1Input && document.activeElement !== d1Input) d1Input.value = +u.len.fromSI(d1mm).toFixed(u.len.digits);
+    if (d2Input && document.activeElement !== d2Input) d2Input.value = +u.len.fromSI(d2mm).toFixed(u.len.digits);
+    if (loadInput && document.activeElement !== loadInput) loadInput.value = +u.mass.fromSI(loadKg).toFixed(u.mass.digits);
+
+    var fUnit = $('#force-unit'); if (fUnit) fUnit.textContent = u.force.label;
+    var d1Unit = $('#d1-unit'); if (d1Unit) d1Unit.textContent = u.len.label;
+    var d2Unit = $('#d2-unit'); if (d2Unit) d2Unit.textContent = u.len.label;
+    var loadUnit = $('#load-unit'); if (loadUnit) loadUnit.textContent = u.mass.label;
+    var fLab = $('#force-label'); if (fLab) fLab.textContent = 'Input Force';
+    var d1Lab = $('#d1-label'); if (d1Lab) d1Lab.textContent = 'd\u2081 (input)';
+    var d2Lab = $('#d2-label'); if (d2Lab) d2Lab.textContent = 'd\u2082 (output)';
+    var loadLab = $('#load-label'); if (loadLab) loadLab.textContent = 'Load on ram';
+
+    var r1u = $('#r-f1-unit'); if (r1u) r1u.textContent = ' ' + u.force.label;
+    var r2u = $('#r-f2-unit'); if (r2u) r2u.textContent = ' ' + u.force.label;
+    var a1u = $('#r-a1-unit'); if (a1u) a1u.innerHTML = ' ' + u.area.label;
+    var a2u = $('#r-a2-unit'); if (a2u) a2u.innerHTML = ' ' + u.area.label;
+  }
+
+  function wireSimControls() {
+    var fSlider = $('#force-slider');
+    var d1Slider = $('#d1-slider');
+    var d2Slider = $('#d2-slider');
+    var loadSlider = $('#load-slider');
+
+    /* Slider handlers — slider min/max is in SI (N, mm). Typed input in display units. */
+    if (fSlider) {
+      fSlider.addEventListener('pointerdown', saveUndo);
+      fSlider.addEventListener('input', function () {
+        inputForce = parseFloat(this.value);
+        syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+      });
+    }
+    if (d1Slider) {
+      d1Slider.addEventListener('pointerdown', saveUndo);
+      d1Slider.addEventListener('input', function () {
+        d1mm = parseFloat(this.value);
+        syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+      });
+    }
+    if (d2Slider) {
+      d2Slider.addEventListener('pointerdown', saveUndo);
+      d2Slider.addEventListener('input', function () {
+        d2mm = parseFloat(this.value);
+        syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+      });
+    }
+    if (loadSlider) {
+      loadSlider.addEventListener('pointerdown', saveUndo);
+      loadSlider.addEventListener('input', function () {
+        loadKg = parseFloat(this.value);   /* slider is in kg (SI mass) */
+        syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+      });
+    }
+
+    /* Stepper text inputs (unit-aware) */
+    function wireStepper(inputId, get, set, minSI, maxSI, kind) {
+      var inp = $('#' + inputId);
+      var container = document.querySelector('.stepper[data-for="' + inputId.replace('-input', '') + '"]');
+      if (!inp) return;
+      var stepSize = (kind === 'force') ? 10 : (kind === 'mass') ? 10 : 1;
+      inp.addEventListener('change', function () {
+        saveUndo();
+        var u = U();
+        var typed = parseFloat(this.value);
+        if (isNaN(typed)) { syncInputs(); return; }
+        var si = (kind === 'force') ? u.force.toSI(typed) : (kind === 'mass') ? u.mass.toSI(typed) : u.len.toSI(typed);
+        si = Math.max(minSI, Math.min(maxSI, si));
+        set(si);
+        syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+        playTick();
+      });
+      if (container) {
+        container.addEventListener('click', function (e) {
+          var btn = e.target.closest('.step-btn');
+          if (!btn) return;
+          saveUndo();
+          var step = btn.getAttribute('data-step') === '+' ? stepSize : -stepSize;
+          var newSI = get() + step;
+          newSI = Math.max(minSI, Math.min(maxSI, newSI));
+          set(newSI);
+          syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+          playTick();
+        });
+      }
+    }
+    /* Limits come from the sliders themselves — see rangeOf(). */
+    var rF = forceRange(), rD1 = d1Range(), rD2 = d2Range();
+    wireStepper('force-input', function () { return inputForce; }, function (v) { inputForce = Math.round(v); }, rF.min, rF.max, 'force');
+    wireStepper('d1-input', function () { return d1mm; }, function (v) { d1mm = Math.round(v); }, rD1.min, rD1.max, 'len');
+    wireStepper('d2-input', function () { return d2mm; }, function (v) { d2mm = Math.round(v); }, rD2.min, rD2.max, 'len');
+    var rLoad = loadRange();
+    wireStepper('load-input', function () { return loadKg; }, function (v) { loadKg = Math.round(v); }, rLoad.min, rLoad.max, 'mass');
+
+    /* Presets */
+    var presets = $$('.preset-btn');
+    for (var i = 0; i < presets.length; i++) {
+      presets[i].addEventListener('click', function () {
+        saveUndo();
+        inputForce = parseFloat(this.getAttribute('data-f'));
+        d1mm = parseFloat(this.getAttribute('data-d1'));
+        d2mm = parseFloat(this.getAttribute('data-d2'));
+        var ld = this.getAttribute('data-load');
+        if (ld !== null) loadKg = parseFloat(ld);
+        syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+        playPreset();
+      });
+    }
+
+    /* Toggles */
+    var pCheck = $('#chk-pressure');
+    var vCheck = $('#chk-volume');
+    var eCheck = $('#chk-equation');
+    if (pCheck) pCheck.addEventListener('change', function () { saveUndo(); showPressure = this.checked; refreshToggleChips(); render(); });
+    if (vCheck) vCheck.addEventListener('change', function () { saveUndo(); showVolume = this.checked; refreshToggleChips(); render(); });
+    if (eCheck) eCheck.addEventListener('change', function () { saveUndo(); showEquation = this.checked; refreshToggleChips(); render(); });
+
+    /* Run Simulation button */
+    var runBtn = $('#btn-sim-run');
+    if (runBtn) runBtn.addEventListener('click', toggleSimulation);
+
+    /* Speed selector */
+    var spd = $('#sim-speed');
+    if (spd) spd.addEventListener('change', function () {
+      var v = parseFloat(this.value);
+      if (!isNaN(v) && v > 0) {
+        /* Preserve visual continuity: rebase startTime so the speed-scaled
+           elapsed time stays the same at the moment of change. */
+        if (anim.running) {
+          var now = performance.now();
+          var scaledElapsed = anim.t; /* ms in cycle-local time */
+          anim.startTime = now - scaledElapsed / v;
+        }
+        anim.speed = v;
+      }
+    });
+
+    /* Unit toggle */
+    var uPills = $$('#unit-tabs .pill');
+    for (var j = 0; j < uPills.length; j++) {
+      uPills[j].addEventListener('click', function () {
+        units = this.getAttribute('data-units');
+        for (var k = 0; k < uPills.length; k++) uPills[k].classList.toggle('active', uPills[k] === this);
+        syncInputs(); updateReadouts(); render();
+      });
+    }
+  }
+
+  function updatePresetBtns() {
+    var btns = $$('.preset-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var f = parseFloat(btns[i].getAttribute('data-f'));
+      var s = parseFloat(btns[i].getAttribute('data-d1'));
+      var l = parseFloat(btns[i].getAttribute('data-d2'));
+      var ld = parseFloat(btns[i].getAttribute('data-load'));
+      btns[i].classList.toggle('active', f === inputForce && s === d1mm && l === d2mm && ld === loadKg);
+    }
+  }
+
+  function updateReadouts() {
+    var u = U();
+    var rF1 = $('#r-f1');
+    var rF2 = $('#r-f2');
+    var rP = $('#r-pressure');
+    var rMA = $('#r-ma');
+    var rA1 = $('#r-a1');
+    var rA2 = $('#r-a2');
+
+    if (rF1) rF1.textContent = u.force.fromSI(inputForce).toFixed(u.force.digits);
+    if (rF2) rF2.textContent = u.force.fromSI(getF2()).toFixed(u.force.digits);
+    if (rP) rP.textContent = u.press(getPressure());
+    if (rMA) rMA.textContent = fmtMA(getMA());
+    if (rA1) rA1.textContent = u.area.fromSIm2(getA1()).toFixed(u.area.digits);
+    if (rA2) rA2.textContent = u.area.fromSIm2(getA2()).toFixed(u.area.digits);
+
+    /* Load W + lift verdict */
+    var info = liftInfo();
+    var rLoad = $('#r-load'), rLoadU = $('#r-load-unit'), rVer = $('#r-verdict'), rVerCard = $('#r-verdict-card');
+    if (rLoad) rLoad.textContent = u.force.fromSI(info.w).toFixed(0);
+    if (rLoadU) rLoadU.textContent = ' ' + u.force.label;
+    if (rVer) {
+      rVer.textContent = info.k === 'lift' ? 'LIFTS' : info.k === 'balance' ? 'BALANCED' : 'TOO HEAVY';
+      rVer.style.color = info.k === 'lift' ? '#3ddc84' : info.k === 'balance' ? '#f5c842' : '#ff5555';
+    }
+    if (rVerCard) rVerCard.style.borderColor = info.k === 'lift' ? 'rgba(61,220,132,0.5)' : info.k === 'balance' ? 'rgba(245,200,66,0.5)' : 'rgba(255,85,85,0.5)';
+
+    updateEquationPanel();
+    updateWorkEnergy();
+    updateCoach();
+  }
+
+  /* ================================================================
+     LIVE EQUATION PANEL — classical notation via KaTeX
+     ------------------------------------------------------------------
+     The panel body is #lp-eq-body, which shared/latex-auto.js observes: we
+     only write LaTeX-delimited strings (\(...\)) and KaTeX renders them in
+     textbook notation. Writes are debounced ~120 ms because slider drags fire
+     input events at frame rate and re-rendering KaTeX per event flickers.
+     Values are the FINAL computed results (calculator semantics — this panel
+     answers "what will the run produce?"); the run-gated rolling display
+     lives on the canvas.
+     ================================================================ */
+  /* LaTeX scientific notation: 3.142e-4 → "3.142 \times 10^{-4}" */
+  function texSci(x, sig) {
+    if (!isFinite(x)) return '\\text{—}';
+    if (x === 0) return '0';
+    var abs = Math.abs(x);
+    if (abs >= 0.01 && abs < 100000) {
+      /* Plain notation for human-scale numbers */
+      var d = abs < 10 ? 4 : abs < 1000 ? 1 : 0;
+      return (+x.toFixed(d)).toString();
+    }
+    return x.toExponential(sig === undefined ? 3 : sig).replace('e', ' \\times 10^{').replace('+', '') + '}';
+  }
+  var _eqTimer = 0;
+  function updateEquationPanel() {
+    clearTimeout(_eqTimer);
+    _eqTimer = setTimeout(writeEquationPanel, 120);
+  }
+  function writeEquationPanel() {
+    var u = U();
+    var A1 = getA1(), A2 = getA2(), P = getPressure(), F2 = getF2(), MA = getMA();
+    var r1m = d1mm / 2000, r2m = d2mm / 2000;
+    var C_F = '#ff8a65', C_A = '#42a5f5', C_P = '#3ddc84';
+
+    function vc(color, tex) { return '\\textcolor{' + color + '}{' + tex + '}'; }
+    var uArea = units === 'si' ? '\\text{cm}^2' : '\\text{in}^2';
+    var uForce = units === 'si' ? '\\text{N}' : '\\text{lbf}';
+
+    /* Areas: A = πr², shown in SI then in the display unit */
+    var eqA1 = '\\( ' + vc(C_A, 'A_1') + ' = \\pi r_1^{2} = \\pi (' + r1m.toFixed(4) + '\\ \\text{m})^2 = '
+      + texSci(A1) + '\\ \\text{m}^2 = ' + u.area.fromSIm2(A1).toFixed(u.area.digits) + '\\ ' + uArea + ' \\)';
+    var eqA2 = '\\( ' + vc(C_A, 'A_2') + ' = \\pi r_2^{2} = \\pi (' + r2m.toFixed(4) + '\\ \\text{m})^2 = '
+      + texSci(A2) + '\\ \\text{m}^2 = ' + u.area.fromSIm2(A2).toFixed(u.area.digits) + '\\ ' + uArea + ' \\)';
+
+    /* Pascal's Law */
+    var eqP = '\\( ' + vc(C_P, 'P') + ' = \\dfrac{' + vc(C_F, 'F_1') + '}{' + vc(C_A, 'A_1') + '}'
+      + ' = \\dfrac{' + inputForce.toFixed(0) + '\\ \\text{N}}{' + texSci(A1) + '\\ \\text{m}^2}'
+      + ' = ' + Math.round(P) + '\\ \\text{Pa} = \\mathbf{' + u.press(P).replace(' ', '\\ \\text{') + '}} \\)';
+
+    /* Output force */
+    var eqF2 = '\\( ' + vc(C_F, 'F_2') + ' = ' + vc(C_P, 'P') + ' \\times ' + vc(C_A, 'A_2')
+      + ' = ' + Math.round(P) + ' \\times ' + texSci(A2)
+      + ' = \\mathbf{' + u.force.fromSI(F2).toFixed(u.force.digits) + '\\ ' + uForce + '} \\)';
+
+    /* Mechanical advantage */
+    var eqMA = '\\( MA = \\dfrac{' + vc(C_A, 'A_2') + '}{' + vc(C_A, 'A_1') + '}'
+      + ' = \\left(\\dfrac{d_2}{d_1}\\right)^{2}'
+      + ' = \\left(\\dfrac{' + d2mm + '}{' + d1mm + '}\\right)^{2}'
+      + ' = \\mathbf{' + fmtMA(MA) + '\\times} \\)';
+
+    /* Work conservation at the nominal 300 mm input stroke */
+    var s1 = 0.300;
+    var s2 = s1 * (A1 / Math.max(A2, 1e-9));
+    var Wi = inputForce * s1;
+    var Wo = F2 * s2;
+    var eqW = '\\( W_{\\text{in}} = ' + vc(C_F, 'F_1') + ' s_1 = ' + inputForce.toFixed(0) + ' \\times ' + s1.toFixed(3)
+      + ' = ' + Wi.toFixed(2) + '\\ \\text{J}'
+      + ' \\;\\Rightarrow\\; W_{\\text{out}} = ' + vc(C_F, 'F_2') + ' s_2 = ' + F2.toFixed(0) + ' \\times ' + texSci(s2)
+      + ' = ' + Wo.toFixed(2) + '\\ \\text{J} \\)';
+
+    var ids = { 'eq-a1': eqA1, 'eq-a2': eqA2, 'eq-p': eqP, 'eq-f2': eqF2, 'eq-ma': eqMA, 'eq-work': eqW };
+    Object.keys(ids).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.dataset.tex !== ids[id]) {
+        el.dataset.tex = ids[id];
+        el.innerHTML = ids[id];
+      }
+    });
+  }
+
+  /* ================================================================
+     WORK-ENERGY BARS — visual proof of energy conservation
+     ================================================================ */
+  function updateWorkEnergy() {
+    /* Scale bars so the widest of {F1,F2} and widest of {s1,s2} fills
+       the track. This visually shows force×distance trade-off. */
+    var A1 = getA1(), A2 = getA2(), F2 = getF2();
+    var MAX_S1 = 0.300; /* 300 mm nominal stroke */
+    var s1 = MAX_S1;
+    var s2 = s1 * (A1 / Math.max(A2, 1e-9));
+    var Wi = inputForce * s1;
+    var Wo = F2 * s2;
+
+    var fMax = Math.max(inputForce, F2);
+    var sMax = Math.max(s1, s2);
+
+    function setBar(id, frac) {
+      var el = document.getElementById(id);
+      if (el) el.style.width = (Math.max(6, frac * 100)).toFixed(1) + '%';
+    }
+    setBar('we-f1', inputForce / fMax);
+    setBar('we-f2', F2 / fMax);
+    setBar('we-s1', s1 / sMax);
+    setBar('we-s2', s2 / sMax);
+
+    var win = document.getElementById('we-win');
+    var wout = document.getElementById('we-wout');
+    if (win) win.textContent = 'W = ' + Wi.toFixed(2) + ' J';
+    if (wout) wout.textContent = 'W = ' + Wo.toFixed(2) + ' J';
+    /* Note text: ratio check */
+    var note = document.getElementById('we-note');
+    var ratio = Wi > 0 ? (Wo / Wi) : 1;
+    if (note) {
+      note.innerHTML = 'Ideal system: W<sub>in</sub> = W<sub>out</sub>. ' +
+        'Force multiplied <span style="color:#3ddc84;font-weight:700">\u00D7' + (F2 / inputForce).toFixed(1) + '</span>, ' +
+        'stroke reduced <span style="color:#42a5f5;font-weight:700">\u00D7' + (s1 / Math.max(s2, 1e-9)).toFixed(1) + '</span> &mdash; ' +
+        (Math.abs(ratio - 1) < 0.01 ? 'energy is conserved.' : 'ratio ' + ratio.toFixed(2));
+    }
+  }
+
+  /* ================================================================
+     TIME-HISTORY MINI CHART — pressure / F2 / stroke vs time
+     ================================================================ */
+  /* Logical coordinate system for the history chart. The element is sized by
+     CSS (width:100%), so the backing store must be resized to physical pixels
+     or the browser upscales a 720-px-wide bitmap and the text goes soft. */
+  var HIST_W = 720, HIST_H = 160;
+  function resizeHistoryCanvas() {
+    var c = document.getElementById('history-canvas');
+    if (!c) return;
+    var rect = c.getBoundingClientRect();
+    /* A collapsed <details> still reports a couple of stray pixels rather than
+       a clean zero, so a truthiness check isn't enough — it would lock in a
+       4x1 backing store. Require a plausible width; the card's toggle handler
+       and the ResizeObserver re-run this once it actually opens. */
+    if (rect.width < 40) return;
+    var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+    var bw = Math.round(rect.width * dpr);
+    var bh = Math.round(rect.width * (HIST_H / HIST_W) * dpr);
+    if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; }
+    drawHistory();
+  }
+  function drawHistory() {
+    var cvs = document.getElementById('history-canvas');
+    if (!cvs) return;
+    var hctx = cvs.getContext('2d');
+    var W = HIST_W, H = HIST_H;
+    /* Draw in logical coords; scale to the physical backing store. */
+    hctx.setTransform(cvs.width / HIST_W, 0, 0, cvs.height / HIST_H, 0, 0);
+    hctx.clearRect(0, 0, W, H);
+
+    /* background grid */
+    hctx.fillStyle = 'rgba(10,16,30,0.4)';
+    hctx.fillRect(0, 0, W, H);
+    hctx.strokeStyle = 'rgba(139,157,195,0.12)';
+    hctx.lineWidth = 1;
+    for (var g = 1; g < 4; g++) {
+      var gy = H * g / 4;
+      hctx.beginPath(); hctx.moveTo(30, gy); hctx.lineTo(W - 10, gy); hctx.stroke();
+    }
+    for (var gx = 1; gx < 6; gx++) {
+      var gxp = 30 + (W - 40) * gx / 6;
+      hctx.beginPath(); hctx.moveTo(gxp, 10); hctx.lineTo(gxp, H - 24); hctx.stroke();
+    }
+
+    /* Axes labels */
+    hctx.fillStyle = '#8b9dc3';
+    hctx.font = '10px "JetBrains Mono", Consolas, monospace';
+    hctx.textAlign = 'left'; hctx.textBaseline = 'top';
+    hctx.fillText('peak', 4, 8);
+    hctx.fillText('0', 4, H - 22);
+    hctx.textAlign = 'right';
+    hctx.fillText('t \u2192', W - 8, H - 18);
+
+    var samples = history.samples;
+    if (samples.length < 2) {
+      hctx.fillStyle = '#8b9dc3';
+      hctx.textAlign = 'center'; hctx.textBaseline = 'middle';
+      hctx.font = '12px "Segoe UI", sans-serif';
+      hctx.fillText('Press Run Simulation to record the time history of the press cycle',
+                    W / 2, H / 2);
+      return;
+    }
+
+    /* Reference max values so the chart is meaningful even when the cycle
+       is partial. Use the values we actually reached (at least small floors). */
+    var pMax = Math.max(history.maxP, 1);
+    var fMax = Math.max(history.maxF2, 1);
+    var sMax = Math.max(history.maxS1, 1);
+    var tMax = Math.max(history.duration, samples[samples.length - 1].t, 1);
+
+    var x0 = 30, x1 = W - 10;
+    var y0 = H - 24, y1 = 10;
+    function xFor(t) { return x0 + (x1 - x0) * Math.min(t / tMax, 1); }
+    function yFor(v, vMax) { return y0 + (y1 - y0) * (v / vMax); }
+
+    function plot(key, vMax, color, width) {
+      hctx.strokeStyle = color;
+      hctx.lineWidth = width;
+      hctx.beginPath();
+      for (var i = 0; i < samples.length; i++) {
+        var s = samples[i];
+        var x = xFor(s.t);
+        var y = yFor(s[key], vMax);
+        if (i === 0) hctx.moveTo(x, y); else hctx.lineTo(x, y);
+      }
+      hctx.stroke();
+    }
+    plot('s1', sMax, '#42a5f5', 2);
+    plot('P',  pMax, '#f5c842', 2.5);
+    plot('F2', fMax, '#ff5555', 2.5);
+
+    /* Current peak labels (right side) */
+    hctx.font = '10px "JetBrains Mono", Consolas, monospace';
+    hctx.textBaseline = 'middle';
+    hctx.textAlign = 'right';
+    /* "pk" not "\u2080" \u2014 these are the PEAK values reached during the cycle;
+       P\u2080 conventionally denotes an initial/reference pressure. */
+    hctx.fillStyle = '#f5c842';
+    hctx.fillText('P pk ' + (pMax / 1000).toFixed(1) + ' kPa', x1 - 4, y1 + 8);
+    hctx.fillStyle = '#ff5555';
+    hctx.fillText('F\u2082 ' + fMax.toFixed(0) + 'N', x1 - 4, y1 + 22);
+    hctx.fillStyle = '#42a5f5';
+    hctx.fillText('s\u2081 ' + sMax.toFixed(0) + 'mm', x1 - 4, y1 + 36);
+  }
+
+  /* ================================================================
+     WHAT-IF COACH — dynamic insights based on current state
+     ================================================================ */
+  function updateCoach() {
+    var list = document.getElementById('coach-list');
+    if (!list) return;
+    var A1 = getA1(), A2 = getA2(), P = getPressure(), F2 = getF2(), MA = getMA();
+    var items = [];
+
+    /* 1. MA / diameter ratio insight */
+    var dRatio = d2mm / Math.max(d1mm, 1e-9);
+    items.push('Doubling <b>d\u2082</b> would <b>quadruple</b> F\u2082 (area grows with d\u00B2). ' +
+               'Current: d\u2082 is <span class="coach-num">' + dRatio.toFixed(1) + '\u00D7</span> larger than d\u2081, so MA = ' +
+               '<span class="coach-num">' + dRatio.toFixed(1) + '\u00B2 = ' + MA.toFixed(1) + '\u00D7</span>.');
+
+    /* 2. Stroke trade-off */
+    var s1 = 0.300;
+    var s2 = s1 / MA;
+    items.push('To lift the load by <b>' + (s2 * 1000).toFixed(1) + ' mm</b> you must push the small piston down by <b>' +
+               (s1 * 1000).toFixed(0) + ' mm</b>. Force multiplication costs stroke by the same factor (' +
+               '<span class="coach-num">\u00D7' + MA.toFixed(1) + '</span>).');
+
+    /* 3. Pressure in real-world context (shared bands \u2014 see pressureContext) */
+    var pc = pressureContext(P);
+    var pTxt = '<span class="coach-num">' + (P / 1e6).toFixed(2) + ' MPa</span> (' +
+               (P / 1e5).toFixed(1) + ' bar)';
+    items.push((pc.level === 'over' ? '<b>Warning:</b> system pressure ' : 'System pressure ') +
+               pTxt + ' ' + pc.text);
+
+    /* 4. Comparison insight */
+    if (MA >= 10) {
+      items.push('With <b>MA = ' + MA.toFixed(1) + '\u00D7</b>, a person pressing with <b>' + inputForce.toFixed(0) + ' N</b> (arm strength) could lift a car-engine-sized load of <b>' + F2.toFixed(0) + ' N</b> \u2014 but only by a tiny fraction of their pedal stroke.');
+    } else if (MA < 2) {
+      items.push('MA is <b>' + MA.toFixed(1) + '\u00D7</b> \u2014 very little force amplification. The pistons are similar in size. For meaningful mechanical advantage, make d\u2082 at least 3\u00D7 d\u2081.');
+    } else {
+      items.push('MA = <b>' + MA.toFixed(1) + '\u00D7</b> is a balanced range &mdash; useful for braking systems and hydraulic steering where moderate amplification and reasonable stroke are both important.');
+    }
+
+    list.innerHTML = '';
+    for (var i = 0; i < items.length; i++) {
+      var li = document.createElement('li');
+      li.innerHTML = items[i];
+      list.appendChild(li);
+    }
+  }
+
+  /* ================================================================
+     SHARE URL — encode current state for a reproducible link
+     ================================================================ */
+  function buildShareURL() {
+    var params = new URLSearchParams();
+    params.set('f', String(Math.round(inputForce)));
+    params.set('d1', String(Math.round(d1mm)));
+    params.set('d2', String(Math.round(d2mm)));
+    params.set('ld', String(Math.round(loadKg)));
+    params.set('u', units);
+    params.set('m', mode);
+    var base = location.origin + location.pathname;
+    return base + '?' + params.toString();
+  }
+  function applyShareURL() {
+    try {
+      var q = new URLSearchParams(location.search);
+      if (!q.has('f') && !q.has('d1') && !q.has('d2')) return false;
+      var f = parseFloat(q.get('f'));
+      var a = parseFloat(q.get('d1'));
+      var b = parseFloat(q.get('d2'));
+      var ld = parseFloat(q.get('ld'));
+      var u = q.get('u');
+      var m = q.get('m');
+      var changed = false;
+      /* Clamp to the sliders' own limits, otherwise a hand-edited link can load
+         a state the controls can't represent (e.g. F1 = 100 kN against a 10 kN
+         slider max), leaving the slider pinned and the readouts disagreeing. */
+      function clampTo(v, r) { return Math.max(r.min, Math.min(r.max, v)); }
+      if (isFinite(f))  { inputForce = clampTo(f, forceRange()); changed = true; }
+      if (isFinite(a))  { d1mm = clampTo(a, d1Range());          changed = true; }
+      if (isFinite(b))  { d2mm = clampTo(b, d2Range());          changed = true; }
+      if (isFinite(ld)) { loadKg = clampTo(ld, loadRange());     changed = true; }
+      if (u === 'si' || u === 'imp') units = u;
+      if (m === 'simulate' || m === 'explore' || m === 'practice' || m === 'quiz') {
+        /* Defer mode switch until UI is ready */
+        window.__pendingMode = m;
+      }
+      return changed;
+    } catch (e) { return false; }
+  }
+  function showShareToast(msg, isErr) {
+    var t = document.createElement('div');
+    t.className = 'share-toast' + (isErr ? ' error' : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    /* allow CSS transition */
+    requestAnimationFrame(function () { t.classList.add('show'); });
+    setTimeout(function () {
+      t.classList.remove('show');
+      setTimeout(function () { t.remove(); }, 300);
+    }, 2200);
+  }
+  function copyShareURL() {
+    var url = buildShareURL();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        function () { showShareToast('\u2713 Link copied to clipboard'); },
+        function () { showShareToast('Copy failed \u2014 select the URL bar to share', true); }
+      );
+    } else {
+      /* Legacy fallback */
+      var ta = document.createElement('textarea');
+      ta.value = url; document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showShareToast('\u2713 Link copied to clipboard'); }
+      catch (e) { showShareToast('Copy failed', true); }
+      ta.remove();
+    }
+    /* Also update the URL bar so the user can bookmark */
+    try { history.replaceState(null, '', url); } catch (e) { /* ignore */ }
+  }
+
+  /* ================================================================
+     CALCULATION MODAL — step-by-step derivation for current state
+     ================================================================ */
+  function calcStep(num, title, formula, calculation, result) {
+    var html = '<div class="cs-step">';
+    html += '<div class="cs-step-hd">';
+    html += '<span class="cs-num">Step ' + num + '</span>';
+    html += '<span class="cs-title">' + title + '</span>';
+    html += '</div>';
+    if (formula)      html += '<div class="cs-formula">' + formula + '</div>';
+    if (calculation)  html += '<div class="cs-calc">' + calculation.replace(/\n/g, '<br>') + '</div>';
+    if (result !== null && result !== undefined) {
+      html += '<div class="cs-result">\u2192 <strong>' + result + '</strong></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+  function rN(x, digits) {
+    if (!isFinite(x)) return String(x);
+    var p = Math.pow(10, digits || 0);
+    return (Math.round(x * p) / p).toString();
+  }
+  function buildCalcSteps() {
+    /* Pull current-state values in SI. The whole modal renders in SI units
+       (N, m, cm², Pa/kPa/MPa) for a consistent derivation; every math cell is
+       LaTeX so shared/latex-auto.js renders it in classical notation. */
+    var F1    = inputForce;            /* N */
+    var d1_m  = d1mm / 1000;           /* m */
+    var d2_m  = d2mm / 1000;           /* m */
+    var r1_m  = d1_m / 2;
+    var r2_m  = d2_m / 2;
+    var A1    = getA1();               /* m² */
+    var A2    = getA2();               /* m² */
+    var P     = getPressure();         /* Pa */
+    var F2    = getF2();               /* N */
+    var MA    = getMA();
+    var A1cm2 = A1 * 1e4;
+    var A2cm2 = A2 * 1e4;
+    /* Work conservation at nominal 300 mm input stroke */
+    var s1    = 0.300;                  /* m */
+    var s2    = s1 * (A1 / Math.max(A2, 1e-9));
+    var Wi    = F1 * s1;
+    var Wo    = F2 * s2;
+
+    /* LaTeX number helpers (texSci → scientific for tiny/huge magnitudes) */
+    function L(x, d) { return rN(x, d); }
+    function Lsci(x) { return texSci(x); }
+
+    var html = '';
+
+    /* ── Given (inputs) — inline LaTeX chips ── */
+    html += '<div class="cs-inputs">';
+    html += '<span class="cs-badge">Given &mdash; Current Simulation State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>\\( F_1 = ' + L(F1, 2) + '\\ \\text{N} \\)</span>';
+    html += '<span>\\( d_1 = ' + d1mm + '\\ \\text{mm} = ' + L(d1_m, 4) + '\\ \\text{m} \\)</span>';
+    html += '<span>\\( d_2 = ' + d2mm + '\\ \\text{mm} = ' + L(d2_m, 4) + '\\ \\text{m} \\)</span>';
+    html += '<span>\\( r_1 = ' + L(d1mm / 2, 2) + '\\ \\text{mm} \\)</span>';
+    html += '<span>\\( r_2 = ' + L(d2mm / 2, 2) + '\\ \\text{mm} \\)</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">&#9432; All steps shown in SI units. Assumes an incompressible, frictionless fluid with both pistons at equal elevation.</p>';
+    html += '</div>';
+
+    /* Step 1 — Piston areas */
+    html += calcStep(1,
+      'Cross-Sectional Piston Areas',
+      '\\[ A = \\pi r^{2} = \\pi\\left(\\tfrac{d}{2}\\right)^{2} \\]',
+      '\\[ \\begin{aligned}'
+      + ' A_1 &= \\pi(' + L(r1_m, 4) + ')^{2} = ' + Lsci(A1) + '\\ \\text{m}^2 = ' + L(A1cm2, 2) + '\\ \\text{cm}^2 \\\\'
+      + ' A_2 &= \\pi(' + L(r2_m, 4) + ')^{2} = ' + Lsci(A2) + '\\ \\text{m}^2 = ' + L(A2cm2, 2) + '\\ \\text{cm}^2'
+      + ' \\end{aligned} \\]',
+      '\\( A_1 = ' + L(A1cm2, 2) + '\\ \\text{cm}^2,\\quad A_2 = ' + L(A2cm2, 2) + '\\ \\text{cm}^2 \\)'
+    );
+
+    /* Step 2 — Pressure (Pascal's Law) */
+    html += calcStep(2,
+      'System Pressure  &mdash;  Pascal&rsquo;s Law',
+      '\\[ P = \\dfrac{F_{1}}{A_{1}} \\]'
+      + '<p class="cs-note">Pressure is transmitted equally in all directions through the enclosed fluid.</p>',
+      '\\[ \\begin{aligned}'
+      + ' P &= \\dfrac{' + L(F1, 2) + '}{' + Lsci(A1) + '} \\\\'
+      + ' &= ' + L(P, 0) + '\\ \\text{Pa} = ' + L(P / 1000, 2) + '\\ \\text{kPa} = ' + L(P / 1e6, 3) + '\\ \\text{MPa}'
+      + ' \\end{aligned} \\]',
+      '\\( P = ' + L(P / 1000, 2) + '\\ \\text{kPa} \\)'
+    );
+
+    /* Step 3 — Output force */
+    html += calcStep(3,
+      'Output Force on Large Piston',
+      '\\[ F_{2} = P \\times A_{2} \\]'
+      + '<p class="cs-note">The same pressure acts on the larger area, producing a proportionally larger force.</p>',
+      '\\[ \\begin{aligned}'
+      + ' F_2 &= P \\times A_2 = ' + L(P, 0) + ' \\times ' + Lsci(A2) + ' = ' + L(F2, 2) + '\\ \\text{N} \\\\'
+      + ' &= F_1\\,\\dfrac{A_2}{A_1} = ' + L(F1, 2) + ' \\times ' + L(A2 / A1, 2) + ' = ' + L(F2, 2) + '\\ \\text{N}'
+      + ' \\end{aligned} \\]',
+      '\\( F_2 = ' + L(F2, 2) + '\\ \\text{N} \\)'
+    );
+
+    /* Step 4 — Mechanical advantage */
+    html += calcStep(4,
+      'Mechanical Advantage (MA)',
+      '\\[ MA = \\dfrac{F_{2}}{F_{1}} = \\dfrac{A_{2}}{A_{1}} = \\left(\\dfrac{d_{2}}{d_{1}}\\right)^{2} \\]',
+      '\\[ \\begin{aligned}'
+      + ' MA &= \\left(\\dfrac{' + d2mm + '}{' + d1mm + '}\\right)^{2} = ' + L(d2mm / d1mm, 2) + '^{2} = ' + L(MA, 2) + ' \\\\'
+      + ' \\text{check:}\\ MA &= \\dfrac{F_2}{F_1} = \\dfrac{' + L(F2, 0) + '}{' + L(F1, 0) + '} = ' + L(F2 / F1, 2) + '\\ \\text{✓}'
+      + ' \\end{aligned} \\]',
+      '\\( MA = ' + fmtMA(MA) + ' \\)'
+    );
+
+    /* Step 5 — Stroke / volume conservation */
+    html += calcStep(5,
+      'Stroke Relationship  &mdash;  Volume Conservation',
+      '\\[ A_{1}s_{1} = A_{2}s_{2} \\;\\Rightarrow\\; s_{2} = s_{1}\\dfrac{A_{1}}{A_{2}} = \\dfrac{s_{1}}{MA} \\]'
+      + '<p class="cs-note">Force is multiplied by MA, but stroke shrinks by the same factor &mdash; volume is conserved.</p>',
+      '\\[ s_2 = \\dfrac{' + (s1 * 1000) + '\\ \\text{mm}}{' + L(MA, 2) + '} = ' + L(s2 * 1000, 2) + '\\ \\text{mm} \\]',
+      '\\( s_2 = ' + L(s2 * 1000, 2) + '\\ \\text{mm} \\) for every ' + (s1 * 1000) + ' mm of input stroke'
+    );
+
+    /* Step 6 — Work conservation */
+    html += calcStep(6,
+      'Work Conservation  &mdash;  Energy In = Energy Out (Ideal)',
+      '\\[ W = F s \\qquad W_{\\text{in}} = W_{\\text{out}} \\]'
+      + '<p class="cs-note">Ideal system &mdash; no friction, no leakage, no losses.</p>',
+      '\\[ \\begin{aligned}'
+      + ' W_{\\text{in}} &= F_1 s_1 = ' + L(F1, 2) + ' \\times ' + s1 + ' = ' + L(Wi, 2) + '\\ \\text{J} \\\\'
+      + ' W_{\\text{out}} &= F_2 s_2 = ' + L(F2, 2) + ' \\times ' + L(s2, 5) + ' = ' + L(Wo, 2) + '\\ \\text{J} \\\\'
+      + ' \\dfrac{W_{\\text{out}}}{W_{\\text{in}}} &= ' + L(Wo / Math.max(Wi, 1e-9), 3) + '\\quad(\\text{ideal} = 1)'
+      + ' \\end{aligned} \\]',
+      '\\( W_{\\text{in}} = W_{\\text{out}} = ' + L(Wi, 2) + '\\ \\text{J} \\)'
+    );
+
+    /* Step 7 — Pressure in real-world context (shared pressureContext bands) */
+    var P_MPa = P / 1e6;
+    var pctx  = pressureContext(P);
+    var safetyTxt = (pctx.level === 'over' ? '&#9888;️  ' : '') + 'This pressure ' + pctx.text;
+    html += calcStep(7,
+      'Pressure in Context',
+      '<p class="cs-note">Compare the computed pressure P against real-world hydraulic ratings.</p>'
+      + '<p class="cs-note">' + safetyTxt + '</p>',
+      '\\[ P = ' + L(P / 1000, 2) + '\\ \\text{kPa} = ' + L(P_MPa, 3) + '\\ \\text{MPa} = ' + L(P / 1e5, 2) + '\\ \\text{bar} \\]',
+      '\\( P = ' + L(P_MPa, 3) + '\\ \\text{MPa} \\) &mdash; ' + pctx.label
+    );
+
+    /* Step 8 — Load on the ram: will it lift? */
+    var info = liftInfo();
+    var W = info.w;
+    var verdictTxt = info.k === 'lift'
+      ? '&#10004; <b>Lifts.</b> Capacity F&#8322; exceeds the load, so the ram rises (net force F&#8322;&minus;W = ' + rN(info.margin, 1) + ' N).'
+      : info.k === 'balance'
+      ? '&#9552; <b>Balanced.</b> Capacity &#8776; load, so the ram holds in equilibrium without rising.'
+      : '&#10008; <b>Too heavy.</b> Capacity F&#8322; is below the load, so the ram cannot lift it &mdash; increase F&#8321; or d&#8322;.';
+    html += calcStep(8,
+      'Load on the Ram  &mdash;  Will It Lift?',
+      '\\[ W = m g \\qquad \\text{lift if } F_{2} \\ge W \\qquad F_{1,\\text{min}} = \\dfrac{W}{MA} \\]'
+      + '<p class="cs-note">' + verdictTxt + '</p>',
+      '\\[ \\begin{aligned}'
+      + ' W &= ' + loadKg + ' \\times ' + G + ' = ' + rN(W, 1) + '\\ \\text{N} \\\\'
+      + ' F_2 &= ' + rN(info.cap, 1) + '\\ \\text{N} \\;' + (info.k === 'toolow' ? '<' : info.k === 'balance' ? '\\approx' : '>') + '\\; W = ' + rN(W, 1) + '\\ \\text{N} \\\\'
+      + ' F_{1,\\text{min}} &= \\dfrac{' + rN(W, 1) + '}{' + rN(MA, 2) + '} = ' + rN(info.reqF1, 1) + '\\ \\text{N}'
+      + ' \\end{aligned} \\]',
+      '\\( F_{1,\\text{min}} = ' + rN(info.reqF1, 1) + '\\ \\text{N} \\) to lift ' + loadKg + ' kg'
+    );
+
+    return html;
+  }
+
+  function openCalcModal() {
+    var modal = document.getElementById('calc-modal');
+    var body  = document.getElementById('calc-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildCalcSteps();
+    modal.classList.add('active');
+    var cb = document.getElementById('calc-modal-close');
+    if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    var modal = document.getElementById('calc-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = document.getElementById('btn-calc');
+    if (b) b.focus();
+  }
+
+  /* ================================================================
+     UI — EXPLORE
+     ================================================================ */
+  function buildConceptGrid() {
+    var grid = $('#concept-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    var filtered = [];
+    for (var i = 0; i < CONCEPTS.length; i++) {
+      if (CONCEPTS[i].cat === selCat) filtered.push({ idx: i, c: CONCEPTS[i] });
+    }
+    for (var j = 0; j < filtered.length; j++) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn';
+      btn.setAttribute('data-idx', filtered[j].idx);
+      btn.innerHTML = '<span class="is-btn-name">' + filtered[j].c.name + '</span><span class="is-btn-sym">' + filtered[j].c.symbol + '</span>';
+      btn.addEventListener('click', function () { selectConcept(parseInt(this.getAttribute('data-idx'))); });
+      grid.appendChild(btn);
+    }
+  }
+
+  function selectConcept(idx) {
+    selConcept = idx;
+    var c = CONCEPTS[idx];
+    var btns = $$('#concept-grid .is-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', parseInt(btns[i].getAttribute('data-idx')) === idx);
+    }
+    var infoEl = $('#item-info');
+    if (!infoEl) return;
+    infoEl.innerHTML =
+      '<div class="ii-top"><span class="ii-name">' + c.name + '</span><span class="ii-cat-badge">' + c.cat + '</span></div>' +
+      '<p class="ii-desc">' + c.desc + '</p>' +
+      '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span><span class="fb-unit">Unit: ' + c.unit + '</span></div>' +
+      '<div class="example-box"><h4>Example Calculation</h4><p class="ex-problem">' + c.example.problem + '</p>' +
+      c.example.steps.map(function (s) { return '<p class="ex-step">' + s.replace(/=\s*([\d.,]+)\s*(N\/m\u00B2|N|m\u00B2|m|J|Pa|kPa|MPa|PSI|bar|cm\u00B2|kg|kN)?/g, '= <strong>$1 $2</strong>') + '</p>'; }).join('') +
+      '</div>';
+    render();
+  }
+
+  function wireCategoryTabs() {
+    var catPills = $$('#cat-tabs .pill');
+    for (var i = 0; i < catPills.length; i++) {
+      catPills[i].addEventListener('click', function () {
+        selCat = this.getAttribute('data-cat');
+        for (var c = 0; c < catPills.length; c++) {
+          catPills[c].classList.toggle('active', catPills[c] === this);
+        }
+        buildConceptGrid();
+        for (var j = 0; j < CONCEPTS.length; j++) {
+          if (CONCEPTS[j].cat === selCat) { selectConcept(j); break; }
+        }
+      });
+    }
+  }
+
+  /* ================================================================
+     UI — PRACTICE
+     ================================================================ */
+  function newPractice() {
+    pProblem = PROBLEM_GEN[randInt(0, PROBLEM_GEN.length - 1)]();
+    pAnswered = false;
+    var prompt = $('#pp-prompt');
+    if (prompt) prompt.textContent = pProblem.prompt;
+    var inp = $('#pp-input');
+    if (inp) { inp.value = ''; inp.disabled = false; inp.focus(); }
+    var fb = $('#pp-feedback');
+    if (fb) fb.textContent = '';
+    var sol = $('#pp-solution');
+    if (sol) sol.style.display = 'none';
+    var nxt = $('#pp-next');
+    if (nxt) nxt.style.display = 'none';
+    var chk = $('#pp-check');
+    if (chk) chk.disabled = false;
+    var unit = $('#pp-unit');
+    if (unit) unit.textContent = pProblem.unit;
+    render();
+  }
+
+  function checkPractice() {
+    if (pAnswered || !pProblem) return;
+    var inp = $('#pp-input');
+    var val = parseFloat(inp.value);
+    if (isNaN(val)) return;
+    pAnswered = true;
+    inp.disabled = true;
+    var tol = Math.max(Math.abs(pProblem.answer) * 0.01, 0.001);
+    var ok = Math.abs(val - pProblem.answer) <= tol;
+    pTotal++;
+    if (ok) pScore++;
+    var fb = $('#pp-feedback');
+    fb.textContent = ok ? '\u2713 Correct!' : '\u2717 Incorrect \u2014 answer: ' + pProblem.answer + ' ' + pProblem.unit;
+    fb.className = 'feedback ' + (ok ? 'ok' : 'err');
+    var sol = $('#pp-solution');
+    sol.style.display = '';
+    sol.innerHTML = '<h4>Step-by-step Solution</h4>' +
+      pProblem.steps.map(function (s) { return '<p class="sol-step">' + s.replace(/=\s*([\d.,]+)/g, '= <strong>$1</strong>') + '</p>'; }).join('');
+    $('#pp-next').style.display = '';
+    $('#pp-check').disabled = true;
+    var sc = $('#pbar-score-val');
+    if (sc) sc.textContent = pScore + ' / ' + pTotal;
+  }
+
+  function wirePractice() {
+    var chk = $('#pp-check');
+    if (chk) chk.addEventListener('click', checkPractice);
+    var nxt = $('#pp-next');
+    if (nxt) nxt.addEventListener('click', newPractice);
+    var inp = $('#pp-input');
+    if (inp) inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+  }
+
+  /* ================================================================
+     UI — QUIZ
+     ================================================================ */
+  function startQuiz() {
+    quizQs = shuffleArr(QUIZ_POOL).slice(0, 5);
+    quizIdx = 0; quizScore = 0; quizAnswered = false;
+    quizResults = [];
+    hide($('#quiz-result'));
+    show($('#quiz-panel'));
+    show($('#quiz-bar'));
+    showQuizQuestion();
+    render();
+  }
+
+  function showQuizQuestion() {
+    var q = quizQs[quizIdx];
+    var panel = $('#quiz-panel');
+    if (!panel) return;
+    var html = '<p class="qp-prompt">Q' + (quizIdx + 1) + '. ' + q.prompt + '</p>';
+    if (q.type === 'mcq') {
+      html += '<div class="answer-grid">';
+      var opts = q.options.slice();
+      var indices = [];
+      for (var i = 0; i < opts.length; i++) indices.push(i);
+      indices = shuffleArr(indices);
+      for (var j = 0; j < indices.length; j++) {
+        html += '<button class="answer-btn" data-aidx="' + indices[j] + '">' + opts[indices[j]] + '</button>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="quiz-input-row"><input class="qi-input" id="qi-val" type="number" step="any" placeholder="Answer"><span class="qi-unit">' + q.unit + '</span><button class="btn btn-primary" id="qi-submit">Submit</button></div>';
+    }
+    html += '<div class="quiz-feedback" id="quiz-fb"></div>';
+    html += '<button class="btn btn-ghost" id="quiz-next" style="display:none;margin-top:10px;">Next \u2192</button>';
+    panel.innerHTML = html;
+
+    if (q.type === 'mcq') {
+      var btns = panel.querySelectorAll('.answer-btn');
+      for (var b = 0; b < btns.length; b++) {
+        btns[b].addEventListener('click', function () { answerMCQ(parseInt(this.getAttribute('data-aidx'))); });
+      }
+    } else {
+      var sub = panel.querySelector('#qi-submit');
+      if (sub) sub.addEventListener('click', answerNumeric);
+      var qiVal = panel.querySelector('#qi-val');
+      if (qiVal) { qiVal.focus(); qiVal.addEventListener('keydown', function (e) { if (e.key === 'Enter') answerNumeric(); }); }
+    }
+    var nxt = panel.querySelector('#quiz-next');
+    if (nxt) nxt.addEventListener('click', nextQuizQ);
+    var cNum = $('#qbar-num');
+    if (cNum) cNum.textContent = quizIdx + 1;
+
+    quizAnswered = false;
+  }
+
+  function answerMCQ(aidx) {
+    if (quizAnswered) return;
+    quizAnswered = true;
+    var q = quizQs[quizIdx];
+    var ok = aidx === q.correct;
+    if (ok) quizScore++;
+    quizResults[quizIdx] = !!ok;
+    var btns = $$('#quiz-panel .answer-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var idx = parseInt(btns[i].getAttribute('data-aidx'));
+      btns[i].classList.add('locked');
+      if (idx === q.correct) btns[i].classList.add('correct');
+      else if (idx === aidx && !ok) btns[i].classList.add('wrong');
+    }
+    var fb = $('#quiz-fb');
+    fb.textContent = ok ? '\u2713 Correct!' : '\u2717 Wrong';
+    fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    $('#quiz-next').style.display = '';
+  }
+
+  function answerNumeric() {
+    if (quizAnswered) return;
+    var inp = $('#qi-val');
+    var val = parseFloat(inp.value);
+    if (isNaN(val)) return;
+    quizAnswered = true;
+    inp.disabled = true;
+    var q = quizQs[quizIdx];
+    var tol = Math.max(Math.abs(q.answer) * 0.01, 0.001);
+    var ok = Math.abs(val - q.answer) <= tol;
+    if (ok) quizScore++;
+    quizResults[quizIdx] = !!ok;
+    var fb = $('#quiz-fb');
+    fb.textContent = ok ? '\u2713 Correct!' : '\u2717 Answer: ' + q.answer + ' ' + q.unit;
+    fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'err');
+    if (q.steps) {
+      var solHtml = '<div class="solution-panel" style="margin-top:10px;"><h4>Solution</h4>';
+      for (var s = 0; s < q.steps.length; s++) solHtml += '<p class="sol-step">' + q.steps[s] + '</p>';
+      solHtml += '</div>';
+      fb.insertAdjacentHTML('afterend', solHtml);
+    }
+    $('#quiz-next').style.display = '';
+    var sub = $('#qi-submit');
+    if (sub) sub.disabled = true;
+  }
+
+  function nextQuizQ() {
+    quizIdx++;
+    if (quizIdx >= quizQs.length) {
+      showQuizResult();
+    } else {
+      showQuizQuestion();
+    }
+  }
+
+  function showQuizResult() {
+    hide($('#quiz-panel'));
+    hide($('#quiz-bar'));
+    var res = $('#quiz-result');
+    show(res);
+    var pct = quizScore / quizQs.length;
+    var stars = pct >= 1 ? '\u2B50\u2B50\u2B50' : pct >= 0.6 ? '\u2B50\u2B50' : pct > 0 ? '\u2B50' : '';
+    var cls = pct >= 1 ? 'perfect' : pct >= 0.6 ? 'good' : 'poor';
+    var verdict = pct >= 1 ? 'Outstanding!' : pct >= 0.8 ? 'Great work!' : pct >= 0.6 ? 'Good effort!' : pct >= 0.4 ? 'Keep practising!' : 'Review the concepts';
+
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><div class="qr-title">Quiz Complete</div><div class="qr-stars">' + stars + '</div></div>';
+    html += '<div class="qr-score-wrap"><div class="qr-score ' + cls + '">' + quizScore + '/' + quizQs.length + '</div><div class="qr-verdict">' + verdict + '</div></div></div>';
+    html += '<div class="qr-rows">';
+    for (var i = 0; i < quizQs.length; i++) {
+      var q = quizQs[i];
+      var qOk = quizResults[i] === true;
+      html += '<div class="qr-row ' + (qOk ? 'ok' : 'err') + '"><span class="qr-qnum">Q' + (i + 1) + '</span><span class="qr-detail">' + q.prompt.substring(0, 60) + (q.prompt.length > 60 ? '...' : '') + '</span><span class="qr-mark">' + (qOk ? '\u2713' : '\u2717') + '</span></div>';
+    }
+    html += '</div>';
+    html += '<button class="btn btn-primary" id="quiz-retry" style="align-self:center;margin-top:8px;">Retry Quiz</button>';
+    res.innerHTML = html;
+    $('#quiz-retry').addEventListener('click', startQuiz);
+    render();
+  }
+
+  /* ================================================================
+     UI — CANVAS DRAG (force adjustment)
+     ================================================================ */
+  function wireCanvasDrag() {
+    var fSlider = $('#force-slider');
+    var fDisp = $('#force-val');
+
+    function getCanvasXY(e) {
+      var rect = cvs.getBoundingClientRect();
+      var scaleX = W / rect.width;
+      var scaleY = H / rect.height;
+      var clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+      var clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+    }
+
+    var savedUndoThisDrag = false;
+    cvs.addEventListener('pointerdown', function (e) {
+      if (mode !== 'simulate') return;
+      if (e.button === 2) return; /* let contextmenu handle right-click */
+      var p = getCanvasXY(e);
+      if (p.x < 400 && p.y < 300) {
+        isDragging = true;
+        dragTarget = 'force';
+        savedUndoThisDrag = false;
+        cvs.classList.add('dragging');
+        cvs.setPointerCapture(e.pointerId);
+        handleForceDrag(p.y);
+      }
+    });
+
+    cvs.addEventListener('pointermove', function (e) {
+      if (mode !== 'simulate') { cvs.classList.remove('drag-over'); return; }
+      var p = getCanvasXY(e);
+      if (!isDragging) {
+        if (p.x < 400 && p.y < 300) cvs.classList.add('drag-over');
+        else cvs.classList.remove('drag-over');
+        return;
+      }
+      if (!savedUndoThisDrag) { saveUndo(); savedUndoThisDrag = true; }
+      handleForceDrag(p.y);
+    });
+
+    cvs.addEventListener('pointerup', function () {
+      if (isDragging) playDrop();
+      isDragging = false;
+      dragTarget = null;
+      cvs.classList.remove('dragging');
+    });
+    cvs.addEventListener('pointerleave', function () { cvs.classList.remove('drag-over'); });
+
+    function handleForceDrag(canvasY) {
+      var minY = 50, maxY = 300;
+      var frac = (canvasY - minY) / (maxY - minY);
+      frac = Math.max(0, Math.min(1, frac));
+      /* Span the slider's real range rather than a hardcoded 10..10000. */
+      var rf = forceRange();
+      inputForce = Math.round(rf.min + frac * (rf.max - rf.min));
+      if (fSlider) fSlider.value = inputForce;
+      syncInputs(); updatePresetBtns(); updateReadouts(); invalidateOutput(); render();
+    }
+  }
+
+  /* ================================================================
+     SOUND (Web Audio API)
+     ================================================================ */
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!soundOn) return null;
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { return null; }
+    }
+    return audioCtx;
+  }
+  function playBeep(freq, dur, type, gain) {
+    var a = ensureAudio(); if (!a) return;
+    var osc = a.createOscillator();
+    var g = a.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(gain || 0.06, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    osc.connect(g); g.connect(a.destination);
+    osc.start(); osc.stop(a.currentTime + dur);
+  }
+  function playTick()   { playBeep(720, 0.06, 'square', 0.04); }
+  function playPreset() { playBeep(440, 0.08, 'sine'); setTimeout(function(){ playBeep(660, 0.1, 'sine'); }, 70); }
+  function playDrop()   { playBeep(220, 0.15, 'sine', 0.05); }
+
+  /* ================================================================
+     EXPORT — CSV + PNG
+     ================================================================ */
+  function exportCSV() {
+    var u = U();
+    var rows = [
+      ['Parameter', 'Value', 'Unit'],
+      ['Input Force F1', u.force.fromSI(inputForce).toFixed(u.force.digits), u.force.label],
+      ['Capacity F2', u.force.fromSI(getF2()).toFixed(u.force.digits), u.force.label],
+      ['d1 (input)', u.len.fromSI(d1mm).toFixed(u.len.digits), u.len.label],
+      ['d2 (output)', u.len.fromSI(d2mm).toFixed(u.len.digits), u.len.label],
+      ['Load (mass)', u.mass.fromSI(loadKg).toFixed(u.mass.digits), u.mass.label],
+      ['Load (weight W)', u.force.fromSI(getLoadW()).toFixed(u.force.digits), u.force.label],
+      ['Lift verdict', (liftInfo().k === 'lift' ? 'Lifts' : liftInfo().k === 'balance' ? 'Balanced' : 'Too heavy'), ''],
+      ['Min input to lift', u.force.fromSI(reqF1ForLoad()).toFixed(u.force.digits), u.force.label],
+      ['A1', u.area.fromSIm2(getA1()).toFixed(u.area.digits), u.area.label],
+      ['A2', u.area.fromSIm2(getA2()).toFixed(u.area.digits), u.area.label],
+      ['Pressure', u.press(getPressure()), ''],
+      ['Mechanical Advantage', getMA().toFixed(2), ''],
+      ['Small piston stroke', u.len.fromSI(300).toFixed(u.len.digits), u.len.label],
+      ['Large piston stroke', u.len.fromSI(getD2travel() * 1000).toFixed(u.len.digits), u.len.label],
+      ['Work (ideal)', (inputForce * getD1travel()).toFixed(2), 'J']
+    ];
+    var csv = rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pascals-law-results.csv';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function exportPNG() {
+    /* Watermark */
+    ctx.save();
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(139,157,195,.6)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText('NHIT VisualLab \u2014 Pascal\u2019s Law', W - 10, H - 6);
+    ctx.restore();
+    var url = cvs.toDataURL('image/png');
+    var a = document.createElement('a');
+    a.href = url; a.download = 'pascals-law.png'; a.click();
+    render(); /* redraw without watermark */
+  }
+  function copyPressureToClipboard() {
+    var txt = U().press(getPressure());
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
+  }
+
+  /* ================================================================
+     RESET + KEYBOARD
+     ================================================================ */
+  function resetAll() {
+    saveUndo();
+    inputForce = 100; d1mm = 20; d2mm = 80; loadKg = 120;
+    showPressure = true; showVolume = true; showEquation = true; showGrid = false;
+    var pc = $('#chk-pressure'); if (pc) pc.checked = true;
+    var vc = $('#chk-volume'); if (vc) vc.checked = true;
+    var ec = $('#chk-equation'); if (ec) ec.checked = true;
+    refreshToggleChips();
+    var sp = $('#sim-speed'); if (sp) sp.value = '0.5';
+    anim.speed = 0.5;
+    resetSimulationPose();
+    syncInputs(); updatePresetBtns(); updateReadouts(); render();
+  }
+
+  /* ================================================================
+     CONTEXT MENU
+     ================================================================ */
+  function wireContextMenu() {
+    var menu = $('#ctx-menu');
+    if (!menu) return;
+    function hide() { menu.style.display = 'none'; }
+    cvs.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      menu.style.display = 'flex';
+      menu.style.visibility = 'hidden';
+      /* measure */
+      var rect = menu.getBoundingClientRect();
+      var mw = rect.width, mh = rect.height;
+      var x = Math.min(e.clientX, window.innerWidth - mw - 8);
+      var y = Math.min(e.clientY, window.innerHeight - mh - 8);
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      menu.style.visibility = 'visible';
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.contains(e.target)) hide();
+    });
+    menu.addEventListener('click', function (e) {
+      var btn = e.target.closest('.ctx-item'); if (!btn) return;
+      var act = btn.getAttribute('data-act');
+      hide();
+      if (act === 'export-png') exportPNG();
+      else if (act === 'export-csv') exportCSV();
+      else if (act === 'copy-p') copyPressureToClipboard();
+      else if (act === 'toggle-grid') { showGrid = !showGrid; render(); }
+      else if (act === 'reset') resetAll();
+    });
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') hide();
+    });
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+  }
+
+  /* ================================================================
+     HINT BAR
+     ================================================================ */
+  function wireHint() {
+    var hint = $('#hint-bar');
+    var close = $('#hint-close');
+    if (!hint) return;
+    try {
+      if (localStorage.getItem('pascals-hint-dismissed') === '1') hint.classList.add('hidden');
+    } catch (e) {}
+    if (close) close.addEventListener('click', function () {
+      hint.classList.add('hidden');
+      try { localStorage.setItem('pascals-hint-dismissed', '1'); } catch (e) {}
+    });
+  }
+
+  /* ================================================================
+     ACTION BAR
+     ================================================================ */
+  function wireActionBar() {
+    var u = $('#btn-undo'); if (u) u.addEventListener('click', performUndo);
+    var r = $('#btn-redo'); if (r) r.addEventListener('click', performRedo);
+    var reset = $('#btn-reset'); if (reset) reset.addEventListener('click', resetAll);
+    var csv = $('#btn-csv'); if (csv) csv.addEventListener('click', exportCSV);
+    var png = $('#btn-png'); if (png) png.addEventListener('click', exportPNG);
+    var shr = $('#btn-share'); if (shr) shr.addEventListener('click', copyShareURL);
+    var calc = document.getElementById('btn-calc');
+    if (calc) calc.addEventListener('click', openCalcModal);
+    var cm = document.getElementById('calc-modal');
+    var cmc = document.getElementById('calc-modal-close');
+    if (cmc) cmc.addEventListener('click', closeCalcModal);
+    if (cm) cm.addEventListener('click', function (e) {
+      if (e.target === cm) closeCalcModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && cm && cm.classList.contains('active')) closeCalcModal();
+    });
+    var snd = $('#btn-sound'); if (snd) snd.addEventListener('click', function () {
+      soundOn = !soundOn;
+      this.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+      /* Swap the speaker SVG (on ↔ muted) and keep the label span so mobile
+         icon-only styling still applies. */
+      this.innerHTML = (soundOn ? ICON_SNDON : ICON_SNDOFF) + '<span class="dock-lbl">Sound</span>';
+    });
+    refreshUndoBtns();
+  }
+  function wireKeyboard() {
+    window.addEventListener('keydown', function (e) {
+      var tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault(); performUndo();
+      } else if ((e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y')) {
+        e.preventDefault(); performRedo();
+      } else if (e.code === 'Space' || e.key === ' ') {
+        if (mode === 'simulate') { e.preventDefault(); toggleSimulation(); }
+      }
+    });
+  }
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  function init() {
+    var modePills = $$('#mode-tabs .pill');
+    for (var i = 0; i < modePills.length; i++) {
+      modePills[i].addEventListener('click', function () {
+        setMode(this.getAttribute('data-mode'));
+      });
+    }
+
+    wireSimControls();
+    wireCategoryTabs();
+    wirePractice();
+    wireCanvasDrag();
+    wireContextMenu();
+    wireActionBar();
+    wireKeyboard();
+    wireHint();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      var ro = new ResizeObserver(function () { resizeCanvas(); });
+      ro.observe(cvs);
+      /* Observe the history canvas separately — it lives in a collapsible card
+         and only gains width when that card opens. Point the observer at the
+         RESIZE function, not the draw function, or the backing store never
+         grows with the element. */
+      var histCvs = document.getElementById('history-canvas');
+      if (histCvs) {
+        var roHist = new ResizeObserver(function () { resizeHistoryCanvas(); });
+        roHist.observe(histCvs);
+      }
+    }
+    window.addEventListener('resize', function () { resizeCanvas(); resizeHistoryCanvas(); });
+
+    /* Apply state from share URL (if any) before first render */
+    applyShareURL();
+
+    syncInputs();
+    updateReadouts();
+    resizeHistoryCanvas();
+    wireLearnPanels();
+    setMode(window.__pendingMode || 'simulate');
+    window.__pendingMode = undefined;
+  }
+
+  /* ================================================================
+     LEARNING PANELS — expand-all / collapse-all + redraw-on-open
+     ================================================================ */
+  function wireLearnPanels() {
+    var expAll = document.getElementById('learn-expand-all');
+    var colAll = document.getElementById('learn-collapse-all');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () {
+      cards.forEach(function (c) { c.open = true; });
+      /* After expanding, size + redraw the history canvas — while collapsed it
+         had zero width, so the backing store was never established. */
+      resizeHistoryCanvas();
+    });
+    if (colAll) colAll.addEventListener('click', function () {
+      cards.forEach(function (c) { c.open = false; });
+    });
+    /* Redraw history when its card is opened so the chart paints correctly. */
+    var histCard = document.getElementById('lp-history');
+    if (histCard) histCard.addEventListener('toggle', function () {
+      if (histCard.open) resizeHistoryCanvas();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();

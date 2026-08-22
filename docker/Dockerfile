@@ -1,14 +1,28 @@
-FROM nginx:alpine
+FROM python:3.11-slim
 
-# Custom static-server config: listens on 8080, dev-friendly (no HTML caching).
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /workspace
 
-# Fallback: bake the site in. At runtime a bind mount overrides this for live edits.
-COPY nhitvisuallab/ /usr/share/nginx/html/
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
+# Install Python requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application source & assets
+COPY app/ ./app/
+COPY blender/ ./blender/
+COPY frontend/ ./frontend/
+COPY nhitvisuallab/ ./nhitvisuallab/
+
+# Generate 3D models during build
+RUN python blender/generate_glb.py || true
+
+# Expose unified simulation port
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget -qO- http://localhost:8080/ >/dev/null 2>&1 || exit 1
-
-CMD ["nginx", "-g", "daemon off;"]
+# Run FastAPI server
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

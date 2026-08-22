@@ -1,0 +1,3260 @@
+/* ═════════════════════════════════════════════════════════════════
+   Matrix Operations Simulator — app.js (v2)
+   Operations: Multiply, Add, Subtract, Inverse (Gauss-Jordan)
+   Matrices up to 6×6, animated and instant modes.
+   ═════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ── DOM helper ── */
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('main-canvas');
+  var ctx = canvas.getContext('2d');
+  /* Layout cache populated by drawCanvas — used for click hit-testing */
+  var layout = { A: null, B: null, C: null, aug: null, cell: 36 };
+
+  /* ── Constants ── */
+  var MAX_SIZE = 6;
+  var MIN_SIZE = 1;
+  var EPS = 1e-10;
+
+  /* ── State ── */
+  var state = {
+    mode: 'simulate',
+    op: 'multiply',          // 'multiply' | 'add' | 'subtract' | 'inverse'
+    A: [], B: [], C: [],
+    aRows: 3, aCols: 3,
+    bRows: 3, bCols: 3,
+    cRows: 3, cCols: 3,
+    speed: 0.4,
+    // animation
+    simulating: false,
+    simDone: false,
+    seq: [],
+    seqIdx: 0,
+    perStep: 320,
+    lastTs: 0,
+    accum: 0,
+    running: 0,
+    currentI: -1, currentJ: -1, currentK: -1,
+    rafId: 0,
+    // inverse state
+    inverseAug: [],          // augmented matrix during inverse
+    inverseSteps: [],        // recorded step descriptors
+    inverseSingular: false,
+    inverseHighlights: null, // { pivot:{i,j}, scaleRow, eliminateRow, sourceRow }
+    // scalar/power state
+    scalarK: 2,              // multiplier for k·A
+    powerN: 2,               // exponent for Aⁿ
+    // single-number result (det, trace, rank)
+    scalarResult: null,
+    // solve A·x=b state
+    solveVecB: null,         // n-element column vector
+    solveX: null,            // solution vector
+    // audio
+    audioCtx: null,
+    // canvas flash list — { matrix, i, j, ts }
+    flashes: [],
+    // cell editor target
+    editing: null,
+    // undo/redo stack — snapshots of { op, aRows, aCols, bCols, A, B }
+    history: [],
+    historyIdx: -1,
+    historyMax: 50,
+    // practice
+    practice: { op: 'multiply', A: [], B: [], i: 0, j: 0, ans: 0, score: 0, total: 0, m: 0, n: 0, p: 0 },
+    // quiz
+    quiz: { set: [], idx: 0, score: 0, results: [], selected: null, answered: false }
+  };
+
+  var OP_SYMBOL  = { multiply: '×', add: '+', subtract: '−', inverse: '⁻¹', transpose: 'ᵀ', scalar: '·', power: '^n', determinant: 'det', trace: 'tr', rank: 'rank', solve: 'solve' };
+  var OP_LABEL   = { multiply: 'A × B', add: 'A + B', subtract: 'A − B', inverse: 'A⁻¹', transpose: 'Aᵀ', scalar: 'k·A', power: 'Aⁿ', determinant: 'det(A)', trace: 'tr(A)', rank: 'rank(A)', solve: 'A·x=b' };
+  var OP_RESULT  = { multiply: 'C = A·B', add: 'C = A + B', subtract: 'C = A − B', inverse: 'A⁻¹', transpose: 'Aᵀ', scalar: 'C = k·A', power: 'Aⁿ', determinant: 'det(A)', trace: 'tr(A)', rank: 'rank(A)', solve: 'x' };
+  var OP_PLAYLAB = { multiply: 'Simulate Multiplication', add: 'Simulate Addition', subtract: 'Simulate Subtraction', inverse: 'Simulate Inverse (Gauss-Jordan)', transpose: 'Simulate Transpose', scalar: 'Simulate Scalar Multiply', power: 'Simulate Power', determinant: 'Simulate Determinant', trace: 'Simulate Trace', rank: 'Simulate Rank', solve: 'Simulate Solve A·x=b' };
+
+  /* ───────────────────────────────────────────────────────
+     UTILITIES
+     ─────────────────────────────────────────────────────── */
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function makeMatrix(rows, cols, fill) {
+    var m = [];
+    for (var i = 0; i < rows; i++) {
+      var row = [];
+      for (var j = 0; j < cols; j++) row.push(typeof fill === 'function' ? fill(i, j) : (fill === undefined ? 0 : fill));
+      m.push(row);
+    }
+    return m;
+  }
+
+  function copyMatrix(M) { return M.map(function (r) { return r.slice(); }); }
+
+  function multiply(A, B) {
+    var m = A.length, n = A[0].length, p = B[0].length;
+    var C = makeMatrix(m, p, 0);
+    for (var i = 0; i < m; i++)
+      for (var j = 0; j < p; j++) {
+        var s = 0;
+        for (var k = 0; k < n; k++) s += A[i][k] * B[k][j];
+        C[i][j] = s;
+      }
+    return C;
+  }
+  function addM(A, B) {
+    var m = A.length, n = A[0].length, C = makeMatrix(m, n, 0);
+    for (var i = 0; i < m; i++) for (var j = 0; j < n; j++) C[i][j] = A[i][j] + B[i][j];
+    return C;
+  }
+  function subM(A, B) {
+    var m = A.length, n = A[0].length, C = makeMatrix(m, n, 0);
+    for (var i = 0; i < m; i++) for (var j = 0; j < n; j++) C[i][j] = A[i][j] - B[i][j];
+    return C;
+  }
+  function transposeM(A) {
+    var m = A.length, n = A[0].length, C = makeMatrix(n, m, 0);
+    for (var i = 0; i < m; i++) for (var j = 0; j < n; j++) C[j][i] = A[i][j];
+    return C;
+  }
+  function scalarMul(k, A) {
+    var m = A.length, n = A[0].length, C = makeMatrix(m, n, 0);
+    for (var i = 0; i < m; i++) for (var j = 0; j < n; j++) C[i][j] = k * A[i][j];
+    return C;
+  }
+  function traceM(A) {
+    var n = Math.min(A.length, A[0].length), s = 0;
+    for (var i = 0; i < n; i++) s += A[i][i];
+    return s;
+  }
+  /* Determinant via Gauss elimination with partial pivoting.
+     det = (±1 per swap) × ∏(pivots). Square matrices only. */
+  function determinantM(A0) {
+    var n = A0.length;
+    if (!A0[0] || A0[0].length !== n) return { det: NaN, reason: 'Not square' };
+    var M = A0.map(function (r) { return r.slice(); });
+    var sign = 1;
+    for (var c = 0; c < n; c++) {
+      /* find max pivot in column c */
+      var pivotRow = c, maxAbs = Math.abs(M[c][c]);
+      for (var r = c + 1; r < n; r++) {
+        var v = Math.abs(M[r][c]);
+        if (v > maxAbs) { maxAbs = v; pivotRow = r; }
+      }
+      if (maxAbs < EPS) return { det: 0 };   /* singular */
+      if (pivotRow !== c) { var tmp = M[c]; M[c] = M[pivotRow]; M[pivotRow] = tmp; sign = -sign; }
+      /* eliminate below pivot */
+      for (var r2 = c + 1; r2 < n; r2++) {
+        var factor = M[r2][c] / M[c][c];
+        for (var jj = c; jj < n; jj++) M[r2][jj] -= factor * M[c][jj];
+      }
+    }
+    /* det = sign × product of diagonal */
+    var det = sign;
+    for (var i = 0; i < n; i++) det *= M[i][i];
+    return { det: det };
+  }
+  /* Determinant via Gauss forward elimination, recording each step
+     for animation. det = sign × ∏(pivots). */
+  function determinantSteps(A0) {
+    var n = A0.length;
+    if (!A0[0] || A0[0].length !== n) return { det: NaN, steps: [], singular: true, reason: 'Not square' };
+    var M = A0.map(function (r) { return r.slice(); });
+    var sign = 1, pivots = [];
+    var steps = [];
+    var snap = function () { return M.map(function (rr) { return rr.slice(); }); };
+
+    for (var c = 0; c < n; c++) {
+      /* Find pivot (max abs in column c, rows c..n-1) */
+      var pivotRow = c, maxAbs = Math.abs(M[c][c]);
+      for (var r = c + 1; r < n; r++) {
+        var v = Math.abs(M[r][c]);
+        if (v > maxAbs) { maxAbs = v; pivotRow = r; }
+      }
+      if (maxAbs < EPS) {
+        steps.push({ type: 'singular', col: c, desc: 'Column ' + (c + 1) + ' has zero pivot — det(A) = 0', matAfter: snap(), runningPivots: pivots.slice(), runningSign: sign });
+        return { det: 0, steps: steps, singular: true };
+      }
+      if (pivotRow !== c) {
+        var tmp = M[c]; M[c] = M[pivotRow]; M[pivotRow] = tmp;
+        sign = -sign;
+        steps.push({ type: 'swap', r1: c, r2: pivotRow, desc: 'R' + (c + 1) + ' ↔ R' + (pivotRow + 1) + '  (sign flips to ' + (sign > 0 ? '+1' : '−1') + ')', matAfter: snap(), runningPivots: pivots.slice(), runningSign: sign });
+      }
+      var pivot = M[c][c];
+      pivots.push(pivot);
+      steps.push({
+        type: 'pivot-noted', pivot: { i: c, j: c }, value: pivot,
+        desc: 'Pivot[' + (c + 1) + '] = ' + fmtNum(pivot) + '   (running product = ' + (sign < 0 ? '−' : '') + pivots.map(function(p){return fmtNum(p);}).join(' × ') + ')',
+        matAfter: snap(), runningPivots: pivots.slice(), runningSign: sign
+      });
+      /* Eliminate below pivot only (forward Gauss) */
+      for (var r2 = c + 1; r2 < n; r2++) {
+        var factor = M[r2][c] / M[c][c];
+        if (Math.abs(factor) < EPS) continue;
+        for (var jj = c; jj < n; jj++) M[r2][jj] -= factor * M[c][jj];
+        steps.push({
+          type: 'eliminate', target: r2, source: c, factor: factor,
+          desc: 'R' + (r2 + 1) + ' ← R' + (r2 + 1) + (factor >= 0 ? ' − ' : ' + ') + fmtNum(Math.abs(factor)) + '·R' + (c + 1),
+          matAfter: snap(), runningPivots: pivots.slice(), runningSign: sign
+        });
+      }
+    }
+    var det = sign;
+    for (var i = 0; i < n; i++) det *= M[i][i];
+    steps.push({
+      type: 'done', det: det,
+      desc: 'det(A) = ' + (sign < 0 ? '−' : '+') + ' ' + pivots.map(function(p){return fmtNum(p);}).join(' × ') + ' = ' + fmtNum(det),
+      matAfter: snap(), runningPivots: pivots.slice(), runningSign: sign
+    });
+    return { det: det, steps: steps, singular: false };
+  }
+
+  /* Rank via RREF, recording each step for animation. */
+  function rankSteps(A0) {
+    var m = A0.length, n = A0[0].length;
+    var M = A0.map(function (r) { return r.slice(); });
+    var rank = 0, leadCol = 0;
+    var steps = [];
+    var snap = function () { return M.map(function (rr) { return rr.slice(); }); };
+
+    for (var r = 0; r < m && leadCol < n; r++) {
+      /* Find pivot in column leadCol at or below row r */
+      var pivotRow = -1, maxAbs = EPS;
+      for (var rr = r; rr < m; rr++) {
+        var v = Math.abs(M[rr][leadCol]);
+        if (v > maxAbs) { maxAbs = v; pivotRow = rr; }
+      }
+      if (pivotRow === -1) {
+        steps.push({ type: 'skip-col', col: leadCol, desc: 'Column ' + (leadCol + 1) + ' has no pivot — skip (free variable)', matAfter: snap(), runningRank: rank });
+        leadCol++; r--; continue;
+      }
+      if (pivotRow !== r) {
+        var tmp = M[r]; M[r] = M[pivotRow]; M[pivotRow] = tmp;
+        steps.push({ type: 'swap', r1: r, r2: pivotRow, desc: 'R' + (r + 1) + ' ↔ R' + (pivotRow + 1), matAfter: snap(), runningRank: rank });
+      }
+      var pv = M[r][leadCol];
+      if (Math.abs(pv - 1) > EPS) {
+        for (var jj = 0; jj < n; jj++) M[r][jj] /= pv;
+        steps.push({
+          type: 'scale', row: r, factor: 1 / pv, pivot: pv,
+          desc: 'R' + (r + 1) + ' ← R' + (r + 1) + ' / ' + fmtNum(pv) + '  (normalize pivot to 1)',
+          matAfter: snap(), runningRank: rank
+        });
+      }
+      for (var rr2 = 0; rr2 < m; rr2++) {
+        if (rr2 === r) continue;
+        var f = M[rr2][leadCol];
+        if (Math.abs(f) < EPS) continue;
+        for (var jj2 = 0; jj2 < n; jj2++) M[rr2][jj2] -= f * M[r][jj2];
+        steps.push({
+          type: 'eliminate', target: rr2, source: r, factor: f,
+          desc: 'R' + (rr2 + 1) + ' ← R' + (rr2 + 1) + (f >= 0 ? ' − ' : ' + ') + fmtNum(Math.abs(f)) + '·R' + (r + 1),
+          matAfter: snap(), runningRank: rank
+        });
+      }
+      rank++;
+      steps.push({
+        type: 'pivot-counted', col: leadCol, runningRank: rank,
+        desc: 'Pivot in column ' + (leadCol + 1) + ' → rank now = ' + rank,
+        matAfter: snap()
+      });
+      leadCol++;
+    }
+    steps.push({ type: 'done', rank: rank, desc: 'RREF complete. rank(A) = ' + rank, matAfter: snap(), runningRank: rank });
+    return { rank: rank, rref: M, steps: steps };
+  }
+
+  /* Rank = number of non-zero pivot rows in RREF. Works for any shape. */
+  function rankAndRREF(A0) {
+    var m = A0.length, n = A0[0].length;
+    var M = A0.map(function (r) { return r.slice(); });
+    var rank = 0, leadCol = 0;
+    for (var r = 0; r < m && leadCol < n; r++) {
+      /* find pivot in column leadCol at or below row r */
+      var pivotRow = -1, maxAbs = EPS;
+      for (var rr = r; rr < m; rr++) {
+        var v = Math.abs(M[rr][leadCol]);
+        if (v > maxAbs) { maxAbs = v; pivotRow = rr; }
+      }
+      if (pivotRow === -1) { leadCol++; r--; continue; }   /* skip column, retry same row */
+      if (pivotRow !== r) { var tmp = M[r]; M[r] = M[pivotRow]; M[pivotRow] = tmp; }
+      /* normalize pivot row */
+      var pv = M[r][leadCol];
+      for (var jj = 0; jj < n; jj++) M[r][jj] = M[r][jj] / pv;
+      /* eliminate above & below */
+      for (var rr2 = 0; rr2 < m; rr2++) {
+        if (rr2 === r) continue;
+        var f = M[rr2][leadCol];
+        if (Math.abs(f) < EPS) continue;
+        for (var jj2 = 0; jj2 < n; jj2++) M[rr2][jj2] -= f * M[r][jj2];
+      }
+      rank++; leadCol++;
+    }
+    return { rank: rank, rref: M };
+  }
+  /* Aⁿ via repeated multiplication. n must be positive integer. */
+  function powerM(A, n) {
+    var k = Math.max(1, Math.floor(n));
+    var R = A.map(function (r) { return r.slice(); });
+    for (var i = 1; i < k; i++) R = multiply(R, A);
+    return R;
+  }
+  /* Solve A·x = b via Gauss-Jordan on [A | b], recording each row operation
+     so the animation can replay them step by step (same style as inverse). */
+  function solveSystemSteps(A0, b) {
+    var n = A0.length;
+    if (!A0[0] || A0[0].length !== n) return { x: null, steps: [], singular: true, reason: 'A not square' };
+    if (b.length !== n) return { x: null, steps: [], singular: true, reason: 'b length mismatch' };
+    /* Build augmented [A | b] */
+    var M = [];
+    for (var i = 0; i < n; i++) M.push(A0[i].slice().concat([b[i]]));
+    var steps = [];
+    var snap = function () { return M.map(function (rr) { return rr.slice(); }); };
+
+    for (var c = 0; c < n; c++) {
+      var pivotRow = c, maxAbs = Math.abs(M[c][c]);
+      for (var r = c + 1; r < n; r++) {
+        var v = Math.abs(M[r][c]);
+        if (v > maxAbs) { maxAbs = v; pivotRow = r; }
+      }
+      if (maxAbs < EPS) {
+        steps.push({ type: 'singular', col: c, desc: 'Column ' + (c + 1) + ' has no non-zero pivot — A is singular, no unique x exists', matAfter: snap() });
+        return { x: null, steps: steps, singular: true };
+      }
+      if (pivotRow !== c) {
+        var tmp = M[c]; M[c] = M[pivotRow]; M[pivotRow] = tmp;
+        steps.push({ type: 'swap', r1: c, r2: pivotRow, desc: 'R' + (c + 1) + ' ↔ R' + (pivotRow + 1) + '  (find non-zero pivot)', matAfter: snap() });
+      }
+      var pivot = M[c][c];
+      if (Math.abs(pivot - 1) > EPS) {
+        for (var jj = 0; jj <= n; jj++) M[c][jj] = M[c][jj] / pivot;
+        steps.push({ type: 'scale', row: c, factor: 1 / pivot, pivot: pivot, desc: 'R' + (c + 1) + ' ← R' + (c + 1) + ' / ' + fmtNum(pivot) + '  (pivot → 1)', matAfter: snap() });
+      } else {
+        steps.push({ type: 'scale-noop', row: c, desc: 'R' + (c + 1) + ' already has pivot 1', matAfter: snap() });
+      }
+      for (var r2 = 0; r2 < n; r2++) {
+        if (r2 === c) continue;
+        var factor = M[r2][c];
+        if (Math.abs(factor) < EPS) continue;
+        for (var jj2 = 0; jj2 <= n; jj2++) M[r2][jj2] = M[r2][jj2] - factor * M[c][jj2];
+        steps.push({
+          type: 'eliminate', target: r2, source: c, factor: factor,
+          desc: 'R' + (r2 + 1) + ' ← R' + (r2 + 1) + (factor >= 0 ? ' − ' : ' + ') + fmtNum(Math.abs(factor)) + '·R' + (c + 1),
+          matAfter: snap()
+        });
+      }
+    }
+    var x = [];
+    for (var ii = 0; ii < n; ii++) x.push(M[ii][n]);
+    steps.push({ type: 'done', desc: 'Left half = I. Right column = x.', matAfter: snap() });
+    return { x: x, steps: steps, singular: false };
+  }
+  /* Kept simple version for non-animated quick solve */
+  function solveSystem(A0, b) {
+    var r = solveSystemSteps(A0, b);
+    return { x: r.x, singular: r.singular };
+  }
+
+  /* Inverse via Gauss-Jordan, recording every step.
+     Returns { inv: <matrix> | null, steps: [...], singular: bool } */
+  function inverseSteps(A0) {
+    var n = A0.length;
+    if (!A0[0] || A0[0].length !== n) return { inv: null, steps: [], singular: true, reason: 'Not square' };
+    // Build augmented [A | I]
+    var M = [];
+    for (var i = 0; i < n; i++) {
+      var r = A0[i].slice();
+      for (var j = 0; j < n; j++) r.push(i === j ? 1 : 0);
+      M.push(r);
+    }
+    var steps = [];
+    var snap = function () { return M.map(function (rr) { return rr.slice(); }); };
+
+    for (var c = 0; c < n; c++) {
+      // 1. Find pivot (max abs value in column c, rows c..n-1)
+      var pivotRow = c, maxAbs = Math.abs(M[c][c]);
+      for (var r = c + 1; r < n; r++) {
+        var v = Math.abs(M[r][c]);
+        if (v > maxAbs) { maxAbs = v; pivotRow = r; }
+      }
+      if (maxAbs < EPS) {
+        steps.push({ type: 'singular', col: c, desc: 'Column ' + (c + 1) + ' has no non-zero pivot — matrix is singular (det = 0)', matAfter: snap() });
+        return { inv: null, steps: steps, singular: true };
+      }
+      if (pivotRow !== c) {
+        var tmp = M[c]; M[c] = M[pivotRow]; M[pivotRow] = tmp;
+        steps.push({ type: 'swap', r1: c, r2: pivotRow, desc: 'R' + (c + 1) + ' ↔ R' + (pivotRow + 1) + '  (find non-zero pivot)', matAfter: snap() });
+      }
+      // 2. Scale pivot row so pivot becomes 1
+      var pivot = M[c][c];
+      if (Math.abs(pivot - 1) > EPS) {
+        for (var jj = 0; jj < 2 * n; jj++) M[c][jj] = M[c][jj] / pivot;
+        steps.push({ type: 'scale', row: c, factor: 1 / pivot, pivot: pivot, desc: 'R' + (c + 1) + ' ← R' + (c + 1) + ' / ' + fmtNum(pivot) + '  (pivot → 1)', matAfter: snap() });
+      } else {
+        steps.push({ type: 'scale-noop', row: c, desc: 'R' + (c + 1) + ' already has pivot 1', matAfter: snap() });
+      }
+      // 3. Eliminate column c from all other rows
+      for (var r2 = 0; r2 < n; r2++) {
+        if (r2 === c) continue;
+        var factor = M[r2][c];
+        if (Math.abs(factor) < EPS) continue;
+        for (var j2 = 0; j2 < 2 * n; j2++) M[r2][j2] = M[r2][j2] - factor * M[c][j2];
+        steps.push({
+          type: 'eliminate', target: r2, source: c, factor: factor,
+          desc: 'R' + (r2 + 1) + ' ← R' + (r2 + 1) + (factor >= 0 ? ' − ' : ' + ') + fmtNum(Math.abs(factor)) + '·R' + (c + 1),
+          matAfter: snap()
+        });
+      }
+    }
+
+    // Extract right half = A^-1
+    var inv = makeMatrix(n, n, 0);
+    for (var ii = 0; ii < n; ii++) for (var jj2 = 0; jj2 < n; jj2++) inv[ii][jj2] = M[ii][jj2 + n];
+    steps.push({ type: 'done', desc: 'Left half = I. Right half = A⁻¹.', matAfter: snap() });
+    return { inv: inv, steps: steps, singular: false };
+  }
+
+  function fmtNum(v) {
+    if (v === undefined || v === null || isNaN(v)) return '';
+    var r = Math.round(v * 1000) / 1000;
+    if (Math.abs(r - Math.round(r)) < 1e-9) return String(Math.round(r));
+    return r.toString();
+  }
+
+  /* ── Audio ── */
+  function getAudioCtx() {
+    if (!state.audioCtx) {
+      try { state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+    }
+    return state.audioCtx;
+  }
+  function playTone(freq, dur, type, vol) {
+    var ac = getAudioCtx(); if (!ac) return;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.value = vol || 0.05;
+    o.connect(g); g.connect(ac.destination);
+    var t = ac.currentTime;
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.start(t); o.stop(t + dur);
+  }
+  function playTick()    { playTone(900, 0.04, 'square', 0.03); }
+  function playCellDone(){ playTone(660, 0.08, 'sine', 0.05); setTimeout(function(){ playTone(990, 0.1, 'sine', 0.05); }, 60); }
+  function playSuccess() { playTone(880, 0.12, 'sine', 0.08); setTimeout(function(){ playTone(1175, 0.15, 'sine', 0.08); }, 120); }
+  function playError()   { playTone(280, 0.18, 'sawtooth', 0.06); }
+  function playClick()   { playTone(800, 0.03, 'square', 0.03); }
+
+  /* ───────────────────────────────────────────────────────
+     PRESETS
+     ─────────────────────────────────────────────────────── */
+  var PRESETS = [
+    { label: 'Rotation 30°',
+      A: [[Math.cos(Math.PI/6), -Math.sin(Math.PI/6)],
+          [Math.sin(Math.PI/6),  Math.cos(Math.PI/6)]],
+      B: [[1, 0], [0, 1]] },
+    { label: 'Identity I·A = A',
+      A: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      B: [[2, 5, 1], [3, 4, 7], [6, 8, 2]] },
+    { label: '2×3 × 3×2',
+      A: [[1, 2, 3], [4, 5, 6]],
+      B: [[7,  8], [9, 10], [11, 12]] },
+    { label: 'Reflection + Scale',
+      A: [[-1, 0, 0], [ 0, 1, 0], [ 0, 0, 1]],
+      B: [[2, 0, 0], [0, 3, 0], [0, 0, 1]] },
+    { label: 'Stiffness 4×4',
+      A: [[ 4, -1,  0, -1], [-1,  4, -1,  0], [ 0, -1,  4, -1], [-1,  0, -1,  4]],
+      B: [[1, 0, 0, 1], [0, 1, 1, 0], [0, 1, 1, 0], [1, 0, 0, 1]] }
+  ];
+
+  /* ───────────────────────────────────────────────────────
+     EXPLORE CONTENT
+     ─────────────────────────────────────────────────────── */
+  var EXPLORE = {
+    basics: [
+      { title: 'Matrix Multiplication',  body: 'C[i][j] is the dot product of row i of A with column j of B. Shapes: (m×n)·(n×p) = (m×p).', formula: 'C[i][j] = Σₖ A[i][k] · B[k][j]', note: 'The middle dimension must match.' },
+      { title: 'Matrix Addition',         body: 'Element-wise: each cell of the result is the sum of the corresponding cells of A and B. Both matrices must have the same shape.', formula: '(A + B)[i][j] = A[i][j] + B[i][j]', note: 'Addition is commutative — A + B = B + A.' },
+      { title: 'Matrix Subtraction',      body: 'Also element-wise. Just like addition but subtracting cell by cell. Same shape rule applies.', formula: '(A − B)[i][j] = A[i][j] − B[i][j]', note: 'A − B is generally not equal to B − A.' },
+      { title: 'Matrix Inverse',          body: 'For a square matrix A, the inverse A⁻¹ is the matrix that satisfies A·A⁻¹ = I. We compute it by reducing the augmented matrix [A | I] to [I | A⁻¹] using Gauss-Jordan elimination.', formula: 'A · A⁻¹ = A⁻¹ · A = I', note: 'Only exists when det(A) ≠ 0.' },
+      { title: 'Matrix Transpose',        body: 'The transpose Aᵀ swaps rows and columns: cell A[i][j] moves to Aᵀ[j][i]. An m×n matrix becomes n×m. No special shape requirement — works on any matrix.', formula: '(Aᵀ)[j][i] = A[i][j]', note: '(Aᵀ)ᵀ = A. Transpose is its own inverse.' },
+      { title: 'Scalar Multiplication k·A', body: 'Multiply every entry of A by a single scalar k. The result has the same shape as A. Scales a transformation uniformly — useful for normalising vectors, applying gain.', formula: '(k·A)[i][j] = k · A[i][j]', note: 'k·A = A·k always. Scaling commutes with matrix algebra.' },
+      { title: 'Matrix Power Aⁿ',          body: 'Aⁿ means A multiplied by itself n times: A·A·A…. A must be square. Used in Markov chains (probability transitions over n steps), graph theory (walks of length n), and recurrence relations.', formula: 'Aⁿ = A · A · A · … (n times)', note: 'A⁰ = I and A⁻ⁿ = (A⁻¹)ⁿ when A is invertible.' },
+      { title: 'Determinant det(A)',       body: 'A single number computed from a square matrix that captures: invertibility (det ≠ 0), volume scaling factor of the linear transformation, and orientation (sign).', formula: 'For 2×2 [[a,b],[c,d]]:  det = ad − bc', note: 'For larger matrices use cofactor expansion or Gauss elimination.' },
+      { title: 'Trace tr(A)',              body: 'Sum of the main-diagonal entries of a square matrix. Equal to the sum of eigenvalues. Appears in physics (energy bilinear forms), control theory, and many matrix identities.', formula: 'tr(A) = Σᵢ A[i][i]', note: 'tr(AB) = tr(BA) even when AB ≠ BA.' },
+      { title: 'Rank rank(A)',             body: 'Number of linearly independent rows (equivalently columns) of A. Found from the row-reduced echelon form: count of non-zero pivot rows. Tells you how much information the matrix carries.', formula: 'rank(A) ≤ min(rows, cols)', note: 'A square matrix is invertible iff rank(A) = n.' },
+      { title: 'Solve A·x = b',             body: 'Find the vector x that satisfies A·x = b. For invertible square A: x = A⁻¹·b. The simulator solves it directly with Gauss-Jordan on [A | b], which is faster and more numerically stable than inverting first.', formula: 'A · x = b   ⇒   x = A⁻¹ · b', note: 'No unique solution if A is singular (det = 0).' }
+    ],
+    rules: [
+      { title: 'Multiplication is Not Commutative', body: 'AB ≠ BA in general — and sometimes only one product is defined.', formula: 'AB ≠ BA', note: 'Addition IS commutative.' },
+      { title: 'Associative & Distributive',         body: 'Both multiplication and addition are associative. Multiplication distributes over addition from both sides.', formula: '(AB)C = A(BC),  A(B + C) = AB + AC', note: 'Used to combine many transforms into one matrix.' },
+      { title: 'Identity & Inverse',                  body: 'I leaves a matrix unchanged on multiply. A·A⁻¹ recovers the identity, undoing the transformation.', formula: 'A · I = A,  A · A⁻¹ = I', note: 'A⁻¹ exists only if det(A) ≠ 0.' },
+      { title: 'Inverse of a Product',                body: 'The inverse of a product is the product of inverses in reverse order.', formula: '(A · B)⁻¹ = B⁻¹ · A⁻¹', note: 'Used to undo a chain of transforms (last applied is first undone).' }
+    ],
+    applications: [
+      { title: '2D / 3D Graphics',     body: 'Rotation, scaling, translation and projection are all matrix multiplications. Inverse matrices undo the camera transform to convert screen clicks into world coordinates.', formula: 'M_total = M_proj · M_view · M_model', note: 'GPUs are dedicated 4×4 matrix multipliers.' },
+      { title: 'Solving Linear Systems', body: 'Ax = b is solved by x = A⁻¹b when A is invertible. The same Gauss-Jordan that builds A⁻¹ also solves the system directly.', formula: 'A · x = b  ⇒  x = A⁻¹ · b', note: 'For large systems, LU decomposition is preferred over computing A⁻¹.' },
+      { title: 'Robotics Kinematics',   body: 'Forward kinematics multiplies joint matrices. Inverse kinematics inverts to find joint angles for a target pose.', formula: 'T_end = T₁ · T₂ · … · Tₙ', note: 'Each Tᵢ is a 4×4 homogeneous transform.' },
+      { title: 'Neural Networks',        body: 'Each layer is essentially y = σ(W·x + b). Training updates use chains of matrix multiplications and transposes.', formula: 'y = σ(W · x + b)', note: 'Modern LLMs are stacks of huge matrix multiplications.' }
+    ],
+    properties: [
+      { title: 'Transpose Property',  body: '(AB)ᵀ = Bᵀ Aᵀ — order reverses on transposing a product.', formula: '(A · B)ᵀ = Bᵀ · Aᵀ', note: 'Critical identity in proofs and gradients.' },
+      { title: 'Inverse Properties',   body: 'Multiple identities involving inverses, all useful for hand calculations.', formula: '(A⁻¹)⁻¹ = A,  (Aᵀ)⁻¹ = (A⁻¹)ᵀ,  (kA)⁻¹ = (1/k) A⁻¹', note: 'When det(A) = 0, none of these apply — A is singular.' },
+      { title: 'Determinant & Invertibility', body: 'A square matrix is invertible if and only if its determinant is non-zero. Gauss-Jordan stops with a zero pivot when the matrix is singular.', formula: 'A invertible  ⇔  det(A) ≠ 0', note: 'This simulator detects singular matrices automatically.' },
+      { title: 'Operation Cost',       body: 'n×n multiplication: ≈ n³ scalar multiplications. n×n inverse via Gauss-Jordan: ≈ n³ as well. Addition: only n² operations.', formula: 'cost(multiply) ≈ n³,  cost(inverse) ≈ n³,  cost(add) ≈ n²', note: 'Animation step count reflects this directly.' }
+    ]
+  };
+
+  /* ───────────────────────────────────────────────────────
+     SIZE / SHAPE MANAGEMENT
+     ─────────────────────────────────────────────────────── */
+  function populateSelect(sel, val) {
+    sel.innerHTML = '';
+    for (var i = MIN_SIZE; i <= MAX_SIZE; i++) {
+      var opt = document.createElement('option');
+      opt.value = i; opt.textContent = i;
+      if (i === val) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  function applyShapes() {
+    var op = state.op;
+    if (op === 'multiply') {
+      state.bRows = state.aCols;
+      state.cRows = state.aRows;
+      state.cCols = state.bCols;
+    } else if (op === 'add' || op === 'subtract') {
+      state.bRows = state.aRows;
+      state.bCols = state.aCols;
+      state.cRows = state.aRows;
+      state.cCols = state.aCols;
+    } else if (op === 'inverse') {
+      if (state.aCols !== state.aRows) { state.aCols = state.aRows; }
+      state.bRows = state.aRows;
+      state.bCols = state.aRows;
+      state.cRows = state.aRows;
+      state.cCols = state.aRows;
+    } else if (op === 'transpose') {
+      /* No B; result is the transpose so dims swap */
+      state.bRows = state.aRows;
+      state.bCols = state.aCols;
+      state.cRows = state.aCols;   /* swapped */
+      state.cCols = state.aRows;   /* swapped */
+    } else if (op === 'scalar') {
+      /* k · A — result same shape as A; scalar input used instead of B */
+      state.bRows = state.aRows; state.bCols = state.aCols;
+      state.cRows = state.aRows; state.cCols = state.aCols;
+    } else if (op === 'power') {
+      /* Aⁿ — A must be square; result n×n */
+      if (state.aCols !== state.aRows) state.aCols = state.aRows;
+      state.bRows = state.aRows; state.bCols = state.aRows;
+      state.cRows = state.aRows; state.cCols = state.aRows;
+    } else if (op === 'determinant' || op === 'trace') {
+      /* Single-number result on square A */
+      if (state.aCols !== state.aRows) state.aCols = state.aRows;
+      state.bRows = state.aRows; state.bCols = state.aRows;
+      state.cRows = 1; state.cCols = 1;
+    } else if (op === 'rank') {
+      /* Rank of any shape, single-number result */
+      state.bRows = state.aRows; state.bCols = state.aCols;
+      state.cRows = 1; state.cCols = 1;
+    } else if (op === 'solve') {
+      /* A·x = b — A is square n×n, b is n×1, x is n×1.
+         B matrix is repurposed as the b vector (n×1). */
+      if (state.aCols !== state.aRows) state.aCols = state.aRows;
+      state.bRows = state.aRows; state.bCols = 1;
+      state.cRows = state.aRows; state.cCols = 1;
+    }
+    // Update size selectors visually
+    populateSelect($('sel-a-rows'), state.aRows);
+    populateSelect($('sel-a-cols'), state.aCols);
+    populateSelect($('sel-b-cols'), state.bCols);
+    $('b-rows-fixed').textContent = state.bRows;
+
+    // Operation-aware UI: hide B for ops that don't use a matrix B
+    var simSec = $('sec-simulate');
+    /* Hide B selector group for ops that don't use a matrix B. Solve keeps B
+       visible because b is the vector input (B.cols is locked to 1 there). */
+    var bHiddenOps = ['inverse','transpose','scalar','power','determinant','trace','rank'];
+    simSec.classList.toggle('size-b-hidden', bHiddenOps.indexOf(op) !== -1);
+    /* Show scalar input only for k·A and Aⁿ */
+    var scalarGroup = $('scalar-input-group');
+    if (scalarGroup) {
+      if (op === 'scalar' || op === 'power') {
+        scalarGroup.style.display = '';
+        $('scalar-input-label').textContent = (op === 'scalar') ? 'Scalar k' : 'Power n';
+        $('scalar-input').value = (op === 'scalar') ? state.scalarK : state.powerN;
+        $('scalar-input').step = (op === 'power') ? '1' : 'any';
+        $('scalar-input').min = (op === 'power') ? '1' : '';
+        $('scalar-input').max = (op === 'power') ? '10' : '';
+      } else {
+        scalarGroup.style.display = 'none';
+      }
+    }
+
+    // Action button label
+    $('btn-play-label').textContent = OP_PLAYLAB[op];
+
+    // Result label / colour
+    var rl = $('result-label');
+    rl.textContent = OP_RESULT[op];
+    rl.classList.remove('is-add','is-subtract','is-inverse','is-transpose','is-scalar','is-power','is-determinant','is-trace','is-rank','is-solve');
+    var opClassMap = { add:'is-add', subtract:'is-subtract', inverse:'is-inverse', transpose:'is-transpose', scalar:'is-scalar', power:'is-power', determinant:'is-determinant', trace:'is-trace', rank:'is-rank', solve:'is-solve' };
+    if (opClassMap[op]) rl.classList.add(opClassMap[op]);
+
+    // Per-op selector locking (visible UI for the constraint)
+    // - multiply: B.rows locked to A.cols (shown via b-rows-fixed)
+    // - add/sub:  B.rows and B.cols BOTH locked to A
+    // - inverse:  A.cols locked to A.rows, B not used
+    var squareOps = ['inverse','power','determinant','trace','solve'];
+    var aColsLocked = squareOps.indexOf(op) !== -1;
+    $('sel-a-cols').disabled  = aColsLocked;
+    $('sel-b-cols').disabled  = (op === 'add' || op === 'subtract');
+    $('sel-b-cols').classList.toggle('locked', op === 'add' || op === 'subtract');
+    $('sel-a-cols').classList.toggle('locked', aColsLocked);
+
+    // Update labels with constraint hints
+    var sizeALabel = $('size-a-label');
+    var sizeBLabel = $('size-b-label');
+    if (op === 'multiply') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (rows&times;cols)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (<span class="locked-hint">rows = A.cols</span>&times;cols)';
+    } else if (op === 'add' || op === 'subtract') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (rows&times;cols)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B <span class="locked-hint">= A shape</span>';
+    } else if (op === 'inverse') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (<span class="locked-hint">square n&times;n</span>)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (not used)';
+    } else if (op === 'transpose') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (rows&times;cols)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (not used)';
+    } else if (op === 'scalar') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (rows&times;cols)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (not used)';
+    } else if (op === 'power') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (<span class="locked-hint">square n&times;n</span>)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (not used)';
+    } else if (op === 'determinant' || op === 'trace') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (<span class="locked-hint">square n&times;n</span>)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (not used)';
+    } else if (op === 'rank') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (rows&times;cols)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'B (not used)';
+    } else if (op === 'solve') {
+      if (sizeALabel) sizeALabel.innerHTML = 'A (<span class="locked-hint">square n&times;n</span>)';
+      if (sizeBLabel) sizeBLabel.innerHTML = 'b (<span class="locked-hint">vector n&times;1</span>)';
+    }
+
+    // Shape labels
+    $('lab-a-shape').innerHTML = state.aRows + '&times;' + state.aCols;
+    $('lab-b-shape').innerHTML = state.bRows + '&times;' + state.bCols;
+    $('lab-c-shape').innerHTML = state.cRows + '&times;' + state.cCols;
+  }
+
+  function resizeMatrix(M, rows, cols) {
+    var N = makeMatrix(rows, cols, 0);
+    for (var i = 0; i < rows; i++)
+      for (var j = 0; j < cols; j++)
+        if (M[i] && M[i][j] !== undefined) N[i][j] = M[i][j];
+    return N;
+  }
+  function ensureMatrices() {
+    state.A = resizeMatrix(state.A, state.aRows, state.aCols);
+    state.B = resizeMatrix(state.B, state.bRows, state.bCols);
+    state.C = makeMatrix(state.cRows, state.cCols, null);
+  }
+
+  /* ───────────────────────────────────────────────────────
+     GRID RENDERING
+     ─────────────────────────────────────────────────────── */
+  function renderGrid(name, M, target, editable) {
+    var rows = M.length, cols = M[0] ? M[0].length : 0;
+    target.style.gridTemplateColumns = 'repeat(' + cols + ', auto)';
+    target.innerHTML = '';
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var cell = document.createElement(editable ? 'input' : 'div');
+        cell.className = 'mtx-cell';
+        cell.dataset.i = i; cell.dataset.j = j; cell.dataset.m = name;
+        if (editable) {
+          cell.type = 'number'; cell.step = 'any';
+          cell.value = fmtNum(M[i][j]);
+          cell.addEventListener('input', onCellEdit);
+          cell.addEventListener('focus', function () { this.select && this.select(); });
+        } else {
+          cell.textContent = (M[i][j] === null || M[i][j] === undefined) ? '' : fmtNum(M[i][j]);
+        }
+        target.appendChild(cell);
+      }
+    }
+  }
+  function onCellEdit(e) { /* legacy hook — DOM grids only used for practice/quiz previews now */ }
+
+  function renderAll() {
+    /* All editing + animation lives on the unified canvas now. */
+    updateBadges();
+    drawCanvas();
+  }
+
+  /* ───────────────────────────────────────────────────────
+     READOUT BADGES
+     ─────────────────────────────────────────────────────── */
+  function updateBadges() {
+    var totalSteps = state.seq.length || estimateTotalSteps();
+    $('rb-total').textContent = totalSteps;
+    $('rb-step').textContent = state.seqIdx;
+    $('rb-op').textContent = OP_LABEL[state.op];
+    if (state.op === 'inverse') {
+      $('rb-cell').textContent = state.inverseSingular ? 'Singular' : 'Aug Matrix';
+      $('rb-cell-val').textContent = state.simDone ? 'A⁻¹ ready' : (state.inverseHighlights ? '…' : '—');
+    } else if (state.currentI >= 0) {
+      $('rb-cell').textContent = 'C[' + (state.currentI + 1) + '][' + (state.currentJ + 1) + ']';
+      var v = state.C[state.currentI] && state.C[state.currentI][state.currentJ];
+      $('rb-cell-val').textContent = (v === null || v === undefined) ? fmtNum(state.running) + ' …' : fmtNum(v);
+    } else {
+      $('rb-cell').textContent = 'C[1][1]';
+      $('rb-cell-val').textContent = '—';
+    }
+    var st = $('rb-status');
+    if (state.simulating) st.textContent = 'Animating';
+    else if (state.simDone) st.textContent = 'Done';
+    else st.textContent = 'Ready';
+  }
+  function estimateTotalSteps() {
+    if (state.op === 'multiply') return state.cRows * state.cCols * state.aCols;
+    if (state.op === 'add' || state.op === 'subtract') return state.cRows * state.cCols;
+    if (state.op === 'inverse') return state.aRows * (state.aRows + 1); // rough estimate
+    return 0;
+  }
+
+  /* ───────────────────────────────────────────────────────
+     CANVAS — dispatcher
+     ─────────────────────────────────────────────────────── */
+  function sizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || 800;
+    var minH = state.op === 'inverse' ? 340 : (state.op === 'multiply' ? 400 : 320);
+    /* Allow taller canvas on wider viewports so big matrices fill more of the space */
+    var cssH = Math.max(minH, Math.min(720, cssW * 0.60));
+    canvas.style.height = cssH + 'px';
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawCanvas() {
+    sizeCanvas();
+    var W = canvas.clientWidth, H = parseFloat(canvas.style.height) || 320;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    if (state.op === 'multiply')       drawMultiply(W, H);
+    else if (state.op === 'inverse')   drawInverse(W, H);
+    else if (state.op === 'transpose') drawTranspose(W, H);
+    else if (state.op === 'solve' && (state.simulating || state.simDone)) drawSolveAnimated(W, H);
+    else if (state.op === 'determinant' && (state.simulating || state.simDone)) drawDetAnimated(W, H);
+    else if (state.op === 'rank' && (state.simulating || state.simDone)) drawRankAnimated(W, H);
+    else if (state.op === 'add' || state.op === 'subtract') drawAddSub(W, H);
+    else                               drawGenericOp(W, H);
+
+    // Idle prompt
+    if (!state.simulating && !state.simDone) {
+      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(Date.now() / 500);
+      ctx.font = '700 13px Segoe UI, sans-serif';
+      ctx.fillStyle = '#6b7a99'; ctx.textAlign = 'center';
+      ctx.fillText('▶ Press Simulate to watch the ' + OP_LABEL[state.op] + ' animation', W / 2, H - 12);
+      ctx.globalAlpha = 1.0;
+      requestAnimationFrame(drawCanvas);
+    }
+  }
+
+  function drawMultiply(W, H) {
+    var pad = 16;
+    var m = state.aRows, n = state.aCols, p = state.bCols;
+    var maxRowsAll = Math.max(m, n);
+    var totalCols = n + p + p;
+    var gap = 28;
+    var opSymW = 24;  /* width consumed by × and = symbols */
+    /* Right reserve scales with canvas width so narrow screens don't sacrifice cell size */
+    var rightReserve = Math.max(70, Math.min(150, W * 0.16));
+    /* Accurate fixed overhead: 2*pad + 2*gap + 2 opSym + right reserve */
+    var fixedOverhead = pad * 2 + gap * 2 + opSymW * 2 + rightReserve;
+    var cellByW = (W - fixedOverhead) / totalCols;
+    var cellByH = (H - pad * 2 - 60) / (maxRowsAll + 1);
+    /* Cell fills available space. Cap raised to 110 so 3x3 on big canvases looks substantial */
+    var cell = Math.max(14, Math.min(110, Math.min(cellByW, cellByH)));
+
+    var aW = n * cell, aH = m * cell;
+    var bW = p * cell, bH = n * cell;
+    var cW = p * cell, cH = m * cell;
+    var totalW = aW + bW + cW + gap * 2 + opSymW * 2;
+    /* Shift slightly left so the product column on the right always has room */
+    var startX = Math.max(pad, (W - totalW - rightReserve) / 2);
+    var midY = H / 2;
+    var aX = startX, aY = midY - aH / 2;
+    var bX = aX + aW + gap, bY = midY - bH / 2;
+    var cX = bX + bW + gap, cY = midY - cH / 2;
+
+    var hi = state.currentI, hj = state.currentJ, hk = state.currentK;
+    // cache layout for click hit-testing
+    layout = { cell: cell, A: { x: aX, y: aY, rows: m, cols: n }, B: { x: bX, y: bY, rows: n, cols: p }, C: { x: cX, y: cY, rows: m, cols: p }, aug: null };
+    drawMiniMatrix(ctx, state.A, aX, aY, cell, m, n, '#ff5252', 'A', hi >= 0 ? { type: 'row', idx: hi, k: hk } : null);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '700 22px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('×', aX + aW + gap / 2, midY);
+    drawMiniMatrix(ctx, state.B, bX, bY, cell, n, p, '#4fc3f7', 'B', hi >= 0 ? { type: 'col', idx: hj, k: hk } : null);
+    ctx.fillStyle = '#6b7a99'; ctx.fillText('=', bX + bW + gap / 2, midY);
+    drawMiniMatrix(ctx, state.C, cX, cY, cell, m, p, '#ffd54f', 'C', hi >= 0 ? { type: 'cell', i: hi, j: hj } : null);
+    drawFlashes('C', cX, cY, cell, '#ffd54f');
+
+    if (state.simulating && hk >= 0 && hi >= 0) {
+      var ax = aX + (hk + 0.5) * cell, ay = aY + (hi + 0.5) * cell;
+      var bxp = bX + (hj + 0.5) * cell, byp = bY + (hk + 0.5) * cell;
+      var pulse = 0.5 + 0.5 * Math.sin(Date.now() / 120);
+      ctx.strokeStyle = 'rgba(255,213,79,' + (0.6 + 0.4 * pulse) + ')';
+      ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(ax, ay);
+      ctx.bezierCurveTo(ax, ay - 30 - pulse * 8, bxp, byp - 30 - pulse * 8, bxp, byp);
+      ctx.stroke(); ctx.setLineDash([]);
+
+      var mxp = (ax + bxp) / 2, myp = Math.min(ay, byp) - 32 - pulse * 6;
+      var prod = state.A[hi][hk] * state.B[hk][hj];
+      var label = fmtNum(state.A[hi][hk]) + '×' + fmtNum(state.B[hk][hj]) + ' = ' + fmtNum(prod);
+      drawLabelBadge(label, mxp, myp, '#ffd54f');
+
+      // ◢ STACKED-ADDITION COLUMN to the right of the C matrix ◣
+      drawProductColumn(hi, hj, hk, cX, cY, cell, W, H);
+    }
+  }
+
+  function drawAddSub(W, H) {
+    var sign = state.op === 'add' ? '+' : '−';
+    var color = state.op === 'add' ? '#3ddc84' : '#ffa726';
+    var m = state.aRows, n = state.aCols;
+    var totalCols = n * 3;
+    var gap = 30, opSymW = 28;
+    var fixedOverhead = 32 + gap * 2 + opSymW * 2;  /* 2*pad + gaps + + sym and = sym */
+    var cellByW = (W - fixedOverhead) / totalCols;
+    var cellByH = (H - 32 - 60) / (m + 1);
+    /* Cells fill the canvas */
+    var cell = Math.max(14, Math.min(110, Math.min(cellByW, cellByH)));
+    var matW = n * cell, matH = m * cell;
+    var totalW = matW * 3 + gap * 2 + opSymW * 2;
+    var startX = (W - totalW) / 2;
+    var midY = H / 2;
+    var aX = startX, bX = aX + matW + gap, cX = bX + matW + gap;
+    var aY = midY - matH / 2, bY = aY, cY = aY;
+
+    var hi = state.currentI, hj = state.currentJ;
+    layout = { cell: cell, A: { x: aX, y: aY, rows: m, cols: n }, B: { x: bX, y: bY, rows: m, cols: n }, C: { x: cX, y: cY, rows: m, cols: n }, aug: null };
+    drawMiniMatrix(ctx, state.A, aX, aY, cell, m, n, '#ff5252', 'A', hi >= 0 ? { type: 'cellA', i: hi, j: hj } : null);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '700 24px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = color; ctx.fillText(sign, aX + matW + gap / 2, midY);
+    drawMiniMatrix(ctx, state.B, bX, bY, cell, m, n, '#4fc3f7', 'B', hi >= 0 ? { type: 'cellA', i: hi, j: hj } : null);
+    ctx.fillStyle = '#6b7a99'; ctx.fillText('=', bX + matW + gap / 2, midY);
+    drawMiniMatrix(ctx, state.C, cX, cY, cell, m, n, '#ffd54f', 'C', hi >= 0 ? { type: 'cell', i: hi, j: hj } : null);
+    drawFlashes('C', cX, cY, cell, '#ffd54f');
+
+    if (state.simulating && hi >= 0) {
+      var a = state.A[hi][hj], b = state.B[hi][hj];
+      var res = state.op === 'add' ? a + b : a - b;
+      var label = fmtNum(a) + ' ' + sign + ' ' + fmtNum(b) + ' = ' + fmtNum(res);
+      var lx = (aX + cX + matW) / 2;
+      var ly = aY - 22;
+      drawLabelBadge(label, lx, ly, color);
+    }
+  }
+
+  /* ───────────────────────────────────────────────────────
+     GENERIC OP CANVAS — used by scalar, power, determinant,
+     trace, rank, solve. Layout: [A] [opSym] [C] with optional
+     B (vector b) inserted for solve.
+     ─────────────────────────────────────────────────────── */
+  function drawGenericOp(W, H) {
+    var op = state.op;
+    var m = state.aRows, n = state.aCols;
+    var cm = state.cRows, cn = state.cCols;
+    var hasB = (op === 'solve');
+    var bm = state.bRows, bn = state.bCols;
+
+    /* layout columns count */
+    var totalCols = n + (hasB ? bn : 0) + cn;
+    var gap = 36, opSymW = 38;
+    var symbolCount = hasB ? 3 : 2;  /* A · b = C  or  A = C */
+    var fixedOverhead = 32 + gap * (symbolCount - 1) + opSymW * symbolCount;
+    var cellByW = (W - fixedOverhead) / totalCols;
+    var cellByH = (H - 32 - 70) / (Math.max(m, cm, bm) + 1);
+    var cell = Math.max(14, Math.min(100, Math.min(cellByW, cellByH)));
+
+    var aW = n * cell, aH = m * cell;
+    var bW = bn * cell, bH = bm * cell;
+    var cW = cn * cell, cH = cm * cell;
+
+    var midY = H / 2;
+    var totalW = aW + (hasB ? (gap + opSymW + bW) : 0) + gap + opSymW + cW;
+    var startX = (W - totalW) / 2;
+    var aX = startX, aY = midY - aH / 2;
+    var bX, bY;
+    var opSym1X = aX + aW + gap / 2;
+    var afterOp1X = aX + aW + gap + opSymW;
+    if (hasB) {
+      bX = afterOp1X; bY = midY - bH / 2;
+      var opSym2X = bX + bW + gap / 2;
+      var afterOp2X = bX + bW + gap + opSymW;
+      var cX = afterOp2X, cY = midY - cH / 2;
+      drawGenericLayout(aX, aY, cell, m, n, '#ff5252', 'A', bX, bY, bm, bn, '#4fc3f7', 'b', cX, cY, cm, cn, opColor(op), resultLabel(op), opSym1X, opSym2X, '·', '=');
+      layout = { cell: cell, A: { x: aX, y: aY, rows: m, cols: n }, B: { x: bX, y: bY, rows: bm, cols: bn }, C: { x: cX, y: cY, rows: cm, cols: cn }, aug: null };
+    } else {
+      var cX2 = afterOp1X, cY2 = midY - cH / 2;
+      drawGenericLayout(aX, aY, cell, m, n, '#ff5252', 'A', null, null, 0, 0, null, null, cX2, cY2, cm, cn, opColor(op), resultLabel(op), opSym1X, null, opSymbol(op), null);
+      layout = { cell: cell, A: { x: aX, y: aY, rows: m, cols: n }, B: null, C: { x: cX2, y: cY2, rows: cm, cols: cn }, aug: null };
+    }
+  }
+  function opColor(op) {
+    var map = { scalar: '#ffb74d', power: '#7c4dff', determinant: '#26c6da', trace: '#ec407a', rank: '#5c6bc0', solve: '#66bb6a' };
+    return map[op] || '#ffd54f';
+  }
+  function resultLabel(op) {
+    var map = { scalar: 'k·A', power: 'A' + supN(state.powerN), determinant: 'det', trace: 'tr', rank: 'rank', solve: 'x' };
+    return map[op] || 'C';
+  }
+  function supN(n) {
+    var sup = { 0:'⁰',1:'¹',2:'²',3:'³',4:'⁴',5:'⁵',6:'⁶',7:'⁷',8:'⁸',9:'⁹' };
+    var s = String(Math.floor(n)); var out = '';
+    for (var i = 0; i < s.length; i++) out += (sup[s[i]] || s[i]);
+    return out;
+  }
+  function opSymbol(op) {
+    if (op === 'scalar') return state.scalarK + ' ·';   /* "2 ·" before A */
+    if (op === 'power')  return '^' + state.powerN + ' =';
+    return '=';   /* det, trace, rank just show A = result */
+  }
+  function drawGenericLayout(aX, aY, cell, m, n, aColor, aLabel,
+                              bX, bY, bm, bn, bColor, bLabel,
+                              cX, cY, cm, cn, cColor, cLabel,
+                              sym1X, sym2X, sym1, sym2) {
+    drawMiniMatrix(ctx, state.A, aX, aY, cell, m, n, aColor, aLabel,
+      state.currentI >= 0 && (state.op === 'scalar') ? { type: 'cellA', i: state.currentI, j: state.currentJ } : null);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '700 20px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    /* sym1 may be longer for scalar/power — measure to position correctly */
+    ctx.fillText(sym1, sym1X, (aY + (aY + m * cell)) / 2);
+    if (bX !== null) {
+      drawMiniMatrix(ctx, state.B, bX, bY, cell, bm, bn, bColor, bLabel, null);
+      ctx.fillText(sym2, sym2X, (bY + (bY + bm * cell)) / 2);
+    }
+    /* C may be a single number (1x1 for det/trace/rank) */
+    drawMiniMatrix(ctx, state.C, cX, cY, cell, cm, cn, cColor, cLabel,
+      state.currentI >= 0 && state.simulating ? { type: 'cell', i: 0, j: 0 } : null);
+    drawFlashes('C', cX, cY, cell, cColor);
+  }
+
+  function drawInverse(W, H) {
+    var n = state.aRows;
+    var animating = state.simulating;
+    var done = state.simDone;
+    // Layout: A on left, → arrow, augmented during animation OR A⁻¹ result on right
+    if (animating) {
+      // Big augmented matrix — reserve ~180px on the right for connector arcs + labels
+      var mat = state.inverseAug;
+      /* Right reserve scales with canvas width */
+      var rightReserve = Math.max(120, Math.min(200, W * 0.18));
+      var cellByW = (W - 32 - rightReserve) / (2 * n);
+      var cellByH = (H - 32 - 80) / n;
+      /* Cells fill the canvas */
+      var cell = Math.max(14, Math.min(100, Math.min(cellByW, cellByH)));
+      var matW = 2 * n * cell, matH = n * cell;
+      // Shift LEFT so we always have the right-side area free for arrows + labels
+      var x = Math.max(16, (W - matW - rightReserve) / 2);
+      var y = (H - matH) / 2 + 8;
+      layout = { cell: cell, A: null, B: null, C: null, aug: { x: x, y: y, rows: n, cols: 2 * n } };
+      drawAugmentedMatrix(ctx, mat, x, y, cell, n);
+      // ◢ Row-targeting connectors + labels (same dashed-pulse style as multiply) ◣
+      drawInverseConnectors(ctx, x, y, cell, n, state.inverseHighlights);
+      ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#ab47bc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Augmented [ A | I ]  →  [ I | A⁻¹ ]', x + matW / 2, y - 22);
+      if (state.inverseHighlights && state.inverseHighlights.desc) {
+        ctx.font = '700 12px Segoe UI, sans-serif'; ctx.fillStyle = '#ce93d8';
+        ctx.fillText(state.inverseHighlights.desc, x + matW / 2, y + matH + 22);
+      }
+      if (state.inverseSingular) {
+        ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#ff5252';
+        ctx.fillText('⚠ Singular matrix — A⁻¹ does not exist', x + matW / 2, y + matH + 22);
+      }
+    } else {
+      // Side-by-side A | → | A⁻¹
+      var totalCols = n * 2;
+      var gap2 = 50, opW2 = 30;
+      var cellByW2 = (W - 32 - gap2 - opW2) / totalCols;
+      var cellByH2 = (H - 32 - 60) / (n + 1);
+      var cell2 = Math.max(14, Math.min(110, Math.min(cellByW2, cellByH2)));
+      var matWA = n * cell2, matHA = n * cell2;
+      var gap = 50;
+      var totalW = matWA * 2 + gap;
+      var startX = (W - totalW) / 2;
+      var midY = H / 2;
+      var aX = startX, aY = midY - matHA / 2;
+      var cX = aX + matWA + gap, cY = aY;
+      layout = { cell: cell2, A: { x: aX, y: aY, rows: n, cols: n }, B: null, C: { x: cX, y: cY, rows: n, cols: n }, aug: null };
+      drawMiniMatrix(ctx, state.A, aX, aY, cell2, n, n, '#ff5252', 'A', null);
+      ctx.font = '800 22px Segoe UI, sans-serif'; ctx.fillStyle = '#ab47bc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⁻¹ →', aX + matWA + gap / 2, midY);
+      drawMiniMatrix(ctx, state.C, cX, cY, cell2, n, n, '#ab47bc', 'A⁻¹', null);
+      drawFlashes('C', cX, cY, cell2, '#ab47bc');
+      if (done && state.inverseSingular) {
+        ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#ff5252';
+        ctx.fillText('⚠ Singular matrix — A⁻¹ does not exist', W / 2, cY + matHA + 22);
+      }
+    }
+  }
+
+  function buildInitialAugmented() {
+    var n = state.aRows;
+    var mat = [];
+    for (var i = 0; i < n; i++) {
+      var r = state.A[i] ? state.A[i].slice() : [];
+      while (r.length < n) r.push(0);
+      for (var j = 0; j < n; j++) r.push(i === j ? 1 : 0);
+      mat.push(r);
+    }
+    return mat;
+  }
+
+  /* ───────────────────────────────────────────────────────
+     TRANSPOSE CANVAS — A on the left, Aᵀ on the right,
+     animated cell-by-cell with a connector showing the
+     row↔column swap (A[i][j] → Aᵀ[j][i]).
+     ─────────────────────────────────────────────────────── */
+  function drawTranspose(W, H) {
+    var m = state.aRows, n = state.aCols;
+    var cm = state.cRows /* = n */, cn = state.cCols /* = m */;
+    /* Layout: A | ᵀ→ | Aᵀ */
+    var totalCols = n + cn;
+    var gap = 40, opSymW = 50;  /* "ᵀ →" symbol */
+    var cellByW = (W - 32 - gap - opSymW) / totalCols;
+    var cellByH = (H - 32 - 70) / (Math.max(m, cm) + 1);
+    var cell = Math.max(14, Math.min(110, Math.min(cellByW, cellByH)));
+    var aW = n * cell, aH = m * cell;
+    var cW = cn * cell, cH = cm * cell;
+    var gap = 40;
+    var totalW = aW + cW + gap;
+    var startX = (W - totalW) / 2;
+    var midY = H / 2;
+    var aX = startX, aY = midY - aH / 2;
+    var cX = aX + aW + gap, cY = midY - cH / 2;
+
+    var hi = state.currentI, hj = state.currentJ;
+    layout = { cell: cell, A: { x: aX, y: aY, rows: m, cols: n }, B: null, C: { x: cX, y: cY, rows: cm, cols: cn }, aug: null };
+    drawMiniMatrix(ctx, state.A, aX, aY, cell, m, n, '#ff5252', 'A', hi >= 0 ? { type: 'cellA', i: hi, j: hj } : null);
+    /* ᵀ→ symbol */
+    ctx.font = '800 22px Segoe UI, sans-serif'; ctx.fillStyle = '#26c6da';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('ᵀ →', aX + aW + gap / 2, midY);
+    drawMiniMatrix(ctx, state.C, cX, cY, cell, cm, cn, '#26c6da', 'Aᵀ', hi >= 0 ? { type: 'cell', i: hj, j: hi } : null);
+    drawFlashes('C', cX, cY, cell, '#26c6da');
+
+    /* Pulsing connector: A[i][j] (right edge) → Aᵀ[j][i] (left edge) */
+    if (state.simulating && hi >= 0) {
+      var pulse = 0.5 + 0.5 * Math.sin(Date.now() / 120);
+      var srcX = aX + (hj + 1) * cell + 2;        /* right edge of source cell */
+      var srcY = aY + (hi + 0.5) * cell;
+      var dstX = cX + hi * cell - 2;              /* left edge of dest cell — note j↔i swap */
+      var dstY = cY + (hj + 0.5) * cell;
+      ctx.strokeStyle = 'rgba(38,198,218,' + (0.55 + 0.4 * pulse) + ')';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(srcX, srcY);
+      ctx.bezierCurveTo((srcX + dstX) / 2, srcY, (srcX + dstX) / 2, dstY, dstX - 8, dstY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      /* Arrowhead landing on destination cell */
+      ctx.fillStyle = '#26c6da';
+      ctx.beginPath();
+      ctx.moveTo(dstX, dstY);
+      ctx.lineTo(dstX - 8, dstY - 4);
+      ctx.lineTo(dstX - 8, dstY + 4);
+      ctx.closePath();
+      ctx.fill();
+      /* Tiny label */
+      ctx.font = '700 11px Segoe UI, sans-serif';
+      ctx.fillStyle = '#80deea';
+      ctx.textAlign = 'center';
+      ctx.fillText('A[' + (hi + 1) + '][' + (hj + 1) + '] → Aᵀ[' + (hj + 1) + '][' + (hi + 1) + ']', (srcX + dstX) / 2, midY - Math.max(aH, cH) / 2 - 14);
+    }
+  }
+
+  /* ───────────────────────────────────────────────────────
+     SOLVE A·x = b — animated [A | b] augmented matrix.
+     Reuses Gauss-Jordan step infrastructure & connector style.
+     ─────────────────────────────────────────────────────── */
+  function drawSolveAnimated(W, H) {
+    var n = state.aRows;
+    var mat = state.solveAug || ((state.A || []).map(function (r, i) {
+      var v = (state.B && state.B[i]) ? state.B[i][0] : 0;
+      return r.slice().concat([v]);
+    }));
+    var rightReserve = Math.max(120, Math.min(200, W * 0.18));
+    var cellByW = (W - 32 - rightReserve) / (n + 1);   /* n + 1 cols (b is 1 col) */
+    var cellByH = (H - 32 - 80) / n;
+    var cell = Math.max(14, Math.min(100, Math.min(cellByW, cellByH)));
+    var matW = (n + 1) * cell, matH = n * cell;
+    var x = Math.max(16, (W - matW - rightReserve) / 2);
+    var y = (H - matH) / 2 + 8;
+    layout = { cell: cell, A: null, B: null, C: null, aug: { x: x, y: y, rows: n, cols: n + 1 } };
+    drawAugmentedMatrixGeneric(ctx, mat, x, y, cell, n, 1, '#66bb6a', 'A (left)', 'b → x (right)');
+    drawInverseConnectors(ctx, x, y, cell, n + 0.5, state.inverseHighlights);   /* +0.5 ≈ extra ½-col for b */
+    ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#66bb6a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Augmented [ A | b ]  →  [ I | x ]', x + matW / 2, y - 22);
+    if (state.inverseHighlights && state.inverseHighlights.desc) {
+      ctx.font = '700 12px Segoe UI, sans-serif'; ctx.fillStyle = '#a5d6a7';
+      ctx.fillText(state.inverseHighlights.desc, x + matW / 2, y + matH + 22);
+    }
+    if (state.solveSingular) {
+      ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#ff5252';
+      ctx.fillText('⚠ Singular A — A·x = b has no unique solution', x + matW / 2, y + matH + 22);
+    }
+  }
+
+  /* ───────────────────────────────────────────────────────
+     DETERMINANT — animated Gauss elimination with pivot
+     product badge in the corner.
+     ─────────────────────────────────────────────────────── */
+  function drawDetAnimated(W, H) {
+    var n = state.aRows;
+    var mat = state.detLiveMatrix || state.A;
+    var rightReserve = Math.max(120, Math.min(220, W * 0.20));
+    var cellByW = (W - 32 - rightReserve) / n;
+    var cellByH = (H - 32 - 80) / n;
+    var cell = Math.max(14, Math.min(100, Math.min(cellByW, cellByH)));
+    var matW = n * cell, matH = n * cell;
+    var x = Math.max(16, (W - matW - rightReserve) / 2);
+    var y = (H - matH) / 2 + 8;
+    layout = { cell: cell, A: { x: x, y: y, rows: n, cols: n }, B: null, C: null, aug: null };
+    drawPlainMatrix(ctx, mat, x, y, cell, n, n, '#00bfa5', 'A (Gauss-reduced)');
+    drawInverseConnectors(ctx, x, y, cell, n, state.inverseHighlights);
+    ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#00bfa5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Forward Gauss elimination &mdash; det = sign &times; &prod;(pivots)'.replace(/&mdash;/g,'—').replace(/&times;/g,'×').replace(/&prod;/g,'∏'), x + matW / 2, y - 22);
+    /* Pivot-product badge top-right of the canvas */
+    var step = state.detSteps && state.detSteps[state.seqIdx - 1];
+    if (step && step.runningPivots) {
+      var sign = step.runningSign;
+      var partial = sign;
+      for (var p = 0; p < step.runningPivots.length; p++) partial *= step.runningPivots[p];
+      var label = 'det so far: ' + (sign < 0 ? '−' : '+') + ' ' + step.runningPivots.map(fmtNum).join(' × ') + ' = ' + fmtNum(partial);
+      ctx.font = '700 12px Segoe UI, sans-serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(0,191,165,0.18)';
+      var w = ctx.measureText(label).width + 16;
+      roundRect(ctx, W - 10 - w, 8, w, 24, 6); ctx.fill();
+      ctx.strokeStyle = '#00bfa5'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#80cbc4';
+      ctx.fillText(label, W - 18, 14);
+    }
+    if (state.detSingular) {
+      ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#ff5252'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⚠ Zero pivot found — det(A) = 0', x + matW / 2, y + matH + 22);
+    } else if (state.simDone) {
+      ctx.font = '800 16px Segoe UI, sans-serif'; ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('det(A) = ' + fmtNum(state.detResult), x + matW / 2, y + matH + 22);
+    }
+  }
+
+  /* ───────────────────────────────────────────────────────
+     RANK — animated RREF with column-by-column processing
+     and running rank counter.
+     ─────────────────────────────────────────────────────── */
+  function drawRankAnimated(W, H) {
+    var m = state.aRows, n = state.aCols;
+    var mat = state.rankLiveMatrix || state.A;
+    var rightReserve = Math.max(120, Math.min(220, W * 0.20));
+    var cellByW = (W - 32 - rightReserve) / n;
+    var cellByH = (H - 32 - 80) / m;
+    var cell = Math.max(14, Math.min(100, Math.min(cellByW, cellByH)));
+    var matW = n * cell, matH = m * cell;
+    var x = Math.max(16, (W - matW - rightReserve) / 2);
+    var y = (H - matH) / 2 + 8;
+    layout = { cell: cell, A: { x: x, y: y, rows: m, cols: n }, B: null, C: null, aug: null };
+    drawPlainMatrix(ctx, mat, x, y, cell, m, n, '#5c6bc0', 'A → RREF');
+    drawInverseConnectors(ctx, x, y, cell, n, state.inverseHighlights);
+    /* Highlight skipped column if any */
+    var hl = state.inverseHighlights || {};
+    if (hl.skipCol != null) {
+      var sx = x + hl.skipCol * cell;
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 120));
+      ctx.strokeStyle = '#ffa726'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+      ctx.strokeRect(sx + 1, y + 1, cell - 2, matH - 2);
+      ctx.setLineDash([]);
+      ctx.font = '700 11px Segoe UI, sans-serif'; ctx.fillStyle = '#ffa726'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('skip (free)', sx + cell / 2, y - 4);
+      ctx.restore();
+    }
+    ctx.font = '800 14px Segoe UI, sans-serif'; ctx.fillStyle = '#5c6bc0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('RREF reduction — count of non-zero pivot rows = rank(A)', x + matW / 2, y - 22);
+    /* Running rank badge */
+    var step = state.rankStepsList && state.rankStepsList[state.seqIdx - 1];
+    if (step && step.runningRank != null) {
+      var label = 'pivots so far: ' + step.runningRank;
+      ctx.font = '700 12px Segoe UI, sans-serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(92,107,192,0.18)';
+      var w = ctx.measureText(label).width + 16;
+      roundRect(ctx, W - 10 - w, 8, w, 24, 6); ctx.fill();
+      ctx.strokeStyle = '#5c6bc0'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#9fa8da';
+      ctx.fillText(label, W - 18, 14);
+    }
+    if (state.simDone) {
+      ctx.font = '800 16px Segoe UI, sans-serif'; ctx.fillStyle = '#3ddc84'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('rank(A) = ' + state.rankResult, x + matW / 2, y + matH + 22);
+    }
+  }
+
+  /* Plain matrix drawer (no augmented divider) — used by det/rank animation */
+  function drawPlainMatrix(c, M, x, y, cell, rows, cols, color, label) {
+    var br = 6, totalW = cols * cell;
+    c.strokeStyle = color; c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x - 4, y - br); c.lineTo(x - 4, y + rows * cell + br);
+    c.moveTo(x - 4, y - br); c.lineTo(x + 4, y - br);
+    c.moveTo(x - 4, y + rows * cell + br); c.lineTo(x + 4, y + rows * cell + br);
+    c.moveTo(x + totalW + 4, y - br); c.lineTo(x + totalW + 4, y + rows * cell + br);
+    c.moveTo(x + totalW + 4, y - br); c.lineTo(x + totalW - 4, y - br);
+    c.moveTo(x + totalW + 4, y + rows * cell + br); c.lineTo(x + totalW - 4, y + rows * cell + br);
+    c.stroke();
+    c.font = (Math.max(9, Math.floor(cell * 0.4))) + 'px Courier New, monospace';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    var hl = state.inverseHighlights || {};
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var cx = x + j * cell, cy = y + i * cell;
+        var bg = '#1f2535';
+        if (hl.scaleRow === i) bg = 'rgba(255,213,79,.25)';
+        else if (hl.sourceRow === i) bg = 'rgba(0,191,165,.30)';
+        else if (hl.eliminateRow === i) bg = 'rgba(255,82,82,.25)';
+        if (hl.swap && (hl.swap[0] === i || hl.swap[1] === i)) bg = 'rgba(79,195,247,.30)';
+        if (hl.pivot && hl.pivot.i === i && hl.pivot.j === j) bg = color;
+        c.fillStyle = bg;
+        c.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+        var v = M[i] && M[i][j] !== undefined ? M[i][j] : 0;
+        var txt = fmtNum(v);
+        if (hl.pivot && hl.pivot.i === i && hl.pivot.j === j) c.fillStyle = '#fff';
+        else c.fillStyle = '#dde3f0';
+        var maxW = cell - 4;
+        if (c.measureText(txt).width > maxW && txt.length > 4) txt = txt.slice(0, 4);
+        c.fillText(txt, cx + cell / 2, cy + cell / 2 + 1);
+      }
+    }
+    c.font = '800 12px Segoe UI, sans-serif'; c.fillStyle = color; c.textAlign = 'center';
+    c.fillText(label || 'A', x + (cols * cell) / 2, y - 6);
+  }
+
+  /* Generic augmented matrix drawer — leftCols is matrix part, rightCols is RHS part */
+  function drawAugmentedMatrixGeneric(c, M, x, y, cell, leftCols, rightCols, divColor, leftLabel, rightLabel) {
+    var rows = M.length, cols = leftCols + rightCols;
+    var color = divColor || '#ab47bc';
+    var br = 6, totalW = cols * cell;
+    /* Brackets */
+    c.strokeStyle = color; c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x - 4, y - br); c.lineTo(x - 4, y + rows * cell + br);
+    c.moveTo(x - 4, y - br); c.lineTo(x + 4, y - br);
+    c.moveTo(x - 4, y + rows * cell + br); c.lineTo(x + 4, y + rows * cell + br);
+    c.moveTo(x + totalW + 4, y - br); c.lineTo(x + totalW + 4, y + rows * cell + br);
+    c.moveTo(x + totalW + 4, y - br); c.lineTo(x + totalW - 4, y - br);
+    c.moveTo(x + totalW + 4, y + rows * cell + br); c.lineTo(x + totalW - 4, y + rows * cell + br);
+    c.stroke();
+    /* Divider between left and right halves */
+    c.strokeStyle = color; c.lineWidth = 1.4; c.setLineDash([4, 3]);
+    var divX = x + leftCols * cell;
+    c.beginPath(); c.moveTo(divX, y - 2); c.lineTo(divX, y + rows * cell + 2); c.stroke();
+    c.setLineDash([]);
+    /* Cells */
+    c.font = (Math.max(9, Math.floor(cell * 0.4))) + 'px Courier New, monospace';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    var hl = state.inverseHighlights || {};
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var cx = x + j * cell, cy = y + i * cell;
+        var bg = '#1f2535';
+        if (hl.scaleRow === i) bg = 'rgba(255,213,79,.25)';
+        else if (hl.sourceRow === i) bg = 'rgba(102,187,106,.30)';
+        else if (hl.eliminateRow === i) bg = 'rgba(255,82,82,.25)';
+        if (hl.swap && (hl.swap[0] === i || hl.swap[1] === i)) bg = 'rgba(79,195,247,.30)';
+        if (hl.pivot && hl.pivot.i === i && hl.pivot.j === j) bg = color;
+        c.fillStyle = bg;
+        c.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+        var v = M[i] && M[i][j] !== undefined ? M[i][j] : 0;
+        var txt = fmtNum(v);
+        if (hl.pivot && hl.pivot.i === i && hl.pivot.j === j) c.fillStyle = '#fff';
+        else if (j < leftCols) c.fillStyle = '#dde3f0';
+        else c.fillStyle = color;
+        var maxW = cell - 4;
+        if (c.measureText(txt).width > maxW && txt.length > 4) txt = txt.slice(0, 4);
+        c.fillText(txt, cx + cell / 2, cy + cell / 2 + 1);
+      }
+    }
+    /* Side labels */
+    c.font = '800 12px Segoe UI, sans-serif'; c.fillStyle = '#ff5252';
+    c.fillText(leftLabel || 'A', x + (leftCols * cell) / 2, y - 6);
+    c.fillStyle = color;
+    c.fillText(rightLabel || 'b', x + leftCols * cell + (rightCols * cell) / 2, y - 6);
+  }
+
+  function drawAugmentedMatrix(c, M, x, y, cell, n) {
+    var rows = n, cols = 2 * n;
+    var color = '#ab47bc';
+    var br = 6, totalW = cols * cell;
+
+    // Brackets
+    c.strokeStyle = color; c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x - 4, y - br); c.lineTo(x - 4, y + rows * cell + br);
+    c.moveTo(x - 4, y - br); c.lineTo(x + 4, y - br);
+    c.moveTo(x - 4, y + rows * cell + br); c.lineTo(x + 4, y + rows * cell + br);
+    c.moveTo(x + totalW + 4, y - br); c.lineTo(x + totalW + 4, y + rows * cell + br);
+    c.moveTo(x + totalW + 4, y - br); c.lineTo(x + totalW - 4, y - br);
+    c.moveTo(x + totalW + 4, y + rows * cell + br); c.lineTo(x + totalW - 4, y + rows * cell + br);
+    c.stroke();
+
+    // Vertical divider in the middle (between A side and I side)
+    c.strokeStyle = '#ce93d8'; c.lineWidth = 1.4; c.setLineDash([4, 3]);
+    var divX = x + n * cell;
+    c.beginPath(); c.moveTo(divX, y - 2); c.lineTo(divX, y + rows * cell + 2); c.stroke();
+    c.setLineDash([]);
+
+    // Cells
+    c.font = (Math.max(9, Math.floor(cell * 0.4))) + 'px Courier New, monospace';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    var hl = state.inverseHighlights || {};
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var cx = x + j * cell, cy = y + i * cell;
+        // Background
+        var bg = '#1f2535';
+        if (hl.scaleRow === i) bg = 'rgba(255,213,79,.25)';
+        else if (hl.sourceRow === i) bg = 'rgba(171,71,188,.30)';
+        else if (hl.eliminateRow === i) bg = 'rgba(255,82,82,.25)';
+        if (hl.swap && (hl.swap[0] === i || hl.swap[1] === i)) bg = 'rgba(79,195,247,.30)';
+        if (hl.pivot && hl.pivot.i === i && hl.pivot.j === j) bg = '#ab47bc';
+        c.fillStyle = bg;
+        c.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+
+        var v = M[i] && M[i][j] !== undefined ? M[i][j] : 0;
+        var txt = fmtNum(v);
+        if (hl.pivot && hl.pivot.i === i && hl.pivot.j === j) c.fillStyle = '#fff';
+        else if (j < n) c.fillStyle = '#dde3f0';
+        else c.fillStyle = '#ce93d8';
+        var maxW = cell - 4;
+        if (c.measureText(txt).width > maxW && txt.length > 4) txt = txt.slice(0, 4);
+        c.fillText(txt, cx + cell / 2, cy + cell / 2 + 1);
+      }
+    }
+    // Side labels
+    c.font = '800 12px Segoe UI, sans-serif'; c.fillStyle = '#ff5252';
+    c.fillText('A (left half)', x + (n * cell) / 2, y - 6);
+    c.fillStyle = '#ce93d8';
+    c.fillText('I → A⁻¹ (right half)', x + n * cell + (n * cell) / 2, y - 6);
+  }
+
+  /* ───────────────────────────────────────────────────────
+     INVERSE CONNECTORS — pulsing dashed arcs that point to
+     the respective row(s) being acted on in this step.
+     ─────────────────────────────────────────────────────── */
+  function drawInverseConnectors(c, augX, augY, cell, n, hl) {
+    if (!hl) return;
+    var pulse = 0.5 + 0.5 * Math.sin(Date.now() / 120);
+    var totalCols = 2 * n;
+    var matRight = augX + totalCols * cell;
+    var arcStart = matRight + 12;
+    var arcOut   = matRight + 36;
+    var labelX   = arcOut + 6;
+
+    /* Helper to draw a pulsing dashed arc between two y positions, color & arrow tips */
+    function drawArc(y1, y2, color, arrowAt) {
+      c.strokeStyle = color.replace(/rgba?\(([^)]+)\)/, function(_, p){
+        var parts = p.split(',').map(function(s){return s.trim();});
+        var a = (0.55 + 0.4 * pulse);
+        return 'rgba(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ',' + a + ')';
+      });
+      c.lineWidth = 2;
+      c.setLineDash([5, 3]);
+      c.beginPath();
+      c.moveTo(arcStart, y1);
+      c.bezierCurveTo(arcOut, y1, arcOut, y2, arcStart, y2);
+      c.stroke();
+      c.setLineDash([]);
+      var solidColor = color.replace(/rgba?\(([^)]+)\)/, function(_, p){
+        var parts = p.split(',').map(function(s){return s.trim();});
+        return 'rgb(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ')';
+      });
+      c.fillStyle = solidColor;
+      var tips = arrowAt === 'both' ? [y1, y2] : (arrowAt === 'y2' ? [y2] : [y1]);
+      tips.forEach(function(yy){
+        c.beginPath();
+        c.moveTo(arcStart, yy);
+        c.lineTo(arcStart + 8, yy - 4);
+        c.lineTo(arcStart + 8, yy + 4);
+        c.closePath();
+        c.fill();
+      });
+    }
+
+    /* Row outline helper — draw a pulsing ring around a whole row */
+    function rowOutline(rowIdx, color) {
+      c.save();
+      c.globalAlpha = 0.55 + 0.45 * pulse;
+      c.strokeStyle = color;
+      c.lineWidth = 2;
+      c.strokeRect(augX, augY + rowIdx * cell, totalCols * cell, cell);
+      c.restore();
+    }
+
+    /* Pulsing ring around the pivot cell */
+    if (hl.pivot) {
+      c.save();
+      c.globalAlpha = 0.5 + 0.5 * pulse;
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 2.5;
+      c.strokeRect(augX + hl.pivot.j * cell + 1, augY + hl.pivot.i * cell + 1, cell - 2, cell - 2);
+      c.restore();
+    }
+
+    c.font = '700 11px Segoe UI, sans-serif';
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+
+    /* ─── ELIMINATE: arrow from source row → target row ─── */
+    if (hl.eliminateRow !== undefined && hl.sourceRow !== undefined) {
+      rowOutline(hl.sourceRow,    '#ab47bc');   /* source row purple */
+      rowOutline(hl.eliminateRow, '#ff5252');   /* target row red */
+      var ys = augY + (hl.sourceRow    + 0.5) * cell;
+      var yt = augY + (hl.eliminateRow + 0.5) * cell;
+      drawArc(ys, yt, 'rgba(255,82,82,1)', 'y2');
+      c.fillStyle = '#ff8a80';
+      c.fillText('R' + (hl.eliminateRow + 1) + ' ← R' + (hl.eliminateRow + 1) + ' − f·R' + (hl.sourceRow + 1), labelX, (ys + yt) / 2);
+    }
+    /* ─── SWAP: double-headed arc between the two rows ─── */
+    else if (hl.swap) {
+      rowOutline(hl.swap[0], '#4fc3f7');
+      rowOutline(hl.swap[1], '#4fc3f7');
+      var y1 = augY + (hl.swap[0] + 0.5) * cell;
+      var y2 = augY + (hl.swap[1] + 0.5) * cell;
+      drawArc(y1, y2, 'rgba(79,195,247,1)', 'both');
+      c.fillStyle = '#4fc3f7';
+      c.fillText('swap R' + (hl.swap[0] + 1) + ' ↔ R' + (hl.swap[1] + 1), labelX, (y1 + y2) / 2);
+    }
+    /* ─── SCALE (normalize): pulsing ring + side arrow on the pivot row ─── */
+    else if (hl.scaleRow !== undefined) {
+      rowOutline(hl.scaleRow, '#f5c842');
+      var ysc = augY + (hl.scaleRow + 0.5) * cell;
+      /* tiny side arrow loop */
+      c.save();
+      c.globalAlpha = 0.55 + 0.4 * pulse;
+      c.strokeStyle = '#f5c842';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath();
+      c.moveTo(arcStart, ysc - 8);
+      c.bezierCurveTo(arcOut, ysc - 8, arcOut, ysc + 8, arcStart, ysc + 8);
+      c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#f5c842';
+      c.beginPath();
+      c.moveTo(arcStart, ysc + 8);
+      c.lineTo(arcStart + 8, ysc + 4);
+      c.lineTo(arcStart + 8, ysc + 12);
+      c.closePath();
+      c.fill();
+      c.restore();
+      c.fillStyle = '#f5c842';
+      c.fillText('R' + (hl.scaleRow + 1) + ' ÷ pivot', labelX, ysc);
+    }
+  }
+
+  function drawMiniMatrix(c, M, x, y, cell, rows, cols, color, label, highlight) {
+    c.strokeStyle = color; c.lineWidth = 2; var br = 6;
+    c.beginPath();
+    c.moveTo(x - 4, y - br); c.lineTo(x - 4, y + rows * cell + br);
+    c.moveTo(x - 4, y - br); c.lineTo(x + 4, y - br);
+    c.moveTo(x - 4, y + rows * cell + br); c.lineTo(x + 4, y + rows * cell + br);
+    c.stroke();
+    var rx = x + cols * cell;
+    c.beginPath();
+    c.moveTo(rx + 4, y - br); c.lineTo(rx + 4, y + rows * cell + br);
+    c.moveTo(rx + 4, y - br); c.lineTo(rx - 4, y - br);
+    c.moveTo(rx + 4, y + rows * cell + br); c.lineTo(rx - 4, y + rows * cell + br);
+    c.stroke();
+
+    c.font = (Math.max(9, Math.floor(cell * 0.4))) + 'px Courier New, monospace';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var cx = x + j * cell, cy = y + i * cell;
+        var isHi = false, isPair = false, isCell = false, isCellA = false;
+        if (highlight) {
+          if (highlight.type === 'row' && highlight.idx === i) isHi = true;
+          if (highlight.type === 'col' && highlight.idx === j) isHi = true;
+          if (highlight.type === 'cell' && highlight.i === i && highlight.j === j) isCell = true;
+          if (highlight.type === 'cellA' && highlight.i === i && highlight.j === j) isCellA = true;
+          if (highlight.type === 'row' && highlight.idx === i && highlight.k === j) isPair = true;
+          if (highlight.type === 'col' && highlight.idx === j && highlight.k === i) isPair = true;
+        }
+        if (isPair || isCellA) c.fillStyle = color;
+        else if (isHi) c.fillStyle = withAlpha(color, 0.28);
+        else if (isCell) c.fillStyle = withAlpha(color, 0.35);
+        else c.fillStyle = '#1f2535';
+        c.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+        var v = M[i] ? M[i][j] : null;
+        var txt = (v === null || v === undefined) ? '' : fmtNum(v);
+        if (isPair || isCellA) c.fillStyle = '#fff';
+        else if (isHi || isCell) c.fillStyle = color;
+        else c.fillStyle = '#dde3f0';
+        var maxW = cell - 4;
+        if (c.measureText(txt).width > maxW && txt.length > 4) txt = txt.slice(0, 4);
+        c.fillText(txt, cx + cell / 2, cy + cell / 2 + 1);
+      }
+    }
+    c.font = '800 13px Segoe UI, sans-serif'; c.fillStyle = color; c.textAlign = 'center';
+    c.fillText(label, x + (cols * cell) / 2, y - 14);
+  }
+
+  function drawLabelBadge(text, x, y, color) {
+    ctx.font = '700 12px Segoe UI, sans-serif';
+    var tw = ctx.measureText(text).width;
+    ctx.fillStyle = 'rgba(13,17,23,0.94)';
+    roundRect(ctx, x - tw / 2 - 8, y - 14, tw + 16, 22, 6); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y - 3);
+  }
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath(); c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+  function drawFlashes(matrix, x, y, cell, color) {
+    // Draw a glow overlay on cells that flashed recently
+    if (!state.flashes.length) return;
+    var now = Date.now();
+    state.flashes = state.flashes.filter(function (f) { return now - f.ts < 700; });
+    for (var k = 0; k < state.flashes.length; k++) {
+      var f = state.flashes[k];
+      if (f.m !== matrix) continue;
+      var a = flashAlpha(matrix, f.i, f.j);
+      if (a <= 0) continue;
+      var cx = x + f.j * cell, cy = y + f.i * cell;
+      ctx.save();
+      ctx.shadowColor = color; ctx.shadowBlur = 20 * a;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.4 * a) + ')';
+      ctx.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+      ctx.restore();
+    }
+    if (state.flashes.length) requestAnimationFrame(drawCanvas);
+  }
+
+  /* ───────────────────────────────────────────────────────
+     STACKED-ADDITION COLUMN (multiplication animation)
+     Shows products being summed above the result cell, like
+     paper arithmetic:    12
+                        + 15
+                        + 18
+                        ────
+                        = 45
+     ─────────────────────────────────────────────────────── */
+  function drawProductColumn(i, j, k, cX, cY, cell, canvasW, canvasH) {
+    var n = state.aCols;
+    /* Active CELL coordinates (this is what the arrow + ring target) */
+    var cellLeftX  = cX + j * cell;
+    var cellRightX = cX + (j + 1) * cell;
+    var cellTopY   = cY + i * cell;
+    var cellCx     = cX + (j + 0.5) * cell;
+    var cellCy     = cY + (i + 0.5) * cell;
+    /* MATRIX right edge (used only to park the column outside the matrix) */
+    var matrixRight = cX + state.cCols * cell;
+
+    /* Column lives OUTSIDE the matrix block, to the right of C */
+    var colGap = 18;
+    var colX = matrixRight + colGap;
+
+    /* Adaptive chip height so n + 1 chips + sep fit vertically */
+    var availH = canvasH - 24;
+    var chipH = Math.max(12, Math.min(20, Math.floor((availH - 12) / (n + 2))));
+    var gap = 3;
+    var sepH = 5;
+    var totalStackH = n * (chipH + gap) + sepH + (chipH + gap);
+
+    /* Vertically align the centre of the stack with the cell, then clamp */
+    var startY = cellCy - totalStackH / 2;
+    if (startY < 6) startY = 6;
+    if (startY + totalStackH > canvasH - 6) startY = canvasH - 6 - totalStackH;
+
+    /* Measure widest chip text to compute column width and center chips */
+    ctx.font = '700 ' + Math.max(9, Math.floor(chipH * 0.62)) + 'px Courier New, monospace';
+    var maxTxtW = 0, runForMeasure = 0;
+    for (var mk = 0; mk < n; mk++) {
+      var sign = mk === 0 ? '' : '+';
+      var pr = (mk <= k) ? state.A[i][mk] * state.B[mk][j] : 0;
+      runForMeasure += pr;
+      var t = sign + ' ' + fmtNum(pr);
+      maxTxtW = Math.max(maxTxtW, ctx.measureText(t).width);
+    }
+    var sumTxt = '= ' + fmtNum(runForMeasure);
+    maxTxtW = Math.max(maxTxtW, ctx.measureText(sumTxt).width);
+    var chipW = maxTxtW + 14;
+    var cx = colX + chipW / 2;
+
+    /* Draw the yellow product chips that have been computed so far */
+    var running = 0;
+    var latestChipY = startY + chipH / 2;
+    for (var kk = 0; kk <= k; kk++) {
+      var prod = state.A[i][kk] * state.B[kk][j];
+      running += prod;
+      var y = startY + kk * (chipH + gap) + chipH / 2;
+      latestChipY = y;
+      var s = (kk === 0) ? '' : '+';
+      drawProductChip(cx, y, chipH, s + ' ' + fmtNum(prod), '#ffd54f', false, 1);
+    }
+
+    var lastStep = (k === n - 1);
+
+    /* Separator + sum chip reveal AFTER the last product is listed */
+    var connStartY = latestChipY;
+    if (lastStep) {
+      /* Separator line below the chips */
+      var lineY = startY + n * (chipH + gap) + sepH / 2 - 0.5;
+      var lineW = chipW;
+      ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - lineW / 2, lineY); ctx.lineTo(cx + lineW / 2, lineY);
+      ctx.stroke();
+      /* Sum chip (green) — only revealed once all products are listed */
+      var sumY = startY + n * (chipH + gap) + sepH + (chipH + gap) / 2;
+      drawProductChip(cx, sumY, chipH, sumTxt, '#3ddc84', true, 1);
+      connStartY = sumY;  /* connector now flies from the sum chip */
+    }
+
+    /* ── PULSING DASHED CONNECTOR to the respective C cell ── */
+    /* Same style as the A-row → B-col arc, but green and pointing into C[i][j] */
+    var pulse = 0.5 + 0.5 * Math.sin(Date.now() / 120);
+    ctx.strokeStyle = 'rgba(61,220,132,' + (0.55 + 0.35 * pulse) + ')';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    var connStartX = cx - chipW / 2;
+    var connEndX = cellRightX + 2;   /* right edge of THIS specific cell */
+    var connEndY = cellCy;
+    ctx.moveTo(connStartX, connStartY);
+    ctx.bezierCurveTo(
+      (connStartX + connEndX) / 2, connStartY,
+      (connStartX + connEndX) / 2, connEndY,
+      connEndX + 10, connEndY
+    );
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Arrowhead pointing INTO the respective cell */
+    ctx.fillStyle = '#3ddc84';
+    ctx.beginPath();
+    ctx.moveTo(connEndX, connEndY);
+    ctx.lineTo(connEndX + 10, connEndY - 5);
+    ctx.lineTo(connEndX + 10, connEndY + 5);
+    ctx.closePath();
+    ctx.fill();
+
+    /* Pulsing green ring around the RESPECTIVE active cell C[i][j] */
+    ctx.strokeStyle = 'rgba(61,220,132,' + (0.5 + 0.5 * pulse) + ')';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cellLeftX + 1, cellTopY + 1, cell - 2, cell - 2);
+  }
+
+  function drawProductChip(cx, cy, h, text, color, isSum, alpha) {
+    var fontSize = Math.max(9, Math.floor(h * 0.62));
+    ctx.save();
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.font = '700 ' + fontSize + 'px Courier New, monospace';
+    var tw = ctx.measureText(text).width + 12;
+    var x = cx - tw / 2, y = cy - h / 2;
+    ctx.fillStyle = isSum ? 'rgba(61,220,132,0.18)' : 'rgba(13,17,23,0.94)';
+    roundRect(ctx, x, y, tw, h, 4); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = isSum ? 1.5 : 1;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx, cy + 0.5);
+    ctx.restore();
+  }
+
+  /* ───────────────────────────────────────────────────────
+     CANVAS CLICK → CELL EDITOR
+     ─────────────────────────────────────────────────────── */
+  function getCanvasPos(e) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left),
+      y: (e.clientY - rect.top)
+    };
+  }
+
+  function hitTestCell(px, py) {
+    var cell = layout.cell;
+    var mats = [{ k: 'A', l: layout.A }, { k: 'B', l: layout.B }, { k: 'C', l: layout.C }];
+    for (var i = 0; i < mats.length; i++) {
+      var L = mats[i].l; if (!L) continue;
+      if (px >= L.x && px < L.x + L.cols * cell && py >= L.y && py < L.y + L.rows * cell) {
+        var ci = Math.floor((py - L.y) / cell);
+        var cj = Math.floor((px - L.x) / cell);
+        return { matrix: mats[i].k, i: ci, j: cj, x: L.x + cj * cell, y: L.y + ci * cell, cell: cell };
+      }
+    }
+    return null;
+  }
+
+  function onCanvasClick(e) {
+    if (state.simulating) return; // do not allow editing during animation
+    var pos = getCanvasPos(e);
+    var hit = hitTestCell(pos.x, pos.y);
+    if (!hit) { closeEditor(); return; }
+    // C is read-only result, do not edit
+    if (hit.matrix === 'C') { closeEditor(); return; }
+    openEditor(hit);
+  }
+
+  function openEditor(hit) {
+    var input = $('cell-editor');
+    var M = hit.matrix === 'A' ? state.A : state.B;
+    var v = (M[hit.i] && M[hit.i][hit.j] !== undefined) ? M[hit.i][hit.j] : 0;
+    state.editing = { matrix: hit.matrix, i: hit.i, j: hit.j };
+    input.value = fmtNum(v);
+    // Position relative to the canvas's offsetParent (the .unified-canvas wrapper),
+    // so add canvas.offsetLeft/Top to compensate for the wrapper's padding.
+    input.style.left = (hit.x + canvas.offsetLeft) + 'px';
+    input.style.top  = (hit.y + canvas.offsetTop) + 'px';
+    input.style.width  = hit.cell + 'px';
+    input.style.height = hit.cell + 'px';
+    input.style.fontSize = Math.max(10, Math.floor(hit.cell * 0.4)) + 'px';
+    input.style.display = 'block';
+    setTimeout(function () { input.focus(); input.select && input.select(); }, 10);
+  }
+
+  function commitEditor() {
+    if (!state.editing) return;
+    var input = $('cell-editor');
+    var v = parseFloat(input.value);
+    if (isNaN(v)) v = 0;
+    var e = state.editing;
+    var prev = (e.matrix === 'A') ? state.A[e.i][e.j] : state.B[e.i][e.j];
+    var changed = (v !== prev);
+    if (e.matrix === 'A') state.A[e.i][e.j] = v;
+    else if (e.matrix === 'B') state.B[e.i][e.j] = v;
+    closeEditor();
+    if (state.simDone) resetSim();
+    renderAll();
+    /* Snapshot AFTER the change — only if it actually changed */
+    if (changed) pushHistory();
+  }
+
+  function closeEditor() {
+    var input = $('cell-editor');
+    if (input) input.style.display = 'none';
+    state.editing = null;
+  }
+
+  function withAlpha(hex, a) {
+    var h = hex.replace('#', '');
+    return 'rgba(' + parseInt(h.substring(0,2),16) + ',' + parseInt(h.substring(2,4),16) + ',' + parseInt(h.substring(4,6),16) + ',' + a + ')';
+  }
+
+  /* ───────────────────────────────────────────────────────
+     ANIMATION ENGINE
+     ─────────────────────────────────────────────────────── */
+  function buildSequence() {
+    var seq = [];
+    if (state.op === 'multiply') {
+      for (var i = 0; i < state.cRows; i++)
+        for (var j = 0; j < state.cCols; j++)
+          for (var k = 0; k < state.aCols; k++)
+            seq.push({ kind: 'mul', i: i, j: j, k: k });
+    } else if (state.op === 'add' || state.op === 'subtract') {
+      for (var i2 = 0; i2 < state.cRows; i2++)
+        for (var j2 = 0; j2 < state.cCols; j2++)
+          seq.push({ kind: state.op, i: i2, j: j2 });
+    } else if (state.op === 'inverse') {
+      var res = inverseSteps(state.A);
+      state.inverseSteps = res.steps;
+      state.inverseInvResult = res.inv;
+      state.inverseSingular = res.singular;
+      for (var s = 0; s < res.steps.length; s++) seq.push({ kind: 'inv', stepIdx: s });
+    } else if (state.op === 'transpose') {
+      /* Walk through A row by row; each step copies A[i][j] to C[j][i] */
+      for (var ti = 0; ti < state.aRows; ti++)
+        for (var tj = 0; tj < state.aCols; tj++)
+          seq.push({ kind: 'transpose', i: ti, j: tj });
+    } else if (state.op === 'scalar') {
+      /* k · A — multiply each cell by scalar */
+      for (var si = 0; si < state.aRows; si++)
+        for (var sj = 0; sj < state.aCols; sj++)
+          seq.push({ kind: 'scalar', i: si, j: sj });
+    } else if (state.op === 'power') {
+      /* Aⁿ — animate as repeated multiplications. We just compute and reveal cells */
+      for (var pi = 0; pi < state.cRows; pi++)
+        for (var pj = 0; pj < state.cCols; pj++)
+          seq.push({ kind: 'power-cell', i: pi, j: pj });
+    } else if (state.op === 'determinant') {
+      /* Determinant: step-by-step Gauss elimination with pivot tracking */
+      var dRes = determinantSteps(state.A);
+      state.detSteps = dRes.steps;
+      state.detResult = dRes.det;
+      state.detSingular = dRes.singular;
+      state.detLiveMatrix = state.A.map(function (r) { return r.slice(); });
+      for (var ds = 0; ds < dRes.steps.length; ds++) seq.push({ kind: 'det-detail-step', stepIdx: ds });
+    } else if (state.op === 'trace') {
+      /* Trace: walk down diagonal */
+      for (var tri = 0; tri < state.aRows; tri++) seq.push({ kind: 'trace-step', i: tri });
+    } else if (state.op === 'rank') {
+      /* Rank: step-by-step RREF with column processing */
+      var rk = rankSteps(state.A);
+      state.rankStepsList = rk.steps;
+      state.rankResult = rk.rank;
+      state.rankRREF = rk.rref;
+      state.rankLiveMatrix = state.A.map(function (r) { return r.slice(); });
+      for (var rs = 0; rs < rk.steps.length; rs++) seq.push({ kind: 'rank-detail-step', stepIdx: rs });
+    } else if (state.op === 'solve') {
+      var bVec = state.B.map(function (r) { return r[0]; });
+      var solRes = solveSystemSteps(state.A, bVec);
+      state.solveSteps = solRes.steps;
+      state.solveAug = state.A.map(function (r, i) { return r.slice().concat([bVec[i]]); });
+      state.solveX = solRes.x;
+      state.solveSingular = solRes.singular;
+      for (var ss = 0; ss < solRes.steps.length; ss++) seq.push({ kind: 'solve-step', stepIdx: ss });
+    }
+    return seq;
+  }
+
+  function startSim() {
+    if (state.simulating) return;
+    if (state.simDone) resetSim();
+    state.seq = buildSequence();
+    state.seqIdx = 0;
+    state.simulating = true;
+    state.simDone = false;
+    state.C = makeMatrix(state.cRows, state.cCols, null);
+    state.running = 0;
+    state.currentI = -1; state.currentJ = -1; state.currentK = -1;
+    state.lastTs = 0; state.accum = 0;
+    state.inverseAug = buildInitialAugmented();
+    state.inverseHighlights = null;
+    state.flashes = [];
+    var btn = $('btn-play'); btn.classList.add('playing');
+    btn.innerHTML = '<span class="play-icon">⏸</span> <span id="btn-play-label">Animating…</span>';
+    $('play-status').textContent = state.op === 'inverse'
+      ? 'Computing inverse via ' + state.seq.length + ' Gauss-Jordan steps…'
+      : 'Running ' + state.seq.length + ' steps…';
+    $('play-status').className = 'play-status active';
+    // Step log visible for ops that show step-by-step row operations
+    var sl = $('step-log');
+    var logOps = ['inverse', 'solve', 'determinant', 'rank'];
+    if (logOps.indexOf(state.op) !== -1) {
+      sl.style.display = 'block'; sl.innerHTML = '';
+      var titleMap = {
+        inverse: 'Gauss-Jordan Steps  (on [A | I])',
+        solve: 'Gauss-Jordan Steps  (on [A | b])',
+        determinant: 'Gauss Elimination Steps  (tracking sign × pivots)',
+        rank: 'RREF Steps  (counting pivots = rank)'
+      };
+      $('formula-title').textContent = titleMap[state.op] || 'Steps';
+    } else {
+      sl.style.display = 'none';
+      $('formula-title').textContent = 'Current Calculation';
+    }
+    updateBadges();
+    state.rafId = requestAnimationFrame(simLoop);
+  }
+
+  function simLoop(ts) {
+    if (!state.simulating) return;
+    if (!state.lastTs) state.lastTs = ts;
+    var dt = ts - state.lastTs; state.lastTs = ts;
+    state.accum += dt * state.speed;
+    var per = state.perStep;
+    if (state.op === 'inverse') per = state.perStep * 1.6;  // slower for clarity
+    while (state.accum >= per && state.seqIdx < state.seq.length) {
+      state.accum -= per;
+      doStep();
+    }
+    drawCanvas();
+    if (state.seqIdx < state.seq.length && !state.inverseSingular) {
+      state.rafId = requestAnimationFrame(simLoop);
+    } else {
+      finishSim();
+    }
+  }
+
+  function doStep() {
+    var step = state.seq[state.seqIdx];
+    if (!step) return;
+    if (step.kind === 'mul') doMultiplyStep(step);
+    else if (step.kind === 'add' || step.kind === 'subtract') doAddSubStep(step);
+    else if (step.kind === 'inv') doInverseStep(step);
+    else if (step.kind === 'transpose') doTransposeStep(step);
+    else if (step.kind === 'scalar')    doScalarStep(step);
+    else if (step.kind === 'power-cell') doPowerCellStep(step);
+    else if (step.kind === 'det-detail-step') doDetDetailStep(step);
+    else if (step.kind === 'trace-step') doTraceStep(step);
+    else if (step.kind === 'rank-detail-step') doRankDetailStep(step);
+    else if (step.kind === 'solve-step') doSolveStep(step);
+    state.seqIdx++;
+    updateBadges();
+  }
+
+  function doScalarStep(step) {
+    var i = step.i, j = step.j;
+    state.currentI = i; state.currentJ = j; state.currentK = -1;
+    var k = state.scalarK;
+    state.C[i][j] = k * state.A[i][j];
+    flashCell('C', i, j);
+    $('f-cell').textContent = 'C[' + (i + 1) + '][' + (j + 1) + ']';
+    $('f-expr').innerHTML = '<span class="term-a">' + fmtNum(k) + '</span><span class="term-mul">·</span><span class="term-b">' + fmtNum(state.A[i][j]) + '</span>';
+    $('f-result').textContent = fmtNum(state.C[i][j]);
+    playTick();
+  }
+
+  function doPowerCellStep(step) {
+    var i = step.i, j = step.j;
+    state.currentI = i; state.currentJ = j; state.currentK = -1;
+    /* Compute Aⁿ once on first step (memoized) */
+    if (!state.powerResult || state.powerResult._n !== state.powerN) {
+      state.powerResult = powerM(state.A, state.powerN);
+      state.powerResult._n = state.powerN;
+    }
+    state.C[i][j] = state.powerResult[i][j];
+    flashCell('C', i, j);
+    $('f-cell').textContent = 'A^' + state.powerN + '[' + (i + 1) + '][' + (j + 1) + ']';
+    $('f-expr').innerHTML = '<span class="term-a">(A multiplied by itself ' + state.powerN + ' times)</span>';
+    $('f-result').textContent = fmtNum(state.C[i][j]);
+    playTick();
+  }
+
+  function doDetDetailStep(step) {
+    var s = state.detSteps[step.stepIdx];
+    if (!s) return;
+    state.detLiveMatrix = s.matAfter.map(function (r) { return r.slice(); });
+    var hl = { desc: s.desc };
+    if (s.type === 'swap') hl.swap = [s.r1, s.r2];
+    else if (s.type === 'pivot-noted') { hl.pivot = s.pivot; }
+    else if (s.type === 'eliminate') { hl.eliminateRow = s.target; hl.sourceRow = s.source; }
+    else if (s.type === 'singular') { state.detSingular = true; }
+    state.inverseHighlights = hl;   /* reuse drawInverseConnectors style */
+    appendStepLog(step.stepIdx + 1, s);
+    /* Update live formula with running product info */
+    $('f-cell').textContent = 'det(A)';
+    if (s.runningPivots && s.runningPivots.length) {
+      var prodStr = (s.runningSign < 0 ? '−' : '+') + ' ' + s.runningPivots.map(fmtNum).join(' × ');
+      var partial = s.runningSign;
+      for (var p = 0; p < s.runningPivots.length; p++) partial *= s.runningPivots[p];
+      $('f-expr').innerHTML = '<span class="term-a">' + prodStr + '</span> <span class="term-eq">=</span> <span class="term-running">' + fmtNum(partial) + (s.type === 'done' ? '' : ' …') + '</span>';
+      $('f-result').textContent = fmtNum(partial);
+    } else {
+      $('f-expr').innerHTML = '<span class="term-running">running Gauss elimination…</span>';
+      $('f-result').textContent = 'building…';
+    }
+    if (s.type === 'eliminate' || s.type === 'scale' || s.type === 'pivot-noted') playTick();
+    if (s.type === 'singular') playError();
+    if (s.type === 'done') {
+      state.C = [[state.detResult]];
+      flashCell('C', 0, 0);
+      $('f-result').textContent = fmtNum(state.detResult);
+      if (Math.abs(state.detResult) < EPS) playError(); else playCellDone();
+    }
+  }
+
+  function doRankDetailStep(step) {
+    var s = state.rankStepsList[step.stepIdx];
+    if (!s) return;
+    state.rankLiveMatrix = s.matAfter.map(function (r) { return r.slice(); });
+    var hl = { desc: s.desc };
+    if (s.type === 'swap') hl.swap = [s.r1, s.r2];
+    else if (s.type === 'scale') { hl.scaleRow = s.row; hl.pivot = { i: s.row, j: s.row }; }
+    else if (s.type === 'eliminate') { hl.eliminateRow = s.target; hl.sourceRow = s.source; }
+    else if (s.type === 'pivot-counted') { hl.pivot = { i: -1, j: s.col }; hl.scaleRow = -1; }
+    else if (s.type === 'skip-col') { hl.skipCol = s.col; }
+    state.inverseHighlights = hl;
+    appendStepLog(step.stepIdx + 1, s);
+    $('f-cell').textContent = 'rank(A)';
+    var runR = s.runningRank != null ? s.runningRank : 0;
+    $('f-expr').innerHTML = '<span class="term-a">RREF reduction in progress</span> &mdash; pivots so far: <span class="term-running">' + runR + '</span>';
+    $('f-result').textContent = String(runR) + (s.type === 'done' ? '' : ' …');
+    if (s.type === 'eliminate' || s.type === 'scale' || s.type === 'pivot-counted') playTick();
+    if (s.type === 'skip-col') playError();
+    if (s.type === 'done') {
+      state.C = [[state.rankResult]];
+      flashCell('C', 0, 0);
+      $('f-result').textContent = String(state.rankResult);
+      playCellDone();
+    }
+  }
+
+  function doTraceStep(step) {
+    var i = step.i;
+    state.currentI = i; state.currentJ = i; state.currentK = -1;
+    /* Running sum of diagonal */
+    if (i === 0) state.running = 0;
+    state.running += state.A[i][i];
+    flashCell('A', i, i);
+    var parts = [];
+    for (var kk = 0; kk <= i; kk++) parts.push(fmtNum(state.A[kk][kk]));
+    $('f-cell').textContent = 'tr(A)';
+    $('f-expr').innerHTML = parts.join(' <span class="term-plus">+</span> ');
+    $('f-result').textContent = fmtNum(state.running) + (i < state.aRows - 1 ? ' …' : '');
+    playTick();
+    if (i === state.aRows - 1) {
+      state.C = [[state.running]];
+      flashCell('C', 0, 0);
+      playSuccess();
+    }
+  }
+
+  function doSolveStep(step) {
+    var s = state.solveSteps[step.stepIdx];
+    if (!s) return;
+    state.solveAug = s.matAfter.map(function (r) { return r.slice(); });
+    var hl = { desc: s.desc };
+    if (s.type === 'swap') hl.swap = [s.r1, s.r2];
+    else if (s.type === 'scale') { hl.scaleRow = s.row; hl.pivot = { i: s.row, j: s.row }; }
+    else if (s.type === 'scale-noop') hl.scaleRow = s.row;
+    else if (s.type === 'eliminate') { hl.eliminateRow = s.target; hl.sourceRow = s.source; }
+    else if (s.type === 'singular') { state.solveSingular = true; }
+    state.inverseHighlights = hl;   /* reuse drawInverseConnectors styling */
+    appendStepLog(step.stepIdx + 1, s);
+    if (s.type === 'eliminate' || s.type === 'scale') playTick();
+    if (s.type === 'singular') playError();
+    if (s.type === 'done') {
+      state.C = state.solveX.map(function (v) { return [v]; });
+      for (var i = 0; i < state.cRows; i++) flashCell('C', i, 0);
+      $('f-cell').textContent = 'x';
+      $('f-expr').innerHTML = '<span class="term-a">solution to A·x = b via Gauss-Jordan on [A | b]</span>';
+      $('f-result').textContent = '[' + state.solveX.map(fmtNum).join(', ') + ']ᵀ';
+      playCellDone();
+    }
+  }
+
+  function doTransposeStep(step) {
+    var i = step.i, j = step.j;
+    state.currentI = i; state.currentJ = j; state.currentK = -1;
+    state.C[j][i] = state.A[i][j];   /* C is transposed: row<->col swap */
+    flashCell('C', j, i);
+    /* Live formula */
+    $('f-cell').textContent = 'Aᵀ[' + (j + 1) + '][' + (i + 1) + ']';
+    $('f-expr').innerHTML = '<span class="term-a">A[' + (i + 1) + '][' + (j + 1) + ']</span> = <span class="term-running">' + fmtNum(state.A[i][j]) + '</span>';
+    $('f-result').textContent = fmtNum(state.A[i][j]);
+    playTick();
+  }
+
+  function doMultiplyStep(step) {
+    var i = step.i, j = step.j, k = step.k;
+    if (k === 0) state.running = 0;
+    state.currentI = i; state.currentJ = j; state.currentK = k;
+    state.running += state.A[i][k] * state.B[k][j];
+    clearGridHighlights();
+    highlightRow('a', i);
+    highlightCol('b', j);
+    markPair('a', i, k);
+    markPair('b', k, j, true);
+    renderMulFormula(i, j, k);
+    playTick();
+    if (k === state.aCols - 1) {
+      state.C[i][j] = state.running;
+      flashCell('C', i, j);
+      playCellDone();
+    }
+  }
+
+  function doAddSubStep(step) {
+    var i = step.i, j = step.j;
+    state.currentI = i; state.currentJ = j; state.currentK = -1;
+    var a = state.A[i][j], b = state.B[i][j];
+    var res = state.op === 'add' ? a + b : a - b;
+    state.C[i][j] = res;
+    flashCell('C', i, j);
+    renderAddSubFormula(i, j, a, b, res);
+    playTick();
+  }
+
+  function doInverseStep(step) {
+    var s = state.inverseSteps[step.stepIdx];
+    if (!s) return;
+    // Apply this snapshot to the displayed augmented matrix
+    state.inverseAug = s.matAfter.map(function (r) { return r.slice(); });
+    // Build highlight descriptor for next render
+    var hl = { desc: s.desc };
+    if (s.type === 'swap') hl.swap = [s.r1, s.r2];
+    else if (s.type === 'scale') { hl.scaleRow = s.row; hl.pivot = { i: s.row, j: s.row }; }
+    else if (s.type === 'scale-noop') hl.scaleRow = s.row;
+    else if (s.type === 'eliminate') { hl.eliminateRow = s.target; hl.sourceRow = s.source; }
+    else if (s.type === 'singular') { state.inverseSingular = true; }
+    else if (s.type === 'done') { /* final */ }
+    state.inverseHighlights = hl;
+    appendStepLog(step.stepIdx + 1, s);
+    if (s.type === 'eliminate' || s.type === 'scale') playTick();
+    if (s.type === 'singular') playError();
+    if (s.type === 'done') {
+      // Display final inverse in C area
+      state.C = state.inverseInvResult ? state.inverseInvResult.map(function (r) { return r.slice(); }) : makeMatrix(state.cRows, state.cCols, null);
+      // flash every cell
+      for (var fi = 0; fi < state.cRows; fi++)
+        for (var fj = 0; fj < state.cCols; fj++)
+          flashCell('C', fi, fj);
+      playCellDone();
+    }
+  }
+
+  function appendStepLog(num, step) {
+    var log = $('step-log');
+    // mark all previous as done
+    var prev = log.querySelectorAll('.sl-row.active');
+    for (var i = 0; i < prev.length; i++) { prev[i].classList.remove('active'); prev[i].classList.add('done'); }
+    var row = document.createElement('div');
+    row.className = 'sl-row active';
+    var op = '';
+    if (step.type === 'swap') op = '⇄';
+    else if (step.type === 'scale') op = '÷';
+    else if (step.type === 'eliminate') op = '−';
+    else if (step.type === 'singular') op = '⚠';
+    else if (step.type === 'done') op = '✓';
+    row.innerHTML = '<span class="sl-num">' + num + '.</span> <span class="sl-op">' + op + '</span> ' + escapeHtml(step.desc);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function finishSim() {
+    state.simulating = false;
+    state.simDone = true;
+    state.currentI = -1; state.currentJ = -1; state.currentK = -1;
+    state.inverseHighlights = null;
+    clearGridHighlights();
+    var btn = $('btn-play'); btn.classList.remove('playing');
+    btn.innerHTML = '<span class="play-icon">✓</span> <span id="btn-play-label">Done — Reset to replay</span>';
+    if (state.op === 'inverse' && state.inverseSingular) {
+      $('play-status').textContent = '⚠ Singular matrix — A⁻¹ does not exist (det = 0)';
+      $('play-status').className = 'play-status fail';
+      playError();
+    } else {
+      $('play-status').textContent = 'Complete. ' + state.seqIdx + ' steps animated.';
+      $('play-status').className = 'play-status active';
+      playSuccess();
+    }
+    drawCanvas();
+    updateBadges();
+  }
+
+  function resetSim() {
+    closeEditor();
+    state.simulating = false; state.simDone = false; state.seqIdx = 0;
+    state.running = 0; state.currentI = -1; state.currentJ = -1; state.currentK = -1;
+    state.C = makeMatrix(state.cRows, state.cCols, null);
+    state.seq = [];
+    state.inverseAug = buildInitialAugmented();
+    state.inverseHighlights = null;
+    state.inverseSingular = false;
+    state.flashes = [];
+    cancelAnimationFrame(state.rafId);
+    var btn = $('btn-play'); btn.classList.remove('playing');
+    btn.innerHTML = '<span class="play-icon">▶</span> <span id="btn-play-label">' + OP_PLAYLAB[state.op] + '</span>';
+    $('play-status').textContent = state.op === 'inverse' ? 'Edit A (square), then press Simulate' : 'Edit A and B, then press Simulate';
+    $('play-status').className = 'play-status';
+    $('f-expr').textContent = '—'; $('f-result').textContent = '—'; $('f-cell').textContent = 'C[i][j]';
+    $('step-log').innerHTML = '';
+    $('step-log').style.display = state.op === 'inverse' ? 'block' : 'none';
+    $('formula-title').textContent = state.op === 'inverse' ? 'Gauss-Jordan Steps' : 'Current Calculation';
+    updateBadges();
+    drawCanvas();
+  }
+
+  function showInstant() {
+    if (state.simulating) return;
+    if (state.op === 'multiply')      state.C = multiply(state.A, state.B);
+    else if (state.op === 'add')      state.C = addM(state.A, state.B);
+    else if (state.op === 'subtract') state.C = subM(state.A, state.B);
+    else if (state.op === 'inverse') {
+      var res = inverseSteps(state.A);
+      if (res.singular) {
+        state.inverseSingular = true;
+        $('play-status').textContent = '⚠ Singular matrix — A⁻¹ does not exist (det = 0)';
+        $('play-status').className = 'play-status fail';
+        renderGrid('c', makeMatrix(state.cRows, state.cCols, null), $('grid-c'), false);
+        playError(); return;
+      }
+      state.C = res.inv;
+    }
+    else if (state.op === 'transpose') state.C = transposeM(state.A);
+    else if (state.op === 'scalar')    state.C = scalarMul(state.scalarK, state.A);
+    else if (state.op === 'power')     state.C = powerM(state.A, state.powerN);
+    else if (state.op === 'determinant') {
+      var dRes = determinantM(state.A); state.detResult = dRes.det;
+      state.C = [[dRes.det]];
+    }
+    else if (state.op === 'trace') {
+      var trv = traceM(state.A); state.C = [[trv]];
+    }
+    else if (state.op === 'rank') {
+      var rkr = rankAndRREF(state.A); state.rankResult = rkr.rank; state.rankRREF = rkr.rref;
+      state.C = [[rkr.rank]];
+    }
+    else if (state.op === 'solve') {
+      var bV = state.B.map(function (r) { return r[0]; });
+      var sR = solveSystem(state.A, bV);
+      if (sR.singular) {
+        state.solveSingular = true;
+        $('play-status').textContent = '⚠ Singular A — no unique solution for A·x = b';
+        $('play-status').className = 'play-status fail';
+        playError(); return;
+      }
+      state.solveX = sR.x;
+      state.C = sR.x.map(function (v) { return [v]; });
+    }
+    // flash every result cell
+    for (var fi = 0; fi < state.cRows; fi++)
+      for (var fj = 0; fj < state.cCols; fj++)
+        flashCell('C', fi, fj);
+    state.simDone = true;
+    state.seq = buildSequence(); state.seqIdx = state.seq.length;
+    $('play-status').textContent = 'Showing instant result. Press Reset to re-edit.';
+    $('play-status').className = 'play-status active';
+    $('f-cell').textContent = 'C';
+    $('f-expr').textContent = OP_RESULT[state.op] + ' (computed directly)';
+    $('f-result').textContent = state.cRows + '×' + state.cCols;
+    var btn = $('btn-play'); btn.classList.remove('playing');
+    btn.innerHTML = '<span class="play-icon">✓</span> <span id="btn-play-label">Done — Reset to replay</span>';
+    playSuccess();
+    updateBadges(); drawCanvas();
+  }
+
+  function stepOnce() {
+    if (state.simulating) return;
+    if (state.simDone) resetSim();
+    if (state.seq.length === 0) {
+      state.seq = buildSequence();
+      state.seqIdx = 0;
+      state.C = makeMatrix(state.cRows, state.cCols, null);
+      state.inverseAug = buildInitialAugmented();
+      if (state.op === 'inverse') { $('step-log').style.display = 'block'; $('step-log').innerHTML = ''; $('formula-title').textContent = 'Gauss-Jordan Steps'; }
+    }
+    if (state.seqIdx < state.seq.length) {
+      doStep(); drawCanvas();
+      if (state.seqIdx >= state.seq.length || state.inverseSingular) {
+        state.simDone = true;
+        finishSim();
+      } else {
+        $('play-status').textContent = 'Step ' + state.seqIdx + ' of ' + state.seq.length;
+        $('play-status').className = 'play-status active';
+      }
+    }
+  }
+
+  /* DOM-grid highlight helpers — no-ops now (canvas owns rendering) */
+  function clearGridHighlights() { /* canvas redraws every frame */ }
+  function highlightRow() {}
+  function highlightCol() {}
+  function markPair() {}
+  function markCell() {}
+  function flashCell(matrix, i, j) {
+    state.flashes.push({ m: matrix, i: i, j: j, ts: Date.now() });
+    // prune old
+    var now = Date.now();
+    state.flashes = state.flashes.filter(function (f) { return now - f.ts < 700; });
+  }
+  function flashAlpha(matrix, i, j) {
+    var now = Date.now();
+    for (var k = state.flashes.length - 1; k >= 0; k--) {
+      var f = state.flashes[k];
+      if (f.m === matrix && f.i === i && f.j === j) {
+        var age = now - f.ts;
+        if (age < 600) return 1 - age / 600;
+      }
+    }
+    return 0;
+  }
+
+  function renderMulFormula(i, j, k) {
+    $('f-cell').textContent = 'C[' + (i + 1) + '][' + (j + 1) + ']';
+    var html = '';
+    for (var kk = 0; kk <= k; kk++) {
+      if (kk > 0) html += '<span class="term-plus">+</span>';
+      html += '<span class="term-a">' + fmtNum(state.A[i][kk]) + '</span><span class="term-mul">·</span><span class="term-b">' + fmtNum(state.B[kk][j]) + '</span>';
+    }
+    if (k < state.aCols - 1) html += ' <span class="term-plus">+</span> <span class="term-running">…</span>';
+    html += ' <span class="term-running">= ' + fmtNum(state.running) + '</span>';
+    $('f-expr').innerHTML = html;
+    $('f-result').textContent = (k === state.aCols - 1) ? fmtNum(state.running) : '(building…)';
+  }
+
+  function renderAddSubFormula(i, j, a, b, res) {
+    var sign = state.op === 'add' ? '+' : '−';
+    $('f-cell').textContent = 'C[' + (i + 1) + '][' + (j + 1) + ']';
+    $('f-expr').innerHTML = '<span class="term-a">' + fmtNum(a) + '</span> <span class="term-plus">' + sign + '</span> <span class="term-b">' + fmtNum(b) + '</span>';
+    $('f-result').textContent = fmtNum(res);
+  }
+
+  /* ───────────────────────────────────────────────────────
+     PRESETS / FILL
+     ─────────────────────────────────────────────────────── */
+  function loadPreset(idx) {
+    var p = PRESETS[idx]; if (!p) return;
+    var A = p.A.map(function (r) { return r.slice(); });
+    var B = p.B.map(function (r) { return r.slice(); });
+    state.aRows = A.length; state.aCols = A[0].length;
+    // Operation-specific adaptation
+    if (state.op === 'inverse') {
+      // Force A square: trim/pad to min dim
+      var n = Math.min(state.aRows, state.aCols);
+      A = A.slice(0, n).map(function (r) { return r.slice(0, n); });
+      state.aRows = n; state.aCols = n;
+      state.bCols = n;
+    } else if (state.op === 'transpose') {
+      /* No special adaptation — any shape works */
+      state.bCols = state.aRows;
+    } else if (state.op === 'add' || state.op === 'subtract') {
+      // B must be same shape as A — adapt B
+      B = A.map(function (r, ri) { return r.map(function (_, ci) { return (p.B[ri] && p.B[ri][ci] !== undefined) ? p.B[ri][ci] : 0; }); });
+      state.bCols = state.aCols;
+    } else {
+      state.bCols = B[0].length;
+    }
+    state.A = A; state.B = B;
+    applyShapes();
+    ensureMatrices();
+    state.C = makeMatrix(state.cRows, state.cCols, null);
+    resetSim();
+    renderAll();
+    var chips = document.querySelectorAll('.preset-chip');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.toggle('active', i === idx);
+    playClick();
+    pushHistory();   /* snapshot AFTER preset load */
+  }
+
+  function fillMatrix(which, mode) {
+    var rows = (which === 'a') ? state.aRows : state.bRows;
+    var cols = (which === 'a') ? state.aCols : state.bCols;
+    var M = makeMatrix(rows, cols, function (i, j) {
+      if (mode === 'zero') return 0;
+      if (mode === 'identity') return i === j ? 1 : 0;
+      if (mode === 'random') return Math.round((Math.random() * 20 - 10) * 10) / 10;
+      return 0;
+    });
+    if (which === 'a') state.A = M; else state.B = M;
+    resetSim(); renderAll(); playClick();
+    pushHistory();   /* snapshot AFTER fill */
+  }
+
+  /* ───────────────────────────────────────────────────────
+     MODE SWITCHING
+     ─────────────────────────────────────────────────────── */
+  function switchMode(m) {
+    state.mode = m;
+    ['simulate', 'explore', 'practice', 'quiz'].forEach(function (k) {
+      var el = $('sec-' + k);
+      if (el) el.style.display = (k === m) ? '' : 'none';
+    });
+    $('readout-badges').style.display = (m === 'simulate') ? 'flex' : 'none';
+    if (m === 'explore') renderExplore('basics');
+    if (m === 'practice') newPractice();
+    if (m === 'quiz') startQuiz();
+    if (m === 'simulate') drawCanvas();
+  }
+
+  function switchOp(op) {
+    if (state.op === op) return;
+    state.op = op;
+    applyShapes();
+    ensureMatrices();
+    resetSim();
+    renderAll();
+    playClick();
+    pushHistory();   /* snapshot AFTER op switch */
+  }
+
+  /* ───────────────────────────────────────────────────────
+     EXPLORE MODE
+     ─────────────────────────────────────────────────────── */
+  function renderExplore(cat) {
+    var cards = EXPLORE[cat] || [];
+    var target = $('explore-cards');
+    target.innerHTML = '';
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var div = document.createElement('div'); div.className = 'explore-card';
+      div.innerHTML = '<h4>' + escapeHtml(c.title) + '</h4>' +
+        '<p>' + escapeHtml(c.body) + '</p>' +
+        (c.formula ? '<code class="ex-formula">' + escapeHtml(c.formula) + '</code>' : '') +
+        (c.note ? '<div class="ex-note">' + escapeHtml(c.note) + '</div>' : '');
+      target.appendChild(div);
+    }
+    var tabs = document.querySelectorAll('.explore-tab');
+    for (var t = 0; t < tabs.length; t++) tabs[t].classList.toggle('active', tabs[t].dataset.cat === cat);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]; });
+  }
+
+  /* ───────────────────────────────────────────────────────
+     PRACTICE MODE — covers all 4 operations
+     ─────────────────────────────────────────────────────── */
+  function randMatrix(r, c, lo, hi) {
+    return makeMatrix(r, c, function () { return Math.floor(Math.random() * (hi - lo + 1)) + lo; });
+  }
+  function randInvertible2x2() {
+    // Random with det != 0 (retry)
+    for (var tries = 0; tries < 50; tries++) {
+      var a = Math.floor(Math.random() * 9) - 4, b = Math.floor(Math.random() * 9) - 4;
+      var c = Math.floor(Math.random() * 9) - 4, d = Math.floor(Math.random() * 9) - 4;
+      var det = a * d - b * c;
+      if (det !== 0) return { M: [[a, b], [c, d]], det: det };
+    }
+    return { M: [[1, 0], [0, 1]], det: 1 };
+  }
+
+  function newPractice() {
+    // Pick a random op
+    var ops = ['multiply', 'add', 'subtract', 'inverse', 'transpose', 'scalar', 'power', 'determinant', 'trace', 'rank', 'solve'];
+    var op = ops[Math.floor(Math.random() * ops.length)];
+    state.practice.op = op;
+    if (op === 'multiply') {
+      var sizes = [[2,2,2],[2,3,2],[3,2,3],[3,3,2]];
+      var s = sizes[Math.floor(Math.random() * sizes.length)];
+      var m = s[0], n = s[1], p = s[2];
+      var A = randMatrix(m, n, -5, 9), B = randMatrix(n, p, -5, 9);
+      var i = Math.floor(Math.random() * m), j = Math.floor(Math.random() * p);
+      var ans = 0; for (var k = 0; k < n; k++) ans += A[i][k] * B[k][j];
+      state.practice.A = A; state.practice.B = B;
+      state.practice.m = m; state.practice.n = n; state.practice.p = p;
+      state.practice.i = i; state.practice.j = j; state.practice.ans = ans;
+      $('pq-prompt').innerHTML = '<strong>Multiplication</strong>: compute cell <strong>C[' + (i + 1) + '][' + (j + 1) + ']</strong> of A · B.';
+    } else if (op === 'add' || op === 'subtract') {
+      var n2 = 2 + Math.floor(Math.random() * 2);
+      var A2 = randMatrix(n2, n2, -6, 9), B2 = randMatrix(n2, n2, -6, 9);
+      var i2 = Math.floor(Math.random() * n2), j2 = Math.floor(Math.random() * n2);
+      var ans2 = op === 'add' ? A2[i2][j2] + B2[i2][j2] : A2[i2][j2] - B2[i2][j2];
+      state.practice.A = A2; state.practice.B = B2;
+      state.practice.m = n2; state.practice.n = n2; state.practice.p = n2;
+      state.practice.i = i2; state.practice.j = j2; state.practice.ans = ans2;
+      $('pq-prompt').innerHTML = '<strong>' + (op === 'add' ? 'Addition' : 'Subtraction') + '</strong>: compute cell <strong>C[' + (i2 + 1) + '][' + (j2 + 1) + ']</strong> of A ' + (op === 'add' ? '+' : '−') + ' B.';
+    } else if (op === 'transpose') {
+      var tr = 2 + Math.floor(Math.random() * 2);
+      var tc = 2 + Math.floor(Math.random() * 2);
+      var At = randMatrix(tr, tc, -5, 9);
+      var ii_t = Math.floor(Math.random() * tc);   /* row in Aᵀ */
+      var jj_t = Math.floor(Math.random() * tr);   /* col in Aᵀ */
+      /* Aᵀ[ii_t][jj_t] = A[jj_t][ii_t] */
+      state.practice.A = At; state.practice.B = null;
+      state.practice.m = tr; state.practice.n = tc; state.practice.p = tr;  /* result is tc×tr */
+      state.practice.i = ii_t; state.practice.j = jj_t;
+      state.practice.ans = At[jj_t][ii_t];
+      $('pq-prompt').innerHTML = '<strong>Transpose</strong>: compute cell <strong>[' + (ii_t + 1) + '][' + (jj_t + 1) + ']</strong> of Aᵀ. Remember: Aᵀ[i][j] = A[j][i].';
+    } else if (op === 'scalar') {
+      var sr = 2 + Math.floor(Math.random() * 2);
+      var sc = 2 + Math.floor(Math.random() * 2);
+      var Asc = randMatrix(sr, sc, -5, 8);
+      var ksc = Math.floor(Math.random() * 7) - 3;       /* k in [-3, 3] */
+      if (ksc === 0) ksc = 2;
+      var iSc = Math.floor(Math.random() * sr), jSc = Math.floor(Math.random() * sc);
+      state.practice.A = Asc; state.practice.B = null;
+      state.practice.scalarK = ksc;
+      state.practice.m = sr; state.practice.n = sc; state.practice.p = sc;
+      state.practice.i = iSc; state.practice.j = jSc;
+      state.practice.ans = ksc * Asc[iSc][jSc];
+      $('pq-prompt').innerHTML = '<strong>Scalar Multiply</strong>: with k = <strong>' + ksc + '</strong>, compute (k&middot;A)[' + (iSc + 1) + '][' + (jSc + 1) + '].';
+    } else if (op === 'power') {
+      /* 2x2 squared — easy by hand */
+      var Apw = randMatrix(2, 2, -3, 4);
+      var Apw2 = multiply(Apw, Apw);
+      var iP = Math.floor(Math.random() * 2), jP = Math.floor(Math.random() * 2);
+      state.practice.A = Apw; state.practice.B = null;
+      state.practice.powerN = 2;
+      state.practice.A2 = Apw2;
+      state.practice.m = 2; state.practice.n = 2; state.practice.p = 2;
+      state.practice.i = iP; state.practice.j = jP;
+      state.practice.ans = Apw2[iP][jP];
+      $('pq-prompt').innerHTML = '<strong>Matrix Power</strong>: compute (A&sup2;)[' + (iP + 1) + '][' + (jP + 1) + '] for the 2&times;2 A below.';
+    } else if (op === 'trace') {
+      var nT = 2 + Math.floor(Math.random() * 2);
+      var At = randMatrix(nT, nT, -5, 9);
+      var sum = 0; for (var k = 0; k < nT; k++) sum += At[k][k];
+      state.practice.A = At; state.practice.B = null;
+      state.practice.m = nT; state.practice.n = nT; state.practice.p = nT;
+      state.practice.i = 0; state.practice.j = 0;
+      state.practice.ans = sum;
+      $('pq-prompt').innerHTML = '<strong>Trace</strong>: compute tr(A) = sum of the diagonal entries of A below.';
+    } else if (op === 'determinant') {
+      /* 2x2 only for hand calculability */
+      var Ad = randMatrix(2, 2, -4, 6);
+      var detVal = Ad[0][0] * Ad[1][1] - Ad[0][1] * Ad[1][0];
+      state.practice.A = Ad; state.practice.B = null;
+      state.practice.m = 2; state.practice.n = 2; state.practice.p = 2;
+      state.practice.i = 0; state.practice.j = 0;
+      state.practice.ans = detVal;
+      $('pq-prompt').innerHTML = '<strong>Determinant</strong>: compute det(A) for the 2&times;2 A below. Recall det = ad &minus; bc.';
+    } else if (op === 'rank') {
+      /* Generate either full-rank (random) or a known rank-1 matrix */
+      var rkM = (Math.random() < 0.5)
+        ? randMatrix(2 + Math.floor(Math.random() * 2), 2 + Math.floor(Math.random() * 2), -3, 5)
+        : (function () { /* rank-1 outer product */
+            var u = [1 + Math.floor(Math.random() * 3), 1 + Math.floor(Math.random() * 3), 1 + Math.floor(Math.random() * 3)];
+            var v = [1 + Math.floor(Math.random() * 3), 1 + Math.floor(Math.random() * 3), 1 + Math.floor(Math.random() * 3)];
+            var M = [];
+            for (var i = 0; i < 3; i++) {
+              var rrr = [];
+              for (var j = 0; j < 3; j++) rrr.push(u[i] * v[j]);
+              M.push(rrr);
+            }
+            return M;
+          })();
+      var rkR = rankAndRREF(rkM);
+      state.practice.A = rkM; state.practice.B = null;
+      state.practice.m = rkM.length; state.practice.n = rkM[0].length; state.practice.p = 0;
+      state.practice.i = 0; state.practice.j = 0;
+      state.practice.ans = rkR.rank;
+      $('pq-prompt').innerHTML = '<strong>Rank</strong>: what is the rank of the matrix A below? (Hint: count linearly-independent rows.)';
+    } else if (op === 'solve') {
+      /* 2x2 invertible system */
+      var srm = randInvertible2x2();
+      var Asol = srm.M;
+      var xTrue = [Math.floor(Math.random() * 5) - 2, Math.floor(Math.random() * 5) - 2];
+      if (xTrue[0] === 0 && xTrue[1] === 0) xTrue[0] = 1;
+      var bSol = [Asol[0][0] * xTrue[0] + Asol[0][1] * xTrue[1], Asol[1][0] * xTrue[0] + Asol[1][1] * xTrue[1]];
+      state.practice.A = Asol; state.practice.B = bSol.map(function (v) { return [v]; });
+      state.practice.m = 2; state.practice.n = 2; state.practice.p = 1;
+      var iSlv = Math.floor(Math.random() * 2);
+      state.practice.i = iSlv; state.practice.j = 0;
+      state.practice.ans = xTrue[iSlv];
+      state.practice.xTrue = xTrue; state.practice.bVec = bSol;
+      $('pq-prompt').innerHTML = '<strong>Solve A&middot;x = b</strong>: find x[' + (iSlv + 1) + '] for the 2&times;2 system below.';
+    } else { // inverse
+      var rm = randInvertible2x2();
+      var Ai = rm.M, det = rm.det;
+      // A^-1 = (1/det) [[d, -b], [-c, a]]
+      var inv = [[ Ai[1][1] / det, -Ai[0][1] / det ], [ -Ai[1][0] / det, Ai[0][0] / det ]];
+      var ii = Math.floor(Math.random() * 2), jj = Math.floor(Math.random() * 2);
+      state.practice.A = Ai; state.practice.B = null;
+      state.practice.m = 2; state.practice.n = 2; state.practice.p = 2;
+      state.practice.i = ii; state.practice.j = jj; state.practice.ans = Math.round(inv[ii][jj] * 1000) / 1000;
+      state.practice.invFull = inv; state.practice.det = det;
+      $('pq-prompt').innerHTML = '<strong>Inverse</strong>: compute cell <strong>[' + (ii + 1) + '][' + (jj + 1) + ']</strong> of A⁻¹ (2×2). Hint: A⁻¹ = (1/det)·[[d,−b],[−c,a]].';
+    }
+    var resName = (op === 'inverse') ? 'A⁻¹' :
+                  (op === 'transpose') ? 'Aᵀ' :
+                  (op === 'scalar') ? '(k·A)' :
+                  (op === 'power') ? '(A²)' :
+                  (op === 'trace') ? 'tr(A)' :
+                  (op === 'determinant') ? 'det(A)' :
+                  (op === 'rank') ? 'rank(A)' :
+                  (op === 'solve') ? 'x' :
+                  'C';
+    var label = resName;
+    if (op !== 'trace' && op !== 'determinant' && op !== 'rank') {
+      label += '[' + (state.practice.i + 1) + ']' + (op === 'solve' ? '' : '[' + (state.practice.j + 1) + ']');
+    }
+    $('pq-cell-label').textContent = label;
+    $('pq-input').value = '';
+    $('pq-feedback').textContent = ''; $('pq-feedback').className = 'pq-feedback';
+    $('pq-working').style.display = 'none';
+    renderPracticeMatrices();
+    $('pq-input').focus();
+  }
+
+  function renderPracticeMatrices() {
+    var wrap = $('pq-matrices'); wrap.innerHTML = '';
+    var op = state.practice.op;
+    var aDiv = document.createElement('div'); aDiv.className = 'mtx-block';
+    aDiv.innerHTML = '<div class="mtx-title"><span class="mtx-name a">A</span> <span class="mtx-shape">' + state.practice.m + '×' + state.practice.n + '</span></div>';
+    var aGrid = document.createElement('div'); aGrid.className = 'mtx-grid'; aDiv.appendChild(aGrid);
+    renderGrid('pa', state.practice.A, aGrid, false);
+    wrap.appendChild(aDiv);
+    if (op === 'scalar') {
+      /* Show "k = N ·" prefix on the left */
+      var kPrefix = document.createElement('div');
+      kPrefix.className = 'mtx-times';
+      kPrefix.style.fontSize = '1rem';
+      kPrefix.innerHTML = 'k = <strong style="color:#ffb74d">' + fmtNum(state.practice.scalarK) + '</strong> &middot;';
+      wrap.insertBefore(kPrefix, aDiv);
+      return;
+    }
+    if (op === 'trace' || op === 'determinant' || op === 'rank' || op === 'power') {
+      var prefix = document.createElement('div'); prefix.className = 'mtx-times';
+      prefix.innerHTML = op === 'trace' ? 'tr(' : op === 'determinant' ? 'det(' : op === 'rank' ? 'rank(' : '(';
+      var suffix = document.createElement('div'); suffix.className = 'mtx-times';
+      suffix.innerHTML = op === 'power' ? ')²' : ')';
+      wrap.insertBefore(prefix, aDiv);
+      wrap.appendChild(suffix);
+      return;
+    }
+    if (op === 'solve') {
+      var times = document.createElement('div'); times.className = 'mtx-times'; times.innerHTML = '·';
+      var xSym = document.createElement('div'); xSym.className = 'mtx-times'; xSym.innerHTML = 'x =';
+      var bBlock = document.createElement('div'); bBlock.className = 'mtx-block';
+      bBlock.innerHTML = '<div class="mtx-title"><span class="mtx-name b">b</span> <span class="mtx-shape">' + state.practice.m + '×1</span></div>';
+      var bGrid2 = document.createElement('div'); bGrid2.className = 'mtx-grid';
+      bBlock.appendChild(bGrid2);
+      renderGrid('pb2', state.practice.B, bGrid2, false);
+      wrap.appendChild(times); wrap.appendChild(xSym); wrap.appendChild(bBlock);
+      return;
+    }
+    if (op !== 'inverse' && op !== 'transpose') {
+      var sym = document.createElement('div'); sym.className = 'mtx-times';
+      sym.innerHTML = op === 'multiply' ? '×' : (op === 'add' ? '+' : '−');
+      var bDiv = document.createElement('div'); bDiv.className = 'mtx-block';
+      bDiv.innerHTML = '<div class="mtx-title"><span class="mtx-name b">B</span> <span class="mtx-shape">' + (op === 'multiply' ? state.practice.n + '×' + state.practice.p : state.practice.m + '×' + state.practice.n) + '</span></div>';
+      var bGrid = document.createElement('div'); bGrid.className = 'mtx-grid'; bDiv.appendChild(bGrid);
+      renderGrid('pb', state.practice.B, bGrid, false);
+      wrap.appendChild(sym); wrap.appendChild(bDiv);
+    } else {
+      var inv = document.createElement('div'); inv.className = 'mtx-times'; inv.innerHTML = op === 'transpose' ? 'ᵀ' : '⁻¹';
+      wrap.appendChild(inv);
+    }
+  }
+
+  function checkPractice() {
+    var input = parseFloat($('pq-input').value);
+    if (isNaN(input)) { $('pq-feedback').textContent = 'Type a number first.'; $('pq-feedback').className = 'pq-feedback err'; return; }
+    state.practice.total++;
+    var tol = state.practice.op === 'inverse' ? 0.01 : 1e-6;
+    var correct = Math.abs(input - state.practice.ans) < tol;
+    if (correct) {
+      state.practice.score++;
+      $('pq-feedback').innerHTML = '✓ Correct! Answer = ' + fmtNum(state.practice.ans);
+      $('pq-feedback').className = 'pq-feedback ok'; playSuccess();
+    } else {
+      $('pq-feedback').innerHTML = '✗ Not quite — the answer is <strong>' + fmtNum(state.practice.ans) + '</strong>. You typed ' + input + '.';
+      $('pq-feedback').className = 'pq-feedback err'; playError();
+    }
+    $('pq-score').textContent = state.practice.score; $('pq-total').textContent = state.practice.total;
+    showPracticeWorking();
+  }
+  function showPracticeWorking() {
+    var op = state.practice.op, i = state.practice.i, j = state.practice.j;
+    var html = '';
+    if (op === 'multiply') {
+      var n = state.practice.n; var parts = [];
+      for (var k = 0; k < n; k++) parts.push(fmtNum(state.practice.A[i][k]) + '·' + fmtNum(state.practice.B[k][j]));
+      html = 'C[' + (i + 1) + '][' + (j + 1) + '] = ' + parts.join(' + ') + ' = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'add' || op === 'subtract') {
+      var sgn = op === 'add' ? '+' : '−';
+      html = 'C[' + (i + 1) + '][' + (j + 1) + '] = ' + fmtNum(state.practice.A[i][j]) + ' ' + sgn + ' ' + fmtNum(state.practice.B[i][j]) + ' = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'transpose') {
+      html = 'Aᵀ[' + (i + 1) + '][' + (j + 1) + '] = A[' + (j + 1) + '][' + (i + 1) + '] = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'scalar') {
+      html = '(k·A)[' + (i + 1) + '][' + (j + 1) + '] = ' + fmtNum(state.practice.scalarK) + ' · ' + fmtNum(state.practice.A[i][j]) + ' = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'power') {
+      /* A² = A·A; show the dot-product breakdown for cell (i,j) */
+      var n2 = state.practice.n; var parts2 = [];
+      for (var k2 = 0; k2 < n2; k2++) parts2.push(fmtNum(state.practice.A[i][k2]) + '·' + fmtNum(state.practice.A[k2][j]));
+      html = '(A²)[' + (i + 1) + '][' + (j + 1) + '] = Σ A[' + (i + 1) + '][k]·A[k][' + (j + 1) + '] = ' + parts2.join(' + ') + ' = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'trace') {
+      var diag = []; for (var kt = 0; kt < state.practice.n; kt++) diag.push(fmtNum(state.practice.A[kt][kt]));
+      html = 'tr(A) = ' + diag.join(' + ') + ' = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'determinant') {
+      var a = state.practice.A[0][0], b = state.practice.A[0][1], c = state.practice.A[1][0], d = state.practice.A[1][1];
+      html = 'det(A) = ad − bc = ' + fmtNum(a) + '·' + fmtNum(d) + ' − ' + fmtNum(b) + '·' + fmtNum(c) + ' = ' + fmtNum(a*d) + ' − ' + fmtNum(b*c) + ' = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else if (op === 'rank') {
+      html = 'Reduce A to RREF; count non-zero pivot rows.<br>rank(A) = <strong style="color:#3ddc84">' + state.practice.ans + '</strong>';
+    } else if (op === 'solve') {
+      var aS = state.practice.A, bS = state.practice.bVec, xS = state.practice.xTrue;
+      var detS = aS[0][0] * aS[1][1] - aS[0][1] * aS[1][0];
+      html = 'det(A) = ' + fmtNum(detS) + '. By Cramer\'s rule:<br>'
+        + 'x[1] = (b[1]·A[2][2] − b[2]·A[1][2]) / det = (' + fmtNum(bS[0]) + '·' + fmtNum(aS[1][1]) + ' − ' + fmtNum(bS[1]) + '·' + fmtNum(aS[0][1]) + ') / ' + fmtNum(detS) + ' = ' + fmtNum(xS[0]) + '<br>'
+        + 'x[2] = (A[1][1]·b[2] − A[2][1]·b[1]) / det = (' + fmtNum(aS[0][0]) + '·' + fmtNum(bS[1]) + ' − ' + fmtNum(aS[1][0]) + '·' + fmtNum(bS[0]) + ') / ' + fmtNum(detS) + ' = ' + fmtNum(xS[1]) + '<br>'
+        + 'x[' + (i + 1) + '] = <strong style="color:#3ddc84">' + fmtNum(state.practice.ans) + '</strong>';
+    } else { // inverse
+      var det = state.practice.det;
+      var inv = state.practice.invFull;
+      html = 'det(A) = ' + fmtNum(det) + ',  A⁻¹ = (1/' + fmtNum(det) + ') · [[' + fmtNum(state.practice.A[1][1]) + ',−' + fmtNum(state.practice.A[0][1]) + '],[−' + fmtNum(state.practice.A[1][0]) + ',' + fmtNum(state.practice.A[0][0]) + ']]<br>A⁻¹[' + (i + 1) + '][' + (j + 1) + '] = <strong style="color:#3ddc84">' + fmtNum(inv[i][j]) + '</strong>';
+    }
+    $('pq-working').innerHTML = html;
+    $('pq-working').style.display = 'block';
+  }
+
+  /* ───────────────────────────────────────────────────────
+     QUIZ MODE
+     ─────────────────────────────────────────────────────── */
+  var QUIZ_SIZE = 5;
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var k = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[k]; a[k] = t; } return a; }
+
+  function generateQuizQuestion() {
+    var bucket = Math.random();
+    if (bucket < 0.18) return qMulCell();
+    if (bucket < 0.32) return qAddSubCell();
+    if (bucket < 0.42) return qInvertibility();
+    if (bucket < 0.52) return qShape();
+    if (bucket < 0.60) return qDet2x2();
+    if (bucket < 0.68) return qTrace();
+    if (bucket < 0.76) return qScalar();
+    if (bucket < 0.84) return qRank();
+    return qProperty();
+  }
+  function qDet2x2() {
+    var A = randMatrix(2, 2, -4, 6);
+    var ans = A[0][0]*A[1][1] - A[0][1]*A[1][0];
+    var opts = [ans, ans + 1, ans - 1, -ans];
+    return { type: 'mcq-mat', A: A, sym: null, m: 2, n: 2, p: 0,
+      question: 'Compute det(A) for the 2×2 matrix below.',
+      options: shuffle(opts.map(fmtNum).filter(function(v,i,a){return a.indexOf(v)===i;})).slice(0,4),
+      answer: fmtNum(ans) };
+  }
+  function qTrace() {
+    var n = 2 + Math.floor(Math.random() * 2);
+    var A = randMatrix(n, n, -5, 8);
+    var ans = 0; for (var k = 0; k < n; k++) ans += A[k][k];
+    var opts = [ans, ans + 2, ans - 3, ans + 5];
+    return { type: 'mcq-mat', A: A, sym: null, m: n, n: n, p: 0,
+      question: 'Compute tr(A) — sum of the diagonal of A.',
+      options: shuffle(opts.map(fmtNum).filter(function(v,i,a){return a.indexOf(v)===i;})).slice(0,4),
+      answer: fmtNum(ans) };
+  }
+  function qScalar() {
+    var n = 2 + Math.floor(Math.random() * 2);
+    var A = randMatrix(n, n, -3, 5);
+    var k = Math.floor(Math.random() * 5) - 2; if (k === 0) k = 2;
+    var i = Math.floor(Math.random() * n), j = Math.floor(Math.random() * n);
+    var ans = k * A[i][j];
+    var opts = [ans, ans + k, ans - k, A[i][j]];
+    return { type: 'mcq-mat', A: A, sym: null, m: n, n: n, p: 0,
+      question: 'With k = ' + k + ', compute (k·A)[' + (i + 1) + '][' + (j + 1) + '].',
+      options: shuffle(opts.map(fmtNum).filter(function(v,i,a){return a.indexOf(v)===i;})).slice(0,4),
+      answer: fmtNum(ans) };
+  }
+  function qRank() {
+    /* Use either identity (full rank) or repeated row (rank 1) */
+    var useFull = Math.random() < 0.5;
+    var A, rk;
+    if (useFull) {
+      var n = 2 + Math.floor(Math.random() * 2);
+      A = makeMatrix(n, n, function (i, j) { return i === j ? 1 : 0; });
+      rk = n;
+    } else {
+      A = [[1, 2, 3], [2, 4, 6], [3, 6, 9]];   /* rank 1: all rows are multiples of [1,2,3] */
+      rk = 1;
+    }
+    var opts = [rk, rk + 1, Math.max(0, rk - 1), A.length];
+    return { type: 'mcq-mat', A: A, sym: null, m: A.length, n: A[0].length, p: 0,
+      question: 'What is rank(A) for the matrix below?',
+      options: shuffle(opts.map(function(v){return String(v);}).filter(function(v,i,a){return a.indexOf(v)===i;})).slice(0,4),
+      answer: String(rk) };
+  }
+  function qMulCell() {
+    var sizes = [[2,2,2],[2,3,2],[3,3,2]];
+    var s = sizes[Math.floor(Math.random() * sizes.length)];
+    var m = s[0], n = s[1], p = s[2];
+    var A = randMatrix(m, n, -4, 8), B = randMatrix(n, p, -4, 8);
+    var i = Math.floor(Math.random() * m), j = Math.floor(Math.random() * p);
+    var ans = 0; for (var k = 0; k < n; k++) ans += A[i][k] * B[k][j];
+    var opts = [ans];
+    while (opts.length < 4) {
+      var off = (Math.floor(Math.random() * 15) + 1) * (Math.random() < 0.5 ? -1 : 1);
+      if (opts.indexOf(ans + off) === -1) opts.push(ans + off);
+    }
+    return { type: 'mcq-mat', A: A, B: B, sym: '×', m: m, n: n, p: p,
+      question: 'Compute C[' + (i + 1) + '][' + (j + 1) + '] for A · B below.',
+      options: shuffle(opts).map(fmtNum), answer: fmtNum(ans) };
+  }
+  function qAddSubCell() {
+    var op = Math.random() < 0.5 ? 'add' : 'sub';
+    var n = 2 + Math.floor(Math.random() * 2);
+    var A = randMatrix(n, n, -5, 8), B = randMatrix(n, n, -5, 8);
+    var i = Math.floor(Math.random() * n), j = Math.floor(Math.random() * n);
+    var ans = op === 'add' ? A[i][j] + B[i][j] : A[i][j] - B[i][j];
+    var opts = [ans];
+    while (opts.length < 4) {
+      var off = (Math.floor(Math.random() * 9) + 1) * (Math.random() < 0.5 ? -1 : 1);
+      if (opts.indexOf(ans + off) === -1) opts.push(ans + off);
+    }
+    return { type: 'mcq-mat', A: A, B: B, sym: op === 'add' ? '+' : '−', m: n, n: n, p: n,
+      question: 'Compute C[' + (i + 1) + '][' + (j + 1) + '] for A ' + (op === 'add' ? '+' : '−') + ' B below.',
+      options: shuffle(opts).map(fmtNum), answer: fmtNum(ans) };
+  }
+  function qInvertibility() {
+    var examples = [
+      { M: [[1,2],[3,4]], det: -2, inv: true },
+      { M: [[2,4],[1,2]], det: 0, inv: false },
+      { M: [[3,1],[2,5]], det: 13, inv: true },
+      { M: [[1,1],[1,1]], det: 0, inv: false },
+      { M: [[0,1],[1,0]], det: -1, inv: true },
+      { M: [[2,6],[1,3]], det: 0, inv: false }
+    ];
+    var ex = examples[Math.floor(Math.random() * examples.length)];
+    return { type: 'mcq-mat', A: ex.M, sym: null, m: 2, n: 2, p: 0,
+      question: 'Is the 2×2 matrix A invertible?',
+      options: shuffle(['Yes (det ≠ 0)', 'No (singular)', 'Only when transposed', 'Only if all entries are positive']),
+      answer: ex.inv ? 'Yes (det ≠ 0)' : 'No (singular)' };
+  }
+  function qShape() {
+    var aR = 1 + Math.floor(Math.random() * 5), aC = 1 + Math.floor(Math.random() * 5);
+    var bC = 1 + Math.floor(Math.random() * 5);
+    var ans = aR + '×' + bC;
+    var opts = [ans, aC + '×' + bC, aR + '×' + aC, bC + '×' + aR];
+    return { type: 'mcq-text', question: 'If A is ' + aR + '×' + aC + ' and B is ' + aC + '×' + bC + ', what shape is A · B?',
+      options: shuffle(opts.filter(function (v, i, arr) { return arr.indexOf(v) === i; })).slice(0, 4), answer: ans };
+  }
+  function qProperty() {
+    var qs = [
+      { q: 'Which is NOT generally true for matrix multiplication?', opts: ['Associative','Distributive','Commutative','Has identity I'], a: 'Commutative' },
+      { q: 'A matrix is invertible if and only if…',                opts: ['det(A) = 0','det(A) ≠ 0','it is symmetric','it has at least one zero entry'], a: 'det(A) ≠ 0' },
+      { q: 'What is (A · B)⁻¹ equal to?',                            opts: ['A⁻¹ · B⁻¹','B⁻¹ · A⁻¹','(A · B)ᵀ','A · B⁻¹'], a: 'B⁻¹ · A⁻¹' },
+      { q: 'What is the result of A · A⁻¹?',                          opts: ['A','0','I','Aᵀ'], a: 'I' },
+      { q: 'Matrix addition is …',                                    opts: ['Not defined','Element-wise','Row-by-column','Only for square matrices'], a: 'Element-wise' },
+      { q: 'Two matrices can be added only when …',                   opts: ['Both are square','They have the same shape','A.cols = B.rows','At least one is invertible'], a: 'They have the same shape' },
+      { q: 'For an n×n matrix, rank(A) equals n if and only if …',     opts: ['det(A) = 0','det(A) ≠ 0','A is symmetric','A is the identity'], a: 'det(A) ≠ 0' },
+      { q: 'What is det(I) (the identity matrix)?',                    opts: ['0','1','n','depends on size'], a: '1' },
+      { q: 'tr(A + B) equals …',                                       opts: ['tr(A) · tr(B)','tr(A) + tr(B)','tr(A) − tr(B)','tr(B) − tr(A)'], a: 'tr(A) + tr(B)' },
+      { q: 'For invertible A, the solution to A·x = b is …',           opts: ['x = A·b','x = b·A','x = A⁻¹·b','x = b·A⁻¹'], a: 'x = A⁻¹·b' },
+      { q: 'k·(A + B) equals …',                                       opts: ['k·A','k·A + B','k·A + k·B','k + A + B'], a: 'k·A + k·B' }
+    ];
+    var p = qs[Math.floor(Math.random() * qs.length)];
+    return { type: 'mcq-text', question: p.q, options: shuffle(p.opts.slice()), answer: p.a };
+  }
+
+  function startQuiz() {
+    state.quiz.set = [];
+    for (var i = 0; i < QUIZ_SIZE; i++) state.quiz.set.push(generateQuizQuestion());
+    state.quiz.idx = 0; state.quiz.score = 0; state.quiz.results = [];
+    state.quiz.selected = null; state.quiz.answered = false;
+    $('quiz-panel').style.display = ''; $('quiz-result').style.display = 'none';
+    renderQuizQuestion();
+  }
+  function renderQuizQuestion() {
+    var q = state.quiz.set[state.quiz.idx];
+    $('qz-idx').textContent = state.quiz.idx + 1;
+    $('qz-score').textContent = state.quiz.score;
+    state.quiz.selected = null; state.quiz.answered = false;
+    $('qz-feedback').textContent = ''; $('qz-feedback').className = 'qz-feedback';
+    $('qz-submit').disabled = false; $('qz-next').disabled = true;
+    var body = $('qz-body'); body.innerHTML = '';
+    var qDiv = document.createElement('div'); qDiv.className = 'qz-question';
+    qDiv.textContent = q.question; body.appendChild(qDiv);
+    if (q.type === 'mcq-mat') {
+      var wrap = document.createElement('div'); wrap.className = 'qz-matrices';
+      var aB = document.createElement('div'); aB.className = 'mtx-block';
+      aB.innerHTML = '<div class="mtx-title"><span class="mtx-name a">A</span> <span class="mtx-shape">' + q.m + '×' + q.n + '</span></div>';
+      var aG = document.createElement('div'); aG.className = 'mtx-grid'; aB.appendChild(aG);
+      renderGrid('qa', q.A, aG, false); wrap.appendChild(aB);
+      if (q.B) {
+        var sym = document.createElement('div'); sym.className = 'mtx-times'; sym.innerHTML = q.sym || '×'; wrap.appendChild(sym);
+        var bB = document.createElement('div'); bB.className = 'mtx-block';
+        bB.innerHTML = '<div class="mtx-title"><span class="mtx-name b">B</span> <span class="mtx-shape">' + (q.sym === '×' ? q.n + '×' + q.p : q.m + '×' + q.n) + '</span></div>';
+        var bG = document.createElement('div'); bG.className = 'mtx-grid'; bB.appendChild(bG);
+        renderGrid('qb', q.B, bG, false); wrap.appendChild(bB);
+      }
+      body.appendChild(wrap);
+    }
+    var optWrap = document.createElement('div'); optWrap.className = 'qz-options';
+    for (var i = 0; i < q.options.length; i++) {
+      (function (txt) {
+        var btn = document.createElement('button');
+        btn.className = 'qz-option'; btn.type = 'button'; btn.textContent = txt;
+        btn.addEventListener('click', function () {
+          if (state.quiz.answered) return;
+          state.quiz.selected = txt;
+          var all = optWrap.querySelectorAll('.qz-option');
+          for (var z = 0; z < all.length; z++) all[z].classList.remove('selected');
+          btn.classList.add('selected'); playClick();
+        });
+        optWrap.appendChild(btn);
+      })(q.options[i]);
+    }
+    body.appendChild(optWrap);
+  }
+  function submitQuiz() {
+    if (state.quiz.answered) return;
+    if (state.quiz.selected === null) { $('qz-feedback').textContent = 'Pick an option first.'; $('qz-feedback').className = 'qz-feedback err'; return; }
+    var q = state.quiz.set[state.quiz.idx];
+    var correct = state.quiz.selected === q.answer;
+    state.quiz.answered = true;
+    state.quiz.results.push({ q: q.question, given: state.quiz.selected, answer: q.answer, ok: correct });
+    if (correct) { state.quiz.score++; playSuccess(); } else playError();
+    var all = document.querySelectorAll('.qz-option');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].textContent === q.answer) all[i].classList.add('correct');
+      else if (all[i].textContent === state.quiz.selected && !correct) all[i].classList.add('wrong');
+    }
+    $('qz-feedback').textContent = correct ? '✓ Correct!' : '✗ The answer was ' + q.answer + '.';
+    $('qz-feedback').className = 'qz-feedback ' + (correct ? 'ok' : 'err');
+    $('qz-submit').disabled = true; $('qz-next').disabled = false;
+    $('qz-score').textContent = state.quiz.score;
+  }
+  function nextQuiz() {
+    if (state.quiz.idx + 1 >= QUIZ_SIZE) { showQuizResult(); return; }
+    state.quiz.idx++; renderQuizQuestion();
+  }
+  function showQuizResult() {
+    $('quiz-panel').style.display = 'none'; $('quiz-result').style.display = '';
+    var s = state.quiz.score, total = QUIZ_SIZE;
+    var stars = $('qr-stars');
+    if (s === total) { stars.textContent = '★ ★ ★'; stars.className = 'qr-stars perfect'; }
+    else if (s >= 3) { stars.textContent = '★ ★'; stars.className = 'qr-stars good'; }
+    else { stars.textContent = '★'; stars.className = 'qr-stars poor'; }
+    $('qr-score').textContent = s + ' / ' + total;
+    var bd = $('qr-breakdown'); bd.innerHTML = '';
+    for (var i = 0; i < state.quiz.results.length; i++) {
+      var r = state.quiz.results[i];
+      var row = document.createElement('div'); row.className = 'qr-row ' + (r.ok ? 'ok' : 'err');
+      row.innerHTML = '<span class="qr-q">Q' + (i + 1) + ' — ' + escapeHtml(r.q) + '</span><span class="qr-mark">' + (r.ok ? '✓' : '✗ ' + r.given + ' / ' + r.answer) + '</span>';
+      bd.appendChild(row);
+    }
+  }
+
+  /* ───────────────────────────────────────────────────────
+     EVENTS
+     ─────────────────────────────────────────────────────── */
+  /* ───────────────────────────────────────────────────────
+     UNDO / REDO — snapshot-based history
+     ─────────────────────────────────────────────────────── */
+  function snapshotState() {
+    return {
+      op: state.op,
+      aRows: state.aRows, aCols: state.aCols, bCols: state.bCols,
+      A: state.A.map(function (r) { return r.slice(); }),
+      B: state.B.map(function (r) { return r.slice(); })
+    };
+  }
+  function pushHistory() {
+    /* Discard any "future" if we undid then made a new change */
+    if (state.historyIdx < state.history.length - 1) {
+      state.history = state.history.slice(0, state.historyIdx + 1);
+    }
+    state.history.push(snapshotState());
+    if (state.history.length > state.historyMax) {
+      state.history.shift();
+    }
+    state.historyIdx = state.history.length - 1;
+  }
+  function restoreState(snap) {
+    state.op = snap.op;
+    state.aRows = snap.aRows; state.aCols = snap.aCols; state.bCols = snap.bCols;
+    state.A = snap.A.map(function (r) { return r.slice(); });
+    state.B = snap.B.map(function (r) { return r.slice(); });
+    /* Sync op tabs */
+    var pills = document.querySelectorAll('#op-tabs .pill');
+    for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('active', pills[i].dataset.op === state.op);
+    applyShapes(); ensureMatrices(); resetSim(); renderAll();
+  }
+  function undo() {
+    if (state.historyIdx <= 0) { playError(); return; }
+    state.historyIdx--;
+    restoreState(state.history[state.historyIdx]);
+    playClick();
+  }
+  function redo() {
+    if (state.historyIdx >= state.history.length - 1) { playError(); return; }
+    state.historyIdx++;
+    restoreState(state.history[state.historyIdx]);
+    playClick();
+  }
+
+  /* ───────────────────────────────────────────────────────
+     EXPORT — CSV download + watermarked PNG
+     ─────────────────────────────────────────────────────── */
+  function downloadCSV() {
+    if (!state.C || !state.C.length || state.C[0][0] === null) {
+      $('play-status').textContent = 'Run Simulate or Show Result Instantly first to produce a result.';
+      $('play-status').className = 'play-status fail';
+      playError(); return;
+    }
+    var rows = state.C.map(function (r) { return r.map(fmtNum).join(','); });
+    /* Header row giving shape and operation */
+    var hdr = '# Matrix ' + OP_RESULT[state.op] + '  shape: ' + state.cRows + 'x' + state.cCols;
+    var csv = hdr + '\n' + rows.join('\n') + '\n';
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'matrix-' + state.op + '-result.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    playSuccess();
+  }
+  function downloadWatermarkedPNG() {
+    var src = canvas;
+    var tmp = document.createElement('canvas');
+    tmp.width = src.width; tmp.height = src.height;
+    var tc = tmp.getContext('2d');
+    tc.drawImage(src, 0, 0);
+    /* Watermark — bottom right */
+    var fs = Math.max(11, Math.round(tmp.width * 0.018));
+    tc.font = '600 ' + fs + 'px "Segoe UI", system-ui, sans-serif';
+    tc.textAlign = 'right'; tc.textBaseline = 'bottom';
+    tc.fillStyle = 'rgba(255,255,255,0.30)';
+    tc.fillText('NHIT VisualLab', tmp.width - 12, tmp.height - 8);
+    var a = document.createElement('a');
+    a.href = tmp.toDataURL('image/png');
+    a.download = 'matrix-' + state.op + '.png';
+    a.click();
+    playSuccess();
+  }
+
+  /* ───────────────────────────────────────────────────────
+     PASTE FROM CLIPBOARD into Matrix A or B
+     Accepts tab/comma/space separated values, newline-separated rows
+     ─────────────────────────────────────────────────────── */
+  function pasteIntoMatrix(which) {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      $('play-status').textContent = 'Clipboard read not supported in this browser.';
+      $('play-status').className = 'play-status fail';
+      playError(); return;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      var rows = text.replace(/\r/g, '').split('\n').filter(function (r) { return r.trim().length > 0; });
+      if (!rows.length) { playError(); return; }
+      var parsed = rows.map(function (line) {
+        return line.split(/[,\s\t]+/).filter(function (c) { return c.length > 0; }).map(function (v) {
+          var n = parseFloat(v); return isNaN(n) ? 0 : n;
+        });
+      });
+      var maxCols = parsed.reduce(function (m, r) { return Math.max(m, r.length); }, 0);
+      var r = parsed.length, c = maxCols;
+      if (r < 1 || c < 1 || r > MAX_SIZE || c > MAX_SIZE) {
+        $('play-status').textContent = 'Pasted matrix shape ' + r + '×' + c + ' is outside 1×1…6×6.';
+        $('play-status').className = 'play-status fail';
+        playError(); return;
+      }
+      /* Pad rows to maxCols */
+      for (var i = 0; i < r; i++) while (parsed[i].length < c) parsed[i].push(0);
+      if (which === 'a') {
+        state.aRows = r; state.aCols = c;
+        if (state.op === 'inverse') { state.aCols = state.aRows = Math.min(r, c); }
+        state.A = parsed;
+        applyShapes(); ensureMatrices();
+      } else {
+        /* B paste — must respect compatibility */
+        if (state.op === 'multiply') {
+          if (r !== state.aCols) {
+            $('play-status').textContent = 'For multiply, B rows must equal A cols (' + state.aCols + '), pasted ' + r + '.';
+            $('play-status').className = 'play-status fail';
+            playError(); return;
+          }
+          state.bCols = c;
+        } else if (state.op === 'add' || state.op === 'subtract') {
+          if (r !== state.aRows || c !== state.aCols) {
+            $('play-status').textContent = 'For add/subtract, B must match A shape (' + state.aRows + '×' + state.aCols + '), pasted ' + r + '×' + c + '.';
+            $('play-status').className = 'play-status fail';
+            playError(); return;
+          }
+        } else {
+          $('play-status').textContent = 'Inverse mode has no Matrix B.';
+          $('play-status').className = 'play-status fail';
+          playError(); return;
+        }
+        state.B = parsed;
+        applyShapes(); ensureMatrices();
+      }
+      resetSim(); renderAll();
+      pushHistory();   /* snapshot AFTER paste */
+      playSuccess();
+      $('play-status').textContent = 'Pasted ' + r + '×' + c + ' values into matrix ' + which.toUpperCase() + '.';
+      $('play-status').className = 'play-status active';
+    }).catch(function () {
+      $('play-status').textContent = 'Clipboard read denied. Allow clipboard access and retry.';
+      $('play-status').className = 'play-status fail';
+      playError();
+    });
+  }
+
+  /* ───────────────────────────────────────────────────────
+     KEYBOARD NAVIGATION — arrow keys & Tab while editing
+     ─────────────────────────────────────────────────────── */
+  function moveEditor(dRow, dCol) {
+    if (!state.editing) return;
+    var m = state.editing.matrix;
+    var rows = (m === 'A') ? state.aRows : state.bRows;
+    var cols = (m === 'A') ? state.aCols : state.bCols;
+    var ni = state.editing.i + dRow;
+    var nj = state.editing.j + dCol;
+    /* Wrap within the matrix */
+    if (nj >= cols) { nj = 0; ni++; }
+    if (nj < 0)     { nj = cols - 1; ni--; }
+    if (ni < 0) ni = rows - 1;
+    if (ni >= rows) ni = 0;
+    /* Commit current value, then open editor at new cell */
+    commitEditor();
+    /* Recompute hit info from layout */
+    var L = (m === 'A') ? layout.A : layout.B;
+    if (!L) return;
+    openEditor({ matrix: m, i: ni, j: nj, x: L.x + nj * layout.cell, y: L.y + ni * layout.cell, cell: layout.cell });
+  }
+
+  function wireEvents() {
+    $('mode-tabs').addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      var v = e.target.dataset.value;
+      var pills = document.querySelectorAll('#mode-tabs .pill');
+      for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('active', pills[i] === e.target);
+      switchMode(v); playClick();
+    });
+
+    $('op-tabs').addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      var v = e.target.dataset.op;
+      var pills = document.querySelectorAll('#op-tabs .pill');
+      for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('active', pills[i] === e.target);
+      switchOp(v);
+    });
+
+    $('sel-a-rows').addEventListener('change', function () {
+      state.aRows = +this.value;
+      if (state.op === 'inverse') state.aCols = state.aRows;
+      applyShapes(); ensureMatrices(); resetSim(); renderAll();
+    });
+    $('sel-a-cols').addEventListener('change', function () {
+      state.aCols = +this.value;
+      if (state.op === 'inverse') state.aRows = state.aCols;
+      applyShapes(); ensureMatrices(); resetSim(); renderAll();
+    });
+    $('sel-b-cols').addEventListener('change', function () {
+      state.bCols = +this.value; applyShapes(); ensureMatrices(); resetSim(); renderAll();
+    });
+
+    /* Scalar k / Power n input */
+    $('scalar-input').addEventListener('change', function () {
+      var v = parseFloat(this.value);
+      if (isNaN(v)) v = (state.op === 'power') ? 1 : 0;
+      if (state.op === 'power') {
+        v = Math.max(1, Math.min(10, Math.floor(v)));
+        state.powerN = v;
+        state.powerResult = null;   /* invalidate cache */
+      } else {
+        state.scalarK = v;
+      }
+      this.value = v;
+      resetSim();
+      renderAll();
+    });
+    $('scalar-input').addEventListener('input', function () {
+      var v = parseFloat(this.value);
+      if (!isNaN(v)) {
+        if (state.op === 'power') { state.powerN = Math.max(1, Math.min(10, Math.floor(v))); state.powerResult = null; }
+        else state.scalarK = v;
+        if (state.simDone) resetSim();
+        renderAll();
+      }
+    });
+
+    $('speed-tabs').addEventListener('click', function (e) {
+      if (!e.target.matches('.pill')) return;
+      var pills = document.querySelectorAll('#speed-tabs .pill');
+      for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('active', pills[i] === e.target);
+      state.speed = parseFloat(e.target.dataset.speed) || 1; playClick();
+    });
+
+    var presetBtns = document.querySelectorAll('.preset-chip');
+    for (var p = 0; p < presetBtns.length; p++) {
+      presetBtns[p].addEventListener('click', (function (idx) { return function () { loadPreset(idx); }; })(+presetBtns[p].dataset.preset));
+    }
+    var fills = document.querySelectorAll('[data-fill]');
+    for (var f = 0; f < fills.length; f++) {
+      fills[f].addEventListener('click', (function (el) { return function () { fillMatrix(el.dataset.fill, el.dataset.mode); }; })(fills[f]));
+    }
+
+    $('btn-play').addEventListener('click', function () { startSim(); });
+    $('btn-step').addEventListener('click', function () { stepOnce(); });
+    $('btn-instant').addEventListener('click', function () { showInstant(); });
+    $('btn-reset').addEventListener('click', function () { resetSim(); });
+
+    $('btn-guide').addEventListener('click', function () {
+      $('user-guide').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var det = $('user-guide').querySelectorAll('details');
+      if (det[0]) det[0].open = true;
+      playClick();
+    });
+
+    document.querySelector('.explore-tabs').addEventListener('click', function (e) {
+      if (!e.target.matches('.explore-tab')) return;
+      renderExplore(e.target.dataset.cat); playClick();
+    });
+
+    $('pq-check').addEventListener('click', checkPractice);
+    $('pq-show').addEventListener('click', showPracticeWorking);
+    $('pq-next').addEventListener('click', newPractice);
+    $('pq-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+
+    $('qz-submit').addEventListener('click', submitQuiz);
+    $('qz-next').addEventListener('click', nextQuiz);
+    $('qz-new').addEventListener('click', startQuiz);
+
+    // Canvas click → cell edit
+    canvas.addEventListener('click', onCanvasClick);
+    var editor = $('cell-editor');
+    editor.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter')              { e.preventDefault(); commitEditor(); }
+      else if (e.key === 'Tab')           { e.preventDefault(); moveEditor(0, e.shiftKey ? -1 : 1); }
+      else if (e.key === 'Escape')        { e.preventDefault(); closeEditor(); }
+      else if (e.key === 'ArrowUp')       { e.preventDefault(); moveEditor(-1, 0); }
+      else if (e.key === 'ArrowDown')     { e.preventDefault(); moveEditor( 1, 0); }
+      else if (e.key === 'ArrowLeft' && (e.target.selectionStart === 0 || !e.target.value))  { e.preventDefault(); moveEditor(0, -1); }
+      else if (e.key === 'ArrowRight' && (e.target.selectionStart === e.target.value.length)) { e.preventDefault(); moveEditor(0,  1); }
+    });
+    editor.addEventListener('blur', function () { if (state.editing) commitEditor(); });
+
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var menu = $('ctx-menu');
+      var rect = canvas.parentElement.getBoundingClientRect();
+      menu.style.left = (e.clientX - rect.left) + 'px';
+      menu.style.top  = (e.clientY - rect.top) + 'px';
+      menu.style.display = 'block';
+    });
+    document.addEventListener('click', function (e) {
+      if (!e.target.matches('.ctx-item')) $('ctx-menu').style.display = 'none';
+    });
+    $('ctx-menu').addEventListener('click', function (e) {
+      if (!e.target.matches('.ctx-item')) return;
+      var act = e.target.dataset.action;
+      if (act === 'save-img')        downloadWatermarkedPNG();
+      else if (act === 'copy-result') {
+        var rows = state.C.map(function (r) { return r.map(fmtNum).join('\t'); });
+        if (navigator.clipboard) navigator.clipboard.writeText(rows.join('\n'));
+        playClick();
+      }
+      else if (act === 'export-csv') downloadCSV();
+      else if (act === 'paste-a')    pasteIntoMatrix('a');
+      else if (act === 'paste-b')    pasteIntoMatrix('b');
+      else if (act === 'undo')       undo();
+      else if (act === 'redo')       redo();
+      else if (act === 'reset')      resetSim();
+      $('ctx-menu').style.display = 'none';
+    });
+
+    /* Global keyboard shortcuts: Undo/Redo */
+    document.addEventListener('keydown', function (e) {
+      /* Skip if user is typing in any other input (not the cell-editor) */
+      var tag = (e.target && e.target.tagName) || '';
+      var isOtherInput = (tag === 'INPUT' && e.target.id !== 'cell-editor') || tag === 'TEXTAREA';
+      if (isOtherInput) return;
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault(); undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault(); redo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault(); redo();
+      }
+    });
+
+    window.addEventListener('resize', function () { drawCanvas(); });
+  }
+
+  /* ───────────────────────────────────────────────────────
+     INIT
+     ─────────────────────────────────────────────────────── */
+  function init() {
+    populateSelect($('sel-a-rows'), 3);
+    populateSelect($('sel-a-cols'), 3);
+    populateSelect($('sel-b-cols'), 3);
+    applyShapes();
+    state.A = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    state.B = [[1, 0, 2], [0, 1, 1], [3, 1, 0]];
+    state.C = makeMatrix(state.cRows, state.cCols, null);
+    wireEvents();
+    renderAll();
+    switchMode('simulate');
+    /* Seed the undo history with the initial state */
+    pushHistory();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();

@@ -1,0 +1,1504 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     DATA — CONCEPTS (12 in 3 categories)
+     ================================================================ */
+  var CONCEPTS = [
+    { id:'normal-stress', name:'Normal Stress', symbol:'σ = F/A', formula:'σ = F / A', unit:'MPa (N/mm²)', cat:'basics',
+      desc:'Normal stress is the internal force per unit area perpendicular to a cross-section. Positive σ is tensile; negative is compressive. On a stress element, σx acts on vertical faces and σy on horizontal faces. In Mohr’s Circle, normal stress is plotted on the horizontal axis.',
+      example:{problem:'A rod with area 200 mm² carries 10 kN. Find σ.', steps:['σ = F / A','σ = 10000 / 200','σ = 50 MPa (tensile)'], answer:50, unit:'MPa'}},
+    { id:'shear-stress', name:'Shear Stress', symbol:'τ = V/A', formula:'τ = V / A', unit:'MPa', cat:'basics',
+      desc:'Shear stress is the internal force per unit area parallel to a cross-section. By complementary shear, τxy = τyx on perpendicular faces. In Mohr’s Circle, shear stress is plotted on the vertical axis.',
+      example:{problem:'A bolt with shear area 78.5 mm² carries 5 kN shear. Find τ.', steps:['τ = V / A','τ = 5000 / 78.5','τ ≈ 63.69 MPa'], answer:63.69, unit:'MPa'}},
+    { id:'plane-stress', name:'Plane Stress', symbol:'σx, σy, τxy', formula:'State: [σx, σy, τxy]', unit:'MPa', cat:'basics',
+      desc:'Plane stress assumes σz, τxz, τyz are zero — typical of thin plates and surface stress. The state is fully defined by three values.',
+      example:{problem:'σx = 100, σy = −30, τxy = 40 MPa. Find σavg.', steps:['σavg = (σx + σy)/2','σavg = (100 + (−30))/2','σavg = 35 MPa'], answer:35, unit:'MPa'}},
+    { id:'stress-tensor', name:'Stress Tensor', symbol:'[σ] 2×2', formula:'[σx τxy; τxy σy]', unit:'MPa', cat:'basics',
+      desc:'The 2×2 stress tensor is symmetric. Its eigenvalues are the principal stresses; its trace (σx+σy) is invariant under rotation.',
+      example:{problem:'σx=60, σy=20, τxy=30 MPa. Verify σx+σy = σ1+σ2.', steps:['σavg = 40, R = √(20²+30²) ≈ 36.06','σ1 ≈ 76.06, σ2 ≈ 3.94','σ1+σ2 = 80 = σx+σy ✓'], answer:80, unit:'MPa'}},
+
+    { id:'circle-construction', name:'Circle Construction', symbol:'C, R', formula:'C=(σavg,0),  R=√(((σx−σy)/2)²+τxy²)', unit:'MPa', cat:'circle',
+      desc:'Plot X=(σx,τxy) and Y=(σy,−τxy). Midpoint of XY is C=(σavg,0); distance C–X is R.',
+      example:{problem:'σx=80, σy=−40, τxy=30 MPa. Find C and R.', steps:['σavg = 20','(σx−σy)/2 = 60','R = √(60² + 30²) = 67.08 MPa'], answer:67.08, unit:'MPa'}},
+    { id:'principal-stresses', name:'Principal Stresses', symbol:'σ1, σ2', formula:'σ1 = σavg + R,  σ2 = σavg − R', unit:'MPa', cat:'circle',
+      desc:'Principal stresses are the maximum and minimum normal stresses, occurring where shear is zero. They are the eigenvalues of the stress tensor.',
+      example:{problem:'σx=100, σy=20, τxy=40 MPa. Find σ1, σ2.', steps:['σavg = 60','R = √(40²+40²) ≈ 56.57','σ1 ≈ 116.57, σ2 ≈ 3.43 MPa'], answer:116.57, unit:'MPa'}},
+    { id:'max-shear', name:'Maximum Shear', symbol:'τmax = R', formula:'τmax = R = (σ1−σ2)/2', unit:'MPa', cat:'circle',
+      desc:'The max in-plane shear equals the radius. It occurs at 45° to principal planes (90° on the circle). On those planes the normal stress is σavg.',
+      example:{problem:'σ1=150, σ2=−30 MPa. Find τmax and σ on the max-shear plane.', steps:['τmax = (150−(−30))/2 = 90 MPa','σavg = (150+(−30))/2 = 60 MPa'], answer:90, unit:'MPa'}},
+    { id:'rotation-circle', name:'Rotation on Circle', symbol:'2θ', formula:'Element θ ↔ Circle 2θ', unit:'degrees', cat:'circle',
+      desc:'Rotating the element by θ moves the corresponding circle point by 2θ — the fundamental 2:1 relationship.',
+      example:{problem:'θp = 25°. What angle on the circle?', steps:['Circle angle = 2 × 25°','= 50°'], answer:50, unit:'°'}},
+
+    { id:'principal-angle', name:'Principal Angle', symbol:'θp', formula:'θp = ½·arctan(2τxy/(σx−σy))', unit:'degrees', cat:'apps',
+      desc:'Principal angle θp rotates from x-axis to the σ1 direction. Use atan2 for correct quadrant. Critical for orienting reinforcement and weld lines.',
+      example:{problem:'σx=80, σy=−40, τxy=30 MPa. Find θp.', steps:['2θp = atan2(60, 120)','2θp = 26.57°','θp = 13.28°'], answer:13.28, unit:'°'}},
+    { id:'transformation-eqs', name:'Stress Transformation', symbol:'σn, τn', formula:'σn = σavg + R·cos(2θ−2θp)', unit:'MPa', cat:'apps',
+      desc:'σn and τn on an inclined plane equal the coordinates of a point on Mohr’s Circle at angle 2θ from the reference.',
+      example:{problem:'σx=100, σy=0, τxy=0. Find σn at θ=45°.', steps:['σn = 50 + 50·cos(90°) + 0','σn = 50 MPa'], answer:50, unit:'MPa'}},
+    { id:'von-mises', name:'Von Mises Criterion', symbol:'σv', formula:'σv = √(σ1² − σ1σ2 + σ2²)', unit:'MPa', cat:'apps',
+      desc:'Distortion energy criterion — the most accurate yield criterion for ductile metals. Yielding when σv reaches σY.',
+      example:{problem:'σ1=120, σ2=−40 MPa. Find σv.', steps:['σv = √(14400 + 4800 + 1600)','σv = √20800 ≈ 144.22 MPa'], answer:144.22, unit:'MPa'}},
+    { id:'design-apps', name:'Design Applications', symbol:'FoS', formula:'FoS = σY / σv', unit:'—', cat:'apps',
+      desc:'(1) Determine σx,σy,τxy. (2) Mohr’s Circle → σ1,σ2. (3) Compute σv. (4) FoS = σY/σv. Minimum 1.5–2.0 typical for static.',
+      example:{problem:'σ1=180, σ2=−60 MPa, σY=350 MPa. Find FoS.', steps:['σv = √(32400+10800+3600) ≈ 216.33','FoS = 350/216.33 ≈ 1.62'], answer:1.62, unit:''}}
+  ];
+
+  /* ================================================================
+     DATA — PROBLEM GENERATORS (12)
+     ================================================================ */
+  var PROBLEM_GEN = [
+    function () { var sx=randInt(-100,150),sy=randInt(-100,150),txy=randInt(-80,80);var avg=(sx+sy)/2;var R=Math.sqrt(Math.pow((sx-sy)/2,2)+txy*txy);var s1=+(avg+R).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+' MPa. Find σ1 (MPa).',steps:['σavg = '+avg.toFixed(2),'R = '+R.toFixed(2),'σ1 = '+avg.toFixed(2)+' + '+R.toFixed(2)+' = '+s1],answer:s1,unit:'MPa'};},
+    function () { var sx=randInt(-100,150),sy=randInt(-100,150),txy=randInt(-80,80);var avg=(sx+sy)/2;var R=Math.sqrt(Math.pow((sx-sy)/2,2)+txy*txy);var s2=+(avg-R).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+' MPa. Find σ2 (MPa).',steps:['σavg = '+avg.toFixed(2),'R = '+R.toFixed(2),'σ2 = '+avg.toFixed(2)+' − '+R.toFixed(2)+' = '+s2],answer:s2,unit:'MPa'};},
+    function () { var sx=randInt(-100,150),sy=randInt(-100,150),txy=randInt(-80,80);var hd=(sx-sy)/2;var R=Math.sqrt(hd*hd+txy*txy);var tm=+R.toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+' MPa. Find τmax (MPa).',steps:['(σx−σy)/2 = '+hd.toFixed(2),'R = √('+hd.toFixed(2)+'² + '+txy+'²)','τmax = '+tm],answer:tm,unit:'MPa'};},
+    function () { var sx=randInt(-100,150),sy,txy=randInt(10,80);do{sy=randInt(-100,150);}while(sx===sy);var tp=+(0.5*radToDeg(Math.atan2(2*txy,sx-sy))).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+' MPa. Find θp (°).',steps:['2θp = atan2('+(2*txy)+', '+(sx-sy)+')','2θp = '+(2*tp).toFixed(2)+'°','θp = '+tp+'°'],answer:tp,unit:'°'};},
+    function () { var sx=randInt(-150,150),sy=randInt(-150,150);var avg=+((sx+sy)/2).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+' MPa. Find σavg.',steps:['σavg = (σx+σy)/2','σavg = ('+sx+'+'+sy+')/2 = '+avg],answer:avg,unit:'MPa'};},
+    function () { var sx=randInt(-100,150),sy=randInt(-100,150),txy=randInt(-80,80);var hd=(sx-sy)/2;var R=+Math.sqrt(hd*hd+txy*txy).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+' MPa. Find R.',steps:['(σx−σy)/2 = '+hd.toFixed(2),'R = '+R],answer:R,unit:'MPa'};},
+    function () { var sx=randInt(-80,120),sy=randInt(-80,120),txy=randInt(-60,60),th=randInt(15,75);var tr=th*Math.PI/180;var avg=(sx+sy)/2,d=(sx-sy)/2;var sn=+(avg+d*Math.cos(2*tr)+txy*Math.sin(2*tr)).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+', θ='+th+'°. Find σn.',steps:['σn = '+avg.toFixed(2)+' + '+d.toFixed(2)+'·cos(2θ) + '+txy+'·sin(2θ)','σn = '+sn],answer:sn,unit:'MPa'};},
+    function () { var sx=randInt(-80,120),sy=randInt(-80,120),txy=randInt(-60,60),th=randInt(15,75);var tr=th*Math.PI/180;var d=(sx-sy)/2;var tn=+(-d*Math.sin(2*tr)+txy*Math.cos(2*tr)).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+', θ='+th+'°. Find τn.',steps:['τn = −'+d.toFixed(2)+'·sin(2θ) + '+txy+'·cos(2θ)','τn = '+tn],answer:tn,unit:'MPa'};},
+    function () { var sx=randInt(-100,150),sy=randInt(-100,150),txy=randInt(-80,80);var avg=(sx+sy)/2;var R=Math.sqrt(Math.pow((sx-sy)/2,2)+txy*txy);var s1=avg+R,s2=avg-R;var vm=+Math.sqrt(s1*s1-s1*s2+s2*s2).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+' MPa. Find Von Mises.',steps:['σ1='+s1.toFixed(2)+', σ2='+s2.toFixed(2),'σv = '+vm],answer:vm,unit:'MPa'};},
+    function () { var sx=randInt(-100,150),sy=randInt(-100,150);var sum=+(sx+sy).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+'. Find σ1+σ2 (invariant).',steps:['σ1+σ2 = σx+σy','= '+sum],answer:sum,unit:'MPa'};},
+    function () { var sx=randInt(50,150),sy=randInt(-80,80),txy=randInt(20,70),sY=randInt(250,400);var avg=(sx+sy)/2;var R=Math.sqrt(Math.pow((sx-sy)/2,2)+txy*txy);var s1=avg+R,s2=avg-R;var vm=Math.sqrt(s1*s1-s1*s2+s2*s2);var fos=+(sY/vm).toFixed(2);return {prompt:'σx='+sx+', σy='+sy+', τxy='+txy+', σY='+sY+' MPa. Find FoS.',steps:['σ1='+s1.toFixed(2)+', σ2='+s2.toFixed(2),'σv = '+vm.toFixed(2),'FoS = '+fos],answer:fos,unit:''};},
+    function () { var s1=randInt(50,200);var s2=randInt(-100,s1-10);var R=+((s1-s2)/2).toFixed(2);return {prompt:'σ1='+s1+', σ2='+s2+' MPa. Find R.',steps:['R = (σ1−σ2)/2','= '+R],answer:R,unit:'MPa'};}
+  ];
+
+  /* ================================================================
+     QUIZ POOL (15)
+     ================================================================ */
+  var QUIZ_POOL = [
+    {type:'mcq',prompt:'Where is τmax on Mohr’s Circle?',options:['At the top and bottom of the circle','Where the circle crosses the σ-axis','At the centre','At the leftmost point'],correct:0},
+    {type:'mcq',prompt:'What does the centre of Mohr’s Circle represent?',options:['σavg = (σx+σy)/2','τmax','θp','Von Mises stress'],correct:0},
+    {type:'mcq',prompt:'If σx=σy and τxy=0, the circle is:',options:['A single point (R=0)','A large circle with R=σx','A vertical line','An ellipse'],correct:0},
+    {type:'mcq',prompt:'An angle θ on the element ↔ what on the circle?',options:['2θ','θ','θ/2','3θ'],correct:0},
+    {type:'mcq',prompt:'Principal stresses occur where:',options:['Shear is zero','Normal is zero','Both max','Element rotated 45°'],correct:0},
+    {type:'mcq',prompt:'Radius of Mohr’s Circle equals:',options:['τmax','σavg','σ1','σx−σy'],correct:0},
+    {type:'mcq',prompt:'Max-shear planes are at what angle to principal planes?',options:['45°','90°','30°','0°'],correct:0},
+    {type:'mcq',prompt:'Pure shear (σx=σy=0): centre is at:',options:['Origin (0,0)','(τxy,0)','(0,τxy)','(τxy,τxy)'],correct:0},
+    {type:'mcq',prompt:'σx+σy equals:',options:['σ1+σ2','σ1−σ2','σ1×σ2','2τmax'],correct:0},
+    {type:'mcq',prompt:'Von Mises is most accurate for:',options:['Ductile metals','Brittle ceramics','Composites','Polymers'],correct:0},
+    {type:'numeric',prompt:'σx=100, σy=0, τxy=0. Find σ1.',answer:100,unit:'MPa',steps:['σavg=50','R=50','σ1=100']},
+    {type:'numeric',prompt:'σx=0, σy=0, τxy=60. Find τmax.',answer:60,unit:'MPa',steps:['R=√(0+60²)=60','τmax=60']},
+    {type:'numeric',prompt:'σx=80, σy=−40, τxy=0. Find σavg.',answer:20,unit:'MPa',steps:['(80+(−40))/2=20']},
+    {type:'numeric',prompt:'σ1=150, σ2=−50. Find τmax.',answer:100,unit:'MPa',steps:['(150−(−50))/2=100']},
+    {type:'numeric',prompt:'σx=120, σy=40, τxy=30. Find R.',answer:50,unit:'MPa',steps:['(120−40)/2=40','R=√(40²+30²)=50']}
+  ];
+
+  /* ================================================================
+     HELPERS
+     ================================================================ */
+  function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+  function shuffleArr(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+  function $(s){return document.querySelector(s);}
+  function $$(s){return document.querySelectorAll(s);}
+  function show(el){if(el)el.style.display='';}
+  function hide(el){if(el)el.style.display='none';}
+  function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+  function degToRad(d){return d*Math.PI/180;}
+  function radToDeg(r){return r*180/Math.PI;}
+  function fmt(x,d){if(d==null)d=2;if(!isFinite(x))return String(x);return x.toFixed(d);}
+
+  /* ================================================================
+     CANVAS — DPR-aware (Pattern 3 prerequisite)
+     ================================================================ */
+  var cvs = document.getElementById('sim-canvas');
+  var ctx = cvs.getContext('2d');
+  var W = 900, H = 520;       /* logical coords */
+
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width || W;
+    var targetH = cssW * (H / W);
+    cvs.style.height = targetH + 'px';
+    cvs.width  = Math.round(cssW * dpr);
+    cvs.height = Math.round(targetH * dpr);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(cvs.width / W, cvs.height / H);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    if (typeof draw === 'function') draw();
+  }
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var mode = 'simulate';
+  var sigX=80, sigY=-40, tauXY=50, theta=0;
+  var sigAvg=0, R=0, sig1=0, sig2=0, tauMax=0, thetaP=0, sigN=0, tauN=0, sigNperp=0, vmStress=0;
+
+  /* Canvas feature toggles */
+  var showGrid=true, showPrincipal=true, showMaxShear=true, showDims=true, showEquation=true, showVonMises=true;
+
+  /* Animation */
+  var anim = { running:false, speed:0.5 };
+  var rafId = null;
+  var lastTs = 0;
+
+  /* Explore/Practice/Quiz */
+  var selCat='basics', selConcept=0;
+  var pProblem=null, pScore=0, pTotal=0, pAnswered=false;
+  var quizQs=[], quizIdx=0, quizScore=0, quizAnswered=false, quizResults=[];
+
+  /* Undo/redo */
+  var undoStack=[], redoStack=[];
+
+  /* ================================================================
+     COMPUTE
+     ================================================================ */
+  function compute() {
+    sigAvg = (sigX + sigY) / 2;
+    var dx = (sigX - sigY) / 2;
+    R = Math.sqrt(dx * dx + tauXY * tauXY);
+    sig1 = sigAvg + R;
+    sig2 = sigAvg - R;
+    tauMax = R;
+    thetaP = 0.5 * radToDeg(Math.atan2(2 * tauXY, sigX - sigY));
+    var tr = degToRad(theta);
+    var c2 = Math.cos(2*tr), s2 = Math.sin(2*tr);
+    sigN = sigAvg + dx*c2 + tauXY*s2;
+    tauN = -dx*s2 + tauXY*c2;
+    sigNperp = sigAvg - dx*c2 - tauXY*s2;
+    vmStress = Math.sqrt(sig1*sig1 - sig1*sig2 + sig2*sig2);
+  }
+
+  /* ================================================================
+     STATE SNAP / LOAD (for undo)
+     ================================================================ */
+  function snapState() {
+    return { sx:sigX, sy:sigY, txy:tauXY, th:theta,
+      sg:showGrid, sp:showPrincipal, sm:showMaxShear, sd:showDims, se:showEquation, sv:showVonMises };
+  }
+  function loadState(s) {
+    if (!s) return;
+    sigX = s.sx; sigY = s.sy; tauXY = s.txy; theta = s.th;
+    showGrid     = (s.sg === undefined) ? true  : !!s.sg;
+    showPrincipal= (s.sp === undefined) ? true  : !!s.sp;
+    showMaxShear = (s.sm === undefined) ? true  : !!s.sm;
+    showDims     = (s.sd === undefined) ? true  : !!s.sd;
+    showEquation = (s.se === undefined) ? true  : !!s.se;
+    showVonMises = (s.sv === undefined) ? true  : !!s.sv;
+    var ids = ['chk-grid','chk-principal','chk-maxshear','chk-dims','chk-equation','chk-vonmises'];
+    var vals = [showGrid,showPrincipal,showMaxShear,showDims,showEquation,showVonMises];
+    ids.forEach(function(id,i){ var el=document.getElementById(id); if(el) el.checked = vals[i]; });
+    syncInputs();
+    compute();
+    updateReadouts();
+    updateLearnPanels();
+    draw();
+  }
+  function saveUndo() { undoStack.push(snapState()); if (undoStack.length>80) undoStack.shift(); redoStack.length = 0; updateUndoBtns(); }
+  function doUndo() { if (!undoStack.length) return; redoStack.push(snapState()); loadState(undoStack.pop()); updateUndoBtns(); }
+  function doRedo() { if (!redoStack.length) return; undoStack.push(snapState()); loadState(redoStack.pop()); updateUndoBtns(); }
+  function updateUndoBtns() {
+    var ub=document.getElementById('btn-undo'); var rb=document.getElementById('btn-redo');
+    if (ub) ub.disabled = !undoStack.length;
+    if (rb) rb.disabled = !redoStack.length;
+  }
+
+  /* ================================================================
+     DRAWING
+     ================================================================ */
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    /* Dark gradient background */
+    var bg = ctx.createLinearGradient(0,0,W,H);
+    bg.addColorStop(0,'#0d1117'); bg.addColorStop(1,'#10142a');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    if (mode === 'simulate') {
+      drawStressElement();
+      drawDivider();
+      drawMohrsCircle();
+      if (showEquation) drawCanvasEquation();
+    } else if (mode === 'explore') {
+      drawExploreCanvas();
+    } else if (mode === 'practice') {
+      drawPracticeCanvas();
+    } else if (mode === 'quiz') {
+      drawQuizCanvas();
+    }
+  }
+
+  function drawDivider() {
+    ctx.beginPath();
+    ctx.moveTo(380, 40);
+    ctx.lineTo(380, 510);
+    ctx.strokeStyle = '#1f2535';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  /* ── Stress Element ──────────────────────────────────────────── */
+  function drawStressElement() {
+    var cx = 190, cy = 240, sz = 110;
+
+    ctx.fillStyle = '#6b7a99';
+    ctx.font = '600 13px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Stress Element', cx, 55);
+
+    /* x-y reference */
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(cx-sz-30,cy); ctx.lineTo(cx+sz+30,cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,cy-sz-30); ctx.lineTo(cx,cy+sz+30); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#4a5570';
+    ctx.font = '700 11px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('x', cx+sz+38, cy+4);
+    ctx.fillText('y', cx+4, cy-sz-35);
+
+    /* Original element (dashed) */
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1.2; ctx.setLineDash([4,4]);
+    ctx.strokeRect(cx-sz/2, cy-sz/2, sz, sz);
+    ctx.setLineDash([]);
+
+    /* Principal planes overlay (dashed lines at θp and θp+90) */
+    if (showPrincipal && R > 0.5) {
+      var tpRad = degToRad(thetaP);
+      var L = sz/2 + 40;
+      /* σ1 plane direction */
+      ctx.strokeStyle = 'rgba(61,220,132,.55)';
+      ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.moveTo(cx - L*Math.cos(tpRad), cy - L*Math.sin(tpRad));
+      ctx.lineTo(cx + L*Math.cos(tpRad), cy + L*Math.sin(tpRad));
+      ctx.stroke();
+      /* σ2 plane direction (perpendicular) */
+      ctx.strokeStyle = 'rgba(255,85,85,.45)';
+      ctx.beginPath();
+      ctx.moveTo(cx - L*Math.cos(tpRad+Math.PI/2), cy - L*Math.sin(tpRad+Math.PI/2));
+      ctx.lineTo(cx + L*Math.cos(tpRad+Math.PI/2), cy + L*Math.sin(tpRad+Math.PI/2));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      /* Labels */
+      ctx.fillStyle = '#3ddc84'; ctx.font = '700 10px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('σ1', cx + (L+10)*Math.cos(tpRad), cy + (L+10)*Math.sin(tpRad)+3);
+      ctx.fillStyle = '#ff5555';
+      ctx.fillText('σ2', cx + (L+10)*Math.cos(tpRad+Math.PI/2), cy + (L+10)*Math.sin(tpRad+Math.PI/2)+3);
+    }
+
+    /* Max-shear plane overlay (at θp+45) */
+    if (showMaxShear && R > 0.5) {
+      var tmRad = degToRad(thetaP + 45);
+      var L2 = sz/2 + 30;
+      ctx.strokeStyle = 'rgba(245,200,66,.4)';
+      ctx.lineWidth = 1.2; ctx.setLineDash([3,3]);
+      ctx.beginPath();
+      ctx.moveTo(cx - L2*Math.cos(tmRad), cy - L2*Math.sin(tmRad));
+      ctx.lineTo(cx + L2*Math.cos(tmRad), cy + L2*Math.sin(tmRad));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    /* Rotated element */
+    var thRad = degToRad(theta);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(thRad);
+
+    /* Glow halo */
+    var glow = ctx.createRadialGradient(0,0,sz*0.3,0,0,sz*0.85);
+    glow.addColorStop(0,'rgba(126,87,194,.18)');
+    glow.addColorStop(1,'rgba(126,87,194,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(-sz, -sz, sz*2, sz*2);
+
+    var elemGrad = ctx.createLinearGradient(-sz/2,-sz/2,sz/2,sz/2);
+    elemGrad.addColorStop(0,'rgba(126,87,194,.14)');
+    elemGrad.addColorStop(1,'rgba(179,157,219,.06)');
+    ctx.fillStyle = elemGrad;
+    ctx.strokeStyle = 'rgba(126,87,194,0.85)';
+    ctx.lineWidth = 2;
+    ctx.fillRect(-sz/2, -sz/2, sz, sz);
+    ctx.strokeRect(-sz/2, -sz/2, sz, sz);
+
+    /* σn arrows */
+    var aLen = clamp(Math.abs(sigN)/200*45, 0, 48);
+    if (aLen > 3) {
+      var c = sigN >= 0 ? '#3ddc84' : '#ff5555';
+      ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2.2;
+      if (sigN >= 0) { drawArrow(sz/2+2,0,sz/2+2+aLen,0); drawArrow(-sz/2-2,0,-sz/2-2-aLen,0); }
+      else           { drawArrow(sz/2+2+aLen,0,sz/2+2,0); drawArrow(-sz/2-2-aLen,0,-sz/2-2,0); }
+    }
+    /* σn perp arrows on top/bottom */
+    var aLenY = clamp(Math.abs(sigNperp)/200*45, 0, 48);
+    if (aLenY > 3) {
+      var c2 = sigNperp >= 0 ? '#3ddc84' : '#ff5555';
+      ctx.strokeStyle = c2; ctx.fillStyle = c2; ctx.lineWidth = 2.2;
+      if (sigNperp >= 0) { drawArrow(0,-sz/2-2,0,-sz/2-2-aLenY); drawArrow(0,sz/2+2,0,sz/2+2+aLenY); }
+      else                { drawArrow(0,-sz/2-2-aLenY,0,-sz/2-2); drawArrow(0,sz/2+2+aLenY,0,sz/2+2); }
+    }
+    /* τn arrows */
+    var tAbs = Math.abs(tauN);
+    var aLenT = clamp(tAbs/150*38, 0, 40);
+    if (aLenT > 3) {
+      ctx.strokeStyle = '#f5c842'; ctx.fillStyle = '#f5c842'; ctx.lineWidth = 1.8;
+      var ofs = 10;
+      if (tauN >= 0) {
+        drawArrow(sz/2,ofs,sz/2,-ofs-aLenT);
+        drawArrow(-sz/2,-ofs,-sz/2,ofs+aLenT);
+        drawArrow(-ofs,-sz/2,ofs+aLenT,-sz/2);
+        drawArrow(ofs,sz/2,-ofs-aLenT,sz/2);
+      } else {
+        drawArrow(sz/2,-ofs,sz/2,ofs+aLenT);
+        drawArrow(-sz/2,ofs,-sz/2,-ofs-aLenT);
+        drawArrow(ofs,-sz/2,-ofs-aLenT,-sz/2);
+        drawArrow(-ofs,sz/2,ofs+aLenT,sz/2);
+      }
+    }
+    /* Labels on rotated frame */
+    ctx.font = '700 10px "Courier New", monospace';
+    ctx.textAlign = 'left';
+    if (aLen > 3) {
+      ctx.fillStyle = sigN >= 0 ? '#3ddc84' : '#ff5555';
+      ctx.fillText('σn', sz/2 + aLen + 6, -6);
+    }
+    if (aLenT > 3) {
+      ctx.fillStyle = '#f5c842';
+      ctx.fillText('τn', sz/2 + 6, sz/2 + 15);
+    }
+    ctx.restore();
+
+    /* Rotation arc */
+    if (showDims && Math.abs(theta) > 0.5) {
+      var arcR = sz/2 + 28;
+      ctx.beginPath();
+      ctx.arc(cx, cy, arcR, 0, thRad, false);
+      ctx.strokeStyle = 'rgba(179,157,219,0.65)';
+      ctx.lineWidth = 1.5; ctx.setLineDash([3,2]);
+      ctx.stroke(); ctx.setLineDash([]);
+      var midAng = thRad/2;
+      ctx.fillStyle = '#b39ddb';
+      ctx.font = '700 11px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('θ='+theta+'°', cx + (arcR+18)*Math.cos(midAng), cy + (arcR+18)*Math.sin(midAng));
+    }
+
+    /* Legend & numeric readouts */
+    var legY = 395;
+    ctx.font = '600 10px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#3ddc84'; ctx.fillRect(28, legY, 10, 10); ctx.fillText('Tension (+σ)', 43, legY+9);
+    ctx.fillStyle = '#ff5555'; ctx.fillRect(28, legY+18, 10, 10); ctx.fillText('Compression (−σ)', 43, legY+27);
+    ctx.fillStyle = '#f5c842'; ctx.fillRect(28, legY+36, 10, 10); ctx.fillText('Shear (τ)', 43, legY+45);
+
+    ctx.fillStyle = '#dde3f0';
+    ctx.font = '700 12px "Courier New", monospace';
+    ctx.fillText('σn  = ' + sFix(sigN) + ' ' + uS(), 28, legY+72);
+    ctx.fillText('τn  = ' + sFix(tauN) + ' ' + uS(), 28, legY+92);
+    if (showVonMises) {
+      ctx.fillStyle = '#b39ddb';
+      ctx.font = '600 11px "Courier New", monospace';
+      ctx.fillText('σvm = ' + sFix(vmStress) + ' ' + uS(), 28, legY+112);
+    }
+  }
+
+  function drawArrow(x1,y1,x2,y2) {
+    var dx = x2-x1, dy = y2-y1;
+    var len = Math.sqrt(dx*dx + dy*dy);
+    if (len < 2) return;
+    var ux = dx/len, uy = dy/len;
+    var hL = clamp(len*0.35, 4, 9);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-hL*ux + hL*0.35*uy, y2-hL*uy - hL*0.35*ux);
+    ctx.lineTo(x2-hL*ux - hL*0.35*uy, y2-hL*uy + hL*0.35*ux);
+    ctx.closePath(); ctx.fill();
+  }
+
+  /* ── Mohr's Circle ───────────────────────────────────────────── */
+  /* Cached scale/centre for hit-testing in pointer events */
+  var plotMeta = { ocx:640, ocy:255, ccx:640, scale:1, plotR:175 };
+
+  function drawMohrsCircle() {
+    var ocx = 640, ocy = 255, plotR = 175;
+    var dataRange = Math.max(Math.abs(sig1), Math.abs(sig2), R, 40);
+    var marginSig = Math.max(Math.abs(sigAvg), 10);
+    var totalRange = dataRange + marginSig;
+    var scale = (plotR - 15) / Math.max(totalRange, 1);
+    scale = clamp(scale, 0.05, 4.0);
+
+    plotMeta.ocx = ocx; plotMeta.ocy = ocy; plotMeta.plotR = plotR;
+    plotMeta.ccx = ocx + sigAvg*scale;
+    plotMeta.scale = scale;
+
+    /* Title */
+    ctx.fillStyle = '#6b7a99';
+    ctx.font = '600 13px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText("Mohr’s Circle", ocx, 55);
+
+    /* Grid */
+    if (showGrid) {
+      ctx.strokeStyle = '#151c28';
+      ctx.lineWidth = 0.6;
+      /* Pick the step from the DISPLAYED range so ksi ticks land on round
+         numbers too; g is a display value, g/KSI→SI for the pixel mapping. */
+      var stepD = calcGridStep(sDisp(totalRange));
+      var limD  = Math.ceil(sDisp(totalRange)/stepD)*stepD + stepD;
+      for (var gD=-limD; gD<=limD; gD+=stepD) {
+        var g = sToSI(gD);
+        var gx = ocx + g*scale;
+        if (gx > 395 && gx < 885) { ctx.beginPath(); ctx.moveTo(gx,68); ctx.lineTo(gx,ocy+plotR+15); ctx.stroke(); }
+        var gy = ocy - g*scale;
+        if (gy > 68 && gy < ocy+plotR+15) { ctx.beginPath(); ctx.moveTo(395,gy); ctx.lineTo(885,gy); ctx.stroke(); }
+      }
+    }
+
+    /* Axes */
+    ctx.strokeStyle = '#3a4560'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(395,ocy); ctx.lineTo(885,ocy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ocx,68); ctx.lineTo(ocx,ocy+plotR+15); ctx.stroke();
+
+    ctx.fillStyle = '#b39ddb';
+    ctx.font = '700 14px "Courier New", monospace';
+    ctx.textAlign = 'left'; ctx.fillText('σ (' + uS() + ')', 838, ocy-10);
+    ctx.textAlign = 'center'; ctx.fillText('τ', ocx+16, 78);
+
+    /* Tick labels */
+    if (showGrid) {
+      ctx.fillStyle = '#3a4560';
+      ctx.font = '600 8px "Courier New", monospace';
+      var step2 = calcGridStep(sDisp(totalRange));
+      var lim2  = Math.ceil(sDisp(totalRange)/step2)*step2 + step2;
+      for (var tD=-lim2; tD<=lim2; tD+=step2) {
+        if (Math.abs(tD) < 1e-9) continue;
+        var t = sToSI(tD);
+        /* label the round DISPLAY value, position from its SI equivalent */
+        var lbl = (Math.abs(tD - Math.round(tD)) < 1e-9) ? Math.round(tD) : +tD.toFixed(2);
+        var txp = ocx + t*scale;
+        if (txp > 405 && txp < 875) { ctx.textAlign = 'center'; ctx.fillText(lbl, txp, ocy+13); }
+        var typ = ocy - t*scale;
+        if (typ > 75 && typ < ocy+plotR+5 && Math.abs(typ-ocy)>10) { ctx.textAlign = 'right'; ctx.fillText(lbl, ocx-6, typ+3); }
+      }
+    }
+
+    var ccx = plotMeta.ccx;
+    var rPx = R*scale;
+
+    /* Circle */
+    if (rPx > 1) {
+      var grad = ctx.createRadialGradient(ccx,ocy,1,ccx,ocy,rPx);
+      grad.addColorStop(0,'rgba(126,87,194,.20)');
+      grad.addColorStop(1,'rgba(126,87,194,.06)');
+      ctx.beginPath(); ctx.arc(ccx,ocy,rPx,0,2*Math.PI);
+      ctx.fillStyle = grad; ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(ccx,ocy,Math.max(rPx,1),0,2*Math.PI);
+    ctx.strokeStyle = '#9575cd';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    /* X & Y points */
+    var xPx = ocx + sigX*scale;
+    var xPy = ocy - tauXY*scale;
+    var yPx = ocx + sigY*scale;
+    var yPy = ocy + tauXY*scale;
+
+    /* Diameter X-Y */
+    ctx.beginPath(); ctx.moveTo(xPx,xPy); ctx.lineTo(yPx,yPy);
+    ctx.strokeStyle = 'rgba(179,157,219,0.55)'; ctx.lineWidth = 1.2;
+    ctx.setLineDash([5,3]); ctx.stroke(); ctx.setLineDash([]);
+
+    /* Principal stress markers with glow */
+    var s1Px = ocx + sig1*scale;
+    drawGlowMarker(s1Px, ocy, 6, '#3ddc84');
+    ctx.fillStyle = '#3ddc84'; ctx.font = '700 10px "Courier New", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('σ1=' + sS(sig1), s1Px, ocy-14);
+
+    var s2Px = ocx + sig2*scale;
+    drawGlowMarker(s2Px, ocy, 6, '#ff5555');
+    ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center';
+    ctx.fillText('σ2=' + sS(sig2), s2Px, ocy-14);
+
+    /* tau-max */
+    if (rPx > 3 && showMaxShear) {
+      drawGlowMarker(ccx, ocy-rPx, 5, '#f5c842');
+      ctx.fillStyle = '#f5c842'; ctx.font = '700 9px "Courier New", monospace';
+      ctx.fillText('τmax=' + sS(tauMax), ccx, ocy-rPx-12);
+      drawGlowMarker(ccx, ocy+rPx, 4, '#f5c842');
+    }
+
+    /* Centre */
+    drawCircleMarker(ccx, ocy, 3.5, '#b39ddb');
+    ctx.fillStyle = '#b39ddb'; ctx.font = '600 9px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('C(' + sS(sigAvg) + ',0)', ccx, ocy+20);
+
+    /* Point X */
+    drawCircleMarker(xPx, xPy, 6, '#7e57c2');
+    ctx.fillStyle = '#dde3f0'; ctx.font = '700 9px "Courier New", monospace';
+    var xLx = xPx + 9, xLy = xPy - 8;
+    ctx.textAlign = 'left';
+    if (xLx > 830) { ctx.textAlign = 'right'; xLx = xPx - 9; }
+    ctx.fillText('X(' + sS(sigX, isImp() ? 1 : 0) + ',' + sS(tauXY, isImp() ? 1 : 0) + ')', xLx, xLy);
+
+    /* Point Y */
+    drawCircleMarker(yPx, yPy, 5, '#7e57c2');
+    var yLx = yPx + 9, yLy = yPy + 16;
+    ctx.fillStyle = '#dde3f0'; ctx.textAlign = 'left';
+    if (yLx > 830) { ctx.textAlign = 'right'; yLx = yPx - 9; }
+    ctx.fillText('Y(' + sS(sigY, isImp() ? 1 : 0) + ',' + sS(-tauXY, isImp() ? 1 : 0) + ')', yLx, yLy);
+
+    /* 2θp arc */
+    if (showDims && R > 0.5 && rPx > 5) {
+      var angX = Math.atan2(-(tauXY), sigX - sigAvg);
+      var aR = rPx * 0.32;
+      ctx.beginPath();
+      if (angX < 0) ctx.arc(ccx, ocy, aR, angX, 0, false);
+      else ctx.arc(ccx, ocy, aR, 0, angX, false);
+      ctx.strokeStyle = 'rgba(179,157,219,0.7)';
+      ctx.lineWidth = 1.5; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
+      var lblAng = angX/2;
+      ctx.fillStyle = '#b39ddb'; ctx.font = '700 10px "Courier New", monospace'; ctx.textAlign = 'center';
+      ctx.fillText('2θp', ccx + (aR+16)*Math.cos(lblAng), ocy + (aR+16)*Math.sin(lblAng));
+    }
+
+    /* Animated rotation point */
+    if (R > 0.5 && rPx > 3) {
+      var tpRad = degToRad(thetaP);
+      var ang = -(2*degToRad(theta) - 2*tpRad);
+      var rpX = ccx + rPx*Math.cos(ang);
+      var rpY = ocy - rPx*Math.sin(ang);
+
+      /* Pulse halo */
+      var pulse = 0.6 + 0.4*Math.sin(performance.now()/350);
+      ctx.beginPath(); ctx.arc(rpX, rpY, 13, 0, 2*Math.PI);
+      ctx.fillStyle = 'rgba(179,157,219,'+(0.18*pulse)+')'; ctx.fill();
+
+      /* Line C-P */
+      ctx.beginPath(); ctx.moveTo(ccx,ocy); ctx.lineTo(rpX,rpY);
+      ctx.strokeStyle = 'rgba(179,157,219,0.6)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+      /* Dot */
+      ctx.beginPath(); ctx.arc(rpX, rpY, 7, 0, 2*Math.PI);
+      ctx.fillStyle = '#b39ddb'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.beginPath(); ctx.arc(rpX, rpY, 3, 0, 2*Math.PI);
+      ctx.fillStyle = '#fff'; ctx.fill();
+
+      ctx.fillStyle = '#dde3f0'; ctx.font = '700 9px "Courier New", monospace'; ctx.textAlign = 'center';
+      var ofsY = rpY < ocy ? -14 : 18;
+      ctx.fillText('θ='+theta+'°', rpX, rpY+ofsY);
+    }
+  }
+
+  function drawGlowMarker(x, y, r, fill) {
+    var glow = ctx.createRadialGradient(x,y,1,x,y,r*2.2);
+    glow.addColorStop(0, fill);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(x,y,r*2.2,0,2*Math.PI);
+    ctx.fillStyle = glow; ctx.globalAlpha = 0.45; ctx.fill(); ctx.globalAlpha = 1;
+    drawCircleMarker(x, y, r, fill);
+  }
+  function drawCircleMarker(x, y, r, fill) {
+    ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  function calcGridStep(range) {
+    if (range <= 25) return 5;
+    if (range <= 60) return 10;
+    if (range <= 120) return 20;
+    if (range <= 250) return 50;
+    if (range <= 500) return 100;
+    if (range <= 1200) return 200;
+    return 500;
+  }
+
+  /* ── Canvas Equation Overlay (Unicode, Pattern 3) ────────────── */
+  function drawCanvasEquation() {
+    /* Across the bottom centred under both panels */
+    var y = 495;
+    var cx = W/2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    var varFont = 'italic 700 14px "Cambria Math","Times New Roman",serif';
+    var subFont = '700 9px "Cambria Math","Times New Roman",serif';
+    var valFont = '700 11px "JetBrains Mono","Courier New",monospace';
+
+    var C_S='#b39ddb', C_R='#42a5f5', C_T='#f5c842', C_P='#3ddc84', C_EQ='#fff';
+
+    /* Layout: σavg = X.XX  |  R = X.XX  |  θp = X.XX°  |  σv = X.XX */
+    var pieces = [
+      { sym:'σ', sub:'avg', val:sFix(sigAvg)+' '+uS(),  col:C_S },
+      { sym:'R',     sub:'',    val:sFix(R)+' '+uS(),       col:C_R },
+      { sym:'θ', sub:'p',   val:thetaP.toFixed(2)+'°', col:C_T },
+      { sym:'σ', sub:'v',   val:sFix(vmStress)+' '+uS(), col:C_P }
+    ];
+
+    /* Measure */
+    var gap = 26;
+    var widths = pieces.map(function(p){
+      ctx.font = varFont; var wV = ctx.measureText(p.sym).width;
+      ctx.font = subFont; var wS = ctx.measureText(p.sub).width;
+      ctx.font = valFont; var wE = ctx.measureText(' = '+p.val).width;
+      return wV + wS + wE;
+    });
+    var total = widths.reduce(function(a,b){return a+b;},0) + gap*(pieces.length-1);
+
+    /* Auto-shrink */
+    if (total > W - 60) {
+      var scale = (W-60)/total;
+      varFont = 'italic 700 '+Math.max(11,Math.round(14*scale))+'px "Cambria Math","Times New Roman",serif';
+      subFont = '700 '+Math.max(8,Math.round(9*scale))+'px "Cambria Math","Times New Roman",serif';
+      valFont = '700 '+Math.max(9,Math.round(11*scale))+'px "JetBrains Mono","Courier New",monospace';
+      gap = Math.max(14, Math.round(26*scale));
+      widths = pieces.map(function(p){
+        ctx.font = varFont; var wV = ctx.measureText(p.sym).width;
+        ctx.font = subFont; var wS = ctx.measureText(p.sub).width;
+        ctx.font = valFont; var wE = ctx.measureText(' = '+p.val).width;
+        return wV + wS + wE;
+      });
+      total = widths.reduce(function(a,b){return a+b;},0) + gap*(pieces.length-1);
+    }
+
+    var x = Math.round(cx - total/2);
+    for (var i=0;i<pieces.length;i++) {
+      var p = pieces[i];
+      ctx.fillStyle = p.col;
+      ctx.font = varFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(p.sym, x, y);
+      var wV = ctx.measureText(p.sym).width;
+      ctx.font = subFont;
+      ctx.fillText(p.sub, x+wV, y+5);
+      var wS = ctx.measureText(p.sub).width;
+      ctx.font = valFont; ctx.fillStyle = '#e1e7f3';
+      ctx.fillText(' = '+p.val, x+wV+wS, y);
+      x += widths[i] + gap;
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  /* ── Explore / Practice / Quiz Canvas ─────────────────────────── */
+  function drawExploreCanvas() {
+    ctx.fillStyle = '#1f2535'; ctx.fillRect(0,0,W,H);
+    var c = CONCEPTS[selConcept]; if (!c) return;
+    ctx.fillStyle = '#b39ddb'; ctx.font = '700 22px "Segoe UI", system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(c.name, W/2, 75);
+    ctx.fillStyle = '#dde3f0'; ctx.font = '700 15px "Cambria Math","Times New Roman",serif';
+    ctx.fillText(c.formula, W/2, 110);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '600 12px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('Unit: ' + c.unit, W/2, 135);
+    drawIllustrative(W/2, 310, 130);
+  }
+  function drawPracticeCanvas() {
+    ctx.fillStyle = '#1f2535'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#b39ddb'; ctx.font = '700 20px "Segoe UI", system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Practice Mode', W/2, 60);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '600 13px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('Solve using Mohr’s Circle concepts', W/2, 88);
+    ctx.fillStyle = '#b39ddb'; ctx.font = '700 14px "Courier New", monospace';
+    ctx.fillText('Score: ' + pScore + ' / ' + pTotal, W/2, 118);
+    drawIllustrative(W/2, 310, 130);
+  }
+  function drawQuizCanvas() {
+    ctx.fillStyle = '#1f2535'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#b39ddb'; ctx.font = '700 20px "Segoe UI", system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Quiz Mode', W/2, 60);
+    ctx.fillStyle = '#6b7a99'; ctx.font = '600 13px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('Test your knowledge of Mohr’s Circle', W/2, 88);
+    if (quizQs.length > 0 && quizIdx < quizQs.length) {
+      ctx.fillStyle = '#b39ddb'; ctx.font = '700 14px "Courier New", monospace';
+      ctx.fillText('Question ' + (quizIdx+1) + ' of ' + quizQs.length, W/2, 118);
+    }
+    drawIllustrative(W/2, 310, 130);
+  }
+  function drawIllustrative(cx, cy, r) {
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx-r-50,cy); ctx.lineTo(cx+r+50,cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,cy-r-40); ctx.lineTo(cx,cy+r+40); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI);
+    ctx.fillStyle = 'rgba(126,87,194,.08)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(126,87,194,.5)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-r*0.7,cy-r*0.7); ctx.lineTo(cx+r*0.7,cy+r*0.7);
+    ctx.strokeStyle = 'rgba(179,157,219,.35)'; ctx.lineWidth = 1; ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(cx,cy,3,0,2*Math.PI); ctx.fillStyle = '#b39ddb'; ctx.fill();
+    ctx.fillStyle = '#6b7a99'; ctx.font = '700 12px "Courier New", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('σ', cx+r+40, cy-8); ctx.fillText('τ', cx+14, cy-r-22);
+    ctx.beginPath(); ctx.arc(cx+r,cy,4,0,2*Math.PI); ctx.fillStyle = '#3ddc84'; ctx.fill();
+    ctx.fillText('σ1', cx+r, cy-10);
+    ctx.beginPath(); ctx.arc(cx-r,cy,4,0,2*Math.PI); ctx.fillStyle = '#ff5555'; ctx.fill();
+    ctx.fillText('σ2', cx-r, cy-10);
+    ctx.beginPath(); ctx.arc(cx,cy-r,3,0,2*Math.PI); ctx.fillStyle = '#f5c842'; ctx.fill();
+    ctx.fillText('τmax', cx, cy-r-10);
+  }
+
+  /* ================================================================
+     INPUTS — sliders + number steppers
+     ================================================================ */
+  /* ================================================================
+     DISPLAY UNITS — stress only (angles are the same in both systems)
+     The stress state is held in MPa; Imperial shows ksi, which is how
+     US texts (Hibbeler, Beer) state plane-stress problems.
+     Explore concepts and Practice/Quiz problems stay in MPa on purpose:
+     they are textbook statements with fixed given values.
+     ================================================================ */
+  var unitSys = 'si';
+  var KSI_PER_MPA = 0.1450377;
+  function isImp()   { return unitSys === 'imp'; }
+  function sDisp(mpa){ return isImp() ? mpa * KSI_PER_MPA : mpa; }
+  function sToSI(d)  { return isImp() ? d / KSI_PER_MPA : d; }
+  function uS()      { return isImp() ? 'ksi' : 'MPa'; }
+  function sFix(mpa) { return sDisp(mpa).toFixed(2); }
+  /* short form for on-diagram point annotations — the axis label carries the unit */
+  function sS(mpa, d) { return sDisp(mpa).toFixed(d == null ? 1 : d); }
+
+  var slSx=$('#sx-slider'), slSy=$('#sy-slider'), slTxy=$('#txy-slider'), slTh=$('#theta-slider');
+  var nSx=$('#sx-num'), nSy=$('#sy-num'), nTxy=$('#txy-num'), nTh=$('#theta-num');
+
+  function syncInputs() {
+    var d = function (mpa) { return +sDisp(mpa).toFixed(2); };
+    if (document.activeElement !== nSx) nSx.value = d(sigX);
+    if (document.activeElement !== nSy) nSy.value = d(sigY);
+    if (document.activeElement !== nTxy) nTxy.value = d(tauXY);
+    if (document.activeElement !== nTh) nTh.value = theta;
+    /* The number boxes carry SI min/max/step in markup — restate them so an
+       entry in ksi inside the legal MPa range is not rejected. */
+    [[nSx, 200], [nSy, 200], [nTxy, 150]].forEach(function (r) {
+      var el = r[0]; if (!el) return;
+      el.min = -(+sDisp(r[1]).toFixed(2));
+      el.max =  (+sDisp(r[1]).toFixed(2));
+      el.step = isImp() ? 'any' : 1;
+    });
+    /* Clamp slider visual to its range */
+    slSx.value  = clamp(sigX,  -200, 200);
+    slSy.value  = clamp(sigY,  -200, 200);
+    slTxy.value = clamp(tauXY, -150, 150);
+    slTh.value  = clamp(theta, 0, 180);
+  }
+  function updateReadouts() {
+    $('#r-s1').textContent   = sFix(sig1);
+    $('#r-s2').textContent   = sFix(sig2);
+    $('#r-tmax').textContent = sFix(tauMax);
+    $('#r-tp').textContent   = thetaP.toFixed(2);     /* degrees — universal */
+    $('#r-savg').textContent = sFix(sigAvg);
+    $('#r-R').textContent    = sFix(R);
+    $('#r-svm').textContent  = sFix(vmStress);
+    $('#r-sn').textContent   = sFix(sigN);
+    var u = ' ' + uS();
+    ['u-s1','u-s2','u-tmax','u-savg','u-R','u-svm','u-sn'].forEach(function (id) {
+      var e = $('#' + id); if (e) e.textContent = u;
+    });
+  }
+  function applyChange() {
+    syncInputs();
+    compute();
+    updateReadouts();
+    updateLearnPanels();
+    draw();
+  }
+
+  /* Slider input — first move saves undo */
+  var sliderDragging = null;
+  function bindSlider(sl, getter, setter) {
+    sl.addEventListener('pointerdown', function(){ sliderDragging = sl; saveUndo(); });
+    window.addEventListener('pointerup', function(){ if (sliderDragging===sl) sliderDragging = null; });
+    sl.addEventListener('input', function(){ setter(+sl.value); applyChange(); });
+  }
+  bindSlider(slSx,  function(){return sigX;},  function(v){sigX=v;});
+  bindSlider(slSy,  function(){return sigY;},  function(v){sigY=v;});
+  bindSlider(slTxy, function(){return tauXY;}, function(v){tauXY=v;});
+  bindSlider(slTh,  function(){return theta;}, function(v){theta=v;});
+
+  /* Number inputs. `stress:true` means the typed number is in the displayed
+     unit (ksi in Imperial) and must be brought back to MPa before storing. */
+  function bindNum(input, setter, lo, hi, stress) {
+    input.addEventListener('change', function(){
+      var v = parseFloat(input.value);
+      if (!isFinite(v)) return;
+      /* Quantise the converted value — an exact ksi→MPa result is a long
+         float and would render as 137.8951817355074 back in SI. */
+      if (stress) v = +sToSI(v).toFixed(2);
+      saveUndo();
+      setter(clamp(v, lo, hi));
+      applyChange();
+    });
+  }
+  bindNum(nSx,  function(v){sigX=v;},  -1000, 1000, true);
+  bindNum(nSy,  function(v){sigY=v;},  -1000, 1000, true);
+  bindNum(nTxy, function(v){tauXY=v;}, -1000, 1000, true);
+  bindNum(nTh,  function(v){theta=Math.round(v);}, 0, 180, false);
+
+  /* Steppers */
+  $$('.step-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var k = btn.dataset.step, dir = +btn.dataset.dir;
+      saveUndo();
+      if (k==='sx')  sigX  = clamp(sigX + dir, -1000, 1000);
+      if (k==='sy')  sigY  = clamp(sigY + dir, -1000, 1000);
+      if (k==='txy') tauXY = clamp(tauXY+ dir, -1000, 1000);
+      if (k==='th')  theta = clamp(theta + dir, 0, 180);
+      applyChange();
+    });
+  });
+
+  /* ================================================================
+     UNIT TOGGLE (display only — the stress state stays in MPa)
+     ================================================================ */
+  $$('#unit-tabs .pill').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var u = btn.getAttribute('data-unit');
+      if (!u || u === unitSys) return;
+      unitSys = u;
+      $$('#unit-tabs .pill').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      applyChange();          /* re-labels inputs, readouts, legend and axes */
+    });
+  });
+
+  /* ================================================================
+     ANIMATION (Play/Pause)
+     ================================================================ */
+  function tick(ts) {
+    if (!anim.running) return;
+    if (!lastTs) lastTs = ts;
+    var dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    /* speed scales degrees/sec — 30 deg/s base */
+    theta = (theta + dt * 30 * anim.speed) % 180;
+    if (theta < 0) theta += 180;
+    syncInputs();
+    compute();
+    updateReadouts();
+    updateLearnPanels();
+    draw();
+    rafId = requestAnimationFrame(tick);
+  }
+  function setPlaying(p) {
+    anim.running = p;
+    var btn = $('#btn-play');
+    if (p) { btn.classList.add('playing'); btn.querySelector('.bp-label').textContent = 'Pause'; lastTs = 0; rafId = requestAnimationFrame(tick); }
+    else   { btn.classList.remove('playing'); btn.querySelector('.bp-label').textContent = 'Play'; if (rafId) cancelAnimationFrame(rafId); }
+  }
+  $('#btn-play').addEventListener('click', function(){ setPlaying(!anim.running); });
+  var speedSl = $('#speed-slider');
+  speedSl.addEventListener('input', function(){ anim.speed = +speedSl.value; $('#speed-val').textContent = anim.speed.toFixed(1)+'×'; });
+
+  /* When pulse changes (no input), still redraw the rotation point's halo while playing.
+     drawing inside tick handles this; when paused we redraw on a slow timer for the pulse */
+  setInterval(function(){ if (!anim.running && mode==='simulate') draw(); }, 60);
+
+  /* ================================================================
+     PRESETS
+     ================================================================ */
+  var PRESETS = {
+    tension: {sx:100, sy:0,   txy:0 },
+    shear:   {sx:0,   sy:0,   txy:80},
+    biaxial: {sx:100, sy:100, txy:0 },
+    general: {sx:120, sy:-40, txy:50}
+  };
+  $$('.preset-btn[data-preset]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var p = PRESETS[btn.dataset.preset]; if (!p) return;
+      saveUndo();
+      $$('.preset-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      sigX = p.sx; sigY = p.sy; tauXY = p.txy; theta = 0;
+      applyChange();
+    });
+  });
+
+  /* Custom modal */
+  var customModal = $('#custom-modal');
+  $('#btn-custom').addEventListener('click', function(){
+    $('#cm-sx').value = sigX; $('#cm-sy').value = sigY; $('#cm-txy').value = tauXY; $('#cm-th').value = theta;
+    $('#cm-err').textContent = '';
+    customModal.classList.add('active');
+    setTimeout(function(){ $('#cm-sx').focus(); }, 50);
+  });
+  function closeCustom(){ customModal.classList.remove('active'); }
+  $('#cm-cancel').addEventListener('click', closeCustom);
+  $('#custom-modal-close').addEventListener('click', closeCustom);
+  customModal.addEventListener('click', function(e){ if (e.target===customModal) closeCustom(); });
+  $('#cm-apply').addEventListener('click', function(){
+    var a=parseFloat($('#cm-sx').value), b=parseFloat($('#cm-sy').value),
+        c=parseFloat($('#cm-txy').value), d=parseFloat($('#cm-th').value);
+    if (![a,b,c,d].every(isFinite)) { $('#cm-err').textContent = 'All four fields are required.'; return; }
+    if (Math.abs(a)>1000 || Math.abs(b)>1000 || Math.abs(c)>1000) { $('#cm-err').textContent = 'σ / τ values must be within ±' + sFix(1000) + ' ' + uS() + '.'; return; }
+    if (d<0 || d>180) { $('#cm-err').textContent = 'θ must be 0–180°.'; return; }
+    saveUndo();
+    sigX=a; sigY=b; tauXY=c; theta=Math.round(d);
+    applyChange();
+    closeCustom();
+  });
+
+  /* ================================================================
+     CANVAS INTERACTION — drag Point X & rotation point
+     ================================================================ */
+  var dragging = null; /* 'X' | 'rot' | null */
+  function canvasPt(e) {
+    var rect = cvs.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (W / rect.width);
+    var y = (e.clientY - rect.top)  * (H / rect.height);
+    return {x:x, y:y};
+  }
+  function hitTest(p) {
+    /* Point X position */
+    var xPx = plotMeta.ocx + sigX*plotMeta.scale;
+    var xPy = plotMeta.ocy - tauXY*plotMeta.scale;
+    if (Math.hypot(p.x-xPx, p.y-xPy) < 18) return 'X';
+    /* Rotation point */
+    if (R > 0.5) {
+      var tpRad = degToRad(thetaP);
+      var ang = -(2*degToRad(theta) - 2*tpRad);
+      var rPx = R*plotMeta.scale;
+      var rpX = plotMeta.ccx + rPx*Math.cos(ang);
+      var rpY = plotMeta.ocy - rPx*Math.sin(ang);
+      if (Math.hypot(p.x-rpX, p.y-rpY) < 18) return 'rot';
+    }
+    return null;
+  }
+  cvs.addEventListener('pointerdown', function(e) {
+    if (mode !== 'simulate') return;
+    var p = canvasPt(e);
+    var hit = hitTest(p);
+    if (hit) { dragging = hit; saveUndo(); cvs.setPointerCapture(e.pointerId); cvs.style.cursor = 'grabbing'; e.preventDefault(); }
+  });
+  cvs.addEventListener('pointermove', function(e) {
+    var p = canvasPt(e);
+    if (!dragging && mode==='simulate') {
+      cvs.style.cursor = hitTest(p) ? 'grab' : 'crosshair';
+      return;
+    }
+    if (!dragging) return;
+    if (dragging === 'X') {
+      sigX  = clamp(Math.round((p.x - plotMeta.ocx)/plotMeta.scale), -1000, 1000);
+      tauXY = clamp(Math.round((plotMeta.ocy - p.y)/plotMeta.scale), -1000, 1000);
+      applyChange();
+    } else if (dragging === 'rot') {
+      var ang = Math.atan2(plotMeta.ocy - p.y, p.x - plotMeta.ccx); /* y inverted */
+      var tpRad = degToRad(thetaP);
+      var deg = -radToDeg(ang)/2 + thetaP;
+      /* normalize to 0..180 */
+      deg = ((deg % 180) + 180) % 180;
+      theta = Math.round(deg);
+      applyChange();
+    }
+  });
+  function endDrag(e) {
+    if (dragging) {
+      dragging = null;
+      if (cvs.hasPointerCapture && e && e.pointerId !== undefined) {
+        try { cvs.releasePointerCapture(e.pointerId); } catch(_) {}
+      }
+      cvs.style.cursor = '';
+    }
+  }
+  cvs.addEventListener('pointerup', endDrag);
+  cvs.addEventListener('pointercancel', endDrag);
+
+  /* ================================================================
+     RIGHT-CLICK CONTEXT MENU
+     ================================================================ */
+  var ctxMenu = $('#ctx-menu');
+  cvs.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    var pad = 8;
+    var mw = 230, mh = 250;
+    var x = clamp(e.clientX, pad, window.innerWidth - mw - pad);
+    var y = clamp(e.clientY, pad, window.innerHeight - mh - pad);
+    ctxMenu.style.left = x + 'px';
+    ctxMenu.style.top  = y + 'px';
+    ctxMenu.hidden = false;
+  });
+  document.addEventListener('click', function(e){ if (!ctxMenu.contains(e.target)) ctxMenu.hidden = true; });
+  ctxMenu.addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-act]'); if (!btn) return;
+    var act = btn.dataset.act;
+    ctxMenu.hidden = true;
+    if      (act === 'copy')  copyValues();
+    else if (act === 'csv')   exportCSV();
+    else if (act === 'png')   exportPNG();
+    else if (act === 'grid')  { saveUndo(); showGrid = !showGrid; var el=$('#chk-grid'); if(el)el.checked=showGrid; draw(); }
+    else if (act === 'eq')    { saveUndo(); showEquation = !showEquation; var el2=$('#chk-equation'); if(el2)el2.checked=showEquation; draw(); }
+    else if (act === 'reset') resetAll();
+  });
+
+  function copyValues() {
+    var u = ' ' + uS();
+    var txt = [
+      'σx = '+sFix(sigX)+u,
+      'σy = '+sFix(sigY)+u,
+      'τxy = '+sFix(tauXY)+u,
+      'θ = '+theta+'°',
+      'σ1 = '+sFix(sig1)+u,
+      'σ2 = '+sFix(sig2)+u,
+      'τmax = '+sFix(tauMax)+u,
+      'θp = '+thetaP.toFixed(2)+'°',
+      'σavg = '+sFix(sigAvg)+u,
+      'R = '+sFix(R)+u,
+      'σv = '+sFix(vmStress)+u
+    ].join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function(){});
+  }
+
+  /* ================================================================
+     EXPORT CSV + PNG
+     ================================================================ */
+  function exportCSV() {
+    /* Export in the unit system on screen; the Unit column names it, so the
+       file is unambiguous either way. */
+    var u = uS();
+    var e = function (mpa) { return sDisp(mpa).toFixed(4); };
+    var rows = [
+      ['Parameter','Value','Unit'],
+      ['sigma_x', e(sigX), u],
+      ['sigma_y', e(sigY), u],
+      ['tau_xy', e(tauXY), u],
+      ['theta', theta, 'deg'],
+      ['sigma_1', e(sig1), u],
+      ['sigma_2', e(sig2), u],
+      ['tau_max', e(tauMax), u],
+      ['theta_p', thetaP.toFixed(4), 'deg'],
+      ['sigma_avg', e(sigAvg), u],
+      ['R', e(R), u],
+      ['sigma_n_at_theta', e(sigN), u],
+      ['tau_n_at_theta', e(tauN), u],
+      ['sigma_vonmises', e(vmStress), u]
+    ];
+    var csv = rows.map(function(r){ return r.join(','); }).join('\n');
+    var blob = new Blob([csv], {type:'text/csv'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = 'mohrs-circle.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportPNG() {
+    /* Watermark by drawing on a temp canvas */
+    var tmp = document.createElement('canvas');
+    tmp.width = cvs.width; tmp.height = cvs.height;
+    var tctx = tmp.getContext('2d');
+    tctx.drawImage(cvs, 0, 0);
+    tctx.fillStyle = 'rgba(179,157,219,0.45)';
+    tctx.font = 'bold '+Math.round(14*tmp.width/W)+'px "Segoe UI", system-ui, sans-serif';
+    tctx.textAlign = 'right';
+    tctx.fillText('NHIT VisualLab', tmp.width - 12, tmp.height - 12);
+    tmp.toBlob(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = 'mohrs-circle.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    });
+  }
+
+  /* ================================================================
+     RESET
+     ================================================================ */
+  function resetAll() {
+    saveUndo();
+    sigX=80; sigY=-40; tauXY=50; theta=0;
+    showGrid=true; showPrincipal=true; showMaxShear=true; showDims=true; showEquation=true; showVonMises=true;
+    ['chk-grid','chk-principal','chk-maxshear','chk-dims','chk-equation','chk-vonmises'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.checked = true;
+    });
+    $$('.preset-btn').forEach(function(b){ b.classList.remove('active'); });
+    setPlaying(false);
+    applyChange();
+  }
+  $('#btn-reset').addEventListener('click', resetAll);
+  $('#btn-csv').addEventListener('click', exportCSV);
+  $('#btn-png').addEventListener('click', exportPNG);
+  $('#btn-undo').addEventListener('click', doUndo);
+  $('#btn-redo').addEventListener('click', doRedo);
+
+  /* ================================================================
+     CANVAS FEATURE TOGGLES
+     ================================================================ */
+  function bindToggle(id, getter, setter) {
+    var el = document.getElementById(id); if (!el) return;
+    el.addEventListener('change', function(){ saveUndo(); setter(el.checked); draw(); });
+  }
+  bindToggle('chk-grid',      function(){return showGrid;},      function(v){showGrid=v;});
+  bindToggle('chk-principal', function(){return showPrincipal;}, function(v){showPrincipal=v;});
+  bindToggle('chk-maxshear',  function(){return showMaxShear;},  function(v){showMaxShear=v;});
+  bindToggle('chk-dims',      function(){return showDims;},      function(v){showDims=v;});
+  bindToggle('chk-equation',  function(){return showEquation;},  function(v){showEquation=v;});
+  bindToggle('chk-vonmises',  function(){return showVonMises;},  function(v){showVonMises=v;});
+
+  /* ================================================================
+     LEARN PANELS (KaTeX) + Calc Modal
+     ================================================================ */
+  var _learnCache = { eq:'', co:'', ft:'' };
+  function updateLearnPanels() {
+    var eq = $('#lp-eq-body');
+    if (eq) {
+      var html = '';
+      html += '<div class="eq-line">\\[ \\sigma_{\\text{avg}} = \\dfrac{\\sigma_x + \\sigma_y}{2} = \\dfrac{'+sigX+' + ('+sigY+')}{2} = \\mathbf{'+sigAvg.toFixed(2)+'\\;\\text{MPa}} \\]</div>';
+      html += '<div class="eq-line">\\[ R = \\sqrt{\\left(\\dfrac{\\sigma_x - \\sigma_y}{2}\\right)^{2} + \\tau_{xy}^{2}} = \\mathbf{'+R.toFixed(2)+'\\;\\text{MPa}} \\]</div>';
+      html += '<div class="eq-line">\\[ \\sigma_{1,2} = \\sigma_{\\text{avg}} \\pm R = '+sig1.toFixed(2)+',\\;\\;'+sig2.toFixed(2)+'\\;\\text{MPa} \\]</div>';
+      html += '<div class="eq-line">\\[ \\tau_{\\max} = R = \\mathbf{'+tauMax.toFixed(2)+'\\;\\text{MPa}} \\]</div>';
+      html += '<div class="eq-line">\\[ \\theta_p = \\tfrac{1}{2}\\arctan\\!\\left(\\dfrac{2\\tau_{xy}}{\\sigma_x-\\sigma_y}\\right) = \\mathbf{'+thetaP.toFixed(2)+'^{\\circ}} \\]</div>';
+      html += '<div class="eq-line">\\[ \\sigma_n(\\theta) = \\sigma_{\\text{avg}} + R\\cos(2\\theta - 2\\theta_p) = \\mathbf{'+sigN.toFixed(2)+'\\;\\text{MPa}}\\;\\;(\\theta='+theta+'^{\\circ}) \\]</div>';
+      html += '<div class="eq-line">\\[ \\tau_n(\\theta) = R\\sin(2\\theta - 2\\theta_p) = \\mathbf{'+tauN.toFixed(2)+'\\;\\text{MPa}} \\]</div>';
+      html += '<div class="eq-line">\\[ \\sigma_v = \\sqrt{\\sigma_1^{2} - \\sigma_1\\sigma_2 + \\sigma_2^{2}} = \\mathbf{'+vmStress.toFixed(2)+'\\;\\text{MPa}} \\]</div>';
+      if (html !== _learnCache.eq) { eq.innerHTML = html; _learnCache.eq = html; }
+    }
+
+    var co = $('#lp-coach-body');
+    if (co) {
+      var items = [];
+      if (Math.abs(R) < 0.01) items.push({c:'ok',t:'Hydrostatic state — σx = σy and τxy = 0. Mohr’s Circle collapses to a point. No shear on any plane.'});
+      else if (Math.abs(sigX+sigY) < 0.01 && Math.abs(sigX-sigY) < 0.01) items.push({c:'ok',t:'Pure shear — σ1 = +τxy = '+sig1.toFixed(2)+' MPa, σ2 = '+sig2.toFixed(2)+' MPa, at θp = '+thetaP.toFixed(2)+'°.'});
+      if (Math.abs(tauXY) < 0.5 && Math.abs(sigX-sigY) > 1) items.push({c:'ok',t:'Already on principal planes — θp ≈ 0° because τxy is zero. The applied σx, σy ARE the principal stresses.'});
+      if (Math.abs(theta - thetaP) < 1 && R > 0.5) items.push({c:'ok',t:'At θ = θp — the shear on the element should be ~0. Current τn = '+tauN.toFixed(2)+' MPa (close to zero confirms the principal plane).'});
+      if (Math.abs(theta - (thetaP+45)) < 1 && R > 0.5) items.push({c:'warn',t:'At θ = θp + 45° — maximum shear plane. τn = τmax = '+tauMax.toFixed(2)+' MPa.'});
+      if (sig1 > 0 && sig2 < 0) items.push({c:'warn',t:'Mixed tension/compression — σ1 = '+sig1.toFixed(1)+', σ2 = '+sig2.toFixed(1)+'. Brittle materials are vulnerable here.'});
+      if (vmStress > 250) items.push({c:'bad',t:'High Von Mises — σv = '+vmStress.toFixed(1)+' MPa exceeds typical mild-steel yield (~250 MPa). Yielding likely.'});
+      else if (vmStress > 150) items.push({c:'warn',t:'σv = '+vmStress.toFixed(1)+' MPa — within mild-steel allowable range. FoS small, check design.'});
+      else items.push({c:'ok',t:'σv = '+vmStress.toFixed(1)+' MPa — comfortable margin below typical yield strengths.'});
+      var hh = items.map(function(it){return '<div class="coach-item '+it.c+'">'+it.t+'</div>';}).join('');
+      if (hh !== _learnCache.co) { co.innerHTML = hh; _learnCache.co = hh; }
+    }
+
+    var ft = $('#lp-failure-body');
+    if (ft) {
+      var sY = 250; /* mild steel assumption */
+      var rankine = sig1;
+      var tresca  = sig1 - sig2;
+      var vm      = vmStress;
+      function st(v, lim) {
+        if (v > lim)       return '<span class="ft-stat fail">FAIL</span>';
+        if (v > lim*0.66)  return '<span class="ft-stat warn">CAUTION</span>';
+        return '<span class="ft-stat safe">SAFE</span>';
+      }
+      var html2 = '';
+      html2 += '<p class="cs-si-note">Assumed material: mild steel, σ<sub>Y</sub> = 250 MPa, σ<sub>UT</sub> = 400 MPa. Switch to your material in custom analysis.</p>';
+      html2 += '<div class="ft-grid">';
+      html2 += '<div class="ft-item"><span class="ft-name">Rankine (Brittle)</span>\\(\\sigma_1 = '+sig1.toFixed(1)+'\\;\\text{MPa}\\) vs \\(\\sigma_{UT}=400\\) &nbsp;'+st(Math.abs(rankine),400)+'</div>';
+      html2 += '<div class="ft-item"><span class="ft-name">Tresca (Max Shear)</span>\\(\\sigma_1-\\sigma_2 = '+tresca.toFixed(1)+'\\) vs \\(\\sigma_Y=250\\) &nbsp;'+st(Math.abs(tresca),sY)+'</div>';
+      html2 += '<div class="ft-item"><span class="ft-name">Von Mises</span>\\(\\sigma_v = '+vm.toFixed(1)+'\\;\\text{MPa}\\) vs \\(\\sigma_Y=250\\) &nbsp;'+st(vm,sY)+'</div>';
+      html2 += '<div class="ft-item"><span class="ft-name">Factor of Safety</span>FoS (Von Mises) = \\(\\dfrac{250}{'+vm.toFixed(1)+'} = \\mathbf{'+(vm>0.01?(sY/vm).toFixed(2):'\\infty')+'}\\)</div>';
+      html2 += '</div>';
+      if (html2 !== _learnCache.ft) { ft.innerHTML = html2; _learnCache.ft = html2; }
+    }
+  }
+
+  function wireLearnPanels() {
+    var expAll = $('#learn-expand-all');
+    var colAll = $('#learn-collapse-all');
+    var cards  = Array.prototype.slice.call($$('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function(c){ c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function(c){ c.open = false; }); });
+  }
+
+  /* Calc step renderer */
+  function calcStep(num, title, formula, calc, result) {
+    var html = '<div class="cs-step">';
+    html += '<div class="cs-step-hd"><span class="cs-num">Step '+num+'</span><span class="cs-title">'+title+'</span></div>';
+    if (formula) html += '<div class="cs-formula">'+formula+'</div>';
+    if (calc)    html += '<div class="cs-calc">'+calc+'</div>';
+    if (result != null) html += '<div class="cs-result">→ <strong>'+result+'</strong></div>';
+    html += '</div>';
+    return html;
+  }
+  function buildCalcSteps() {
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Given — Current State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>σx = '+sigX+' MPa</span>';
+    html += '<span>σy = '+sigY+' MPa</span>';
+    html += '<span>τxy = '+tauXY+' MPa</span>';
+    html += '<span>θ = '+theta+'°</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">All calculations in SI (MPa, deg).</p></div>';
+
+    html += calcStep(1, 'Centre of Mohr’s Circle',
+      '\\[ \\sigma_{\\text{avg}} = \\dfrac{\\sigma_x + \\sigma_y}{2} \\]',
+      '\\(\\sigma_{\\text{avg}} = \\dfrac{'+sigX+' + ('+sigY+')}{2}\\)',
+      sigAvg.toFixed(2)+' MPa');
+
+    html += calcStep(2, 'Radius of Mohr’s Circle',
+      '\\[ R = \\sqrt{\\left(\\dfrac{\\sigma_x - \\sigma_y}{2}\\right)^{2} + \\tau_{xy}^{2}} \\]',
+      '\\(R = \\sqrt{\\left(\\dfrac{'+sigX+' - ('+sigY+')}{2}\\right)^{2} + ('+tauXY+')^{2}} = \\sqrt{'+Math.pow((sigX-sigY)/2,2).toFixed(2)+' + '+(tauXY*tauXY).toFixed(2)+'}\\)',
+      R.toFixed(2)+' MPa');
+
+    html += calcStep(3, 'Principal Stresses',
+      '\\[ \\sigma_{1,2} = \\sigma_{\\text{avg}} \\pm R \\]',
+      '\\(\\sigma_1 = '+sigAvg.toFixed(2)+' + '+R.toFixed(2)+',\\;\\sigma_2 = '+sigAvg.toFixed(2)+' - '+R.toFixed(2)+'\\)',
+      'σ1 = '+sig1.toFixed(2)+' MPa, σ2 = '+sig2.toFixed(2)+' MPa');
+
+    html += calcStep(4, 'Maximum Shear Stress',
+      '\\[ \\tau_{\\max} = R = \\dfrac{\\sigma_1 - \\sigma_2}{2} \\]',
+      '\\(\\tau_{\\max} = '+R.toFixed(2)+'\\;\\text{MPa}\\)',
+      tauMax.toFixed(2)+' MPa');
+
+    html += calcStep(5, 'Principal Angle',
+      '\\[ \\theta_p = \\tfrac{1}{2}\\arctan\\!\\left(\\dfrac{2\\tau_{xy}}{\\sigma_x - \\sigma_y}\\right) \\]',
+      '\\(\\theta_p = \\tfrac{1}{2}\\,\\mathrm{atan2}\\!\\left('+(2*tauXY).toFixed(2)+',\\;'+(sigX-sigY)+'\\right)\\)',
+      thetaP.toFixed(2)+'°');
+
+    var tr = degToRad(theta);
+    html += calcStep(6, 'Transformed Stresses at θ='+theta+'°',
+      '\\[ \\sigma_n = \\sigma_{\\text{avg}} + \\dfrac{\\sigma_x-\\sigma_y}{2}\\cos 2\\theta + \\tau_{xy}\\sin 2\\theta \\]',
+      '\\(\\sigma_n = '+sigAvg.toFixed(2)+' + '+((sigX-sigY)/2).toFixed(2)+'\\cdot\\cos('+(2*theta)+'^{\\circ}) + '+tauXY+'\\cdot\\sin('+(2*theta)+'^{\\circ})\\)',
+      'σn = '+sigN.toFixed(2)+' MPa,  τn = '+tauN.toFixed(2)+' MPa');
+
+    html += calcStep(7, 'Von Mises Equivalent Stress',
+      '\\[ \\sigma_v = \\sqrt{\\sigma_1^{2} - \\sigma_1\\sigma_2 + \\sigma_2^{2}} \\]',
+      '\\(\\sigma_v = \\sqrt{'+sig1.toFixed(2)+'^{2} - ('+sig1.toFixed(2)+')('+sig2.toFixed(2)+') + '+sig2.toFixed(2)+'^{2}}\\)',
+      vmStress.toFixed(2)+' MPa');
+
+    var fos = vmStress > 0.01 ? (250/vmStress).toFixed(2) : '∞';
+    html += calcStep(8, 'Engineering Context',
+      '\\[ \\text{FoS}_{\\text{vM}} = \\dfrac{\\sigma_Y}{\\sigma_v} \\]',
+      '\\(\\text{FoS} = \\dfrac{250}{'+vmStress.toFixed(2)+'}\\) (assumed mild steel)',
+      'FoS ≈ '+fos+' — design target typically &ge; 1.5');
+
+    return html;
+  }
+  function openCalc() {
+    var modal = $('#calc-modal'), body = $('#calc-modal-body');
+    body.innerHTML = buildCalcSteps();
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalc() {
+    var modal = $('#calc-modal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = $('#btn-calc'); if (b) b.focus();
+  }
+  $('#btn-calc').addEventListener('click', openCalc);
+  $('#calc-modal-close').addEventListener('click', closeCalc);
+  $('#calc-modal').addEventListener('click', function(e){ if (e.target===this) closeCalc(); });
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+  var modeTabs = $$('#mode-tabs .pill');
+  var simPanel = $('#sim-panel');
+  var catRow = $('#cat-row'), itemSelector = $('#item-selector'), itemInfo = $('#item-info');
+  var practicePanel = $('#practice-panel'), practiceBar = $('#practice-bar');
+  var quizPanel = $('#quiz-panel'), quizBar = $('#quiz-bar'), quizResult = $('#quiz-result');
+  var learnPanels = $('#learn-panels');
+
+  function setMode(m) {
+    mode = m;
+    modeTabs.forEach(function(t){ t.classList.toggle('active', t.dataset.mode===m); });
+    hide(simPanel); hide(catRow); hide(itemSelector); hide(itemInfo);
+    hide(practicePanel); hide(practiceBar); hide(quizPanel); hide(quizBar); hide(quizResult);
+    hide(learnPanels);
+    if (m==='simulate') { show(simPanel); show(learnPanels); }
+    else if (m==='explore') { show(catRow); show(itemSelector); buildConceptGrid(); selectConcept(selConcept); }
+    else if (m==='practice') { show(practicePanel); show(practiceBar); if (!pProblem) genPractice(); }
+    else if (m==='quiz') { show(quizPanel); show(quizBar); if (quizQs.length===0) startQuiz(); }
+    if (m!=='simulate') setPlaying(false);
+    compute();
+    if (m==='simulate') updateLearnPanels();
+    draw();
+  }
+  modeTabs.forEach(function(t){ t.addEventListener('click', function(){ setMode(t.dataset.mode); }); });
+
+  /* ── EXPLORE ─────────────────────────────────────────────────── */
+  var catTabs = $$('#cat-tabs .pill');
+  catTabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      catTabs.forEach(function(c){ c.classList.remove('active'); });
+      t.classList.add('active');
+      selCat = t.dataset.cat;
+      buildConceptGrid();
+      var firstIdx = -1;
+      for (var i=0;i<CONCEPTS.length;i++) { if (CONCEPTS[i].cat===selCat) { firstIdx = i; break; } }
+      if (firstIdx >= 0) selectConcept(firstIdx);
+    });
+  });
+  function buildConceptGrid() {
+    var grid = $('#concept-grid'); grid.innerHTML = '';
+    CONCEPTS.forEach(function(c, i){
+      if (c.cat !== selCat) return;
+      var btn = document.createElement('button');
+      btn.className = 'is-btn' + (i===selConcept ? ' active' : '');
+      btn.innerHTML = '<span class="is-btn-name">'+c.name+'</span><span class="is-btn-sym">'+c.symbol+'</span>';
+      btn.addEventListener('click', function(){ selectConcept(i); });
+      grid.appendChild(btn);
+    });
+  }
+  function selectConcept(idx) {
+    selConcept = idx;
+    var c = CONCEPTS[idx]; if (!c) return;
+    var filtered = []; CONCEPTS.forEach(function(cc, ci){ if (cc.cat===selCat) filtered.push({c:cc,i:ci}); });
+    var localIdx = -1;
+    for (var fi=0;fi<filtered.length;fi++) if (filtered[fi].i===idx) { localIdx = fi; break; }
+    $$('.is-btn').forEach(function(b, bi){ b.classList.toggle('active', bi===localIdx); });
+    show(itemInfo);
+    var info = $('#item-info');
+    var cats = { basics:'Stress Basics', circle:'Mohr’s Circle', apps:'Applications' };
+    var html = '';
+    html += '<div class="ii-top"><span class="ii-name">'+c.name+'</span><span class="ii-cat-badge">'+(cats[c.cat]||c.cat)+'</span></div>';
+    html += '<p class="ii-desc">'+c.desc+'</p>';
+    html += '<div class="formula-box"><span class="fb-formula">'+c.formula+'</span><span class="fb-unit">'+c.unit+'</span></div>';
+    if (c.example) {
+      html += '<div class="example-box"><h4>Worked Example</h4><p class="ex-problem">'+c.example.problem+'</p>';
+      c.example.steps.forEach(function(s){ html += '<div class="ex-step">'+s+'</div>'; });
+      if (c.example.answer !== undefined) html += '<div class="ex-step"><strong>Answer: '+c.example.answer+' '+c.example.unit+'</strong></div>';
+      html += '</div>';
+    }
+    info.innerHTML = html;
+    draw();
+  }
+
+  /* ── PRACTICE ────────────────────────────────────────────────── */
+  function genPractice() {
+    var idx = Math.floor(Math.random()*PROBLEM_GEN.length);
+    pProblem = PROBLEM_GEN[idx]();
+    pAnswered = false;
+    $('#pp-prompt').textContent = pProblem.prompt;
+    $('#pp-unit').textContent = pProblem.unit;
+    $('#pp-input').value = '';
+    $('#pp-feedback').textContent = ''; $('#pp-feedback').className = 'feedback';
+    hide($('#pp-next')); hide($('#pp-solution')); show($('#pp-check'));
+    draw();
+  }
+  $('#pp-check').addEventListener('click', function(){
+    if (pAnswered) return;
+    var val = parseFloat($('#pp-input').value);
+    if (isNaN(val)) { $('#pp-feedback').textContent = 'Please enter a numeric answer.'; $('#pp-feedback').className = 'feedback err'; return; }
+    pAnswered = true; pTotal++;
+    var tol = Math.max(Math.abs(pProblem.answer)*0.01, 0.1);
+    var ok = Math.abs(val - pProblem.answer) <= tol;
+    if (ok) { pScore++; $('#pp-feedback').textContent = 'Correct! Answer: '+pProblem.answer+' '+pProblem.unit; $('#pp-feedback').className = 'feedback ok'; }
+    else { $('#pp-feedback').textContent = 'Incorrect. Correct answer: '+pProblem.answer+' '+pProblem.unit; $('#pp-feedback').className = 'feedback err'; }
+    var sol = $('#pp-solution'); var sh = '<h4>Step-by-Step Solution</h4>';
+    pProblem.steps.forEach(function(s){ sh += '<div class="sol-step">'+s+'</div>'; });
+    sol.innerHTML = sh; show(sol);
+    show($('#pp-next')); hide($('#pp-check'));
+    $('#pbar-score-val').textContent = pScore+' / '+pTotal;
+    draw();
+  });
+  $('#pp-next').addEventListener('click', genPractice);
+  $('#pp-input').addEventListener('keydown', function(e){ if (e.key==='Enter') { if (pAnswered) genPractice(); else $('#pp-check').click(); } });
+
+  /* ── QUIZ ────────────────────────────────────────────────────── */
+  function startQuiz() {
+    quizQs = shuffleArr(QUIZ_POOL).slice(0,5);
+    quizIdx = 0; quizScore = 0; quizAnswered = false; quizResults = [];
+    hide(quizResult); show(quizPanel); show(quizBar);
+    renderQuizQ();
+  }
+  function renderQuizQ() {
+    if (quizIdx >= quizQs.length) { showQuizResult(); return; }
+    var q = quizQs[quizIdx]; quizAnswered = false;
+    $('#qbar-num').textContent = quizIdx+1;
+    var html = '<p class="qp-prompt">Q'+(quizIdx+1)+'. '+q.prompt+'</p>';
+    if (q.type==='mcq') {
+      var sh = q.options.map(function(o,i){return {text:o,idx:i};});
+      sh = shuffleArr(sh);
+      quizQs[quizIdx]._shuffled = sh;
+      html += '<div class="answer-grid">';
+      sh.forEach(function(o){ html += '<button class="answer-btn" data-idx="'+o.idx+'">'+o.text+'</button>'; });
+      html += '</div>';
+    } else {
+      html += '<div class="quiz-input-row"><input class="qi-input" id="qi-val" type="number" step="any" placeholder="Your answer"><span class="qi-unit">'+(q.unit||'')+'</span><button class="btn btn-primary" id="qi-check">Check</button></div><div class="quiz-feedback" id="qi-fb"></div>';
+    }
+    quizPanel.innerHTML = html;
+    if (q.type==='mcq') {
+      $$('.answer-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          if (quizAnswered) return;
+          quizAnswered = true;
+          var ch = +btn.dataset.idx;
+          var ok = (ch === q.correct);
+          if (ok) quizScore++;
+          quizResults.push({correct:ok, prompt:q.prompt});
+          $$('.answer-btn').forEach(function(b){
+            b.classList.add('locked');
+            if (+b.dataset.idx === q.correct) b.classList.add('correct');
+            else if (b===btn && !ok) b.classList.add('wrong');
+          });
+          setTimeout(function(){ quizIdx++; renderQuizQ(); }, 1100);
+        });
+      });
+    } else {
+      var qc = $('#qi-check'), qi = $('#qi-val');
+      if (qc && qi) {
+        qc.addEventListener('click', function(){
+          if (quizAnswered) return;
+          var v = parseFloat(qi.value); if (isNaN(v)) return;
+          quizAnswered = true;
+          var tol = Math.max(Math.abs(q.answer)*0.01, 0.1);
+          var ok = Math.abs(v-q.answer) <= tol;
+          if (ok) quizScore++;
+          quizResults.push({correct:ok, prompt:q.prompt});
+          var fb = $('#qi-fb');
+          if (ok) { fb.textContent = 'Correct! '+q.answer+' '+q.unit; fb.className='quiz-feedback ok'; }
+          else { fb.textContent = 'Incorrect. Answer: '+q.answer+' '+q.unit; fb.className='quiz-feedback err'; }
+          if (q.steps) fb.textContent += ' — '+q.steps.join(' → ');
+          setTimeout(function(){ quizIdx++; renderQuizQ(); }, 2200);
+        });
+        qi.addEventListener('keydown', function(e){ if (e.key==='Enter') qc.click(); });
+      }
+    }
+    draw();
+  }
+  function showQuizResult() {
+    hide(quizPanel); hide(quizBar); show(quizResult);
+    var pct = Math.round(quizScore/quizQs.length*100);
+    var stars = ''; for (var i=0;i<5;i++) stars += (i<quizScore?'★':'☆');
+    var cls = pct===100?'perfect':(pct>=60?'good':'poor');
+    var v = pct===100?'Flawless!':(pct>=80?'Excellent work!':(pct>=60?'Good effort!':'Keep practising!'));
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><span class="qr-title">Quiz Complete</span><span class="qr-stars">'+stars+'</span></div>'+
+      '<div class="qr-score-wrap"><span class="qr-score '+cls+'">'+pct+'%</span><div class="qr-verdict">'+v+'</div></div></div>';
+    html += '<div class="qr-rows">';
+    quizQs.forEach(function(q,qi){
+      var r = quizResults[qi]; var ok = r ? r.correct : false;
+      var rc = ok?'ok':'err', mk = ok?'✓':'✗';
+      html += '<div class="qr-row '+rc+'"><span class="qr-qnum">Q'+(qi+1)+'</span><span class="qr-detail">'+q.prompt.substring(0,85)+(q.prompt.length>85?'…':'')+'</span><span class="qr-mark">'+mk+'</span></div>';
+    });
+    html += '</div><button class="btn btn-primary" id="quiz-retry">Retake Quiz</button>';
+    quizResult.innerHTML = html;
+    $('#quiz-retry').addEventListener('click', startQuiz);
+    draw();
+  }
+
+  /* ================================================================
+     KEYBOARD
+     ================================================================ */
+  document.addEventListener('keydown', function(e) {
+    var tag = document.activeElement && document.activeElement.tagName;
+    var inEditable = tag === 'INPUT' || tag === 'TEXTAREA';
+    if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z') {
+      if (e.shiftKey) doRedo(); else doUndo();
+      e.preventDefault(); return;
+    }
+    if (mode !== 'simulate') return;
+    if (inEditable) return;
+    if (e.key === ' ') { setPlaying(!anim.running); e.preventDefault(); return; }
+    var step = e.shiftKey ? 10 : 1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      saveUndo(); theta = clamp(theta+step, 0, 180); applyChange(); e.preventDefault();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      saveUndo(); theta = clamp(theta-step, 0, 180); applyChange(); e.preventDefault();
+    } else if (e.key === 'Escape') {
+      if ($('#calc-modal').classList.contains('active')) closeCalc();
+      else if ($('#custom-modal').classList.contains('active')) closeCustom();
+      else if (!ctxMenu.hidden) ctxMenu.hidden = true;
+      else if (anim.running) setPlaying(false);
+    }
+  });
+
+  /* ================================================================
+     RESIZE
+     ================================================================ */
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeCanvas).observe(cvs);
+
+  /* ================================================================
+     WIRING + INIT
+     ================================================================ */
+  wireLearnPanels();
+  compute();
+  syncInputs();
+  updateReadouts();
+  updateLearnPanels();
+  updateUndoBtns();
+  draw();
+
+})();

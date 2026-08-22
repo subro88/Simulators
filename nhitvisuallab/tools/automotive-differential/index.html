@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Automotive Differential Mechanism Simulator &mdash; Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Free online Automotive Differential simulator with an animated 3D bevel-gear differential. Adjust carrier RPM, turn bias, spider count & gear teeth. Straight, Turn, Slip & Jacked modes." />
+  <meta name="keywords" content="automotive differential simulator, 3d differential, crown wheel drive pinion, spider planet gears, open differential, turn bias, jacked differential, wheel speed split" />
+  <link rel="canonical" href="index.html" />
+  <meta property="og:title" content="Automotive Differential Mechanism Simulator | NHIT VisualLab" />
+  <meta property="og:description" content="Interactive 3D bevel-gear differential simulator. Carrier RPM, turn bias, spider count, gear teeth, and Straight / Turn / Slip / Jacked modes." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://nhitvisuallab.org/tools/automotive-differential/" />
+  <meta property="og:image" content="https://nhitvisuallab.org/brand/Modern_logo.png" />
+  <meta name="theme-color" content="#0d1117" />
+  <link rel="manifest" href="../../manifest.json" />
+  <link rel="icon" type="image/png" href="../../favicon.png">
+  <link rel="apple-touch-icon" href="../../brand/no_background_logo.png" />
+  <link rel="stylesheet" href="../../shared/site.css" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0d1117;--surface:#161b27;--surface2:#1f2535;--border:#2a3050;--accent:#29b6f6;--green:#3ddc84;--red:#ff5252;--orange:#ff9800;--yellow:#ffd600;--text:#dde3f0;--text-dim:#6b7a99;--mono:'Courier New',monospace;--radius:12px}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:0 16px;min-height:100vh}
+    #app{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-bottom:40px}
+    header{text-align:center;padding:6px 0}
+    header h1{font-size:1.85rem;font-weight:700;background:linear-gradient(120deg,var(--accent),#80d8ff,var(--yellow));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .subtitle{color:var(--text-dim);font-size:.85rem;margin-top:3px}
+    .controls-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);flex-wrap:wrap;gap:12px}
+    .ctrl-group{display:flex;align-items:center;gap:10px}
+    .ctrl-label{font-size:.8rem;font-weight:700;color:var(--text-dim);text-transform:uppercase}
+    .pill-tabs{display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px;flex-wrap:wrap}
+    .pill{padding:6px 13px;border:none;background:transparent;color:var(--text-dim);border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600}
+    .pill.active{background:var(--accent);color:#0b111a;font-weight:700;box-shadow:0 0 10px rgba(41,182,246,.35)}
+    .head-actions{display:flex;gap:8px}
+    .btn-link{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:.78rem;color:var(--text-dim);text-decoration:none;font-weight:600}
+    .btn-link:hover{border-color:var(--accent);color:var(--accent)}
+    .layout{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start}
+    @media(max-width:1050px){.layout{grid-template-columns:1fr}}
+    .canvas-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;position:relative}
+    #diff-canvas{display:block;width:100%;height:540px;background:#0a0d14;border-radius:8px}
+    .controls-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:12px}
+    .panel-title{font-size:.92rem;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:8px}
+    .control-block{display:flex;flex-direction:column;gap:6px;background:var(--surface2);padding:10px 12px;border:1px solid var(--border);border-radius:8px}
+    .control-header{display:flex;justify-content:space-between;font-size:.78rem;font-weight:600}
+    .control-val{color:var(--accent);font-family:var(--mono);font-weight:700}
+    .slider-styled{-webkit-appearance:none;appearance:none;height:6px;background:#0f1219;border:1px solid var(--border);border-radius:4px;outline:none;cursor:pointer}
+    .slider-styled::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid #fff}
+    .btn-group{display:flex;flex-wrap:wrap;gap:5px}
+    .btn{flex:1;min-width:72px;padding:7px 4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:600;text-align:center}
+    .btn.active{background:var(--accent);color:#0b111a;border-color:var(--accent);font-weight:700}
+    .btn.ghost{background:transparent}
+    .stats-box{background:#0a0d14;border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:.78rem}
+    .stat-row{display:flex;justify-content:space-between;gap:8px}
+    .stat-key{color:var(--text-dim)}
+    .stat-val{font-weight:700;color:var(--green);text-align:right}
+    .stat-formula{font-size:.72rem;color:var(--text-dim);border-top:1px dashed var(--border);padding-top:6px;margin-top:2px}
+    .sim3d-section{margin:0;padding:0}
+    .sim3d-section h2{margin:0 0 8px;font-size:1.15rem;color:#7fd1ff}
+    .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:var(--text-dim);font-size:.88rem}
+    .sim3d-wrap{position:relative;width:100%}
+    #sim3d-canvas{width:100%;height:540px;display:block;background:radial-gradient(circle at 50% 40%,#15233a,#0a0d14);border-radius:8px;touch-action:none;cursor:grab}
+    #sim3d-canvas:active{cursor:grabbing}
+    .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.35);padding:2px 8px;border-radius:6px}
+    .mode-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:4px}
+    .explore-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px}
+    .explore-card h3{color:var(--accent);font-size:1rem}
+    .explore-card p,.explore-card ul{color:var(--text-dim);font-size:.85rem;line-height:1.6}
+    .explore-card ul{padding-left:18px}
+    .quiz-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px}
+    .quiz-q{font-size:.95rem;font-weight:600;color:var(--text)}
+    .quiz-opt{padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.85rem}
+    .quiz-opt:hover{border-color:var(--accent);color:var(--accent)}
+    .quiz-opt.correct{background:rgba(61,220,132,.18);border-color:var(--green);color:var(--green)}
+    .quiz-opt.wrong{background:rgba(255,82,82,.18);border-color:var(--red);color:var(--red)}
+    .quiz-fb{font-size:.82rem;color:var(--text-dim);min-height:1.2em}
+    .ref-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+    table.ref{width:100%;border-collapse:collapse;font-size:.76rem}
+    table.ref caption{text-align:left;font-weight:700;color:var(--accent);padding:6px 0}
+    table.ref th,table.ref td{border:1px solid var(--border);padding:4px 6px;text-align:center}
+    table.ref th{background:var(--surface2);color:var(--text)}
+    table.ref td:first-child{color:var(--text-dim);text-align:left}
+    .ref-note{font-size:.76rem;color:var(--text-dim);margin-top:6px}
+    .seo-article{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;color:var(--text-dim);line-height:1.7;font-size:.93rem}
+    .seo-article h2{font-size:1.2rem;color:var(--text);margin-bottom:10px}
+    .toolbar-export{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .hidden{display:none!important}
+  </style>
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="site-nav-title">Automobile Engineering</span>
+  </nav>
+  <header>
+    <h1>Automotive Differential Mechanism Simulator</h1>
+    <p class="subtitle">3D Bevel-Gear Differential &bull; Carrier RPM &bull; Turn Bias &bull; Spider Count &bull; Straight / Turn / Slip / Jacked</p>
+  </header>
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">View</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate (2D)</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Explore</button>
+        <button class="pill" data-value="practice">Practice</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+        <button class="pill" data-value="reference">Reference</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-link" href="https://procalclab.com/3d-differential-simulator/" target="_blank" rel="noopener">Source: ProCalcLab &#8599;</a>
+      <a class="btn-link" href="../../index.html">Home</a>
+    </div>
+  </div>
+  <section id="sim-wrapper" class="view-section">
+    <div class="layout">
+      <div class="canvas-card">
+        <canvas id="diff-canvas" width="900" height="540"></canvas>
+        <div class="toolbar-export">
+          <button class="btn ghost" id="btn-2d-export">Export 2D PNG</button>
+          <span class="ref-note" id="canvas-hint">Drag-free top view of the differential. Wheels coloured by speed.</span>
+        </div>
+      </div>
+      <div class="controls-panel">
+        <div class="panel-title">Differential Controls (2D)</div>
+        <div class="control-block">
+          <div class="control-header"><span>Carrier / Drive RPM</span><span class="control-val" id="v-rpm">60</span></div>
+          <input class="slider-styled" id="s-rpm" type="range" min="0" max="300" value="60" step="1" />
+        </div>
+        <div class="control-block">
+          <span style="font-size:.78rem;font-weight:600">Maneuver</span>
+          <div class="btn-group" id="grp-maneuver">
+            <button class="btn active" data-m="straight">Straight</button>
+            <button class="btn" data-m="left">Left Turn</button>
+            <button class="btn" data-m="right">Right Turn</button>
+            <button class="btn" data-m="slip">Slip</button>
+            <button class="btn" data-m="jacked">Jacked</button>
+          </div>
+        </div>
+        <div class="control-block">
+          <div class="control-header"><span>Turn Bias (% to outer)</span><span class="control-val" id="v-bias">60</span></div>
+          <input class="slider-styled" id="s-bias" type="range" min="50" max="100" value="60" step="1" />
+        </div>
+        <div class="control-block">
+          <span style="font-size:.78rem;font-weight:600">Spider (Planet) Gears</span>
+          <div class="btn-group" id="grp-spider">
+            <button class="btn active" data-sp="2">2</button>
+            <button class="btn" data-sp="4">4</button>
+          </div>
+        </div>
+        <div class="control-block">
+          <div class="control-header"><span>Axle Gear Teeth</span><span class="control-val" id="v-axle">14</span></div>
+          <input class="slider-styled" id="s-axle" type="range" min="8" max="24" value="14" step="1" />
+        </div>
+        <div class="control-block">
+          <div class="control-header"><span>Spider Gear Teeth</span><span class="control-val" id="v-spidert">10</span></div>
+          <input class="slider-styled" id="s-spidert" type="range" min="8" max="24" value="10" step="1" />
+        </div>
+        <div class="stats-box" id="stats-2d">
+          <div class="stat-row"><span class="stat-key">Left wheel</span><span class="stat-val" id="o-left">60</span></div>
+          <div class="stat-row"><span class="stat-key">Right wheel</span><span class="stat-val" id="o-right">60</span></div>
+          <div class="stat-row"><span class="stat-key">Spider spin</span><span class="stat-val" id="o-spider">0</span></div>
+          <div class="stat-formula" id="o-ratio"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="model3d-wrapper" class="view-section hidden">
+    <div class="sim3d-section">
+      <h2>3D Bevel-Gear Differential</h2>
+      <p class="sim3d-blurb">An animated open differential: the <b>drive pinion</b> turns the <b>crown wheel (ring)</b> which carries the <b>carrier</b>. Inside, two <b>side (axle) gears</b> drive the wheels and are connected by <b>spider (planet) gears</b> on a cross-pin. Drag to orbit, scroll to zoom.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" width="900" height="540"></canvas>
+        <div class="sim3d-hint">drag = orbit &bull; scroll = zoom</div>
+      </div>
+      <div class="layout" style="margin-top:14px;grid-template-columns:1fr 340px">
+        <div class="controls-panel">
+          <div class="panel-title">3D Runtime (Kinematics)</div>
+          <div class="stats-box" id="stats-3d">
+            <div class="stat-row"><span class="stat-key">Carrier RPM</span><span class="stat-val" id="d-carrier">60</span></div>
+            <div class="stat-row"><span class="stat-key">Left wheel</span><span class="stat-val" id="d-left">60</span></div>
+            <div class="stat-row"><span class="stat-key">Right wheel</span><span class="stat-val" id="d-right">60</span></div>
+            <div class="stat-row"><span class="stat-key">Spider spin</span><span class="stat-val" id="d-spider">0</span></div>
+            <div class="stat-formula">RPM_spider = (RPM_outside &minus; RPM_carrier) &times; (T_axle / T_spider)</div>
+          </div>
+          <button class="btn ghost" id="btn-3d-export">Export 3D Snapshot</button>
+        </div>
+        <div class="controls-panel">
+          <div class="panel-title">3D Geometry</div>
+          <div class="control-block">
+            <div class="control-header"><span>Carrier RPM</span><span class="control-val" id="v3-rpm">60</span></div>
+            <input class="slider-styled" id="s3-rpm" type="range" min="0" max="300" value="60" step="1" />
+          </div>
+          <div class="control-block">
+            <span style="font-size:.78rem;font-weight:600">Maneuver</span>
+            <div class="btn-group" id="grp3-maneuver">
+              <button class="btn active" data-m="straight">Straight</button>
+              <button class="btn" data-m="left">Left Turn</button>
+              <button class="btn" data-m="right">Right Turn</button>
+              <button class="btn" data-m="slip">Slip</button>
+              <button class="btn" data-m="jacked">Jacked</button>
+            </div>
+          </div>
+          <div class="control-block">
+            <div class="control-header"><span>Turn Bias (%)</span><span class="control-val" id="v3-bias">60</span></div>
+            <input class="slider-styled" id="s3-bias" type="range" min="50" max="100" value="60" step="1" />
+          </div>
+          <div class="control-block">
+            <span style="font-size:.78rem;font-weight:600">Spider Gears</span>
+            <div class="btn-group" id="grp3-spider">
+              <button class="btn active" data-sp="2">2</button>
+              <button class="btn" data-sp="4">4</button>
+            </div>
+          </div>
+          <div class="control-block">
+            <div class="control-header"><span>Axle Teeth</span><span class="control-val" id="v3-axle">14</span></div>
+            <input class="slider-styled" id="s3-axle" type="range" min="8" max="24" value="14" step="1" />
+          </div>
+          <div class="control-block">
+            <div class="control-header"><span>Spider Teeth</span><span class="control-val" id="v3-spidert">10</span></div>
+            <input class="slider-styled" id="s3-spidert" type="range" min="8" max="24" value="10" step="1" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="explore-wrapper" class="view-section hidden">
+    <div class="mode-card-grid">
+      <div class="explore-card">
+        <h3>Straight Line</h3>
+        <p>Both wheels travel the same distance, so both turn at the <b>carrier speed</b>. The spider gears do not rotate on their own axis &mdash; they merely orbit with the carrier.</p>
+        <ul><li>Left = Right = Carrier</li><li>Spider spin = 0</li></ul>
+      </div>
+      <div class="explore-card">
+        <h3>Turning (Left / Right)</h3>
+        <p>The outer wheel must cover a larger radius than the inner wheel. The differential splits speed: outer faster, inner slower, always summing to twice the carrier.</p>
+        <ul><li>Outer + Inner = 2 &times; Carrier</li><li>Spider gears spin to allow the difference</li></ul>
+      </div>
+      <div class="explore-card">
+        <h3>Wheel Slip</h3>
+        <p>If one wheel loses traction (ice, mud), it can spin at up to <b>2 &times; carrier</b> while the gripping wheel stops. Open differentials send torque to the fastest-spinning wheel &mdash; the classic "one wheel spins" problem.</p>
+      </div>
+      <div class="explore-card">
+        <h3>Jacked Up</h3>
+        <p>With one wheel off the ground (zero resistance), that wheel turns at <b>2 &times; carrier</b> and the grounded wheel is stationary. A perfect demonstration of the speed-splitting law.</p>
+        <ul><li>One wheel = 0, other = 2 &times; Carrier</li></ul>
+      </div>
+      <div class="explore-card">
+        <h3>The Governing Law</h3>
+        <p>For any open differential:</p>
+        <ul><li>&omega;<sub>left</sub> + &omega;<sub>right</sub> = 2 &times; &omega;<sub>carrier</sub></li><li>&omega;<sub>spider</sub> = (&omega;<sub>outer</sub> &minus; &omega;<sub>carrier</sub>) &times; (T<sub>axle</sub> / T<sub>spider</sub>)</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="practice-wrapper" class="view-section hidden">
+    <div class="mode-card-grid">
+      <div class="explore-card">
+        <h3>Try This &mdash; Cornering</h3>
+        <p>Set Carrier = 80, choose <b>Left Turn</b>, then raise <b>Turn Bias</b>. Watch the outer wheel speed climb while the inner drops, yet their sum stays at 160.</p>
+      </div>
+      <div class="explore-card">
+        <h3>Try This &mdash; Jacked</h3>
+        <p>Pick <b>Jacked</b> with Carrier = 50. The lifted wheel reads 100 and the grounded wheel reads 0 &mdash; total 100 = 2 &times; 50.</p>
+      </div>
+      <div class="explore-card">
+        <h3>Try This &mdash; Spider Count</h3>
+        <p>Toggle <b>4 spider gears</b>. Function is identical to 2 (count does not change the kinematics), but the 3D model shows the extra planets sharing the load.</p>
+      </div>
+    </div>
+  </section>
+  <section id="quiz-wrapper" class="view-section hidden">
+    <div class="quiz-card">
+      <div class="quiz-q">1. In a turn, what is always true for an open differential?</div>
+      <div class="quiz-opt" data-correct onclick="checkQuiz(this,1,true)">Left + Right = 2 &times; Carrier</div>
+      <div class="quiz-opt" onclick="checkQuiz(this,1,false)">Left = Right = Carrier</div>
+      <div class="quiz-opt" onclick="checkQuiz(this,1,false)">Left &minus; Right = Carrier</div>
+      <div class="quiz-fb" id="fb-1"></div>
+    </div>
+    <div class="quiz-card">
+      <div class="quiz-q">2. If one wheel is jacked off the ground and the carrier turns at 70 RPM, the lifted wheel spins at:</div>
+      <div class="quiz-opt" onclick="checkQuiz(this,2,false)">70 RPM</div>
+      <div class="quiz-opt" data-correct onclick="checkQuiz(this,2,true)">140 RPM</div>
+      <div class="quiz-opt" onclick="checkQuiz(this,2,false)">0 RPM</div>
+      <div class="quiz-fb" id="fb-2"></div>
+    </div>
+    <div class="quiz-card">
+      <div class="quiz-q">3. On a straight road, the spider (planet) gears:</div>
+      <div class="quiz-opt" data-correct onclick="checkQuiz(this,3,true)">Do not spin on their own axis, only orbit with the carrier</div>
+      <div class="quiz-opt" onclick="checkQuiz(this,3,false)">Spin at the carrier speed</div>
+      <div class="quiz-opt" onclick="checkQuiz(this,3,false)">Spin twice as fast as the wheels</div>
+      <div class="quiz-fb" id="fb-3"></div>
+    </div>
+  </section>
+
+  <section id="reference-wrapper" class="view-section hidden">
+    <div class="ref-grid">
+      <table class="ref">
+        <caption>Ring &amp; Pinion (Final Drive) Ratios</caption>
+        <tr><th>Setup</th><th>Ratio</th><th>Effect</th></tr>
+        <tr><td>Highway</td><td>2.73&ndash;3.08</td><td>Low RPM, calm</td></tr>
+        <tr><td>Balanced</td><td>3.23&ndash;3.55</td><td>Daily driver</td></tr>
+        <tr><td>Performance</td><td>3.73&ndash;4.10</td><td>Quick, thirsty</td></tr>
+        <tr><td>Towing</td><td>4.30&ndash;4.88</td><td>Strong pull</td></tr>
+      </table>
+      <table class="ref">
+        <caption>Axle / Spider Teeth &rarr; Speed Factor</caption>
+        <tr><th>Axle T</th><th>Spider T</th><th>Spider factor</th></tr>
+        <tr><td>14</td><td>10</td><td>1.40 &times;</td></tr>
+        <tr><td>16</td><td>10</td><td>1.60 &times;</td></tr>
+        <tr><td>12</td><td>12</td><td>1.00 &times;</td></tr>
+        <tr><td>20</td><td>10</td><td>2.00 &times;</td></tr>
+      </table>
+      <table class="ref">
+        <caption>Tire Size &mdash; Imperial vs Metric</caption>
+        <tr><th>Imperial</th><th>Section</th><th>Metric (approx)</th></tr>
+        <tr><td>225/45R17</td><td>225 mm</td><td>~25.0 in</td></tr>
+        <tr><td>205/55R16</td><td>205 mm</td><td>~24.9 in</td></tr>
+        <tr><td>255/35R19</td><td>255 mm</td><td>~26.0 in</td></tr>
+        <tr><td>195/65R15</td><td>195 mm</td><td>~25.0 in</td></tr>
+      </table>
+      <table class="ref">
+        <caption>Differential Types</caption>
+        <tr><th>Type</th><th>Behaviour</th></tr>
+        <tr><td>Open</td><td>Splits speed freely; torque to fastest wheel</td></tr>
+        <tr><td>Limited-Slip (LSD)</td><td>Biases torque to the gripping wheel</td></tr>
+        <tr><td>Locking</td><td>Forces both wheels equal (off-road)</td></tr>
+        <tr><td>Spool</td><td>Welded: both wheels always equal</td></tr>
+      </table>
+    </div>
+    <p class="ref-note">Note: the number of spider gears (2 vs 4) does not change the open-differential speed law; it only shares the planet load.</p>
+  </section>
+
+  <article class="seo-article">
+    <h2>About the Automotive Differential</h2>
+    <p>A differential is the gear train that lets the driven wheels of a vehicle rotate at different speeds while receiving power from one driveshaft. Its three jobs are to (1) turn the drive torque 90&deg; from the longitudinal propeller shaft to the transverse axle, (2) provide the final drive reduction via the crown wheel and pinion, and (3) split that rotation between the left and right wheels so they can cover different distances in a turn.</p>
+    <p>This simulator blends a classic 2D plan-view of the axle with an interactive <b>3D bevel-gear model</b> built in the style of ProCalcLab's 3D differential. Adjust the carrier (drive) RPM, choose Straight, Turn, Slip or Jacked, set the turn bias, spider count and gear teeth, and watch both the law &omega;<sub>left</sub> + &omega;<sub>right</sub> = 2&omega;<sub>carrier</sub> hold, and the spider gears spin only when the wheels differ.</p>
+  </article>
+
+  <footer class="site-footer">
+    <p>NHIT VisualLab &bull; Automotive Differential Simulator &bull; blended with <a href="https://procalclab.com/3d-differential-simulator/" target="_blank" rel="noopener">ProCalcLab</a></p>
+  </footer>
+</main>
+  <script src="../../shared/three3d/three.min.js"></script>
+  <script src="app.js"></script>
+  <script src="diff3d.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+</body>
+</html>

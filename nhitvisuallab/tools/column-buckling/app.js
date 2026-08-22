@@ -1,0 +1,1913 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     UNIT SYSTEM (SI / Imperial)
+     ================================================================ */
+  var unitSys = 'SI';
+  function isImp() { return unitSys === 'Imperial'; }
+
+  var MM_PER_IN  = 25.4;
+  var KN_PER_KIP = 4.4482216;
+  var MPA_PER_KSI = 6.894757;
+
+  function U() {
+    if (isImp()) {
+      return {
+        len:   { label: 'in',  fromMM: function(v){return v/MM_PER_IN;}, toMM: function(v){return v*MM_PER_IN;}, digits: 2 },
+        force: { label: 'kip', fromN:  function(v){return v/1000/KN_PER_KIP;}, toN: function(v){return v*1000*KN_PER_KIP;}, digits: 2 },
+        stress:{ label: 'ksi', fromMPa: function(v){return v/MPA_PER_KSI;}, toMPa: function(v){return v*MPA_PER_KSI;}, digits: 2 },
+        Emod:  { label: 'ksi', fromMPa: function(v){return v/MPA_PER_KSI;}, digits: 0 }
+      };
+    }
+    return {
+      len:   { label: 'mm', fromMM: function(v){return v;}, toMM: function(v){return v;}, digits: 1 },
+      force: { label: 'kN', fromN:  function(v){return v/1000;}, toN: function(v){return v*1000;}, digits: 2 },
+      stress:{ label: 'MPa', fromMPa: function(v){return v;}, toMPa: function(v){return v;}, digits: 1 },
+      Emod:  { label: 'MPa', fromMPa: function(v){return v;}, digits: 0 }
+    };
+  }
+
+  /* ================================================================
+     MATERIALS
+     ================================================================ */
+  var DEFAULT_MATERIALS = [
+    { id: 'steel-a36',    name: 'Steel A36',        E: 200000, sy: 250, color: '#78909c' },
+    { id: 'ss-304',       name: 'Stainless 304',    E: 193000, sy: 215, color: '#b0bec5' },
+    { id: 'al-6061',      name: 'Aluminum 6061-T6', E: 69000,  sy: 276, color: '#90a4ae' },
+    { id: 'cast-iron',    name: 'Cast Iron',        E: 100000, sy: 130, color: '#546e7a' },
+    { id: 'copper',       name: 'Copper',           E: 117000, sy: 210, color: '#ef6c00' },
+    { id: 'titanium',     name: 'Titanium Ti-6Al',  E: 114000, sy: 880, color: '#26c6da' },
+    { id: 'wood',         name: 'Wood (Douglas Fir)',E: 12400, sy: 50,  color: '#8d6e63' }
+  ];
+  var MATERIALS = DEFAULT_MATERIALS.slice();
+
+  var END_CONDITIONS = [
+    { id: 'pin-pin',   name: 'Pinned-Pinned',    K: 1.0, desc: 'Both ends pinned' },
+    { id: 'fix-free',  name: 'Fixed-Free',        K: 2.0, desc: 'Cantilever' },
+    { id: 'fix-fix',   name: 'Fixed-Fixed',       K: 0.5, desc: 'Both ends fixed' },
+    { id: 'fix-pin',   name: 'Fixed-Pinned',      K: 0.7, desc: 'Fixed base, pinned top' }
+  ];
+
+  var CROSS_SECTIONS = [
+    { id: 'solid-circle',  name: 'Solid Circle' },
+    { id: 'hollow-circle', name: 'Hollow Circle' },
+    { id: 'rectangle',     name: 'Rectangle' },
+    { id: 'i-beam',        name: 'I-Beam' }
+  ];
+
+  var PRESETS = [
+    { name: 'Steel Pipe Sch 40 (4")', matIdx: 0, endIdx: 0, csIdx: 1, L: 3000, dim1: 114, dim2: 102, load: 200000 },
+    { name: 'Steel Square Tube',      matIdx: 0, endIdx: 0, csIdx: 2, L: 2500, dim1: 75,  dim2: 75,  load: 300000 },
+    { name: 'Aluminum Strut',         matIdx: 2, endIdx: 0, csIdx: 0, L: 1500, dim1: 30,             load: 30000 },
+    { name: 'Steel I-Beam W6×15',     matIdx: 0, endIdx: 2, csIdx: 3, L: 4000, dim1: 152, dim2: 10, dim3: 152, dim4: 6, load: 800000 },
+    { name: 'Timber Post 4×4',        matIdx: 6, endIdx: 0, csIdx: 2, L: 2400, dim1: 89,  dim2: 89,  load: 40000 },
+    { name: 'Slender Steel Rod',      matIdx: 0, endIdx: 0, csIdx: 0, L: 4000, dim1: 20,             load: 5000 }
+  ];
+
+  var CONCEPTS = [
+    { id: 'euler-formula', name: 'Euler Buckling', symbol: 'Pcr', formula: 'Pcr = π²EI / (KL)²', unit: 'N', cat: 'fundamentals',
+      desc: 'Euler\'s critical buckling load formula predicts the maximum axial compressive load a slender column can carry before buckling. It applies when the slenderness ratio exceeds the transition value.',
+      example: { problem: 'A steel column (E = 200 GPa) is 2 m long, pinned-pinned, with I = 1.36×10⁶ mm⁴. Find Pcr.', steps: ['K = 1.0', 'Le = 2000 mm', 'Pcr = π² × 200000 × 1.36×10⁶ / 2000²', 'Pcr ≈ 67.1 kN'], answer: 67.1, unit: 'kN' }
+    },
+    { id: 'johnson-formula', name: 'Johnson Formula', symbol: 'σcr', formula: 'σcr = σy − (σy²/4π²E) × λ²', unit: 'MPa', cat: 'fundamentals',
+      desc: 'Johnson\'s parabolic formula is used for intermediate columns where the slenderness ratio is below the transition value, accounting for material yielding.',
+      example: { problem: 'Steel column (σy=250 MPa, E=200 GPa), λ=60. Find σcr.', steps: ['σcr = 250 − (62500/7.9e6)×3600', 'σcr = 221.5 MPa'], answer: 221.5, unit: 'MPa' }
+    },
+    { id: 'slenderness', name: 'Slenderness Ratio', symbol: 'λ', formula: 'λ = Le / r', unit: '—', cat: 'fundamentals',
+      desc: 'The slenderness ratio determines whether a column is long (Euler) or intermediate (Johnson). λt = √(2π²E/σy) separates the two regions.',
+      example: { problem: 'L=3 m, K=0.7, r=25 mm. Find λ.', steps: ['Le = 2100 mm', 'λ = 84'], answer: 84, unit: '' }
+    },
+    { id: 'eff-length', name: 'Effective Length', symbol: 'Le', formula: 'Le = K × L', unit: 'mm', cat: 'fundamentals',
+      desc: 'The effective length equals the actual length times the end-condition factor K. K=1 pinned, K=2 cantilever, K=0.5 fixed-fixed, K=0.7 fixed-pinned.',
+      example: { problem: 'L=4 m, fixed-fixed. Find Le.', steps: ['K = 0.5', 'Le = 2000 mm'], answer: 2000, unit: 'mm' }
+    },
+    { id: 'radius-gyration', name: 'Radius of Gyration', symbol: 'r', formula: 'r = √(I/A)', unit: 'mm', cat: 'fundamentals',
+      desc: 'Geometric property of the cross-section indicating how area is distributed. For solid circle: r = d/4. Always use the minimum r for buckling.',
+      example: { problem: 'Solid circle d=50 mm. Find r.', steps: ['r = d/4 = 12.5 mm'], answer: 12.5, unit: 'mm' }
+    },
+    { id: 'critical-stress', name: 'Critical Stress', symbol: 'σcr', formula: 'σcr = Pcr / A', unit: 'MPa', cat: 'fundamentals',
+      desc: 'The average compressive stress at buckling. For Euler: σcr = π²E/λ².',
+      example: { problem: 'Pcr=120 kN, A=2000 mm².', steps: ['σcr = 60 MPa'], answer: 60, unit: 'MPa' }
+    },
+    { id: 'pinned-pinned', name: 'Pinned-Pinned (K=1.0)', symbol: 'K=1.0', formula: 'Le = L', unit: '—', cat: 'endconditions',
+      desc: 'Both ends free to rotate but cannot translate. Buckled shape is a half-sine wave. Reference case.',
+      example: { problem: 'L=2.5 m, d=40 mm steel.', steps: ['λ=250 → Euler', 'Pcr ≈ 39.7 kN'], answer: 39.7, unit: 'kN' }
+    },
+    { id: 'fixed-free', name: 'Fixed-Free (K=2.0)', symbol: 'K=2.0', formula: 'Le = 2L', unit: '—', cat: 'endconditions',
+      desc: 'Cantilever — weakest buckling resistance. Le is twice actual length.',
+      example: { problem: 'Cantilever L=1.5 m, d=60 mm.', steps: ['Le=3000, λ=200', 'Pcr ≈ 139.4 kN'], answer: 139.4, unit: 'kN' }
+    },
+    { id: 'fixed-fixed', name: 'Fixed-Fixed (K=0.5)', symbol: 'K=0.5', formula: 'Le = 0.5L', unit: '—', cat: 'endconditions',
+      desc: 'Strongest buckling resistance — 4× the Pcr of pinned-pinned for same column.',
+      example: { problem: 'P-P Pcr=50, fix-fix?', steps: ['Ratio=4', 'New Pcr=200 kN'], answer: 200, unit: 'kN' }
+    },
+    { id: 'fixed-pinned', name: 'Fixed-Pinned (K=0.7)', symbol: 'K=0.7', formula: 'Le = 0.7L', unit: '—', cat: 'endconditions',
+      desc: 'Between pinned-pinned and fixed-fixed. Le ≈ 0.7L.',
+      example: { problem: 'L=2 m, I=5×10⁵.', steps: ['Le=1400', 'Pcr ≈ 503.5 kN'], answer: 503.5, unit: 'kN' }
+    },
+    { id: 'mat-table', name: 'Material Properties', symbol: 'E, σy', formula: 'E, σy', unit: 'MPa', cat: 'materials',
+      desc: 'Buckling depends on E (stiffness) and σy. Higher E = higher Euler load. Aluminum has lower E than steel.',
+      example: { problem: 'Steel vs Al at λ=120.', steps: ['Steel σcr=137.1 MPa', 'Al σcr=47.3 MPa'], answer: 137.1, unit: 'MPa' }
+    },
+    { id: 'fos', name: 'Factor of Safety', symbol: 'FOS', formula: 'FOS = Pcr / P', unit: '—', cat: 'design',
+      desc: 'Typical FOS: 2.0–3.0 for steel, 3.0–4.0 for timber. Accounts for imperfections.',
+      example: { problem: 'Pcr=180, P=60.', steps: ['FOS = 3.0'], answer: 3.0, unit: '' }
+    },
+    { id: 'allowable', name: 'Allowable Load', symbol: 'Pallow', formula: 'Pallow = Pcr / FOS', unit: 'kN', cat: 'design',
+      desc: 'Max safe service load. Use FOS = 2.0–3.0 for preliminary design.',
+      example: { problem: 'Pcr=240, FOS=2.5.', steps: ['Pallow = 96 kN'], answer: 96, unit: 'kN' }
+    },
+    { id: 'selection', name: 'Column Selection', symbol: '—', formula: 'Iterate Pcr/FOS ≥ P', unit: '—', cat: 'design',
+      desc: 'Determine load, pick section, calc λ, choose formula, compute Pcr, check FOS, iterate.',
+      example: { problem: 'Steel, 50 kN, L=2 m, P-P, FOS=2.5.', steps: ['Try d=55 mm', 'Pcr=221 kN > 125 ✓'], answer: 55, unit: 'mm' }
+    }
+  ];
+
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function randChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function r2(v) { return +v.toFixed(2); }
+  function r1(v) { return +v.toFixed(1); }
+
+  var PI = Math.PI;
+  var PI2 = PI * PI;
+
+  function solidCircleProps(d) {
+    return { I: PI * Math.pow(d, 4) / 64, A: PI * d * d / 4, r: d / 4 };
+  }
+
+  function calcBuckling(E, sy, K, L, I, A, rr) {
+    var Le = K * L;
+    var lambda = Le / rr;
+    var lambdaT = Math.sqrt(2 * PI2 * E / sy);
+    var sigCr, method;
+    if (lambda >= lambdaT) {
+      sigCr = PI2 * E / (lambda * lambda);
+      method = 'Euler';
+    } else {
+      sigCr = sy - (sy * sy / (4 * PI2 * E)) * lambda * lambda;
+      method = 'Johnson';
+    }
+    return { Le: Le, lambda: lambda, lambdaT: lambdaT, sigCr: sigCr, Pcr: sigCr * A, method: method };
+  }
+
+  var PROBLEM_GEN = [
+    function () {
+      var mat = randChoice(MATERIALS.slice(0, 3));
+      var d = randInt(3, 8) * 10;
+      var L = randInt(10, 30) * 100;
+      var p = solidCircleProps(d);
+      var b = calcBuckling(mat.E, mat.sy, 1.0, L, p.I, p.A, p.r);
+      var ans = r1(b.Pcr / 1000);
+      return { prompt: mat.name + ' column (E=' + mat.E + ' MPa, σy=' + mat.sy + ' MPa), L=' + (L/1000) + ' m, pinned-pinned, solid circle d=' + d + ' mm. Find Pcr (kN).',
+        steps: ['I = π×' + d + '⁴/64 = ' + r1(p.I), 'r = ' + r2(p.r) + ', λ = ' + r1(b.lambda),
+          b.method + ', σcr=' + r1(b.sigCr) + ' MPa', 'Pcr = ' + ans + ' kN'],
+        answer: ans, unit: 'kN' };
+    },
+    function () {
+      var ec = randChoice(END_CONDITIONS);
+      var L = randInt(10, 40) * 100;
+      var rr = randInt(8, 30);
+      var lambda = r1(ec.K * L / rr);
+      return { prompt: 'λ for ' + (L/1000) + ' m ' + ec.name.toLowerCase() + ' (K=' + ec.K + '), r=' + rr + ' mm?',
+        steps: ['Le=' + (ec.K * L), 'λ = ' + lambda], answer: lambda, unit: '' };
+    },
+    function () {
+      var ec = randChoice(END_CONDITIONS);
+      return { prompt: 'K for ' + ec.desc.toLowerCase() + '?', steps: ['K = ' + ec.K], answer: ec.K, unit: '' };
+    },
+    function () {
+      var mat = randChoice(MATERIALS.slice(0, 4));
+      var lambda = randInt(50, 200);
+      var lambdaT = r1(Math.sqrt(2 * PI2 * mat.E / mat.sy));
+      var ans = lambda >= lambdaT ? 1 : 0;
+      return { prompt: mat.name + ' with λ=' + lambda + '. Euler (1) or Johnson (0)?',
+        steps: ['λt = ' + lambdaT, ans ? 'Euler' : 'Johnson'], answer: ans, unit: '' };
+    },
+    function () {
+      var ec = randChoice(END_CONDITIONS);
+      var L = randInt(10, 50) * 100;
+      var Le = r1(ec.K * L);
+      return { prompt: 'L=' + (L/1000) + ' m, ' + ec.desc.toLowerCase() + ' (K=' + ec.K + '). Le (mm)?',
+        steps: ['Le = ' + Le], answer: Le, unit: 'mm' };
+    },
+    function () {
+      var mat = randChoice(MATERIALS.slice(0, 3));
+      var lambda = randInt(130, 250);
+      var sigCr = r1(PI2 * mat.E / (lambda * lambda));
+      return { prompt: 'Euler σcr for ' + mat.name + ' (E=' + mat.E + ') at λ=' + lambda + '?',
+        steps: ['σcr = ' + sigCr + ' MPa'], answer: sigCr, unit: 'MPa' };
+    },
+    function () {
+      var mat = MATERIALS[0];
+      var lambdaT = Math.sqrt(2 * PI2 * mat.E / mat.sy);
+      var lambda = randInt(40, Math.floor(lambdaT) - 5);
+      var sigCr = r1(mat.sy - (mat.sy * mat.sy / (4 * PI2 * mat.E)) * lambda * lambda);
+      return { prompt: 'Johnson σcr for Steel A36 at λ=' + lambda + '?',
+        steps: ['σcr = ' + sigCr + ' MPa'], answer: sigCr, unit: 'MPa' };
+    },
+    function () {
+      var d = randInt(2, 10) * 10;
+      var rr = r2(d / 4);
+      return { prompt: 'r for solid circle d=' + d + ' mm?', steps: ['r = d/4 = ' + rr], answer: rr, unit: 'mm' };
+    },
+    function () {
+      var Pcr = randInt(50, 500);
+      var P = randInt(20, Math.floor(Pcr * 0.8));
+      var fos = r2(Pcr / P);
+      return { prompt: 'Pcr=' + Pcr + ' kN, P=' + P + ' kN. FOS?', steps: ['FOS = ' + fos], answer: fos, unit: '' };
+    },
+    function () {
+      var ec2 = randChoice(END_CONDITIONS.slice(1));
+      var ratio = r2(1 / (ec2.K * ec2.K));
+      return { prompt: 'P-P → ' + ec2.name.toLowerCase() + '. Pcr ratio?',
+        steps: ['Ratio = 1/' + ec2.K + '² = ' + ratio], answer: ratio, unit: '' };
+    },
+    function () {
+      var mat = randChoice(MATERIALS);
+      var lambdaT = r1(Math.sqrt(2 * PI2 * mat.E / mat.sy));
+      return { prompt: 'λt for ' + mat.name + ' (E=' + mat.E + ', σy=' + mat.sy + ')?',
+        steps: ['λt = ' + lambdaT], answer: lambdaT, unit: '' };
+    },
+    function () {
+      var mat = MATERIALS[0];
+      var ec = randChoice(END_CONDITIONS);
+      var d = randInt(3, 7) * 10;
+      var L = randInt(15, 30) * 100;
+      var p = solidCircleProps(d);
+      var b = calcBuckling(mat.E, mat.sy, ec.K, L, p.I, p.A, p.r);
+      var ans = r1(b.Pcr / 1000);
+      return { prompt: 'Steel, ' + ec.name + ' (K=' + ec.K + '), L=' + (L/1000) + ' m, d=' + d + ' mm. Pcr?',
+        steps: ['Le=' + r1(ec.K * L), 'λ=' + r1(b.lambda), b.method, 'Pcr = ' + ans + ' kN'],
+        answer: ans, unit: 'kN' };
+    }
+  ];
+
+  function genQuizPool() {
+    var pool = [
+      { type: 'mcq', prompt: 'Which end condition gives the LOWEST critical buckling load?',
+        choices: ['Pinned-Pinned (K=1.0)', 'Fixed-Free (K=2.0)', 'Fixed-Fixed (K=0.5)', 'Fixed-Pinned (K=0.7)'],
+        correct: 1, explain: 'Fixed-Free (K=2.0) has the highest Le.' },
+      { type: 'mcq', prompt: 'K for fixed-fixed columns is:', choices: ['2.0','1.0','0.7','0.5'], correct: 3, explain: 'K = 0.5.' },
+      { type: 'mcq', prompt: 'λ = 150, λt = 125. Which formula?', choices: ['Johnson','Euler','Rankine','Secant'], correct: 1, explain: 'λ > λt → Euler.' },
+      { type: 'mcq', prompt: 'Euler\'s Pcr is proportional to:', choices: ['1/L','1/L²','L','L²'], correct: 1, explain: 'Pcr = π²EI/(KL)².' },
+      { type: 'mcq', prompt: 'Euler buckling depends on:', choices: ['σy','E','Both','UTS'], correct: 1, explain: 'Only E.' },
+      { type: 'mcq', prompt: 'r for solid circle of diameter d:', choices: ['d/2','d/4','d/8','d²/4'], correct: 1, explain: 'r = d/4.' },
+      { type: 'mcq', prompt: 'Johnson is used when:', choices: ['λ > λt','λ < λt','Always','Steel only'], correct: 1, explain: 'Intermediate columns.' },
+      { type: 'mcq', prompt: 'Doubling L of pinned-pinned changes Pcr by:', choices: ['0.5','0.25','2','4'], correct: 1, explain: 'Pcr ∝ 1/L².' }
+    ];
+    var mat = MATERIALS[0];
+    var d1 = 40, L1 = 2000;
+    var p1 = solidCircleProps(d1);
+    var b1 = calcBuckling(mat.E, mat.sy, 1.0, L1, p1.I, p1.A, p1.r);
+    pool.push({ type: 'numeric', prompt: 'Pcr (kN) for Steel A36 P-P, L=2 m, d=40 mm?',
+      answer: r1(b1.Pcr / 1000), unit: 'kN', tolerance: 0.02, explain: b1.method + ', Pcr=' + r1(b1.Pcr / 1000) + ' kN' });
+    pool.push({ type: 'numeric', prompt: 'λ for 3 m cantilever (K=2.0), r=15 mm?', answer: 400, unit: '', tolerance: 0.01, explain: 'Le=6000, λ=400' });
+    pool.push({ type: 'numeric', prompt: 'λt for Al 6061 (E=69000, σy=276)?', answer: r1(Math.sqrt(2 * PI2 * 69000 / 276)), unit: '', tolerance: 0.02, explain: 'λt = ' + r1(Math.sqrt(2 * PI2 * 69000 / 276)) });
+    pool.push({ type: 'numeric', prompt: 'Euler σcr for E=200000 at λ=100?', answer: r1(PI2 * 200000 / 10000), unit: 'MPa', tolerance: 0.02, explain: 'σcr=' + r1(PI2 * 200000 / 10000) });
+    pool.push({ type: 'numeric', prompt: 'Pcr=300 kN, P=100 kN. FOS?', answer: 3.0, unit: '', tolerance: 0.01, explain: 'FOS=3' });
+    pool.push({ type: 'numeric', prompt: 'Fix-fix (K=0.5), L=4 m. Le (mm)?', answer: 2000, unit: 'mm', tolerance: 0.01, explain: 'Le=2000' });
+    return pool;
+  }
+
+  /* ================================================================
+     DOM + STATE
+     ================================================================ */
+  var canvas = document.getElementById('sim-canvas');
+  var ctx = canvas.getContext('2d');
+  function $(id) { return document.getElementById(id); }
+
+  var mode = 'simulate';
+  var matIdx = 0, endIdx = 0, csIdx = 0;
+  var colLength = 2000;
+  var dim1 = 50, dim2 = 30, dim3 = 0, dim4 = 0;
+  var appliedLoad = 0;
+  var animPhase = 0, animating = false;
+  var simRunning = false, simProgress = 0, simDone = false;
+  var showGrid = false, showDims = true, showLe = true, showCurve = true;
+
+  var pCorrect = 0, pTotal = 0, currentProblem = null, pAnswered = false;
+  var QUIZ_SIZE = 5;
+  var quizPool = [], quizSet = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+  var quizResults = [];
+  var exploreCat = 'fundamentals', exploreItem = null;
+
+  var undoStack = [], redoStack = [], UNDO_MAX = 50;
+
+  function snapState() {
+    return { mi: matIdx, ei: endIdx, ci: csIdx, L: colLength,
+             d1: dim1, d2: dim2, d3: dim3, d4: dim4, P: appliedLoad,
+             sg: showGrid, sd: showDims, sl: showLe, sc: showCurve, us: unitSys };
+  }
+  function loadState(s) {
+    if (!s) return;
+    matIdx = s.mi; endIdx = s.ei; csIdx = s.ci; colLength = s.L;
+    dim1 = s.d1; dim2 = s.d2; dim3 = s.d3; dim4 = s.d4; appliedLoad = s.P;
+    showGrid = !!s.sg;
+    showDims = s.sd === undefined ? true : !!s.sd;
+    showLe = s.sl === undefined ? true : !!s.sl;
+    showCurve = s.sc === undefined ? true : !!s.sc;
+    unitSys = s.us || 'SI';
+    syncAllUI();
+  }
+  function saveUndo() {
+    undoStack.push(JSON.stringify(snapState()));
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    redoStack = [];
+  }
+  function doUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(JSON.stringify(snapState()));
+    loadState(JSON.parse(undoStack.pop()));
+  }
+  function doRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(JSON.stringify(snapState()));
+    loadState(JSON.parse(redoStack.pop()));
+  }
+
+  /* ================================================================
+     CROSS-SECTION PROPS
+     ================================================================ */
+  function getCrossSectionProps() {
+    var d, D, di, b, h, bf, tf, H, tw, I, A, rr;
+    switch (csIdx) {
+      case 0:
+        d = dim1;
+        I = PI * Math.pow(d, 4) / 64; A = PI * d * d / 4; rr = d / 4;
+        break;
+      case 1:
+        D = dim1; di = dim2;
+        if (di >= D) di = D - 2;
+        I = PI * (Math.pow(D, 4) - Math.pow(di, 4)) / 64;
+        A = PI * (D * D - di * di) / 4;
+        rr = Math.sqrt(I / A);
+        break;
+      case 2:
+        b = dim1; h = dim2;
+        var bMin = Math.min(b, h), bMax = Math.max(b, h);
+        I = bMax * Math.pow(bMin, 3) / 12;
+        A = b * h;
+        rr = bMin / Math.sqrt(12);
+        break;
+      case 3:
+        bf = dim1; tf = dim2; H = dim3; tw = dim4;
+        if (H < 2 * tf + 4) H = 2 * tf + 4;
+        I = (2 * tf * Math.pow(bf, 3) + (H - 2 * tf) * Math.pow(tw, 3)) / 12;
+        A = 2 * bf * tf + (H - 2 * tf) * tw;
+        rr = Math.sqrt(I / A);
+        break;
+    }
+    return { I: I, A: A, r: rr };
+  }
+
+  function getCurrentBuckling() {
+    var mat = MATERIALS[matIdx];
+    var ec = END_CONDITIONS[endIdx];
+    var cs = getCrossSectionProps();
+    var b = calcBuckling(mat.E, mat.sy, ec.K, colLength, cs.I, cs.A, cs.r);
+    b.I = cs.I; b.A = cs.A; b.r = cs.r;
+    return b;
+  }
+
+  /* ================================================================
+     CANVAS — HiDPI resize
+     ================================================================ */
+  var LOGICAL_H_RATIO = 0.72;
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.parentElement.clientWidth - 16;
+    if (cssW <= 0) cssW = 600;
+    var cssH = Math.round(cssW * LOGICAL_H_RATIO);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    draw();
+  }
+
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.width / dpr;
+    var h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+    if (mode !== 'simulate') return;
+
+    var colAreaW = showCurve ? w * 0.55 : w * 0.95;
+    var plotAreaX = w * 0.6;
+    var plotAreaW = w * 0.37;
+    var colCx = colAreaW * 0.5;
+    var topY = 55;
+    var botY = h - 40;
+    var colH = botY - topY;
+
+    drawSceneBackground(w, h, colCx, (topY + botY) / 2, showCurve ? plotAreaX - 10 : 0);
+    if (showGrid) drawGrid(w, h);
+
+    var mat = MATERIALS[matIdx];
+    var ec = END_CONDITIONS[endIdx];
+    var b = getCurrentBuckling();
+    var Pcr = b.Pcr;
+
+    var effectiveLoad = 0;
+    if (simRunning) effectiveLoad = appliedLoad * simProgress;
+    if (simDone) effectiveLoad = appliedLoad;
+    var ratio = Pcr > 0 ? effectiveLoad / Pcr : 0;
+
+    drawColumn(colCx, topY, botY, colH, ec, mat, ratio, b, effectiveLoad);
+    if (showCurve) drawCurvePlot(plotAreaX, 30, plotAreaW, h - 60, mat, b, effectiveLoad, ratio);
+
+    if (simRunning || simDone) updateReadouts(b, ratio, effectiveLoad);
+    else updateLearnPanels(b, 0, 0);
+
+    if (simRunning && !simDone) {
+      drawHaloText('Applying load... ' + Math.round(simProgress * 100) + '%',
+        colAreaW * 0.5, 22, '#00e5ff',
+        'bold 14px "Segoe UI", system-ui, sans-serif', 'center');
+    }
+  }
+
+  function drawGrid(w, h) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(107,122,153,0.12)';
+    ctx.lineWidth = 1;
+    var step = 25;
+    for (var x = 0; x < w; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (var y = 0; y < h; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  /* ── Material / lighting helpers ───────────────────────────── */
+  function hexToRgb(hex) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h, 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  function shadeHex(hex, f) {
+    var c = hexToRgb(hex);
+    return 'rgb(' + Math.min(255, Math.round(c.r * f)) + ',' +
+      Math.min(255, Math.round(c.g * f)) + ',' + Math.min(255, Math.round(c.b * f)) + ')';
+  }
+  function contactShadow(cx, y, rx, ry, a) {
+    ctx.save();
+    var g = ctx.createRadialGradient(cx, y, 0, cx, y, rx);
+    g.addColorStop(0, 'rgba(0,0,0,' + a + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(cx, y, rx, ry, 0, 0, 2 * PI);
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawSceneBackground(w, h, glowX, glowY, clipRightX) {
+    var base = ctx.createLinearGradient(0, 0, 0, h);
+    base.addColorStop(0, '#10141d');
+    base.addColorStop(1, '#090c12');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    if (clipRightX) { ctx.beginPath(); ctx.rect(0, 0, clipRightX, h); ctx.clip(); }
+    var glow = ctx.createRadialGradient(glowX, glowY, 20, glowX, glowY, Math.max(w, h) * 0.55);
+    glow.addColorStop(0, 'rgba(0,229,255,0.09)');
+    glow.addColorStop(1, 'rgba(0,229,255,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  function drawColumn(cx, topY, botY, colH, ec, mat, ratio, b, effectiveLoad) {
+    var u = U();
+    var colW = Math.max(12, Math.min(40, dim1 * 0.4));
+    ctx.save();
+
+    if (showLe) {
+      var Le = b.Le;
+      var LeRatio = Le / colLength;
+      var leH = colH * Math.min(LeRatio, 2);
+      var leMid = (topY + botY) / 2;
+      var leTop, leBot;
+      if (endIdx === 1) { leBot = botY; leTop = botY - leH; }
+      else { leTop = leMid - leH / 2; leBot = leMid + leH / 2; }
+      var bx = cx - colW / 2 - 28;
+      ctx.strokeStyle = '#6b7a99';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(bx, leTop); ctx.lineTo(bx, leBot);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(bx - 4, leTop + 6); ctx.lineTo(bx, leTop); ctx.lineTo(bx + 4, leTop + 6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx - 4, leBot - 6); ctx.lineTo(bx, leBot); ctx.lineTo(bx + 4, leBot - 6);
+      ctx.stroke();
+      drawHaloText('Le=' + u.len.fromMM(Le).toFixed(u.len.digits) + ' ' + u.len.label,
+        bx, (leTop + leBot) / 2 - 4, '#9fb3d9', 'bold 11px "Segoe UI", system-ui, sans-serif', 'center');
+      drawHaloText('K=' + ec.K, bx, (leTop + leBot) / 2 + 10,
+        '#7dd3fc', 'bold 11px "Segoe UI", system-ui, sans-serif', 'center');
+    }
+
+    var maxDefl = colW * 2.5;
+    var deflection = 0;
+    if (ratio >= 1) {
+      deflection = Math.min((ratio - 1) * 2, 1) * maxDefl;
+      deflection *= (0.7 + 0.3 * Math.sin(animPhase));
+    } else if (ratio > 0.8) {
+      deflection = (ratio - 0.8) / 0.2 * maxDefl * 0.15;
+    }
+
+    /* faint ghost of the undeformed centerline, for before/after reference */
+    ctx.strokeStyle = 'rgba(107,122,153,0.2)';
+    ctx.lineWidth = colW; ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(cx, topY); ctx.lineTo(cx, botY); ctx.stroke();
+
+    contactShadow(cx, botY + 3, colW * 1.7, 6, 0.4);
+
+    /* sample the (possibly buckled) centerline once; reused for the
+       silhouette fill, its outline, and the specular streak */
+    var N = 50, leftPts = [], rightPts = [], centerPts = [];
+    for (var i = 0; i <= N; i++) {
+      var t = i / N;
+      var dx = deflection < 0.5 ? 0 : getDeflectionX(t, ec.id, deflection);
+      var yy = botY - t * colH;
+      leftPts.push(cx - colW / 2 + dx, yy);
+      rightPts.push(cx + colW / 2 + dx, yy);
+      centerPts.push(cx + dx, yy);
+    }
+
+    /* cylindrical material gradient: dark edge → bright band → mid → dark edge */
+    var matGrad = ctx.createLinearGradient(cx - colW / 2, 0, cx + colW / 2, 0);
+    matGrad.addColorStop(0.00, shadeHex(mat.color, 0.55));
+    matGrad.addColorStop(0.28, shadeHex(mat.color, 1.35));
+    matGrad.addColorStop(0.55, shadeHex(mat.color, 0.95));
+    matGrad.addColorStop(1.00, shadeHex(mat.color, 0.5));
+    ctx.fillStyle = matGrad;
+    ctx.beginPath();
+    ctx.moveTo(leftPts[0], leftPts[1]);
+    for (var a = 2; a < leftPts.length; a += 2) ctx.lineTo(leftPts[a], leftPts[a + 1]);
+    for (var b2 = rightPts.length - 2; b2 >= 0; b2 -= 2) ctx.lineTo(rightPts[b2], rightPts[b2 + 1]);
+    ctx.closePath();
+    ctx.fill();
+
+    /* dark rim outline along both edges for definition */
+    ctx.strokeStyle = shadeHex(mat.color, 0.4);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(leftPts[0], leftPts[1]);
+    for (var c = 2; c < leftPts.length; c += 2) ctx.lineTo(leftPts[c], leftPts[c + 1]);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rightPts[0], rightPts[1]);
+    for (var d = 2; d < rightPts.length; d += 2) ctx.lineTo(rightPts[d], rightPts[d + 1]);
+    ctx.stroke();
+
+    /* specular highlight streak, offset toward the light */
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = Math.max(1.5, colW * 0.12);
+    ctx.beginPath();
+    for (var e = 0; e < centerPts.length; e += 2) {
+      var px = centerPts[e] - colW * 0.22, py = centerPts[e + 1];
+      if (e === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    drawSupports(cx, topY, botY, colW, ec);
+
+    var drawLoad = (typeof effectiveLoad !== 'undefined') ? effectiveLoad : appliedLoad;
+    if (drawLoad > 0) {
+      var arrowLen = 20 + Math.min(ratio, 2) * 15;
+      var arrowTopY = topY - arrowLen - 5;
+      var topDx = deflection < 0.5 ? 0 : getDeflectionX(1, ec.id, deflection);
+      var arrowX = cx + topDx;
+      ctx.strokeStyle = ratio < 0.8 ? '#3ddc84' : ratio < 1.0 ? '#f5c842' : '#ff5555';
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(arrowX, arrowTopY); ctx.lineTo(arrowX, topY - 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(arrowX, topY); ctx.lineTo(arrowX - 6, topY - 10); ctx.lineTo(arrowX + 6, topY - 10);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+      drawHaloText('P=' + u.force.fromN(drawLoad).toFixed(u.force.digits) + ' ' + u.force.label,
+        arrowX, arrowTopY - 4, ctx.fillStyle, 'bold 13px "Segoe UI", system-ui, sans-serif', 'center');
+    }
+
+    var statusColor, statusText;
+    if (ratio < 0.8) { statusColor = '#3ddc84'; statusText = 'SAFE'; }
+    else if (ratio < 1.0) { statusColor = '#f5c842'; statusText = 'NEAR CRITICAL'; }
+    else { statusColor = '#ff5555'; statusText = 'BUCKLED'; }
+    drawHaloText(statusText, cx, botY + 28, statusColor,
+      'bold 14px "Segoe UI", system-ui, sans-serif', 'center');
+
+    if (showDims) {
+      var lx = cx + colW / 2 + 18;
+      ctx.strokeStyle = '#6b7a99';
+      ctx.lineWidth = 1; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(lx, topY); ctx.lineTo(lx, botY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lx - 3, topY + 5); ctx.lineTo(lx, topY); ctx.lineTo(lx + 3, topY + 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lx - 3, botY - 5); ctx.lineTo(lx, botY); ctx.lineTo(lx + 3, botY - 5); ctx.stroke();
+      drawHaloText('L=' + u.len.fromMM(colLength).toFixed(u.len.digits) + ' ' + u.len.label,
+        lx + 4, (topY + botY) / 2 + 4, '#9fb3d9',
+        'bold 11px "Segoe UI", system-ui, sans-serif', 'left');
+    }
+
+    ctx.restore();
+  }
+
+  /* Halo text helper — dark stroke around bright fill so labels stay
+     legible against any background (column body, plot fill, gradients). */
+  function drawHaloText(txt, x, y, color, font, align, halo) {
+    ctx.font = font;
+    if (align) ctx.textAlign = align;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = halo || 'rgba(8,11,20,0.85)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(txt, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(txt, x, y);
+  }
+
+  /* Classical Euler first-mode buckled shapes (Timoshenko, Theory of Elastic
+     Stability). t=0 at the base support, t=1 at the top. Each must satisfy
+     the actual boundary conditions: zero deflection at every support, AND
+     zero SLOPE at every fixed (moment-resisting) support. */
+  var FIXPIN_NORM = 4 / (3 * Math.sqrt(3)); /* normalizes fix-pin peak to 1.0 */
+  function getDeflectionX(t, endId, maxDefl) {
+    switch (endId) {
+      case 'pin-pin':  return maxDefl * Math.sin(PI * t);
+      case 'fix-free': return maxDefl * (1 - Math.cos(PI * t / 2));
+      case 'fix-fix':  return maxDefl * 0.5 * (1 - Math.cos(2 * PI * t));
+      case 'fix-pin':  return maxDefl * FIXPIN_NORM * (Math.sin(PI * t) - 0.5 * Math.sin(2 * PI * t));
+      default: return maxDefl * Math.sin(PI * t);
+    }
+  }
+
+  function drawSupports(cx, topY, botY, colW, ec) {
+    var sw = colW * 1.5 + 20;
+    if (ec.id === 'pin-pin') drawPinSupport(cx, botY, sw, false);
+    else drawFixedSupport(cx, botY, sw, false);
+    if (ec.id === 'pin-pin') drawPinSupport(cx, topY, sw, true);
+    else if (ec.id === 'fix-free') {
+      ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, topY, 4, 0, 2 * PI); ctx.stroke();
+    } else if (ec.id === 'fix-fix') drawFixedSupport(cx, topY, sw, true);
+    else if (ec.id === 'fix-pin') drawPinSupport(cx, topY, sw, true);
+  }
+
+  function drawPinSupport(cx, y, sw, flip) {
+    var dir = flip ? -1 : 1;
+    ctx.strokeStyle = '#ab47bc';
+    ctx.fillStyle = 'rgba(171,71,188,0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.lineTo(cx - sw / 2, y + dir * 16);
+    ctx.lineTo(cx + sw / 2, y + dir * 16);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - sw / 2 - 4, y + dir * 16);
+    ctx.lineTo(cx + sw / 2 + 4, y + dir * 16);
+    ctx.stroke();
+  }
+
+  function drawFixedSupport(cx, y, sw, flip) {
+    var dir = flip ? -1 : 1;
+    ctx.strokeStyle = '#ab47bc'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - sw / 2 - 6, y); ctx.lineTo(cx + sw / 2 + 6, y);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    var hatchW = sw + 12;
+    var startX = cx - hatchW / 2;
+    for (var i = 0; i < 8; i++) {
+      var hx = startX + i * hatchW / 7;
+      ctx.beginPath(); ctx.moveTo(hx, y); ctx.lineTo(hx - 5, y + dir * 8); ctx.stroke();
+    }
+  }
+
+  function drawCurvePlot(px, py, pw, ph, mat, b, effectiveLoad, ratio) {
+    var u = U();
+    ctx.save();
+    var cardGrad = ctx.createLinearGradient(0, py, 0, py + ph);
+    cardGrad.addColorStop(0, 'rgba(19,24,36,0.72)');
+    cardGrad.addColorStop(1, 'rgba(10,13,20,0.72)');
+    ctx.fillStyle = cardGrad;
+    ctx.strokeStyle = '#2a3050';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(px, py, pw, ph, 8);
+    else ctx.rect(px, py, pw, ph);
+    ctx.fill(); ctx.stroke();
+
+    var pad = 35;
+    var plotX = px + pad + 5;
+    var plotY = py + pad - 5;
+    var plotW = pw - pad - 20;
+    var plotH = ph - pad - 25;
+
+    ctx.strokeStyle = '#6b7a99'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(plotX, plotY); ctx.lineTo(plotX, plotY + plotH); ctx.lineTo(plotX + plotW, plotY + plotH);
+    ctx.stroke();
+
+    drawHaloText('λ (slenderness)', plotX + plotW / 2, plotY + plotH + 18,
+      '#b6c3e0', 'bold 10px "Segoe UI", system-ui, sans-serif', 'center');
+    ctx.save();
+    ctx.translate(px + 10, plotY + plotH / 2);
+    ctx.rotate(-PI / 2);
+    drawHaloText('σcr (' + u.stress.label + ')', 0, 0,
+      '#b6c3e0', 'bold 10px "Segoe UI", system-ui, sans-serif', 'center');
+    ctx.restore();
+
+    drawHaloText('Euler-Johnson Curve', px + pw / 2, py + 14,
+      '#ffffff', 'bold 11px "Segoe UI", system-ui, sans-serif', 'center');
+
+    var maxLambda = 250;
+    var lambdaT = b.lambdaT;
+    var maxSigmaMPa = mat.sy * 1.1;
+    function xScale(lam) { return plotX + (lam / maxLambda) * plotW; }
+    function yScale(sig) { return plotY + plotH - (sig / maxSigmaMPa) * plotH; }
+
+    ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    var started = false;
+    for (var lam = 0; lam <= Math.min(lambdaT, maxLambda); lam += 2) {
+      var sigJ = mat.sy - (mat.sy * mat.sy / (4 * PI2 * mat.E)) * lam * lam;
+      if (!started) { ctx.moveTo(xScale(lam), yScale(sigJ)); started = true; }
+      else ctx.lineTo(xScale(lam), yScale(sigJ));
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = '#00e5ff';
+    ctx.beginPath();
+    started = false;
+    for (var lam2 = Math.max(lambdaT, 10); lam2 <= maxLambda; lam2 += 2) {
+      var sigE = PI2 * mat.E / (lam2 * lam2);
+      if (sigE > maxSigmaMPa) continue;
+      if (!started) { ctx.moveTo(xScale(lam2), yScale(sigE)); started = true; }
+      else ctx.lineTo(xScale(lam2), yScale(sigE));
+    }
+    ctx.stroke();
+
+    if (lambdaT < maxLambda) {
+      ctx.strokeStyle = '#6b7a99';
+      ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(xScale(lambdaT), plotY); ctx.lineTo(xScale(lambdaT), plotY + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      drawHaloText('λt=' + Math.round(lambdaT), xScale(lambdaT), plotY + plotH - 4,
+        '#c084fc', 'bold 9px "Segoe UI", system-ui, sans-serif', 'center');
+    }
+
+    ctx.strokeStyle = 'rgba(255,85,85,0.4)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(plotX, yScale(mat.sy)); ctx.lineTo(plotX + plotW, yScale(mat.sy));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawHaloText('σy=' + u.stress.fromMPa(mat.sy).toFixed(u.stress.digits),
+      plotX + plotW - 4, yScale(mat.sy) - 4,
+      '#ff7b7b', 'bold 9px "Segoe UI", system-ui, sans-serif', 'right');
+
+    /* ─── Operating point (σcr at this column's λ) ─── */
+    var simActive = simRunning || simDone;
+    if (b.lambda > 0 && b.lambda <= maxLambda && b.sigCr <= maxSigmaMPa) {
+      var dotX = xScale(b.lambda);
+      var dotY = yScale(b.sigCr);
+      if (!simActive) {
+        /* Pre-sim: muted ring marker only */
+        ctx.strokeStyle = 'rgba(139,157,195,0.55)';
+        ctx.fillStyle = 'rgba(139,157,195,0.15)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(dotX, dotY, 5, 0, 2 * PI);
+        ctx.fill(); ctx.stroke();
+        var pLx = dotX + 8;
+        if (pLx + 70 > plotX + plotW) pLx = dotX - 78;
+        drawHaloText('σcr point', pLx, dotY - 4, '#cbd5e1',
+          'bold 10px "Segoe UI", system-ui, sans-serif', 'left');
+        drawHaloText('(λ=' + Math.round(b.lambda) + ')', pLx, dotY + 8, '#94a3b8',
+          '9px "Segoe UI", system-ui, sans-serif', 'left');
+      } else {
+        /* During / after sim: lit dot with pulse if buckled */
+        var baseColor = b.method === 'Euler' ? '#00e5ff' : '#f5c842';
+        var pulse = (ratio >= 1) ? (5 + 3 * Math.abs(Math.sin(animPhase * 2))) : 5;
+        if (ratio >= 1) {
+          /* Glow halo when buckled */
+          var grd = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, pulse + 8);
+          grd.addColorStop(0, 'rgba(255,85,85,0.55)');
+          grd.addColorStop(1, 'rgba(255,85,85,0)');
+          ctx.fillStyle = grd;
+          ctx.beginPath(); ctx.arc(dotX, dotY, pulse + 8, 0, 2 * PI); ctx.fill();
+        }
+        ctx.fillStyle = baseColor;
+        ctx.beginPath(); ctx.arc(dotX, dotY, pulse, 0, 2 * PI); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+        var labelX = dotX + 8;
+        if (labelX + 60 > plotX + plotW) labelX = dotX - 70;
+        drawHaloText('λ=' + Math.round(b.lambda), labelX, dotY - 6,
+          '#ffffff', 'bold 10px "Segoe UI", system-ui, sans-serif', 'left');
+        drawHaloText('σcr=' + u.stress.fromMPa(b.sigCr).toFixed(1), labelX, dotY + 7,
+          '#ffffff', 'bold 10px "Segoe UI", system-ui, sans-serif', 'left');
+      }
+    }
+
+    /* ─── Animated applied-stress line (only during/after sim) ─── */
+    if (simActive && b.A > 0) {
+      var appliedSig = effectiveLoad / b.A; /* MPa */
+      if (appliedSig > 0) {
+        var clipSig = Math.min(appliedSig, maxSigmaMPa);
+        var lineY = yScale(clipSig);
+        var lineColor = ratio < 0.8 ? '#3ddc84' : ratio < 1.0 ? '#f5c842' : '#ff5555';
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(plotX, lineY); ctx.lineTo(plotX + plotW, lineY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        /* Arrow tip on right */
+        ctx.fillStyle = lineColor;
+        ctx.beginPath();
+        ctx.moveTo(plotX + plotW, lineY);
+        ctx.lineTo(plotX + plotW - 7, lineY - 4);
+        ctx.lineTo(plotX + plotW - 7, lineY + 4);
+        ctx.closePath();
+        ctx.fill();
+        /* Label */
+        var sigDisp = u.stress.fromMPa(appliedSig).toFixed(u.stress.digits);
+        var labY = lineY - 5;
+        if (labY < plotY + 34) labY = Math.max(lineY + 12, plotY + 34); /* clear the legend block, esp. at narrow widths */
+        drawHaloText('σ_applied = ' + sigDisp, plotX + plotW - 12, labY,
+          lineColor, 'bold 10px "Segoe UI", system-ui, sans-serif', 'right');
+        if (appliedSig > maxSigmaMPa) {
+          drawHaloText('↑ off chart', plotX + plotW - 12, lineY + 22,
+            lineColor, 'bold 9px "Segoe UI", system-ui, sans-serif', 'right');
+        }
+      }
+    }
+
+    /* Legend with halo */
+    var legX = plotX + 6;
+    var legY = plotY + 12;
+    ctx.fillStyle = '#f5c842';
+    ctx.fillRect(legX, legY - 4, 14, 3);
+    drawHaloText('Johnson', legX + 18, legY, '#f5c842',
+      'bold 9px "Segoe UI", system-ui, sans-serif', 'left');
+    ctx.fillStyle = '#00e5ff';
+    ctx.fillRect(legX, legY + 9, 14, 3);
+    drawHaloText('Euler', legX + 18, legY + 13, '#00e5ff',
+      'bold 9px "Segoe UI", system-ui, sans-serif', 'left');
+
+    ctx.strokeStyle = '#8b9dc3';
+    for (var tick = 0; tick <= maxLambda; tick += 50) {
+      var tx = xScale(tick);
+      ctx.beginPath(); ctx.moveTo(tx, plotY + plotH); ctx.lineTo(tx, plotY + plotH + 3); ctx.stroke();
+      drawHaloText(tick, tx, plotY + plotH + 12, '#b6c3e0',
+        'bold 9px "Courier New", monospace', 'center');
+    }
+    var sigStep = Math.ceil(maxSigmaMPa / 5 / 50) * 50;
+    for (var stck = 0; stck <= maxSigmaMPa; stck += sigStep) {
+      var ty = yScale(stck);
+      if (ty < plotY - 5) continue;
+      ctx.beginPath(); ctx.moveTo(plotX - 3, ty); ctx.lineTo(plotX, ty); ctx.stroke();
+      drawHaloText(u.stress.fromMPa(stck).toFixed(0), plotX - 5, ty + 3, '#b6c3e0',
+        'bold 9px "Courier New", monospace', 'right');
+    }
+
+    ctx.restore();
+  }
+
+  function updateReadouts(b, ratio, effectiveLoad) {
+    var u = U();
+    $('r-pcr').textContent = u.force.fromN(b.Pcr).toFixed(u.force.digits);
+    $('r-pcr-unit').textContent = ' ' + u.force.label;
+    $('r-sigcr').textContent = u.stress.fromMPa(b.sigCr).toFixed(u.stress.digits);
+    $('r-sigcr-unit').textContent = ' ' + u.stress.label;
+    $('r-lambda').textContent = r1(b.lambda);
+    $('r-le').textContent = u.len.fromMM(b.Le).toFixed(u.len.digits);
+    $('r-le-unit').textContent = ' ' + u.len.label;
+    $('r-r').textContent = u.len.fromMM(b.r).toFixed(u.len.digits);
+    $('r-r-unit').textContent = ' ' + u.len.label;
+
+    var methodEl = $('r-method');
+    methodEl.textContent = b.method;
+    methodEl.className = 'method-badge ' + b.method.toLowerCase();
+
+    var drawLoad = (typeof effectiveLoad !== 'undefined') ? effectiveLoad : appliedLoad;
+    var fosEl = $('r-fos');
+    if (drawLoad > 0) {
+      var fos = b.Pcr / drawLoad;
+      fosEl.textContent = r2(fos);
+      fosEl.style.color = fos >= 2 ? '#3ddc84' : fos >= 1 ? '#f5c842' : '#ff5555';
+    } else { fosEl.textContent = '—'; fosEl.style.color = ''; }
+
+    var pct = Math.min(ratio * 100, 100);
+    var barFill = $('load-bar-fill');
+    barFill.style.width = pct + '%';
+    barFill.className = 'load-bar-fill ' + (ratio < 0.8 ? 'safe' : ratio < 1 ? 'warn' : 'danger');
+    $('load-bar-pct').textContent = r1(ratio * 100) + '% of Pcr';
+    if (ratio >= 1) $('load-bar-pct').textContent += ' — BUCKLED!';
+
+    updateLearnPanels(b, drawLoad, ratio);
+  }
+
+  /* ================================================================
+     LEARNING PANELS — Live equations
+     ================================================================ */
+  function updateLearnPanels(b, drawLoad, ratio) {
+    var mat = MATERIALS[matIdx];
+    var ec = END_CONDITIONS[endIdx];
+    var eq = $('lp-eq-body');
+    if (!eq) return;
+
+    var html = '';
+    html += '<div class="eq-block"><div class="eq-title">Effective Length</div>';
+    html += '<div class="eq-math">\\[ L_e = K \\cdot L = ' + ec.K + ' \\times ' + colLength + ' = ' + r1(b.Le) + '\\ \\mathrm{mm} \\]</div></div>';
+
+    html += '<div class="eq-block"><div class="eq-title">Slenderness Ratio</div>';
+    html += '<div class="eq-math">\\[ \\lambda = \\dfrac{L_e}{r} = \\dfrac{' + r1(b.Le) + '}{' + r2(b.r) + '} = ' + r1(b.lambda) + ' \\]</div></div>';
+
+    html += '<div class="eq-block"><div class="eq-title">Transition Slenderness</div>';
+    html += '<div class="eq-math">\\[ \\lambda_t = \\sqrt{\\dfrac{2\\pi^2 E}{\\sigma_y}} = ' + r1(b.lambdaT) + ' \\]</div></div>';
+
+    html += '<div class="eq-block"><div class="eq-title">Critical Stress (' + b.method + ')</div>';
+    if (b.method === 'Euler') {
+      html += '<div class="eq-math">\\[ \\sigma_{cr} = \\dfrac{\\pi^2 E}{\\lambda^2} = ' + r1(b.sigCr) + '\\ \\mathrm{MPa} \\]</div></div>';
+    } else {
+      html += '<div class="eq-math">\\[ \\sigma_{cr} = \\sigma_y - \\dfrac{\\sigma_y^2}{4\\pi^2 E}\\lambda^2 = ' + r1(b.sigCr) + '\\ \\mathrm{MPa} \\]</div></div>';
+    }
+
+    html += '<div class="eq-block"><div class="eq-title">Critical Buckling Load</div>';
+    html += '<div class="eq-math">\\[ P_{cr} = \\sigma_{cr} \\cdot A = ' + r1(b.Pcr) + '\\ \\mathrm{N} \\]</div></div>';
+
+    if (drawLoad > 0) {
+      var fos = b.Pcr / drawLoad;
+      html += '<div class="eq-block"><div class="eq-title">Factor of Safety</div>';
+      html += '<div class="eq-math">\\[ FOS = \\dfrac{P_{cr}}{P} = ' + r2(fos) + ' \\]</div></div>';
+    }
+
+    eq.innerHTML = html;
+    if (window.renderMathInElement) {
+      try { window.renderMathInElement(eq, { delimiters: [{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}], throwOnError: false }); } catch (e) {}
+    }
+
+    var coach = $('lp-coach-body');
+    if (coach) {
+      var ins = [];
+      if (b.method === 'Euler') ins.push('• <strong>Long column</strong> — fails by elastic buckling. Yielding is not the limit.');
+      else ins.push('• <strong>Intermediate column</strong> — inelastic buckling (Johnson zone). Yielding matters.');
+      if (drawLoad > 0) {
+        var fos2 = b.Pcr / drawLoad;
+        if (fos2 < 1) ins.push('• <strong style="color:#ff5555">BUCKLED.</strong> Reduce load or increase section.');
+        else if (fos2 < 2) ins.push('• FOS = ' + r2(fos2) + '. Below typical safe range 2.0–3.0.');
+        else ins.push('• FOS = ' + r2(fos2) + '. Within safe design range.');
+      }
+      ins.push('• Doubling L would change Pcr to <strong>' + r1(b.Pcr / 4000) + ' kN</strong> (1/4).');
+      ins.push('• Switching to fixed-fixed (K=0.5): Pcr × <strong>' + r2(Math.pow(ec.K / 0.5, 2)) + '</strong>.');
+      coach.innerHTML = ins.join('<br>');
+    }
+  }
+
+  /* ================================================================
+     SLIDER + STEPPER SETUP
+     ================================================================ */
+  /* Keeps each slider's filled-progress track (--pct, webkit/others) in sync
+     with its current value. Firefox instead uses the native ::-moz-range-progress
+     pseudo-element and ignores --pct entirely. */
+  function refreshSliderFill(el) {
+    if (!el) return;
+    var min = +el.min || 0, max = +el.max || 100, val = +el.value;
+    var pct = max > min ? (val - min) / (max - min) * 100 : 0;
+    el.style.setProperty('--pct', pct + '%');
+  }
+  function refreshAllSliderFills() {
+    document.querySelectorAll('.sim-slider').forEach(refreshSliderFill);
+  }
+  document.addEventListener('input', function (e) {
+    if (e.target.classList && e.target.classList.contains('sim-slider')) refreshSliderFill(e.target);
+  });
+
+  function setupDimSliders() {
+    var row1 = $('dim-row-1');
+    var row2 = $('dim-row-2');
+    row2.style.display = 'none';
+    switch (csIdx) {
+      case 0:
+        row1.innerHTML = makeSlider('dim1', 'Diameter (d)', 10, 300, dim1);
+        break;
+      case 1:
+        row1.innerHTML = makeSlider('dim1', 'Outer Dia (D)', 20, 300, dim1);
+        row2.style.display = '';
+        row2.innerHTML = makeSlider('dim2', 'Inner Dia (di)', 5, 290, dim2);
+        break;
+      case 2:
+        row1.innerHTML = makeSlider('dim1', 'Width (b)', 10, 300, dim1);
+        row2.style.display = '';
+        row2.innerHTML = makeSlider('dim2', 'Height (h)', 10, 300, dim2);
+        break;
+      case 3:
+        dim1 = dim1 || 80; dim2 = dim2 || 10; dim3 = dim3 || 100; dim4 = dim4 || 6;
+        row1.innerHTML = makeSlider('dim1', 'Flange bf', 30, 400, dim1) + makeSlider('dim2', 'Flange tf', 4, 30, dim2);
+        row2.style.display = '';
+        row2.innerHTML = makeSlider('dim3', 'Height H', 40, 500, dim3) + makeSlider('dim4', 'Web tw', 3, 30, dim4);
+        break;
+    }
+    bindDimSliders();
+    syncDimUnitDisplay();
+    refreshAllSliderFills();
+  }
+
+  function makeSlider(id, label, min, max, val) {
+    return '<div class="sim-slider-group">' +
+      '<span class="sim-slider-label">' + label + '</span>' +
+      '<input class="sim-slider" id="' + id + '-slider" type="range" min="' + min + '" max="' + max + '" step="0.5" value="' + val + '">' +
+      '<input class="sim-num" id="' + id + '-num" type="number" step="0.1" value="' + val + '">' +
+      '<span class="sim-slider-unit" id="' + id + '-unit">mm</span></div>';
+  }
+
+  function bindDimSliders() {
+    ['dim1', 'dim2', 'dim3', 'dim4'].forEach(function (key) {
+      var sl = $(key + '-slider');
+      var num = $(key + '-num');
+      if (!sl) return;
+      sl.addEventListener('change', function () { saveUndo(); });
+      sl.addEventListener('input', function () {
+        var v = +this.value;
+        setDim(key, v);
+        if (num) num.value = U().len.fromMM(v).toFixed(U().len.digits);
+        updateLoadSliderMax();
+        drawPreview();
+      });
+      if (num) {
+        num.addEventListener('change', function () {
+          saveUndo();
+          var u = U();
+          var v = u.len.toMM(+this.value);
+          if (isNaN(v) || v <= 0) return;
+          setDim(key, v);
+          sl.value = v;
+          refreshSliderFill(sl);
+          this.value = u.len.fromMM(v).toFixed(u.len.digits);
+          updateLoadSliderMax();
+          drawPreview();
+        });
+      }
+    });
+  }
+
+  function setDim(key, v) {
+    if (key === 'dim1') dim1 = v;
+    else if (key === 'dim2') dim2 = v;
+    else if (key === 'dim3') dim3 = v;
+    else if (key === 'dim4') dim4 = v;
+    if (csIdx === 1 && dim2 >= dim1) {
+      dim2 = dim1 - 2;
+      var s2 = $('dim2-slider'); if (s2) { s2.value = dim2; refreshSliderFill(s2); }
+      var n2 = $('dim2-num'); if (n2) n2.value = U().len.fromMM(dim2).toFixed(U().len.digits);
+    }
+  }
+
+  function syncDimUnitDisplay() {
+    var u = U();
+    ['dim1', 'dim2', 'dim3', 'dim4'].forEach(function (k) {
+      var unit = $(k + '-unit'); if (unit) unit.textContent = u.len.label;
+      var num = $(k + '-num'); var sl = $(k + '-slider');
+      if (!num || !sl) return;
+      num.value = u.len.fromMM(+sl.value).toFixed(u.len.digits);
+      num.step = isImp() ? 0.01 : 0.1;
+    });
+    var lblL = $('length-val'); if (lblL) lblL.textContent = u.len.fromMM(colLength).toFixed(u.len.digits) + ' ' + u.len.label;
+    var lblP = $('load-val'); if (lblP) lblP.textContent = u.force.fromN(appliedLoad).toFixed(u.force.digits) + ' ' + u.force.label;
+    var nL = $('length-num'); if (nL) nL.value = u.len.fromMM(colLength).toFixed(u.len.digits);
+    var nP = $('load-num'); if (nP) nP.value = u.force.fromN(appliedLoad).toFixed(u.force.digits);
+    var ul = $('length-unit'); if (ul) ul.textContent = u.len.label;
+    var up = $('load-unit'); if (up) up.textContent = u.force.label;
+    /* The readout-card captions live in updateReadouts(), which only runs once
+       a simulation has started — so before the first run they kept the SI
+       units from the markup. Keep them in step with the toggle regardless. */
+    var caps = [['r-pcr-unit', u.force.label], ['r-sigcr-unit', u.stress.label],
+                ['r-le-unit', u.len.label], ['r-r-unit', u.len.label]];
+    caps.forEach(function (c) { var e = $(c[0]); if (e) e.textContent = ' ' + c[1]; });
+  }
+
+  function updateLoadSliderMax() {
+    var b = getCurrentBuckling();
+    var loadSlider = $('load-slider');
+    loadSlider.max = 5000000;
+    if (appliedLoad > +loadSlider.max) { appliedLoad = +loadSlider.max; loadSlider.value = appliedLoad; }
+    refreshSliderFill(loadSlider);
+    var u = U();
+    $('load-val').textContent = u.force.fromN(appliedLoad).toFixed(u.force.digits) + ' ' + u.force.label;
+    var ln = $('load-num'); if (ln) ln.value = u.force.fromN(appliedLoad).toFixed(u.force.digits);
+  }
+
+  /* ================================================================
+     ANIMATION + RUN/RESET
+     ================================================================ */
+  function animate() {
+    if (!animating) return;
+    if (simRunning && !simDone) {
+      simProgress += 0.012;
+      if (simProgress >= 1) { simProgress = 1; simDone = true; onSimComplete(); }
+    }
+    if (simDone) {
+      var b = getCurrentBuckling();
+      var ratio = b.Pcr > 0 ? appliedLoad / b.Pcr : 0;
+      if (ratio >= 0.8) { animPhase += 0.04; if (animPhase > 2 * PI) animPhase -= 2 * PI; }
+    }
+    draw();
+    requestAnimationFrame(animate);
+  }
+  function startAnim() { if (!animating) { animating = true; animate(); } }
+  function stopAnim() { animating = false; }
+
+  function runSimulation() {
+    if (appliedLoad <= 0) {
+      $('sim-hint').textContent = '⚠ Set Applied Load > 0 before running!';
+      $('sim-hint').style.color = '#ff5555';
+      return;
+    }
+    simRunning = true; simDone = false; simProgress = 0; animPhase = 0;
+    $('run-sim-btn').disabled = true;
+    $('run-sim-btn').style.display = 'none';
+    $('reset-sim-btn').style.display = '';
+    $('sim-hint').textContent = 'Simulation in progress...';
+    $('sim-hint').style.color = '#00e5ff';
+    $('readout-row').style.display = '';
+    $('load-bar-wrap').style.display = '';
+    setControlsDisabled(true);
+    startAnim();
+  }
+
+  function onSimComplete() {
+    var b = getCurrentBuckling();
+    var ratio = b.Pcr > 0 ? appliedLoad / b.Pcr : 0;
+    var u = U();
+    var banner = $('verdict-banner');
+    banner.style.display = '';
+    var pcrDisp = u.force.fromN(b.Pcr).toFixed(u.force.digits) + ' ' + u.force.label;
+    var loadDisp = u.force.fromN(appliedLoad).toFixed(u.force.digits) + ' ' + u.force.label;
+    if (ratio < 0.8) {
+      banner.className = 'verdict-banner safe';
+      $('verdict-icon').textContent = '✓';
+      $('verdict-text').textContent = 'COLUMN IS SAFE — Load = ' + r1(ratio * 100) + '% of Pcr (FOS = ' + r2(1 / ratio) + ')';
+    } else if (ratio < 1.0) {
+      banner.className = 'verdict-banner warning';
+      $('verdict-icon').textContent = '⚠';
+      $('verdict-text').textContent = 'NEAR CRITICAL — Load = ' + r1(ratio * 100) + '% of Pcr.';
+    } else {
+      banner.className = 'verdict-banner danger';
+      $('verdict-icon').textContent = '✗';
+      $('verdict-text').textContent = 'COLUMN BUCKLED! Load (' + loadDisp + ') exceeds Pcr (' + pcrDisp + ').';
+    }
+    $('sim-hint').textContent = 'Simulation complete. Click Reset to try new parameters.';
+    $('sim-hint').style.color = '#3ddc84';
+  }
+
+  function resetSimulation() {
+    simRunning = false; simDone = false; simProgress = 0; animPhase = 0;
+    stopAnim();
+    setControlsDisabled(false);
+    $('run-sim-btn').disabled = false;
+    $('run-sim-btn').style.display = '';
+    $('reset-sim-btn').style.display = 'none';
+    $('readout-row').style.display = 'none';
+    $('load-bar-wrap').style.display = 'none';
+    $('verdict-banner').style.display = 'none';
+    $('sim-hint').textContent = 'Set parameters, then click Run';
+    $('sim-hint').style.color = '';
+    draw();
+  }
+
+  function setControlsDisabled(disabled) {
+    var simPanel = $('sim-panel');
+    simPanel.querySelectorAll('.mat-btn, .end-btn, .cs-btn, .preset-btn').forEach(function (btn) {
+      btn.style.pointerEvents = disabled ? 'none' : '';
+      btn.style.opacity = disabled ? '0.5' : '';
+    });
+    simPanel.querySelectorAll('.sim-slider, .sim-num').forEach(function (sl) { sl.disabled = disabled; });
+  }
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+  $('mode-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    var m = e.target.dataset.mode;
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    switchMode(m);
+  });
+
+  function switchMode(m) {
+    mode = m;
+    stopAnim();
+    ['sim-panel', 'canvas-wrap', 'learn-panels', 'cat-row', 'item-selector', 'item-info',
+     'practice-panel', 'practice-bar', 'quiz-panel', 'quiz-bar', 'quiz-result'].forEach(function (id) {
+      var el = $(id); if (el) el.style.display = 'none';
+    });
+    if (m === 'simulate') {
+      $('sim-panel').style.display = '';
+      $('canvas-wrap').style.display = '';
+      var lp = $('learn-panels'); if (lp) lp.style.display = '';
+      resetSimulation();
+      draw();
+    } else if (m === 'explore') {
+      $('cat-row').style.display = '';
+      $('item-selector').style.display = '';
+      showExploreCat(exploreCat);
+    } else if (m === 'practice') {
+      $('practice-panel').style.display = '';
+      $('practice-bar').style.display = '';
+      if (!currentProblem) newPractice();
+    } else if (m === 'quiz') {
+      $('quiz-panel').style.display = '';
+      $('quiz-bar').style.display = '';
+      startQuiz();
+    }
+  }
+
+  /* ================================================================
+     SIMULATE CONTROL EVENTS
+     ================================================================ */
+  $('mat-row').addEventListener('click', function (e) {
+    var btn = e.target.closest('.mat-btn');
+    if (!btn || btn.id === 'mat-add-btn') return;
+    saveUndo();
+    matIdx = +btn.dataset.idx;
+    syncMatBtns();
+    updateLoadSliderMax();
+    drawPreview();
+  });
+
+  $('end-row').addEventListener('click', function (e) {
+    var btn = e.target.closest('.end-btn');
+    if (!btn) return;
+    saveUndo();
+    endIdx = +btn.dataset.idx;
+    syncEndBtns();
+    updateLoadSliderMax();
+    drawPreview();
+  });
+
+  $('cs-row').addEventListener('click', function (e) {
+    var btn = e.target.closest('.cs-btn');
+    if (!btn) return;
+    saveUndo();
+    csIdx = +btn.dataset.idx;
+    syncCsBtns();
+    if (csIdx === 0) dim1 = 50;
+    else if (csIdx === 1) { dim1 = 60; dim2 = 40; }
+    else if (csIdx === 2) { dim1 = 50; dim2 = 30; }
+    else if (csIdx === 3) { dim1 = 80; dim2 = 10; dim3 = 100; dim4 = 6; }
+    setupDimSliders();
+    updateLoadSliderMax();
+    drawPreview();
+  });
+
+  function syncMatBtns() { document.querySelectorAll('.mat-btn').forEach(function (b) { b.classList.toggle('active', +b.dataset.idx === matIdx); }); }
+  function syncEndBtns() { document.querySelectorAll('.end-btn').forEach(function (b, i) { b.classList.toggle('active', i === endIdx); }); }
+  function syncCsBtns()  { document.querySelectorAll('.cs-btn').forEach(function (b, i) { b.classList.toggle('active', i === csIdx); }); }
+
+  $('length-slider').addEventListener('change', function () { saveUndo(); });
+  $('length-slider').addEventListener('input', function () {
+    colLength = +this.value;
+    var u = U();
+    $('length-val').textContent = u.len.fromMM(colLength).toFixed(u.len.digits) + ' ' + u.len.label;
+    var n = $('length-num'); if (n) n.value = u.len.fromMM(colLength).toFixed(u.len.digits);
+    updateLoadSliderMax();
+    drawPreview();
+  });
+
+  $('load-slider').addEventListener('change', function () { saveUndo(); });
+  $('load-slider').addEventListener('input', function () {
+    appliedLoad = +this.value;
+    var u = U();
+    $('load-val').textContent = u.force.fromN(appliedLoad).toFixed(u.force.digits) + ' ' + u.force.label;
+    var n = $('load-num'); if (n) n.value = u.force.fromN(appliedLoad).toFixed(u.force.digits);
+    drawPreview();
+  });
+
+  $('run-sim-btn').addEventListener('click', runSimulation);
+  $('reset-sim-btn').addEventListener('click', resetSimulation);
+  function drawPreview() { if (!simRunning && !simDone) draw(); }
+
+  function wireMainSteppers() {
+    var lnum = $('length-num');
+    if (lnum) lnum.addEventListener('change', function () {
+      var v = +this.value; if (isNaN(v)) return;
+      saveUndo();
+      colLength = Math.max(100, Math.min(10000, U().len.toMM(v)));
+      $('length-slider').max = Math.max(5000, colLength);
+      $('length-slider').value = colLength;
+      refreshSliderFill($('length-slider'));
+      syncDimUnitDisplay();
+      updateLoadSliderMax();
+      drawPreview();
+    });
+    var pnum = $('load-num');
+    if (pnum) pnum.addEventListener('change', function () {
+      var v = +this.value; if (isNaN(v)) return;
+      saveUndo();
+      appliedLoad = Math.max(0, U().force.toN(v));
+      $('load-slider').value = appliedLoad;
+      refreshSliderFill($('load-slider'));
+      syncDimUnitDisplay();
+      drawPreview();
+    });
+  }
+
+  /* ================================================================
+     UNIT TOGGLE
+     ================================================================ */
+  function bindUnitToggle() {
+    document.querySelectorAll('.unit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        saveUndo();
+        unitSys = btn.dataset.unit;
+        document.querySelectorAll('.unit-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        syncDimUnitDisplay();
+        draw();
+      });
+    });
+  }
+
+  /* ================================================================
+     PRESETS
+     ================================================================ */
+  function buildPresets() {
+    var row = $('preset-row');
+    if (!row) return;
+    row.innerHTML = PRESETS.map(function (p, i) {
+      return '<button class="preset-btn" data-idx="' + i + '">' + p.name + '</button>';
+    }).join('');
+    row.addEventListener('click', function (e) {
+      var btn = e.target.closest('.preset-btn');
+      if (!btn) return;
+      var p = PRESETS[+btn.dataset.idx];
+      saveUndo();
+      matIdx = p.matIdx; endIdx = p.endIdx; csIdx = p.csIdx;
+      colLength = p.L; dim1 = p.dim1; dim2 = p.dim2 || 0;
+      dim3 = p.dim3 || 0; dim4 = p.dim4 || 0;
+      appliedLoad = p.load;
+      syncAllUI();
+    });
+  }
+
+  function syncAllUI() {
+    syncMatBtns(); syncEndBtns(); syncCsBtns();
+    document.querySelectorAll('.unit-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.unit === unitSys); });
+    $('length-slider').value = colLength;
+    $('load-slider').value = appliedLoad;
+    setupDimSliders();
+    updateLoadSliderMax();
+    syncDimUnitDisplay();
+    if ($('chk-grid')) $('chk-grid').checked = showGrid;
+    if ($('chk-dims')) $('chk-dims').checked = showDims;
+    if ($('chk-le')) $('chk-le').checked = showLe;
+    if ($('chk-curve')) $('chk-curve').checked = showCurve;
+    draw();
+  }
+
+  /* ================================================================
+     CUSTOM MATERIAL MODAL
+     ================================================================ */
+  function openCustomMaterial() {
+    $('cm-modal').classList.add('active');
+    var u = U();
+    $('cm-e-unit').textContent = u.Emod.label;
+    $('cm-sy-unit').textContent = u.stress.label;
+    $('cm-err').textContent = '';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCustomMaterial() {
+    $('cm-modal').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+  function applyCustomMaterial() {
+    var u = U();
+    var name = $('cm-name').value.trim() || 'Custom';
+    var eVal = +$('cm-e').value;
+    var syVal = +$('cm-sy').value;
+    if (!eVal || eVal <= 0 || !syVal || syVal <= 0) {
+      $('cm-err').textContent = 'Enter positive values for E and σy.';
+      return;
+    }
+    var E_MPa = u.Emod.label === 'ksi' ? eVal * MPA_PER_KSI : eVal;
+    var sy_MPa = u.stress.label === 'ksi' ? syVal * MPA_PER_KSI : syVal;
+    saveUndo();
+    var customIdx = -1;
+    for (var i = 0; i < MATERIALS.length; i++) {
+      if (MATERIALS[i].id === 'custom') { customIdx = i; break; }
+    }
+    var custom = { id: 'custom', name: name, E: E_MPa, sy: sy_MPa, color: '#e91e63' };
+    if (customIdx >= 0) MATERIALS[customIdx] = custom;
+    else { MATERIALS.push(custom); customIdx = MATERIALS.length - 1; }
+    rebuildMatRow();
+    matIdx = customIdx;
+    syncMatBtns();
+    updateLoadSliderMax();
+    drawPreview();
+    closeCustomMaterial();
+  }
+
+  function rebuildMatRow() {
+    var row = $('mat-row');
+    row.innerHTML = MATERIALS.map(function (m, i) {
+      return '<button class="mat-btn' + (i === matIdx ? ' active' : '') + '" data-idx="' + i + '">' +
+        '<span class="mat-dot" style="background:' + m.color + '"></span>' + m.name + '</button>';
+    }).join('') + '<button class="mat-btn mat-add" id="mat-add-btn" type="button">+ Custom</button>';
+    $('mat-add-btn').addEventListener('click', openCustomMaterial);
+  }
+
+  /* ================================================================
+     SHOW CALCULATION MODAL
+     ================================================================ */
+  function calcStep(num, title, formula, calculation, result) {
+    var html = '<div class="cs-step">';
+    html += '<div class="cs-step-hd"><span class="cs-num">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+    if (formula) html += '<div class="cs-formula">' + formula + '</div>';
+    if (calculation) html += '<div class="cs-calc">' + calculation + '</div>';
+    if (result != null) html += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function buildCalcSteps() {
+    var mat = MATERIALS[matIdx];
+    var ec = END_CONDITIONS[endIdx];
+    var cs = getCrossSectionProps();
+    var b = getCurrentBuckling();
+    var u = U();
+
+    var html = '<div class="cs-inputs"><span class="cs-badge">Given — Current State</span>';
+    html += '<div class="cs-given">';
+    html += '<span>Material: ' + mat.name + '</span>';
+    html += '<span>E = ' + mat.E + ' MPa</span>';
+    html += '<span>σy = ' + mat.sy + ' MPa</span>';
+    html += '<span>K = ' + ec.K + ' (' + ec.name + ')</span>';
+    html += '<span>L = ' + colLength + ' mm</span>';
+    html += '<span>Section: ' + CROSS_SECTIONS[csIdx].name + '</span>';
+    html += '</div>';
+    html += '<p class="cs-si-note">ℹ All calculations in SI. Displayed units follow the SI / Imperial toggle.</p></div>';
+
+    html += calcStep(1, 'Effective Length',
+      '\\( L_e = K \\cdot L \\)',
+      '\\( L_e = ' + ec.K + ' \\times ' + colLength + ' \\)',
+      'Le = ' + r1(b.Le) + ' mm');
+
+    html += calcStep(2, 'Cross-Section Properties',
+      '\\( r = \\sqrt{I/A} \\)',
+      'I = ' + r1(cs.I) + ' mm⁴<br>A = ' + r1(cs.A) + ' mm²',
+      'r = ' + r2(cs.r) + ' mm');
+
+    html += calcStep(3, 'Slenderness Ratio',
+      '\\( \\lambda = \\dfrac{L_e}{r} \\)',
+      '\\( \\lambda = \\dfrac{' + r1(b.Le) + '}{' + r2(b.r) + '} \\)',
+      'λ = ' + r1(b.lambda));
+
+    html += calcStep(4, 'Transition Slenderness',
+      '\\( \\lambda_t = \\sqrt{\\dfrac{2\\pi^2 E}{\\sigma_y}} \\)',
+      '\\( \\lambda_t = \\sqrt{\\dfrac{2\\pi^2 \\times ' + mat.E + '}{' + mat.sy + '}} \\)',
+      'λt = ' + r1(b.lambdaT));
+
+    html += calcStep(5, 'Choose Formula',
+      '\\( \\lambda ' + (b.lambda >= b.lambdaT ? '\\geq' : '<') + ' \\lambda_t \\)',
+      r1(b.lambda) + (b.lambda >= b.lambdaT ? ' &ge; ' : ' &lt; ') + r1(b.lambdaT) + ' → Use <strong>' + b.method + '</strong>',
+      b.method + ' formula');
+
+    if (b.method === 'Euler') {
+      html += calcStep(6, 'Critical Stress (Euler)',
+        '\\( \\sigma_{cr} = \\dfrac{\\pi^2 E}{\\lambda^2} \\)',
+        '\\( \\sigma_{cr} = \\dfrac{\\pi^2 \\times ' + mat.E + '}{' + r1(b.lambda) + '^2} \\)',
+        'σcr = ' + r1(b.sigCr) + ' MPa = ' + u.stress.fromMPa(b.sigCr).toFixed(u.stress.digits) + ' ' + u.stress.label);
+    } else {
+      html += calcStep(6, 'Critical Stress (Johnson)',
+        '\\( \\sigma_{cr} = \\sigma_y - \\dfrac{\\sigma_y^2}{4\\pi^2 E}\\lambda^2 \\)',
+        '\\( \\sigma_{cr} = ' + mat.sy + ' - \\dfrac{' + mat.sy + '^2}{4\\pi^2 \\times ' + mat.E + '} \\times ' + r1(b.lambda) + '^2 \\)',
+        'σcr = ' + r1(b.sigCr) + ' MPa = ' + u.stress.fromMPa(b.sigCr).toFixed(u.stress.digits) + ' ' + u.stress.label);
+    }
+
+    html += calcStep(7, 'Critical Buckling Load',
+      '\\( P_{cr} = \\sigma_{cr} \\cdot A \\)',
+      '\\( P_{cr} = ' + r1(b.sigCr) + ' \\times ' + r1(cs.A) + ' \\)',
+      'Pcr = ' + r1(b.Pcr) + ' N = ' + u.force.fromN(b.Pcr).toFixed(u.force.digits) + ' ' + u.force.label);
+
+    if (appliedLoad > 0) {
+      var fos = b.Pcr / appliedLoad;
+      html += calcStep(8, 'Factor of Safety',
+        '\\( FOS = \\dfrac{P_{cr}}{P} \\)',
+        '\\( FOS = \\dfrac{' + r1(b.Pcr) + '}{' + r1(appliedLoad) + '} \\)',
+        'FOS = ' + r2(fos) + (fos < 1 ? ' — BUCKLED' : fos < 2 ? ' — below typical 2.0–3.0' : ' — safe'));
+    }
+
+    html += '<div class="cs-context">💡 <strong>Real-world context:</strong> Design codes typically require FOS = 2.0–3.0 for steel columns to account for imperfections (initial crookedness, eccentric loading, residual stresses). For timber columns, use FOS = 3.0–4.0.</div>';
+    return html;
+  }
+
+  function openCalcModal() {
+    var modal = $('calc-modal'), body = $('calc-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildCalcSteps();
+    if (window.renderMathInElement) {
+      try { window.renderMathInElement(body, { delimiters: [{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}], throwOnError: false }); } catch (e) {}
+    }
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalcModal() {
+    $('calc-modal').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  /* ================================================================
+     EXPORT CSV / PNG
+     ================================================================ */
+  function exportCSV() {
+    var mat = MATERIALS[matIdx];
+    var ec = END_CONDITIONS[endIdx];
+    var b = getCurrentBuckling();
+    var rows = [
+      ['Parameter', 'Value', 'Unit'],
+      ['Material', mat.name, ''],
+      ['E', mat.E, 'MPa'], ['sigma_y', mat.sy, 'MPa'],
+      ['End Condition', ec.name, ''], ['K', ec.K, ''],
+      ['Length L', colLength, 'mm'],
+      ['Cross-Section', CROSS_SECTIONS[csIdx].name, ''],
+      ['Area A', r1(b.A), 'mm^2'], ['I_min', r1(b.I), 'mm^4'],
+      ['r', r2(b.r), 'mm'], ['Le', r1(b.Le), 'mm'],
+      ['lambda', r1(b.lambda), ''], ['lambda_t', r1(b.lambdaT), ''],
+      ['Method', b.method, ''],
+      ['sigma_cr', r1(b.sigCr), 'MPa'],
+      ['Pcr', r1(b.Pcr), 'N'],
+      ['Applied Load P', appliedLoad, 'N']
+    ];
+    if (appliedLoad > 0) rows.push(['FOS', r2(b.Pcr / appliedLoad), '']);
+    rows.push(['', '', '']);
+    rows.push(['# Imperial conversions', '', '']);
+    rows.push(['L (in)', (colLength / MM_PER_IN).toFixed(2), '']);
+    rows.push(['Pcr (kip)', (b.Pcr / 1000 / KN_PER_KIP).toFixed(2), '']);
+    rows.push(['sigma_cr (ksi)', (b.sigCr / MPA_PER_KSI).toFixed(2), '']);
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'column-buckling-' + Date.now() + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportPNG() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.width / dpr;
+    var h = canvas.height / dpr;
+    ctx.save();
+    ctx.fillStyle = 'rgba(220,227,240,0.55)';
+    ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('NHIT VisualLab', w - 8, h - 8);
+    ctx.restore();
+    var dataUrl = canvas.toDataURL('image/png');
+    var a = document.createElement('a');
+    a.href = dataUrl; a.download = 'column-buckling-' + Date.now() + '.png';
+    a.click();
+    draw();
+  }
+
+  /* ================================================================
+     CANVAS FEATURE TOGGLES
+     ================================================================ */
+  function wireCanvasToggles() {
+    var pairs = [
+      ['chk-grid',  function (v) { showGrid = v; }],
+      ['chk-dims',  function (v) { showDims = v; }],
+      ['chk-le',    function (v) { showLe = v; }],
+      ['chk-curve', function (v) { showCurve = v; }]
+    ];
+    pairs.forEach(function (p) {
+      var el = $(p[0]);
+      if (!el) return;
+      el.addEventListener('change', function () { saveUndo(); p[1](el.checked); draw(); });
+    });
+  }
+
+  /* ================================================================
+     RIGHT-CLICK CONTEXT MENU
+     ================================================================ */
+  function buildContextMenu() {
+    var m = document.createElement('div');
+    m.className = 'ctx-menu';
+    m.id = 'ctx-menu';
+    m.innerHTML =
+      '<button data-act="csv">📊 Export CSV</button>' +
+      '<button data-act="png">🖼 Export PNG</button>' +
+      '<button data-act="grid">▦ Toggle Grid</button>' +
+      '<button data-act="calc">☰ Show Calculations</button>' +
+      '<button data-act="reset">↻ Reset</button>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      var act = b.dataset.act;
+      hideContextMenu();
+      if (act === 'csv') exportCSV();
+      else if (act === 'png') exportPNG();
+      else if (act === 'grid') { saveUndo(); showGrid = !showGrid; if ($('chk-grid')) $('chk-grid').checked = showGrid; draw(); }
+      else if (act === 'reset') resetSimulation();
+      else if (act === 'calc') openCalcModal();
+    });
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var menu = $('ctx-menu');
+      var px = Math.min(e.clientX, window.innerWidth - 200);
+      var py = Math.min(e.clientY, window.innerHeight - 240);
+      menu.style.left = px + 'px';
+      menu.style.top = py + 'px';
+      menu.classList.add('active');
+    });
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('#ctx-menu')) hideContextMenu();
+    });
+  }
+  function hideContextMenu() {
+    var m = $('ctx-menu'); if (m) m.classList.remove('active');
+  }
+
+  /* ================================================================
+     LEARN PANELS expand/collapse
+     ================================================================ */
+  function wireLearnPanels() {
+    var exp = $('learn-expand-all');
+    var col = $('learn-collapse-all');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.learn-card'));
+    if (exp) exp.addEventListener('click', function () { cards.forEach(function (c) { c.open = true; }); });
+    if (col) col.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+  }
+
+  /* ================================================================
+     KEYBOARD SHORTCUTS
+     ================================================================ */
+  document.addEventListener('keydown', function (e) {
+    var modal = $('calc-modal');
+    if (e.key === 'Escape') {
+      if (modal && modal.classList.contains('active')) closeCalcModal();
+      var cm = $('cm-modal'); if (cm && cm.classList.contains('active')) closeCustomMaterial();
+      hideContextMenu();
+    }
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); doRedo(); }
+  });
+
+  /* ================================================================
+     EXPLORE / PRACTICE / QUIZ
+     ================================================================ */
+  $('cat-tabs').addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    exploreCat = e.target.dataset.cat;
+    document.querySelectorAll('#cat-tabs .pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    showExploreCat(exploreCat);
+  });
+
+  function showExploreCat(cat) {
+    var grid = $('concept-grid');
+    var items = CONCEPTS.filter(function (c) { return c.cat === cat; });
+    grid.innerHTML = items.map(function (c) {
+      return '<button class="is-btn' + (exploreItem && exploreItem.id === c.id ? ' active' : '') + '" data-id="' + c.id + '">' +
+        '<span class="is-btn-name">' + c.name + '</span>' +
+        '<span class="is-btn-sym">' + c.symbol + '</span></button>';
+    }).join('');
+    if (items.length > 0 && (!exploreItem || exploreItem.cat !== cat)) showExploreItem(items[0]);
+  }
+
+  $('concept-grid').addEventListener('click', function (e) {
+    var btn = e.target.closest('.is-btn');
+    if (!btn) return;
+    var item = CONCEPTS.find(function (c) { return c.id === btn.dataset.id; });
+    if (item) showExploreItem(item);
+  });
+
+  function showExploreItem(item) {
+    exploreItem = item;
+    document.querySelectorAll('#concept-grid .is-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.id === item.id); });
+    var info = $('item-info');
+    info.style.display = '';
+    var catLabel = { fundamentals: 'Fundamentals', endconditions: 'End Conditions', materials: 'Materials', design: 'Design' }[item.cat] || item.cat;
+    var html = '<div class="ii-top"><span class="ii-name">' + item.name + '</span>' +
+      '<span class="ii-cat-badge">' + catLabel + '</span></div>' +
+      '<p class="ii-desc">' + item.desc + '</p>' +
+      '<div class="formula-box"><span class="fb-formula">' + item.formula + '</span><span class="fb-unit">' + item.unit + '</span></div>';
+    if (item.example) {
+      html += '<div class="example-box"><h4>Worked Example</h4>' +
+        '<p class="ex-problem">' + item.example.problem + '</p>' +
+        item.example.steps.map(function (s) { return '<p class="ex-step">→ ' + s + '</p>'; }).join('') +
+        '<p class="ex-step"><strong>Answer: ' + item.example.answer + ' ' + (item.example.unit || '') + '</strong></p></div>';
+    }
+    info.innerHTML = html;
+  }
+
+  function newPractice() {
+    pAnswered = false;
+    var gen = PROBLEM_GEN[Math.floor(Math.random() * PROBLEM_GEN.length)];
+    currentProblem = gen();
+    $('pp-prompt').textContent = currentProblem.prompt;
+    $('pp-unit').textContent = currentProblem.unit;
+    $('pp-input').value = '';
+    $('pp-input').disabled = false;
+    $('pp-feedback').textContent = '';
+    $('pp-feedback').className = 'feedback';
+    $('pp-solution').style.display = 'none';
+    $('pp-solution').innerHTML = '';
+    $('pp-check').style.display = '';
+    $('pp-next').style.display = 'none';
+    $('pp-show').style.display = '';
+  }
+
+  $('pp-check').addEventListener('click', function () {
+    if (pAnswered || !currentProblem) return;
+    var input = parseFloat($('pp-input').value);
+    if (isNaN(input)) return;
+    pAnswered = true; pTotal++;
+    var tol = Math.max(Math.abs(currentProblem.answer) * 0.02, 0.1);
+    var correct = Math.abs(input - currentProblem.answer) <= tol;
+    if (correct) pCorrect++;
+    var fb = $('pp-feedback');
+    fb.textContent = correct ? '✓ Correct!' : '✗ Incorrect. Answer: ' + currentProblem.answer + ' ' + currentProblem.unit;
+    fb.className = 'feedback ' + (correct ? 'ok' : 'err');
+    $('pbar-score-val').textContent = pCorrect + ' / ' + pTotal;
+    $('pp-input').disabled = true;
+    $('pp-check').style.display = 'none';
+    $('pp-next').style.display = '';
+    showSolution();
+  });
+
+  $('pp-next').addEventListener('click', newPractice);
+  $('pp-show').addEventListener('click', showSolution);
+
+  function showSolution() {
+    if (!currentProblem) return;
+    var sol = $('pp-solution');
+    sol.style.display = '';
+    sol.innerHTML = '<h4>Solution</h4>' +
+      currentProblem.steps.map(function (s) { return '<p class="sol-step">→ ' + s + '</p>'; }).join('') +
+      '<p class="sol-step"><strong>Answer: ' + currentProblem.answer + ' ' + currentProblem.unit + '</strong></p>';
+    $('pp-show').style.display = 'none';
+  }
+
+  function startQuiz() {
+    quizPool = genQuizPool();
+    var shuffled = quizPool.slice().sort(function () { return Math.random() - 0.5; });
+    quizSet = shuffled.slice(0, QUIZ_SIZE);
+    quizIdx = 0; quizScore = 0; quizAnswered = false; quizResults = [];
+    $('quiz-result').style.display = 'none';
+    $('quiz-panel').style.display = '';
+    $('quiz-bar').style.display = '';
+    showQuizQuestion();
+  }
+
+  function showQuizQuestion() {
+    if (quizIdx >= QUIZ_SIZE) { showQuizResult(); return; }
+    var q = quizSet[quizIdx];
+    quizAnswered = false;
+    $('qbar-num').textContent = quizIdx + 1;
+    var panel = $('quiz-panel');
+    var html = '<p class="qp-prompt">' + q.prompt + '</p>';
+    if (q.type === 'mcq') {
+      html += '<div class="answer-grid">';
+      q.choices.forEach(function (ch, i) { html += '<button class="answer-btn" data-idx="' + i + '">' + ch + '</button>'; });
+      html += '</div>';
+    } else {
+      html += '<div class="quiz-input-row">';
+      html += '<input class="qi-input" id="quiz-input" type="number" step="any" placeholder="Answer">';
+      html += '<span class="qi-unit">' + (q.unit || '') + '</span>';
+      html += '<button class="btn btn-primary" id="quiz-submit">Submit</button>';
+      html += '</div>';
+    }
+    html += '<div style="margin-top:10px"><span class="quiz-feedback" id="quiz-fb"></span></div>';
+    html += '<div style="margin-top:10px"><button class="btn btn-primary" id="quiz-next" style="display:none">Next →</button></div>';
+    panel.innerHTML = html;
+
+    if (q.type === 'mcq') {
+      panel.querySelectorAll('.answer-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (quizAnswered) return;
+          quizAnswered = true;
+          var idx = +this.dataset.idx;
+          var correct = idx === q.correct;
+          if (correct) quizScore++;
+          quizResults.push({ prompt: q.prompt, correct: correct, given: q.choices[idx], answer: q.choices[q.correct] });
+          panel.querySelectorAll('.answer-btn').forEach(function (b, i) {
+            b.classList.add('locked');
+            if (i === q.correct) b.classList.add('correct');
+            if (i === idx && !correct) b.classList.add('wrong');
+          });
+          var fb = $('quiz-fb');
+          fb.textContent = correct ? '✓ Correct!' : '✗ ' + q.explain;
+          fb.className = 'quiz-feedback ' + (correct ? 'ok' : 'err');
+          $('quiz-next').style.display = '';
+        });
+      });
+    } else {
+      $('quiz-submit').addEventListener('click', function () {
+        if (quizAnswered) return;
+        var val = parseFloat($('quiz-input').value);
+        if (isNaN(val)) return;
+        quizAnswered = true;
+        var tol = Math.max(Math.abs(q.answer) * (q.tolerance || 0.02), 0.1);
+        var correct = Math.abs(val - q.answer) <= tol;
+        if (correct) quizScore++;
+        quizResults.push({ prompt: q.prompt, correct: correct, given: val + ' ' + (q.unit || ''), answer: q.answer + ' ' + (q.unit || '') });
+        var fb = $('quiz-fb');
+        fb.textContent = correct ? '✓ Correct!' : '✗ Answer: ' + q.answer + ' ' + (q.unit || '') + '. ' + q.explain;
+        fb.className = 'quiz-feedback ' + (correct ? 'ok' : 'err');
+        $('quiz-input').disabled = true;
+        this.disabled = true;
+        $('quiz-next').style.display = '';
+      });
+    }
+    setTimeout(function () {
+      var nb = $('quiz-next');
+      if (nb) nb.addEventListener('click', function () { quizIdx++; showQuizQuestion(); });
+    }, 0);
+  }
+
+  function showQuizResult() {
+    $('quiz-panel').style.display = 'none';
+    $('quiz-bar').style.display = 'none';
+    var result = $('quiz-result');
+    result.style.display = '';
+    var stars, cls, verdict;
+    if (quizScore === 5) { stars = '★★★'; cls = 'perfect'; verdict = 'Perfect score!'; }
+    else if (quizScore >= 3) { stars = '★★'; cls = 'good'; verdict = 'Good job!'; }
+    else { stars = '★'; cls = 'poor'; verdict = 'Keep practising.'; }
+    var html = '<div class="qr-header"><div class="qr-title-wrap"><span class="qr-title">Quiz Complete</span>' +
+      '<span class="qr-stars">' + stars + '</span></div>' +
+      '<div class="qr-score-wrap"><span class="qr-score ' + cls + '">' + quizScore + '/' + QUIZ_SIZE + '</span>' +
+      '<div class="qr-verdict">' + verdict + '</div></div></div>';
+    html += '<div class="qr-rows">';
+    quizResults.forEach(function (r, i) {
+      html += '<div class="qr-row ' + (r.correct ? 'ok' : 'err') + '">' +
+        '<span class="qr-qnum">Q' + (i + 1) + '</span>' +
+        '<span class="qr-detail">' + r.prompt.substring(0, 80) + (r.prompt.length > 80 ? '...' : '') +
+        '<br>Your answer: <strong>' + r.given + '</strong>' + (!r.correct ? ' | Correct: <strong>' + r.answer + '</strong>' : '') + '</span>' +
+        '<span class="qr-mark">' + (r.correct ? '✓' : '✗') + '</span></div>';
+    });
+    html += '</div>';
+    html += '<button class="btn btn-primary" id="quiz-retry">New Quiz</button>';
+    result.innerHTML = html;
+    $('quiz-retry').addEventListener('click', function () {
+      result.style.display = 'none';
+      $('quiz-panel').style.display = '';
+      $('quiz-bar').style.display = '';
+      startQuiz();
+    });
+  }
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+  function init() {
+    rebuildMatRow();
+    syncMatBtns();
+    bindUnitToggle();
+    buildPresets();
+    setupDimSliders();
+    updateLoadSliderMax();
+    wireMainSteppers();
+    wireCanvasToggles();
+    wireLearnPanels();
+    buildContextMenu();
+
+    var calcBtn = $('btn-calc'); if (calcBtn) calcBtn.addEventListener('click', openCalcModal);
+    var calcClose = $('calc-modal-close'); if (calcClose) calcClose.addEventListener('click', closeCalcModal);
+    var calcM = $('calc-modal'); if (calcM) calcM.addEventListener('click', function (e) { if (e.target === calcM) closeCalcModal(); });
+
+    var cmClose = $('cm-modal-close'); if (cmClose) cmClose.addEventListener('click', closeCustomMaterial);
+    var cmApply = $('cm-apply'); if (cmApply) cmApply.addEventListener('click', applyCustomMaterial);
+    var cmM = $('cm-modal'); if (cmM) cmM.addEventListener('click', function (e) { if (e.target === cmM) closeCustomMaterial(); });
+
+    var bCsv = $('btn-export-csv'); if (bCsv) bCsv.addEventListener('click', exportCSV);
+    var bPng = $('btn-export-png'); if (bPng) bPng.addEventListener('click', exportPNG);
+    var bUndo = $('btn-undo'); if (bUndo) bUndo.addEventListener('click', doUndo);
+    var bRedo = $('btn-redo'); if (bRedo) bRedo.addEventListener('click', doRedo);
+
+    resizeCanvas();
+    mode = 'simulate';
+    draw();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
+    } else {
+      window.addEventListener('resize', resizeCanvas);
+    }
+  }
+
+  init();
+
+})();

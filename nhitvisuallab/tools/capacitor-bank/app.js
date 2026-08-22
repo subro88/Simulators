@@ -1,0 +1,2083 @@
+(function () {
+  'use strict';
+
+  /* ================================================================
+     DATA — CONCEPTS (6 concepts, 2 categories)
+     ================================================================ */
+
+  var CONCEPTS = [
+    /* ── Basics ────────────────────────────────────────────────────── */
+    {
+      id: 'capacitance', name: 'Capacitance', symbol: 'C = Q/V',
+      formula: 'C = Q / V', unit: 'F (farads)',
+      cat: 'basics',
+      desc: 'Capacitance is the ability of a component to store electric charge. It is defined as the ratio of charge stored (Q) to the voltage across the capacitor (V). One farad means one coulomb of charge stored per volt. Practical capacitors range from picofarads (pF) in RF circuits to millifarads (mF) in power supplies. Capacitance depends on the plate area, plate separation, and dielectric material.',
+      diagram: 'capacitance',
+      example: { problem: 'A capacitor stores 500 \u00B5C of charge at 10 V. Find its capacitance.', steps: ['C = Q / V', 'C = 500 \u00D7 10\u207B\u2076 / 10', 'C = 50 \u00D7 10\u207B\u2076 F', 'C = 50 \u00B5F'], answer: 50, unit: '\u00B5F' }
+    },
+    {
+      id: 'energy-storage', name: 'Energy Storage', symbol: 'E = \u00BDC V\u00B2',
+      formula: 'E = \u00BD \u00D7 C \u00D7 V\u00B2', unit: 'J (joules)',
+      cat: 'basics',
+      desc: 'A charged capacitor stores energy in the electric field between its plates. The energy is calculated as E = \u00BDCV\u00B2, where C is capacitance and V is voltage. This can also be written as E = Q\u00B2/(2C) or E = \u00BDQV. The energy stored increases with the square of voltage \u2014 doubling voltage quadruples energy. This principle is used in camera flash units, defibrillators, and pulse power systems.',
+      diagram: 'energy',
+      example: { problem: 'A 100 \u00B5F capacitor is charged to 24 V. Find the stored energy.', steps: ['E = \u00BD \u00D7 C \u00D7 V\u00B2', 'E = 0.5 \u00D7 100 \u00D7 10\u207B\u2076 \u00D7 24\u00B2', 'E = 0.5 \u00D7 100 \u00D7 10\u207B\u2076 \u00D7 576', 'E = 28.8 mJ'], answer: 28.8, unit: 'mJ' }
+    },
+    {
+      id: 'dielectric', name: 'Dielectric Materials', symbol: 'C = \u03B5\u2080\u03B5\u1D63A/d',
+      formula: 'C = \u03B5\u2080 \u00D7 \u03B5\u1D63 \u00D7 A / d', unit: 'F',
+      cat: 'basics',
+      desc: 'A dielectric is an insulating material placed between capacitor plates that increases capacitance. The dielectric constant (\u03B5\u1D63 or \u03BA) multiplies the base capacitance. Common dielectrics include air (\u03B5\u1D63 = 1), paper (\u03B5\u1D63 \u2248 3.5), ceramic (\u03B5\u1D63 = 10\u201312000), and electrolytic oxide layers. The dielectric also determines the maximum voltage (breakdown voltage) the capacitor can withstand.',
+      diagram: 'dielectric',
+      example: { problem: 'Parallel plates: area = 0.01 m\u00B2, separation = 1 mm, \u03B5\u1D63 = 4. Find C. (\u03B5\u2080 = 8.854\u00D710\u207B\u00B9\u00B2 F/m)', steps: ['C = \u03B5\u2080\u03B5\u1D63A / d', 'C = 8.854\u00D710\u207B\u00B9\u00B2 \u00D7 4 \u00D7 0.01 / 0.001', 'C = 3.54 \u00D7 10\u207B\u00B9\u2070 F', 'C = 354 pF'], answer: 354, unit: 'pF' }
+    },
+
+    /* ── Combinations ─────────────────────────────────────────────── */
+    {
+      id: 'series-caps', name: 'Series Capacitors', symbol: '1/C = \u03A31/C\u1D62',
+      formula: '1/C_eq = 1/C\u2081 + 1/C\u2082 + 1/C\u2083 + ...', unit: 'F',
+      cat: 'combinations',
+      desc: 'Capacitors in series have the same charge on each capacitor but the voltage divides among them. The equivalent capacitance is always less than the smallest individual capacitor. The voltage across each capacitor is inversely proportional to its capacitance: V\u1D62 = Q/C\u1D62. Series connections are used to achieve higher voltage ratings \u2014 for example, two 50V capacitors in series can handle 100V (but with half the capacitance).',
+      diagram: 'seriesCaps',
+      example: { problem: 'Three capacitors 100 \u00B5F, 220 \u00B5F, 330 \u00B5F in series. Find C_eq.', steps: ['1/C = 1/100 + 1/220 + 1/330', '1/C = 0.01 + 0.004545 + 0.003030', '1/C = 0.017576', 'C_eq = 56.9 \u00B5F'], answer: 56.9, unit: '\u00B5F' }
+    },
+    {
+      id: 'parallel-caps', name: 'Parallel Capacitors', symbol: 'C = \u03A3C\u1D62',
+      formula: 'C_eq = C\u2081 + C\u2082 + C\u2083 + ...', unit: 'F',
+      cat: 'combinations',
+      desc: 'Capacitors in parallel all have the same voltage across them (the supply voltage), but the charge divides proportionally to capacitance: Q\u1D62 = C\u1D62 \u00D7 V. The equivalent capacitance is the sum of all individual capacitances, making it always larger than the largest individual capacitor. Parallel banks are the standard method for increasing total capacitance in power supplies and power factor correction.',
+      diagram: 'parallelCaps',
+      example: { problem: 'Two capacitors 100 \u00B5F and 470 \u00B5F in parallel. Find C_eq.', steps: ['C_eq = C\u2081 + C\u2082', 'C_eq = 100 + 470', 'C_eq = 570 \u00B5F'], answer: 570, unit: '\u00B5F' }
+    },
+    {
+      id: 'mixed-caps', name: 'Mixed Circuits', symbol: 'Series + Parallel',
+      formula: 'Reduce step-by-step: parallel first, then series', unit: 'F',
+      cat: 'combinations',
+      desc: 'Mixed capacitor circuits combine both series and parallel connections. To find the equivalent capacitance, identify parallel groups first (add them), then treat each group as a single capacitor in series with the remaining components (use the reciprocal formula). For example, if C\u2081 is in series with C\u2082||C\u2083: first calculate C_p = C\u2082 + C\u2083, then 1/C_eq = 1/C\u2081 + 1/C_p.',
+      diagram: 'mixedCaps',
+      example: { problem: 'C\u2081 = 100 \u00B5F in series with (C\u2082 = 200 \u00B5F || C\u2083 = 300 \u00B5F). Find C_eq.', steps: ['C_p = C\u2082 + C\u2083 = 200 + 300 = 500 \u00B5F', '1/C_eq = 1/C\u2081 + 1/C_p', '1/C_eq = 1/100 + 1/500', '1/C_eq = 0.01 + 0.002 = 0.012', 'C_eq = 83.33 \u00B5F'], answer: 83.33, unit: '\u00B5F' }
+    }
+  ];
+
+  /* ================================================================
+     DATA — PROBLEM GENERATORS (8)
+     ================================================================ */
+
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function round2(n) { return +(Math.round(n * 100) / 100).toFixed(2); }
+  function round1(n) { return +(Math.round(n * 10) / 10).toFixed(1); }
+
+  var PROBLEM_GEN = [
+    /* 0 — Charge from C and V */
+    function () {
+      var C = randInt(10, 500);
+      var V = randInt(3, 24);
+      var Q = round2(C * V);
+      return { prompt: 'A ' + C + ' \u00B5F capacitor is charged to ' + V + ' V. Find the charge Q (\u00B5C).', steps: ['Q = C \u00D7 V', 'Q = ' + C + ' \u00D7 ' + V, 'Q = ' + Q + ' \u00B5C'], answer: Q, unit: '\u00B5C', tol: 1 };
+    },
+    /* 1 — Energy from C and V */
+    function () {
+      var C = randInt(10, 500);
+      var V = randInt(3, 24);
+      var E = round2(0.5 * C * V * V / 1000);
+      return { prompt: 'A ' + C + ' \u00B5F capacitor charged to ' + V + ' V. Find energy stored (mJ).', steps: ['E = \u00BDC V\u00B2', 'E = 0.5 \u00D7 ' + C + '\u00D710\u207B\u2076 \u00D7 ' + V + '\u00B2', 'E = 0.5 \u00D7 ' + C + '\u00D710\u207B\u2076 \u00D7 ' + (V * V), 'E = ' + E + ' mJ'], answer: E, unit: 'mJ', tol: 0.1 };
+    },
+    /* 2 — Series C_eq (2 caps) */
+    function () {
+      var C1 = randInt(50, 500);
+      var C2 = randInt(50, 500);
+      var Ceq = round2(C1 * C2 / (C1 + C2));
+      return { prompt: 'Two capacitors in series: ' + C1 + ' \u00B5F and ' + C2 + ' \u00B5F. Find C_eq (\u00B5F).', steps: ['1/C = 1/' + C1 + ' + 1/' + C2, 'C_eq = C\u2081\u00D7C\u2082 / (C\u2081+C\u2082)', 'C_eq = ' + C1 + '\u00D7' + C2 + ' / ' + (C1 + C2), 'C_eq = ' + Ceq + ' \u00B5F'], answer: Ceq, unit: '\u00B5F', tol: 0.5 };
+    },
+    /* 3 — Parallel C_eq (3 caps) */
+    function () {
+      var C1 = randInt(10, 500);
+      var C2 = randInt(10, 500);
+      var C3 = randInt(10, 500);
+      var Ceq = C1 + C2 + C3;
+      return { prompt: 'Three capacitors in parallel: ' + C1 + ', ' + C2 + ', ' + C3 + ' \u00B5F. Find C_eq (\u00B5F).', steps: ['C_eq = C\u2081 + C\u2082 + C\u2083', 'C_eq = ' + C1 + ' + ' + C2 + ' + ' + C3, 'C_eq = ' + Ceq + ' \u00B5F'], answer: Ceq, unit: '\u00B5F', tol: 0.5 };
+    },
+    /* 4 — Series voltage across one cap */
+    function () {
+      var C1 = randInt(50, 300);
+      var C2 = randInt(50, 500);
+      var V = randInt(6, 24);
+      var Ceq = C1 * C2 / (C1 + C2);
+      var Q = round2(Ceq * V);
+      var V1 = round2(Q / C1);
+      return { prompt: C1 + ' \u00B5F and ' + C2 + ' \u00B5F in series, V = ' + V + ' V. Find voltage across C\u2081 (V).', steps: ['C_eq = ' + C1 + '\u00D7' + C2 + '/(' + C1 + '+' + C2 + ') = ' + round2(Ceq) + ' \u00B5F', 'Q = C_eq \u00D7 V = ' + round2(Ceq) + ' \u00D7 ' + V + ' = ' + Q + ' \u00B5C', 'V\u2081 = Q/C\u2081 = ' + Q + '/' + C1, 'V\u2081 = ' + V1 + ' V'], answer: V1, unit: 'V', tol: 0.2 };
+    },
+    /* 5 — Parallel charge on one cap */
+    function () {
+      var C1 = randInt(50, 500);
+      var C2 = randInt(50, 500);
+      var V = randInt(5, 24);
+      var Q1 = round2(C1 * V);
+      return { prompt: C1 + ' \u00B5F and ' + C2 + ' \u00B5F in parallel at ' + V + ' V. Find charge on C\u2081 (\u00B5C).', steps: ['Parallel: same V across both', 'Q\u2081 = C\u2081 \u00D7 V', 'Q\u2081 = ' + C1 + ' \u00D7 ' + V, 'Q\u2081 = ' + Q1 + ' \u00B5C'], answer: Q1, unit: '\u00B5C', tol: 1 };
+    },
+    /* 6 — Mixed C_eq */
+    function () {
+      var C1 = randInt(50, 300);
+      var C2 = randInt(50, 500);
+      var C3 = randInt(50, 500);
+      var Cp = C2 + C3;
+      var Ceq = round2(C1 * Cp / (C1 + Cp));
+      return { prompt: 'C\u2081 = ' + C1 + ' \u00B5F in series with (C\u2082 = ' + C2 + ' \u00B5F || C\u2083 = ' + C3 + ' \u00B5F). Find C_eq (\u00B5F).', steps: ['C_p = C\u2082 + C\u2083 = ' + C2 + ' + ' + C3 + ' = ' + Cp + ' \u00B5F', '1/C_eq = 1/C\u2081 + 1/C_p', 'C_eq = ' + C1 + '\u00D7' + Cp + ' / (' + C1 + '+' + Cp + ')', 'C_eq = ' + Ceq + ' \u00B5F'], answer: Ceq, unit: '\u00B5F', tol: 0.5 };
+    },
+    /* 7 — Total energy in series bank */
+    function () {
+      var C1 = randInt(50, 300);
+      var C2 = randInt(50, 500);
+      var V = randInt(6, 24);
+      var Ceq = C1 * C2 / (C1 + C2);
+      var E = round2(0.5 * Ceq * V * V / 1000);
+      return { prompt: C1 + ' \u00B5F and ' + C2 + ' \u00B5F in series at ' + V + ' V. Find total energy (mJ).', steps: ['C_eq = ' + C1 + '\u00D7' + C2 + '/(' + C1 + '+' + C2 + ') = ' + round2(Ceq) + ' \u00B5F', 'E = \u00BDC_eq V\u00B2', 'E = 0.5 \u00D7 ' + round2(Ceq) + '\u00D710\u207B\u2076 \u00D7 ' + (V * V), 'E = ' + E + ' mJ'], answer: E, unit: 'mJ', tol: 0.1 };
+    }
+  ];
+
+  /* ================================================================
+     DATA — QUIZ POOL (15 questions: 10 MCQ + 5 numeric)
+     ================================================================ */
+
+  function genQuizPool() {
+    var pool = [];
+    /* --- 10 MCQ questions --- */
+    pool.push({ type: 'mcq', prompt: 'For capacitors in series, which quantity is the same on every capacitor?', options: ['Charge (Q)', 'Voltage (V)', 'Capacitance (C)', 'Energy (E)'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'For capacitors in parallel, which quantity is the same across every capacitor?', options: ['Voltage (V)', 'Charge (Q)', 'Capacitance (C)', 'Current (I)'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'The equivalent capacitance of capacitors in series is always:', options: ['Less than the smallest capacitor', 'Greater than the largest capacitor', 'Equal to the average', 'Equal to the sum'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'The equivalent capacitance of capacitors in parallel is:', options: ['The sum of individual capacitances', 'The reciprocal of the sum of reciprocals', 'The average of capacitances', 'The product divided by the sum'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'The energy stored in a capacitor is given by:', options: ['E = \u00BDCV\u00B2', 'E = CV', 'E = CV\u00B2', 'E = \u00BDC\u00B2V'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'If two identical capacitors (each C) are connected in series, C_eq is:', options: ['C/2', '2C', 'C', 'C\u00B2'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'If two identical capacitors (each C) are connected in parallel, C_eq is:', options: ['2C', 'C/2', 'C', 'C\u00B2'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'In a series capacitor circuit, which capacitor has the largest voltage across it?', options: ['The smallest capacitor', 'The largest capacitor', 'All have equal voltage', 'Cannot determine'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'Doubling the voltage across a capacitor will multiply the stored energy by:', options: ['4', '2', '8', '\u00BD'], correct: 0 });
+    pool.push({ type: 'mcq', prompt: 'A dielectric material placed between capacitor plates will:', options: ['Increase capacitance', 'Decrease capacitance', 'Not change capacitance', 'Increase resistance'], correct: 0 });
+
+    /* --- 5 numeric questions --- */
+    var Ca = randInt(100, 500);
+    var Va = randInt(5, 20);
+    pool.push({ type: 'numeric', prompt: Ca + ' \u00B5F capacitor at ' + Va + ' V. Charge (\u00B5C)?', answer: round2(Ca * Va), unit: '\u00B5C', tol: 1 });
+
+    var Cb = randInt(100, 400);
+    var Cc = randInt(100, 400);
+    pool.push({ type: 'numeric', prompt: Cb + ' \u00B5F and ' + Cc + ' \u00B5F in parallel. C_eq (\u00B5F)?', answer: Cb + Cc, unit: '\u00B5F', tol: 0.5 });
+
+    var Cd = randInt(100, 500);
+    var Ce = randInt(100, 500);
+    var Cser = round2(Cd * Ce / (Cd + Ce));
+    pool.push({ type: 'numeric', prompt: Cd + ' \u00B5F and ' + Ce + ' \u00B5F in series. C_eq (\u00B5F)?', answer: Cser, unit: '\u00B5F', tol: 0.5 });
+
+    var Cf = randInt(50, 400);
+    var Vf = randInt(6, 24);
+    var Ef = round2(0.5 * Cf * Vf * Vf / 1000);
+    pool.push({ type: 'numeric', prompt: 'Energy in ' + Cf + ' \u00B5F at ' + Vf + ' V (mJ)?', answer: Ef, unit: 'mJ', tol: 0.1 });
+
+    var Cg = randInt(100, 300);
+    var Ch = randInt(200, 600);
+    var Vg = randInt(6, 24);
+    var CeqG = Cg * Ch / (Cg + Ch);
+    var Qg = round2(CeqG * Vg);
+    var VgC1 = round2(Qg / Cg);
+    pool.push({ type: 'numeric', prompt: Cg + ' \u00B5F & ' + Ch + ' \u00B5F series, ' + Vg + 'V. V across smaller cap (V)?', answer: VgC1, unit: 'V', tol: 0.2 });
+
+    /* Shuffle */
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = randInt(0, i);
+      var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    return pool;
+  }
+
+  /* ================================================================
+     DOM REFS
+     ================================================================ */
+
+  var cvs = document.getElementById('sim-canvas');
+  var ctx = cvs.getContext('2d');
+  var W = 900, H = 480;          /* fixed logical drawing coordinates */
+
+  var modeTabs = document.getElementById('mode-tabs');
+  var configTabs = document.getElementById('config-tabs');
+  var simPanel = document.getElementById('sim-panel');
+
+  var countTabs    = document.getElementById('count-tabs');
+  var sgroupRow    = document.getElementById('mixed-groups-row');
+  var sgroupTabs   = document.getElementById('sgroup-tabs');
+  var sgroupDesc   = document.getElementById('sgroup-desc');
+  var capSlidersEl = document.getElementById('cap-sliders');
+  var capReadoutRow = document.getElementById('cap-readout-row');
+  var vSlider  = document.getElementById('v-slider');
+  var vNum     = document.getElementById('v-num');
+
+  var chkCharge = document.getElementById('chk-charge');
+  var chkAnim   = document.getElementById('chk-anim');
+
+  /* Action bar + modal + context menu */
+  var abUndo  = document.getElementById('ab-undo');
+  var abRedo  = document.getElementById('ab-redo');
+  var abReset = document.getElementById('ab-reset');
+  var abCsv   = document.getElementById('ab-csv');
+  var abPng   = document.getElementById('ab-png');
+  var calcModalEl = document.getElementById('calc-modal');
+  var calcBodyEl  = document.getElementById('calc-modal-body');
+  var ctxMenu = document.getElementById('ctx-menu');
+
+  /* Summary readout elements */
+  var rCeq = document.getElementById('r-ceq');
+  var rQt  = document.getElementById('r-qt');
+  var rEt  = document.getElementById('r-et');
+  var rVs  = document.getElementById('r-vs');
+
+  /* Explore */
+  var catRow       = document.getElementById('cat-row');
+  var catTabs      = document.getElementById('cat-tabs');
+  var itemSelector = document.getElementById('item-selector');
+  var conceptGrid  = document.getElementById('concept-grid');
+  var itemInfo     = document.getElementById('item-info');
+
+  /* Practice */
+  var practicePanel = document.getElementById('practice-panel');
+  var practiceBar   = document.getElementById('practice-bar');
+  var ppPrompt      = document.getElementById('pp-prompt');
+  var ppInput       = document.getElementById('pp-input');
+  var ppUnit        = document.getElementById('pp-unit');
+  var ppCheck       = document.getElementById('pp-check');
+  var ppNext        = document.getElementById('pp-next');
+  var ppFeedback    = document.getElementById('pp-feedback');
+  var ppSolution    = document.getElementById('pp-solution');
+  var pbarScoreVal  = document.getElementById('pbar-score-val');
+
+  /* Quiz */
+  var quizPanel  = document.getElementById('quiz-panel');
+  var quizBar    = document.getElementById('quiz-bar');
+  var quizResult = document.getElementById('quiz-result');
+  var qbarNum    = document.getElementById('qbar-num');
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+
+  var mode = 'simulate';
+  var configType = 'series';
+  var MAX_CAPS = 6;
+  var DEFAULT_CAPS = [100, 220, 330, 470, 150, 680];
+  var capCount = 3;
+  var caps = DEFAULT_CAPS.slice();   /* values for up to MAX_CAPS; only first capCount are active */
+  var CAP_MIN = 1, CAP_MAX = 1000;
+  var seriesGroups = 2;              /* MIXED only: number of series-connected groups (caps split into them, parallel within) */
+  var voltage = 12;
+  var showCharges = true;
+  var showAnim = true;
+
+  /* Animation state */
+  var animFrame = null;
+  var dotTime = 0;
+  var chargeProgress = 0;
+
+  /* Physics results */
+  var phys = {};
+
+  /* Practice state */
+  var pScore = 0, pTotal = 0, curProblem = null, pAnswered = false;
+
+  /* Quiz state */
+  var QUIZ_SIZE = 15;
+  var quizPool = [], quizSet = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
+  var quizHistory = [];
+
+  /* Explore state */
+  var exploreCat = 'basics';
+  var selectedConcept = null;
+
+  /* Undo / redo state */
+  var undoStack = [], redoStack = [], lastSnap = null;
+
+  /* Audio (lazy) */
+  var audioCtx = null;
+
+  /* ================================================================
+     PHYSICS CALCULATIONS
+     ================================================================ */
+
+  /* Active capacitances (µF), length = capCount. */
+  function activeCaps() { return caps.slice(0, capCount); }
+
+  /* Split n caps into g series groups, as even as possible (larger groups first). */
+  function groupSizes(n, g) {
+    g = Math.max(1, Math.min(g, n));
+    var base = Math.floor(n / g), rem = n % g, sizes = [], i;
+    for (i = 0; i < g; i++) sizes.push(base + (i < rem ? 1 : 0));
+    return sizes;
+  }
+  /* Effective number of series groups for the current mixed state (clamped). */
+  function effGroups() { return Math.max(1, Math.min(seriesGroups, capCount)); }
+
+  function calcPhysics() {
+    var V = voltage;
+    var C = activeCaps();
+    var n = C.length;
+    var i;
+    var Ceq, Qt;
+    var Vi = new Array(n), Qi = new Array(n), Ei = new Array(n);
+    var groups = null, G = 1, sizes = null;
+
+    if (configType === 'series') {
+      /* 1/Ceq = Σ 1/Ci ; same charge Q on every capacitor; Vi = Q/Ci */
+      var sumRecip = 0;
+      for (i = 0; i < n; i++) sumRecip += 1 / C[i];
+      Ceq = 1 / sumRecip;
+      Qt = Ceq * V;
+      for (i = 0; i < n; i++) { Qi[i] = Qt; Vi[i] = Qt / C[i]; }
+    } else if (configType === 'parallel') {
+      /* Ceq = Σ Ci ; same voltage V on each; Qi = Ci·V */
+      Ceq = 0;
+      for (i = 0; i < n; i++) Ceq += C[i];
+      Qt = Ceq * V;
+      for (i = 0; i < n; i++) { Vi[i] = V; Qi[i] = C[i] * V; }
+    } else {
+      /* mixed: G series-connected groups; each group's caps are in parallel.
+         G = 1 → all parallel, G = n → all series, in between → an array. */
+      G = effGroups();
+      sizes = groupSizes(n, G);
+      groups = [];
+      var idx = 0, sr = 0;
+      for (var gi = 0; gi < sizes.length; gi++) {
+        var members = [], Cg = 0;
+        for (var j = 0; j < sizes[gi]; j++) { members.push(idx); Cg += C[idx]; idx++; }
+        groups.push({ members: members, Cg: Cg });
+        sr += 1 / Cg;                      /* groups combine in series */
+      }
+      Ceq = 1 / sr;
+      Qt = Ceq * V;                        /* same charge through every series group */
+      for (gi = 0; gi < groups.length; gi++) {
+        var grp = groups[gi];
+        grp.Q = Qt;
+        grp.Vg = Qt / grp.Cg;              /* voltage across this parallel group */
+        for (j = 0; j < grp.members.length; j++) {
+          var mi = grp.members[j];
+          Vi[mi] = grp.Vg;                 /* parallel within group → same V */
+          Qi[mi] = C[mi] * grp.Vg;
+        }
+      }
+    }
+
+    var Et = 0;
+    for (i = 0; i < n; i++) {
+      Ei[i] = 0.5 * C[i] * 1e-6 * Vi[i] * Vi[i] * 1000;  /* mJ */
+      Et += Ei[i];
+    }
+
+    phys = { Ceq: Ceq, Qt: Qt, Et: Et, n: n, C: C, Vi: Vi, Qi: Qi, Ei: Ei, groups: groups, G: G, sizes: sizes };
+  }
+
+  function fmtNum(n) {
+    if (Math.abs(n) >= 1000) return n.toFixed(0);
+    if (Math.abs(n) >= 100) return n.toFixed(1);
+    if (Math.abs(n) >= 10) return n.toFixed(1);
+    return n.toFixed(2);
+  }
+
+  var _capReadoutCache = '';
+  function updateReadouts() {
+    rCeq.textContent = fmtNum(phys.Ceq);
+    rQt.textContent  = fmtNum(phys.Qt);
+    rEt.textContent  = fmtNum(phys.Et);
+    rVs.textContent  = voltage.toFixed(1);
+
+    /* Per-capacitor cards (rebuilt only when the value string changes). */
+    var html = '';
+    for (var i = 0; i < phys.n; i++) {
+      html += '<div class="cap-card">';
+      html += '<div class="cap-card-hd">C' + (i + 1) + ' = ' + phys.C[i] + ' µF</div>';
+      html += '<div class="cap-card-row"><span class="cap-card-k">V</span><span class="cap-card-v v">' + fmtNum(phys.Vi[i]) + ' V</span></div>';
+      html += '<div class="cap-card-row"><span class="cap-card-k">Q</span><span class="cap-card-v q">' + fmtNum(phys.Qi[i]) + ' µC</span></div>';
+      html += '<div class="cap-card-row"><span class="cap-card-k">E</span><span class="cap-card-v e">' + fmtNum(phys.Ei[i]) + ' mJ</span></div>';
+      html += '</div>';
+    }
+    if (html !== _capReadoutCache) { capReadoutRow.innerHTML = html; _capReadoutCache = html; }
+  }
+
+  /* ================================================================
+     DRAWING — HELPERS
+     ================================================================ */
+
+  function clearCanvas() {
+    ctx.fillStyle = '#161b27';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawWire(x1, y1, x2, y2, isHot) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = isHot ? '#ff5555' : '#42a5f5';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  function drawWirePath(points, isHot) {
+    if (points.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i][0], points[i][1]);
+    }
+    ctx.strokeStyle = isHot ? '#ff5555' : '#42a5f5';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  function drawBattery(x, y) {
+    /* Battery symbol: two pairs of lines (vertical) */
+    var gap = 8;
+    /* Long plate (positive, top) */
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y - gap); ctx.lineTo(x + 14, y - gap);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
+    /* Short plate */
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+    /* Long plate 2 */
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y + gap); ctx.lineTo(x + 14, y + gap);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 4; ctx.stroke();
+    /* Short plate 2 */
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y + gap * 2); ctx.lineTo(x + 8, y + gap * 2);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+
+    /* Lead wires connecting the cell to the loop endpoints (all layouts use y ± 100).
+       Top lead (positive) joins the top plate; bottom lead (negative) joins the bottom plate. */
+    ctx.beginPath();
+    ctx.moveTo(x, y - 100); ctx.lineTo(x, y - gap);
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y + gap * 2); ctx.lineTo(x, y + 100);
+    ctx.strokeStyle = '#42a5f5'; ctx.lineWidth = 3; ctx.stroke();
+
+    /* Labels */
+    ctx.font = 'bold 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ff5555';
+    ctx.textAlign = 'left';
+    ctx.fillText('+', x + 18, y - gap + 5);
+    ctx.fillStyle = '#42a5f5';
+    ctx.fillText('\u2212', x + 18, y + gap * 2 + 5);
+
+    /* Voltage label */
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillStyle = '#29b6f6';
+    ctx.textAlign = 'center';
+    ctx.fillText(voltage.toFixed(1) + ' V', x, y + gap * 2 + 24);
+  }
+
+  function drawCapacitor(x, y, C, label, vAcross, qOn, orientation) {
+    /* Draw capacitor symbol: two parallel plates with gap */
+    var plateLen = 28;
+    var gapHalf = 6;
+
+    ctx.save();
+    ctx.translate(x, y);
+    if (orientation === 'v') ctx.rotate(Math.PI / 2);
+
+    /* Left plate */
+    ctx.beginPath();
+    ctx.moveTo(-gapHalf, -plateLen / 2);
+    ctx.lineTo(-gapHalf, plateLen / 2);
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    /* Right plate */
+    ctx.beginPath();
+    ctx.moveTo(gapHalf, -plateLen / 2);
+    ctx.lineTo(gapHalf, plateLen / 2);
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    /* Lead wires */
+    ctx.beginPath();
+    ctx.moveTo(-gapHalf - 20, 0);
+    ctx.lineTo(-gapHalf, 0);
+    ctx.moveTo(gapHalf, 0);
+    ctx.lineTo(gapHalf + 20, 0);
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    /* Charge symbols if enabled */
+    if (showCharges && chargeProgress > 0.1) {
+      var alpha = Math.min(chargeProgress, 1) * 0.8;
+      var nCharges = Math.max(1, Math.min(4, Math.round(Math.abs(qOn) / 300)));
+
+      ctx.font = 'bold 10px "Segoe UI", sans-serif';
+      for (var i = 0; i < nCharges; i++) {
+        var cy = -plateLen / 2 + (plateLen / (nCharges + 1)) * (i + 1);
+        /* + on left plate */
+        ctx.fillStyle = 'rgba(255,85,85,' + alpha + ')';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('+', -gapHalf - 8, cy);
+        /* - on right plate */
+        ctx.fillStyle = 'rgba(66,165,245,' + alpha + ')';
+        ctx.fillText('\u2212', gapHalf + 8, cy);
+      }
+    }
+
+    /* Label: name and value */
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillStyle = '#29b6f6';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (orientation === 'v') {
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(label + ' ' + C + ' \u00B5F', 0, -plateLen / 2 - 14);
+    } else {
+      ctx.fillText(label + ' ' + C + ' \u00B5F', 0, -plateLen / 2 - 10);
+    }
+
+    /* Voltage across label */
+    if (showCharges && chargeProgress > 0.3) {
+      var va = Math.min((chargeProgress - 0.3) / 0.3, 1) * 0.9;
+      ctx.font = 'bold 10px "Segoe UI", sans-serif';
+      ctx.fillStyle = 'rgba(255,85,85,' + va + ')';
+      if (orientation === 'v') {
+        ctx.fillText(fmtNum(vAcross * chargeProgress) + ' V', 0, plateLen / 2 + 14);
+      } else {
+        ctx.fillText(fmtNum(vAcross * chargeProgress) + ' V', 0, plateLen / 2 + 14);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function drawNode(x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#dde3f0';
+    ctx.fill();
+  }
+
+  /* ================================================================
+     DRAWING — ANIMATED CHARGING DOTS
+     ================================================================ */
+
+  var chargingDots = [];
+
+  function getPathLength(points) {
+    var len = 0;
+    for (var i = 1; i < points.length; i++) {
+      var dx = points[i][0] - points[i - 1][0];
+      var dy = points[i][1] - points[i - 1][1];
+      len += Math.sqrt(dx * dx + dy * dy);
+    }
+    return len;
+  }
+
+  function getPointOnPath(points, t) {
+    var totalLen = getPathLength(points);
+    var target = t * totalLen;
+    var accu = 0;
+    for (var i = 1; i < points.length; i++) {
+      var dx = points[i][0] - points[i - 1][0];
+      var dy = points[i][1] - points[i - 1][1];
+      var seg = Math.sqrt(dx * dx + dy * dy);
+      if (accu + seg >= target) {
+        var frac = (target - accu) / seg;
+        return [points[i - 1][0] + dx * frac, points[i - 1][1] + dy * frac];
+      }
+      accu += seg;
+    }
+    return [points[points.length - 1][0], points[points.length - 1][1]];
+  }
+
+  function drawChargingDots(paths) {
+    if (!showAnim || chargeProgress >= 1) return;
+
+    var speed = 0.0008;
+
+    for (var p = 0; p < paths.length; p++) {
+      var path = paths[p];
+      var pathLen = getPathLength(path);
+      var numDots = Math.max(3, Math.min(12, Math.round(pathLen / 80)));
+
+      for (var d = 0; d < numDots; d++) {
+        var t = ((dotTime * speed + d / numDots) % 1 + 1) % 1;
+        /* Slow down dots as charging progresses */
+        t = t * (1 - chargeProgress * 0.8);
+        if (t < 0.001) t = 0.001;
+        var pt = getPointOnPath(path, t);
+
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(61,220,132,0.7)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#3ddc84';
+        ctx.fill();
+      }
+    }
+  }
+
+  /* ================================================================
+     DRAWING — BAR CHARTS (right side of canvas)
+     ================================================================ */
+
+  function capColor(i) {
+    var cols = ['#29b6f6', '#4dd0e1', '#80deea', '#4fc3f7', '#5c6bc0', '#7e57c2'];
+    return cols[i % cols.length];
+  }
+  function voltColor(i) {
+    var cols = ['#ff5555', '#ff7777', '#ff9999', '#ffa54f', '#ef9a9a', '#f48fb1'];
+    return cols[i % cols.length];
+  }
+  function enColor(i) {
+    var cols = ['#f5c842', '#ffd54f', '#ffe082', '#ffca28', '#ffb74d', '#ffcc80'];
+    return cols[i % cols.length];
+  }
+
+  function drawBarChart() {
+    var chartX = 620, chartY = 30, chartW = 260, chartH = 420;
+    var p = phys, n = p.n;
+
+    /* Background panel */
+    ctx.fillStyle = 'rgba(15,20,35,0.6)';
+    ctx.strokeStyle = '#2a3050';
+    ctx.lineWidth = 1;
+    roundRect(ctx, chartX, chartY, chartW, chartH, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(41,182,246,0.8)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Comparison', chartX + chartW / 2, chartY + 8);
+
+    var innerX = chartX + 14, innerW = chartW - 28;
+    var barMaxH = 48;
+
+    /* Renders one labelled section of bars; returns the next section's Y. */
+    function section(title, secY, items, maxVal, animScale, live) {
+      ctx.font = 'bold 9px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#8b9dc3'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(title, chartX + 10, secY);
+      secY += 14;
+      var bars = items.length;
+      var slot = innerW / bars;
+      var bw = Math.min(26, slot - 4);
+      for (var i = 0; i < bars; i++) {
+        var h = maxVal > 0 ? (items[i].val / maxVal) * barMaxH * animScale : 0;
+        if (h < 0) h = 0;
+        var x = innerX + slot * i + (slot - bw) / 2;
+        ctx.fillStyle = items[i].color;
+        ctx.fillRect(x, secY + barMaxH - h, bw, h);
+        ctx.fillStyle = '#8b9dc3';
+        ctx.font = 'bold 7px "Courier New", monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(items[i].label, x + bw / 2, secY + barMaxH + 3);
+        ctx.fillStyle = items[i].color;
+        ctx.font = '7px "Courier New", monospace'; ctx.textBaseline = 'bottom';
+        ctx.fillText(fmtNum(live ? items[i].val * animScale : items[i].val), x + bw / 2, secY + barMaxH - h - 2);
+      }
+      return secY + barMaxH + 28;
+    }
+
+    var i, capItems = [], voltItems = [], enItems = [], maxC = p.Ceq, maxV = voltage, maxE = p.Et;
+    for (i = 0; i < n; i++) {
+      capItems.push({ label: 'C' + (i + 1), val: p.C[i], color: capColor(i) });
+      voltItems.push({ label: 'V' + (i + 1), val: p.Vi[i], color: voltColor(i) });
+      enItems.push({ label: 'E' + (i + 1), val: p.Ei[i], color: enColor(i) });
+      if (p.C[i] > maxC) maxC = p.C[i];
+      if (p.Ei[i] > maxE) maxE = p.Ei[i];
+    }
+    capItems.push({ label: 'Ceq', val: p.Ceq, color: '#f5c842' });
+    voltItems.push({ label: 'Vs', val: voltage, color: '#f5c842' });
+    enItems.push({ label: 'Et', val: p.Et, color: '#3ddc84' });
+    maxC *= 1.1; maxV *= 1.1; maxE *= 1.1;
+    if (maxE < 0.001) maxE = 1;
+
+    var y = chartY + 28;
+    y = section('CAPACITANCE (\u00B5F)', y, capItems, maxC, Math.min(chargeProgress * 3, 1), false);
+    y = section('VOLTAGE (V)',       y, voltItems, maxV, Math.min(chargeProgress * 2, 1), true);
+    y = section('ENERGY (mJ)',       y, enItems,   maxE, Math.min(chargeProgress * 2, 1), true);
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.arcTo(x + w, y, x + w, y + r, r);
+    c.lineTo(x + w, y + h - r);
+    c.arcTo(x + w, y + h, x + w - r, y + h, r);
+    c.lineTo(x + r, y + h);
+    c.arcTo(x, y + h, x, y + h - r, r);
+    c.lineTo(x, y + r);
+    c.arcTo(x, y, x + r, y, r);
+    c.closePath();
+  }
+
+  /* ================================================================
+     DRAWING — CIRCUIT LAYOUTS
+     ================================================================ */
+
+  var chargingPaths = [];
+
+  /* Spread n branch Y-positions between yTop and yBot (single \u2192 centred). */
+  function spreadY(count, yTop, yBot, yMid) {
+    var ys = [], i;
+    if (count <= 1) return [yMid];
+    for (i = 0; i < count; i++) ys.push(yTop + (yBot - yTop) * i / (count - 1));
+    return ys;
+  }
+
+  function formulaText(line1, line2, y1) {
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(41,182,246,0.5)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(line1, 90, y1);
+    if (line2) ctx.fillText(line2, 90, y1 + 18);
+  }
+
+  function drawSeriesCircuit() {
+    var bx = 80, by = 240, cy = 120, botY = 360;
+    var n = phys.n, C = phys.C, i;
+    var xStart = 150, xEnd = 595;
+    var pitch = (xEnd - xStart) / n;
+    var capX = [];
+    for (i = 0; i < n; i++) capX.push(xStart + pitch * (i + 0.5));
+
+    /* Top rail: battery + up to first cap */
+    drawWirePath([[bx, by - 100], [bx, cy], [capX[0] - 26, cy]], true);
+    /* Between caps */
+    for (i = 0; i < n - 1; i++) drawWirePath([[capX[i] + 26, cy], [capX[i + 1] - 26, cy]], true);
+    /* Last cap \u2192 right \u2192 bottom rail \u2192 battery \u2212 */
+    drawWirePath([[capX[n - 1] + 26, cy], [xEnd, cy], [xEnd, botY], [bx, botY], [bx, by + 100]], false);
+
+    drawBattery(bx, by);
+    for (i = 0; i < n; i++) drawCapacitor(capX[i], cy, C[i], 'C' + (i + 1), phys.Vi[i], phys.Qi[i], 'h');
+
+    formulaText('1/Ceq = \u03A3 (1/Ci)   \u2014 same Q on every cap', 'Vi = Q / Ci', 405);
+
+    var path = [[bx, by - 100], [bx, cy]];
+    for (i = 0; i < n; i++) { path.push([capX[i] - 26, cy]); path.push([capX[i] + 26, cy]); }
+    path.push([xEnd, cy], [xEnd, botY], [bx, botY], [bx, by + 100]);
+    chargingPaths = [path];
+  }
+
+  function drawParallelCircuit() {
+    var bx = 80, by = 240;
+    var jx1 = 215, jx2 = 560, capX = 388;
+    var n = phys.n, C = phys.C, i;
+    var ys = spreadY(n, 95, 405, 250);
+    var yA = ys[0], yB = ys[n - 1];          /* top / bottom of the rails */
+    var botBus = 458;
+
+    /* Battery + \u2192 top of left rail (node A) */
+    drawWirePath([[bx, by - 100], [bx, yA], [jx1, yA]], true);
+    /* Left rail (node A, +) and right rail (node B, \u2212) verticals */
+    if (n > 1) { drawWirePath([[jx1, yA], [jx1, yB]], true); drawWirePath([[jx2, yA], [jx2, yB]], false); }
+    /* Each branch: jx1 \u2192 cap \u2192 jx2 */
+    for (i = 0; i < n; i++) {
+      drawWirePath([[jx1, ys[i]], [capX - 26, ys[i]]], true);
+      drawWirePath([[capX + 26, ys[i]], [jx2, ys[i]]], false);
+    }
+    /* Battery \u2212 \u2192 bottom bus \u2192 up right rail (node B) */
+    drawWirePath([[bx, by + 100], [bx, botBus], [jx2, botBus], [jx2, yB]], false);
+
+    drawBattery(bx, by);
+    for (i = 0; i < n; i++) {
+      drawNode(jx1, ys[i]); drawNode(jx2, ys[i]);
+      drawCapacitor(capX, ys[i], C[i], 'C' + (i + 1), phys.Vi[i], phys.Qi[i], 'h');
+    }
+
+    formulaText('Ceq = \u03A3 Ci   \u2014 same V across each', 'Qi = Ci \u00D7 V', 448);
+
+    chargingPaths = [];
+    for (i = 0; i < n; i++) {
+      chargingPaths.push([
+        [bx, by - 100], [bx, yA], [jx1, yA], [jx1, ys[i]],
+        [capX - 26, ys[i]], [capX + 26, ys[i]],
+        [jx2, ys[i]], [jx2, yB], [jx2, botBus], [bx, botBus], [bx, by + 100]
+      ]);
+    }
+  }
+
+  /* Mixed = G series-connected groups along a top spine; each group's caps hang
+     BELOW the spine as a vertical parallel cluster (single cap sits on the spine).
+     Battery connects + up to the spine and \u2212 around the bottom \u2014 same clean
+     connection the Series layout uses (no stub through the cell). */
+  function drawMixedCircuit() {
+    var bx = 80, by = 240, spineY = 110, botY = 440;
+    var C = phys.C, groups = phys.groups, G = phys.G;
+    var xStart = 145, xEnd = 595, slotW = (xEnd - xStart) / G, margin = 12;
+    var k, j;
+
+    /* Geometry per group. Caps hang from the spine down to ~botY-... */
+    var geo = [];
+    for (k = 0; k < G; k++) {
+      var Lx = xStart + slotW * k + margin;
+      var Rx = xStart + slotW * (k + 1) - margin;
+      var size = groups[k].members.length;
+      var ys;
+      if (size === 1) ys = [spineY];
+      else ys = spreadY(size, spineY + 45, Math.min(430, spineY + 45 + (size - 1) * 60), (spineY + 430) / 2);
+      geo.push({ Lx: Lx, Rx: Rx, cc: (Lx + Rx) / 2, size: size, ys: ys, members: groups[k].members });
+    }
+    var lastRx = geo[G - 1].Rx;
+
+    /* Series spine along the top: battery + \u2192 group0, group\u2192group, last \u2192 battery \u2212. */
+    drawWirePath([[bx, by - 100], [bx, spineY], [geo[0].Lx, spineY]], true);
+    for (k = 0; k < G - 1; k++) drawWirePath([[geo[k].Rx, spineY], [geo[k + 1].Lx, spineY]], true);
+    drawWirePath([[lastRx, spineY], [xEnd + 10, spineY], [xEnd + 10, botY], [bx, botY], [bx, by + 100]], false);
+
+    drawBattery(bx, by);
+
+    /* Each group: rails dropping from the spine + caps hanging between them. */
+    for (k = 0; k < G; k++) {
+      var g = geo[k];
+      if (g.size > 1) {
+        drawWirePath([[g.Lx, spineY], [g.Lx, g.ys[g.size - 1]]], true);
+        drawWirePath([[g.Rx, spineY], [g.Rx, g.ys[g.size - 1]]], false);
+        drawNode(g.Lx, spineY); drawNode(g.Rx, spineY);
+      }
+      for (j = 0; j < g.size; j++) {
+        var y = g.ys[j], mi = g.members[j];
+        drawWirePath([[g.Lx, y], [g.cc - 26, y]], true);
+        drawWirePath([[g.cc + 26, y], [g.Rx, y]], false);
+        if (g.size > 1) { drawNode(g.Lx, y); drawNode(g.Rx, y); }
+        drawCapacitor(g.cc, y, C[mi], 'C' + (mi + 1), phys.Vi[mi], phys.Qi[mi], 'h');
+      }
+    }
+
+    formulaText('Groups in series, parallel within each \u2014 ' + arrangementText(phys.n, G), '1/Ceq = \u03a3 1/C_group', 470);
+
+    /* One charging path per capacitor. */
+    chargingPaths = [];
+    for (k = 0; k < G; k++) {
+      var gg = geo[k];
+      for (j = 0; j < gg.size; j++) {
+        var yy = gg.ys[j];
+        var path = [[bx, by - 100], [bx, spineY], [gg.Lx, spineY]];
+        if (gg.size > 1) path.push([gg.Lx, yy], [gg.cc - 26, yy], [gg.cc + 26, yy], [gg.Rx, yy], [gg.Rx, spineY]);
+        else path.push([gg.cc - 26, spineY], [gg.cc + 26, spineY], [gg.Rx, spineY]);
+        path.push([lastRx, spineY], [xEnd + 10, spineY], [xEnd + 10, botY], [bx, botY], [bx, by + 100]);
+        chargingPaths.push(path);
+      }
+    }
+  }
+
+  /* ================================================================
+     DRAWING — MAIN RENDER
+     ================================================================ */
+
+  function drawCircuit() {
+    clearCanvas();
+
+    /* Title on canvas */
+    ctx.font = 'bold 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(41,182,246,0.7)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    var nLbl = phys.n + (phys.n === 1 ? ' capacitor' : ' capacitors');
+    var typeLabel = configType === 'series' ? 'Series Capacitor Bank — ' + nLbl :
+                    configType === 'parallel' ? 'Parallel Capacitor Bank — ' + nLbl :
+                    'Mixed Bank — ' + arrangementText(phys.n, phys.G);
+    ctx.fillText(typeLabel, 20, 15);
+
+    /* Formula in corner */
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(41,182,246,0.45)';
+    ctx.textAlign = 'right';
+    ctx.fillText('E = \u00BDCV\u00B2', W - 20, 15);
+
+    if (configType === 'series') drawSeriesCircuit();
+    else if (configType === 'parallel') drawParallelCircuit();
+    else drawMixedCircuit();
+
+    drawChargingDots(chargingPaths);
+    drawBarChart();
+  }
+
+  function render() {
+    calcPhysics();
+    drawCircuit();
+    if (mode === 'simulate') { updateReadouts(); updateLearnPanels(); }
+  }
+
+  /* Mode-aware redraw used by resizeCanvas (explore draws a static diagram). */
+  function redraw() {
+    if (mode === 'explore') {
+      if (selectedConcept) drawExploreCanvas(selectedConcept.diagram);
+      else clearCanvas();
+    } else {
+      render();
+    }
+  }
+
+  /* HiDPI / responsive canvas — backing store = CSS size × DPR, draw in logical W×H. */
+  function resizeCanvas() {
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    var rect = cvs.getBoundingClientRect();
+    var cssW = rect.width || W;
+    var cssH = cssW * (H / W);
+    cvs.width  = Math.round(cssW * dpr);
+    cvs.height = Math.round(cssH * dpr);
+    ctx.setTransform((cvs.width / W), 0, 0, (cvs.height / H), 0, 0);
+    if ('textRendering' in ctx) ctx.textRendering = 'geometricPrecision';
+    ctx.imageSmoothingQuality = 'high';
+    redraw();
+  }
+
+  /* ================================================================
+     ANIMATION LOOP
+     ================================================================ */
+
+  function animate() {
+    dotTime++;
+    if (showAnim && chargeProgress < 1) {
+      chargeProgress += 0.004;
+      if (chargeProgress > 1) chargeProgress = 1;
+    }
+    render();
+    animFrame = requestAnimationFrame(animate);
+  }
+
+  function startAnim() {
+    if (!animFrame) animate();
+  }
+
+  function stopAnim() {
+    if (animFrame) {
+      cancelAnimationFrame(animFrame);
+      animFrame = null;
+    }
+  }
+
+  function resetCharging() {
+    chargeProgress = 0;
+    dotTime = 0;
+  }
+
+  /* ================================================================
+     MODE SWITCHING
+     ================================================================ */
+
+  function hideAll() {
+    simPanel.style.display = 'none';
+    catRow.style.display = 'none';
+    itemSelector.style.display = 'none';
+    itemInfo.style.display = 'none';
+    practicePanel.style.display = 'none';
+    practiceBar.style.display = 'none';
+    quizPanel.style.display = 'none';
+    quizBar.style.display = 'none';
+    quizResult.style.display = 'none';
+  }
+
+  function switchMode(m) {
+    mode = m;
+    hideAll();
+
+    if (m === 'simulate') {
+      simPanel.style.display = '';
+      cvs.parentElement.style.display = '';
+      resizeCanvas();
+      startAnim();
+    } else if (m === 'explore') {
+      cvs.parentElement.style.display = selectedConcept ? '' : 'none';
+      catRow.style.display = '';
+      itemSelector.style.display = '';
+      buildConceptGrid();
+      if (selectedConcept) showConceptInfo(selectedConcept);
+      stopAnim();
+    } else if (m === 'practice') {
+      cvs.parentElement.style.display = 'none';
+      practicePanel.style.display = '';
+      practiceBar.style.display = '';
+      if (!curProblem) newPracticeProblem();
+      stopAnim();
+    } else if (m === 'quiz') {
+      cvs.parentElement.style.display = 'none';
+      quizBar.style.display = '';
+      startQuiz();
+      stopAnim();
+    }
+  }
+
+  modeTabs.addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    var m = e.target.dataset.mode;
+    modeTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    switchMode(m);
+  });
+
+  /* ================================================================
+     UNDO / REDO + CONTROL SYNC
+     ================================================================ */
+
+  function snap() {
+    return { t: configType, n: capCount, caps: caps.slice(), g: seriesGroups, v: voltage, sc: showCharges, sa: showAnim };
+  }
+  function applyState(s) {
+    configType = s.t; capCount = s.n; caps = s.caps.slice(); voltage = s.v;
+    seriesGroups = (s.g === undefined) ? 2 : s.g;
+    showCharges = s.sc; showAnim = s.sa;
+    configTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p.dataset.type === configType); });
+    countTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', +p.dataset.count === capCount); });
+    chkCharge.checked = showCharges; chkCharge.parentElement.classList.toggle('checked', showCharges);
+    chkAnim.checked = showAnim; chkAnim.parentElement.classList.toggle('checked', showAnim);
+    document.querySelectorAll('.preset-btn').forEach(function (b) { b.classList.remove('active'); });
+    buildCapSliders();
+    updateMixedGroupsUI();
+    syncControls();
+    resetCharging();
+    if (!showAnim) chargeProgress = 1;
+    render();
+  }
+  /* Push the PRE-change snapshot. lastSnap always holds the last committed state. */
+  function commitUndo() {
+    if (lastSnap) undoStack.push(lastSnap);
+    if (undoStack.length > 60) undoStack.shift();
+    redoStack = [];
+    lastSnap = snap();
+    updateUndoButtons();
+  }
+  function doUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(snap());
+    applyState(undoStack.pop());
+    lastSnap = snap();
+    updateUndoButtons();
+  }
+  function doRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(snap());
+    applyState(redoStack.pop());
+    lastSnap = snap();
+    updateUndoButtons();
+  }
+  function updateUndoButtons() {
+    abUndo.disabled = undoStack.length === 0;
+    abRedo.disabled = redoStack.length === 0;
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* Sync the supply slider/number + every capacitor slider/number from state. */
+  function syncControls() {
+    if (document.activeElement !== vSlider) vSlider.value = voltage;
+    if (document.activeElement !== vNum)    vNum.value    = voltage;
+    for (var i = 0; i < capCount; i++) {
+      var sl = document.getElementById('c-slider-' + i);
+      var nm = document.getElementById('c-num-' + i);
+      if (sl && document.activeElement !== sl) sl.value = caps[i];
+      if (nm && document.activeElement !== nm) nm.value = caps[i];
+    }
+  }
+
+  /* (Re)build one slider+number group per active capacitor. */
+  function buildCapSliders() {
+    var html = '';
+    for (var i = 0; i < capCount; i++) {
+      var lbl = 'C' + (i + 1);
+      html += '<div class="sim-slider-group">' +
+        '<span class="sim-slider-label">' + lbl + ' (µF)</span>' +
+        '<input class="sim-slider" id="c-slider-' + i + '" data-i="' + i + '" type="range" min="' + CAP_MIN + '" max="' + CAP_MAX + '" step="1" value="' + caps[i] + '">' +
+        '<span class="sim-num-wrap"><input class="sim-num" id="c-num-' + i + '" data-i="' + i + '" type="number" min="' + CAP_MIN + '" max="' + CAP_MAX + '" step="1" value="' + caps[i] + '" aria-label="' + lbl + ' capacitance in microfarads"><span class="sim-num-unit">µF</span></span>' +
+        '</div>';
+    }
+    capSlidersEl.innerHTML = html;
+    /* Wire each generated control. */
+    capSlidersEl.querySelectorAll('.sim-slider').forEach(function (sl) {
+      sl.addEventListener('input', function () {
+        caps[+this.dataset.i] = parseInt(this.value, 10);
+        syncControls(); resetCharging(); render();
+      });
+      sl.addEventListener('change', function () { clearPresetHighlight(); commitUndo(); });
+    });
+    capSlidersEl.querySelectorAll('.sim-num').forEach(function (nm) {
+      nm.addEventListener('change', function () {
+        var v = parseInt(this.value, 10);
+        if (isNaN(v)) { syncControls(); return; }
+        caps[+this.dataset.i] = clamp(v, CAP_MIN, CAP_MAX);
+        syncControls(); resetCharging(); render(); clearPresetHighlight(); commitUndo();
+      });
+    });
+  }
+
+  function clearPresetHighlight() {
+    document.querySelectorAll('.preset-btn').forEach(function (b) { b.classList.remove('active'); });
+  }
+
+  /* Supply voltage (static control). */
+  vSlider.addEventListener('input', function () {
+    voltage = parseFloat(this.value); syncControls(); resetCharging(); render();
+  });
+  vSlider.addEventListener('change', function () { clearPresetHighlight(); commitUndo(); });
+  vNum.addEventListener('change', function () {
+    var v = parseFloat(this.value);
+    if (isNaN(v)) { syncControls(); return; }
+    voltage = clamp(v, parseFloat(vNum.min), parseFloat(vNum.max));
+    syncControls(); resetCharging(); render(); clearPresetHighlight(); commitUndo();
+  });
+
+  /* ================================================================
+     NUMBER OF CAPACITORS
+     ================================================================ */
+
+  countTabs.addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    capCount = +e.target.dataset.count;
+    countTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    if (seriesGroups > capCount) seriesGroups = capCount;
+    buildCapSliders();
+    updateMixedGroupsUI();
+    clearPresetHighlight();
+    resetCharging();
+    render();
+    commitUndo();
+  });
+
+  /* ================================================================
+     MIXED — SERIES GROUPS (how the caps split: parallel within / series between)
+     ================================================================ */
+
+  function arrangementText(n, g) {
+    var sizes = groupSizes(n, g);
+    if (g <= 1) return 'all ' + n + ' in parallel';
+    if (g >= n) return 'all ' + n + ' in series';
+    var even = sizes.every(function (s) { return s === sizes[0]; });
+    if (even) return g + ' series × ' + sizes[0] + ' parallel';
+    return 'series groups of [' + sizes.join(', ') + ']';
+  }
+
+  function updateMixedGroupsUI() {
+    var isMixed = configType === 'mixed';
+    sgroupRow.style.display = isMixed ? '' : 'none';
+    if (!isMixed) return;
+    if (seriesGroups > capCount) seriesGroups = capCount;
+    if (seriesGroups < 1) seriesGroups = 1;
+    var html = '';
+    for (var g = 1; g <= capCount; g++) {
+      html += '<button class="pill' + (g === seriesGroups ? ' active' : '') + '" data-g="' + g + '">' + g + '</button>';
+    }
+    sgroupTabs.innerHTML = html;
+    sgroupDesc.innerHTML = '<strong>' + arrangementText(capCount, seriesGroups) + '</strong>';
+  }
+
+  sgroupTabs.addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    seriesGroups = +e.target.dataset.g;
+    updateMixedGroupsUI();
+    clearPresetHighlight();
+    resetCharging();
+    render();
+    commitUndo();
+  });
+
+  /* ================================================================
+     CONFIG TYPE SWITCHING
+     ================================================================ */
+
+  configTabs.addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    configType = e.target.dataset.type;
+    configTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    updateMixedGroupsUI();
+    resetCharging();
+    render();
+    commitUndo();
+  });
+
+  /* ================================================================
+     TOGGLES
+     ================================================================ */
+
+  chkCharge.addEventListener('change', function () {
+    showCharges = this.checked;
+    this.parentElement.classList.toggle('checked', this.checked);
+    render();
+    commitUndo();
+  });
+  chkAnim.addEventListener('change', function () {
+    showAnim = this.checked;
+    this.parentElement.classList.toggle('checked', this.checked);
+    if (showAnim) { resetCharging(); }
+    else { chargeProgress = 1; }
+    render();
+    commitUndo();
+  });
+
+  /* ================================================================
+     PRESETS
+     ================================================================ */
+
+  var presets = {
+    'equal-series':   { type: 'series',   caps: [100, 100, 100], v: 12 },
+    'equal-parallel': { type: 'parallel', caps: [100, 100, 100], v: 12 },
+    'filter-bank':    { type: 'parallel', caps: [470, 220, 100, 47], v: 24 },
+    'pfc':            { type: 'mixed',    caps: [200, 330, 470, 100], v: 12, g: 2 }
+  };
+
+  document.querySelector('.preset-row').addEventListener('click', function (e) {
+    var btn = e.target.closest('.preset-btn');
+    if (!btn) return;
+    var p = presets[btn.dataset.preset];
+    if (!p) return;
+
+    document.querySelectorAll('.preset-btn').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+
+    configType = p.type;
+    configTabs.querySelectorAll('.pill').forEach(function (pill) {
+      pill.classList.toggle('active', pill.dataset.type === p.type);
+    });
+    capCount = p.caps.length;
+    for (var i = 0; i < p.caps.length; i++) caps[i] = p.caps[i];
+    if (p.g) seriesGroups = p.g;
+    countTabs.querySelectorAll('.pill').forEach(function (pl) { pl.classList.toggle('active', +pl.dataset.count === capCount); });
+    voltage = p.v;
+    buildCapSliders();
+    updateMixedGroupsUI();
+    syncControls();
+    resetCharging();
+    render();
+    commitUndo();
+  });
+
+  /* Reset to factory defaults */
+  function resetAll() {
+    configType = 'series'; capCount = 3; caps = DEFAULT_CAPS.slice(); voltage = 12; seriesGroups = 2;
+    showCharges = true; showAnim = true;
+    configTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p.dataset.type === 'series'); });
+    countTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', +p.dataset.count === 3); });
+    chkCharge.checked = true; chkCharge.parentElement.classList.add('checked');
+    chkAnim.checked = true; chkAnim.parentElement.classList.add('checked');
+    document.querySelectorAll('.preset-btn').forEach(function (b) { b.classList.remove('active'); });
+    buildCapSliders();
+    updateMixedGroupsUI();
+    syncControls();
+    resetCharging();
+    render();
+    commitUndo();
+  }
+  abReset.addEventListener('click', resetAll);
+  abUndo.addEventListener('click', doUndo);
+  abRedo.addEventListener('click', doRedo);
+
+  document.addEventListener('keydown', function (e) {
+    if (mode !== 'simulate') return;
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) doRedo(); else doUndo();
+    } else if (!typing && (e.key === 'r' || e.key === 'R')) {
+      e.preventDefault(); resetAll();
+    }
+  });
+
+  /* ================================================================
+     EXPLORE MODE
+     ================================================================ */
+
+  catTabs.addEventListener('click', function (e) {
+    if (!e.target.matches('.pill')) return;
+    exploreCat = e.target.dataset.cat;
+    catTabs.querySelectorAll('.pill').forEach(function (p) { p.classList.toggle('active', p === e.target); });
+    buildConceptGrid();
+    itemInfo.style.display = 'none';
+    selectedConcept = null;
+    cvs.parentElement.style.display = 'none';
+  });
+
+  function buildConceptGrid() {
+    conceptGrid.innerHTML = '';
+    var filtered = CONCEPTS.filter(function (c) { return c.cat === exploreCat; });
+    filtered.forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.className = 'is-btn' + (selectedConcept && selectedConcept.id === c.id ? ' active' : '');
+      btn.innerHTML = '<span class="is-btn-name">' + c.name + '</span><span class="is-btn-sym">' + c.symbol + '</span>';
+      btn.addEventListener('click', function () {
+        conceptGrid.querySelectorAll('.is-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        selectedConcept = c;
+        showConceptInfo(c);
+      });
+      conceptGrid.appendChild(btn);
+    });
+  }
+
+  function showConceptInfo(c) {
+    /* Reveal the canvas and render this concept's diagram (was previously dead code). */
+    cvs.parentElement.style.display = '';
+    resizeCanvas();
+    drawExploreCanvas(c.diagram);
+
+    itemInfo.style.display = '';
+    var catLabels = { basics: 'Basics', combinations: 'Combinations' };
+    var html = '<div class="ii-top"><span class="ii-name">' + c.name + '</span><span class="ii-cat-badge">' + catLabels[c.cat] + '</span></div>';
+    html += '<p class="ii-desc">' + c.desc + '</p>';
+    html += '<div class="formula-box"><span class="fb-formula">' + c.formula + '</span><span class="fb-unit">' + c.unit + '</span></div>';
+
+    if (c.example) {
+      html += '<div class="example-box"><h4>Example Calculation</h4>';
+      html += '<p class="ex-problem">' + c.example.problem + '</p>';
+      c.example.steps.forEach(function (s) {
+        html += '<p class="ex-step">' + s + '</p>';
+      });
+      html += '</div>';
+    }
+
+    itemInfo.innerHTML = html;
+  }
+
+  /* ================================================================
+     PRACTICE MODE
+     ================================================================ */
+
+  function newPracticeProblem() {
+    var idx = randInt(0, PROBLEM_GEN.length - 1);
+    curProblem = PROBLEM_GEN[idx]();
+    pAnswered = false;
+
+    ppPrompt.textContent = curProblem.prompt;
+    ppUnit.textContent = curProblem.unit;
+    ppInput.value = '';
+    ppInput.disabled = false;
+    ppFeedback.textContent = '';
+    ppFeedback.className = 'feedback';
+    ppCheck.style.display = '';
+    ppNext.style.display = 'none';
+    ppSolution.style.display = 'none';
+    ppInput.focus();
+  }
+
+  ppCheck.addEventListener('click', function () {
+    if (pAnswered) return;
+    var val = parseFloat(ppInput.value);
+    if (isNaN(val)) { ppInput.focus(); return; }
+
+    pAnswered = true;
+    pTotal++;
+    var tol = curProblem.tol || 0.5;
+    var correct = Math.abs(val - curProblem.answer) <= tol;
+    playTone(correct);
+
+    if (correct) {
+      pScore++;
+      ppFeedback.textContent = 'Correct!';
+      ppFeedback.className = 'feedback ok';
+    } else {
+      ppFeedback.textContent = 'Incorrect. Answer: ' + curProblem.answer + ' ' + curProblem.unit;
+      ppFeedback.className = 'feedback err';
+    }
+
+    ppInput.disabled = true;
+    ppCheck.style.display = 'none';
+    ppNext.style.display = '';
+    pbarScoreVal.textContent = pScore + ' / ' + pTotal;
+
+    /* Show solution steps */
+    var solHtml = '<h4>Solution</h4>';
+    curProblem.steps.forEach(function (s) {
+      solHtml += '<p class="sol-step">' + s + '</p>';
+    });
+    ppSolution.innerHTML = solHtml;
+    ppSolution.style.display = '';
+  });
+
+  ppNext.addEventListener('click', function () { newPracticeProblem(); });
+
+  ppInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      if (!pAnswered) ppCheck.click();
+      else ppNext.click();
+    }
+  });
+
+  /* ================================================================
+     QUIZ MODE
+     ================================================================ */
+
+  function startQuiz() {
+    quizPool = genQuizPool();
+    quizSet = quizPool.slice(0, QUIZ_SIZE);
+    quizIdx = 0;
+    quizScore = 0;
+    quizAnswered = false;
+    quizHistory = [];
+    quizResult.style.display = 'none';
+    quizPanel.style.display = '';
+    showQuizQuestion();
+  }
+
+  function showQuizQuestion() {
+    var q = quizSet[quizIdx];
+    qbarNum.textContent = quizIdx + 1;
+    quizAnswered = false;
+
+    var html = '<p class="qp-prompt">' + q.prompt + '</p>';
+
+    if (q.type === 'mcq') {
+      html += '<div class="answer-grid">';
+      for (var i = 0; i < q.options.length; i++) {
+        html += '<button class="answer-btn" data-idx="' + i + '">' + q.options[i] + '</button>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="quiz-input-row">';
+      html += '<input class="qi-input" id="qi-val" type="number" step="any" placeholder="Answer">';
+      html += '<span class="qi-unit">' + q.unit + '</span>';
+      html += '<button class="btn btn-primary" id="qi-check">Check</button>';
+      html += '</div>';
+    }
+    html += '<p class="quiz-feedback" id="q-feedback" style="margin-top:10px;"></p>';
+
+    quizPanel.innerHTML = html;
+
+    if (q.type === 'mcq') {
+      quizPanel.querySelectorAll('.answer-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (quizAnswered) return;
+          quizAnswered = true;
+          var idx = parseInt(btn.dataset.idx);
+          var correct = idx === q.correct;
+          playTone(correct);
+
+          quizPanel.querySelectorAll('.answer-btn').forEach(function (b) {
+            b.classList.add('locked');
+            if (parseInt(b.dataset.idx) === q.correct) b.classList.add('correct');
+          });
+
+          if (correct) {
+            btn.classList.add('correct');
+            quizScore++;
+            document.getElementById('q-feedback').textContent = 'Correct!';
+            document.getElementById('q-feedback').className = 'quiz-feedback ok';
+          } else {
+            btn.classList.add('wrong');
+            document.getElementById('q-feedback').textContent = 'Incorrect. The answer is: ' + q.options[q.correct];
+            document.getElementById('q-feedback').className = 'quiz-feedback err';
+          }
+
+          quizHistory.push({ prompt: q.prompt, correct: correct, yourAnswer: q.options[idx], rightAnswer: q.options[q.correct] });
+          setTimeout(advanceQuiz, 1200);
+        });
+      });
+    } else {
+      var checkBtn = document.getElementById('qi-check');
+      var inputEl = document.getElementById('qi-val');
+
+      function checkNumeric() {
+        if (quizAnswered) return;
+        var val = parseFloat(inputEl.value);
+        if (isNaN(val)) { inputEl.focus(); return; }
+        quizAnswered = true;
+
+        var tol = q.tol || 0.5;
+        var correct = Math.abs(val - q.answer) <= tol;
+        playTone(correct);
+
+        if (correct) {
+          quizScore++;
+          document.getElementById('q-feedback').textContent = 'Correct!';
+          document.getElementById('q-feedback').className = 'quiz-feedback ok';
+        } else {
+          document.getElementById('q-feedback').textContent = 'Incorrect. Answer: ' + q.answer + ' ' + q.unit;
+          document.getElementById('q-feedback').className = 'quiz-feedback err';
+        }
+
+        inputEl.disabled = true;
+        checkBtn.disabled = true;
+        quizHistory.push({ prompt: q.prompt, correct: correct, yourAnswer: val + ' ' + q.unit, rightAnswer: q.answer + ' ' + q.unit });
+        setTimeout(advanceQuiz, 1200);
+      }
+
+      checkBtn.addEventListener('click', checkNumeric);
+      inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') checkNumeric();
+      });
+      inputEl.focus();
+    }
+  }
+
+  function advanceQuiz() {
+    quizIdx++;
+    if (quizIdx >= QUIZ_SIZE) {
+      showQuizResult();
+    } else {
+      showQuizQuestion();
+    }
+  }
+
+  function showQuizResult() {
+    quizPanel.style.display = 'none';
+    quizBar.style.display = 'none';
+    quizResult.style.display = '';
+
+    var pct = Math.round(quizScore / QUIZ_SIZE * 100);
+    var stars = '';
+    var scoreClass = 'poor';
+    var verdict = 'Keep practicing!';
+    if (pct >= 90) { stars = '\u2B50\u2B50\u2B50'; scoreClass = 'perfect'; verdict = 'Outstanding!'; }
+    else if (pct >= 70) { stars = '\u2B50\u2B50'; scoreClass = 'good'; verdict = 'Well done!'; }
+    else if (pct >= 50) { stars = '\u2B50'; scoreClass = 'good'; verdict = 'Good effort!'; }
+
+    var html = '<div class="qr-header">';
+    html += '<div class="qr-title-wrap"><span class="qr-title">Quiz Complete!</span><span class="qr-stars">' + stars + '</span></div>';
+    html += '<div class="qr-score-wrap"><span class="qr-score ' + scoreClass + '">' + pct + '%</span><p class="qr-verdict">' + verdict + '</p></div>';
+    html += '</div>';
+
+    html += '<div class="qr-rows">';
+    for (var i = 0; i < quizHistory.length; i++) {
+      var h = quizHistory[i];
+      var rowClass = h.correct ? 'ok' : 'err';
+      html += '<div class="qr-row ' + rowClass + '">';
+      html += '<span class="qr-qnum">Q' + (i + 1) + '</span>';
+      html += '<span class="qr-detail"><strong>' + h.prompt.substring(0, 60) + (h.prompt.length > 60 ? '...' : '') + '</strong></span>';
+      html += '<span class="qr-mark">' + (h.correct ? '\u2713' : '\u2717') + '</span>';
+      html += '</div>';
+    }
+    html += '</div>';
+
+    html += '<button class="btn btn-primary" id="quiz-retry" style="align-self:center;margin-top:8px;">Retake Quiz</button>';
+    quizResult.innerHTML = html;
+
+    document.getElementById('quiz-retry').addEventListener('click', function () {
+      quizResult.style.display = 'none';
+      quizBar.style.display = '';
+      startQuiz();
+    });
+  }
+
+  /* ================================================================
+     EXPLORE MODE — CANVAS DIAGRAMS
+     ================================================================ */
+
+  function drawExploreCanvas(diagramId) {
+    clearCanvas();
+
+    ctx.font = 'bold 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(41,182,246,0.7)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    if (diagramId === 'capacitance') {
+      ctx.fillText('Capacitance: C = Q / V', W / 2, 20);
+      drawCapDiagram(W / 2, H / 2, 120);
+    } else if (diagramId === 'energy') {
+      ctx.fillText('Energy Storage: E = \u00BDCV\u00B2', W / 2, 20);
+      drawEnergyDiagram();
+    } else if (diagramId === 'dielectric') {
+      ctx.fillText('Dielectric: C = \u03B5\u2080\u03B5\u1D63A/d', W / 2, 20);
+      drawDielectricDiagram();
+    } else if (diagramId === 'seriesCaps') {
+      ctx.fillText('Series: 1/Ceq = 1/C1 + 1/C2 + 1/C3', W / 2, 20);
+      drawSeriesDiagram();
+    } else if (diagramId === 'parallelCaps') {
+      ctx.fillText('Parallel: Ceq = C1 + C2 + C3', W / 2, 20);
+      drawParallelDiagram();
+    } else if (diagramId === 'mixedCaps') {
+      ctx.fillText('Mixed: C1 series with (C2 || C3)', W / 2, 20);
+      drawMixedDiagram();
+    }
+  }
+
+  function drawCapDiagram(cx, cy, size) {
+    /* Draw a large capacitor symbol */
+    var plateH = size;
+    var gap = size * 0.25;
+
+    ctx.beginPath();
+    ctx.moveTo(cx - gap, cy - plateH / 2);
+    ctx.lineTo(cx - gap, cy + plateH / 2);
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + gap, cy - plateH / 2);
+    ctx.lineTo(cx + gap, cy + plateH / 2);
+    ctx.stroke();
+
+    /* Lead wires */
+    ctx.beginPath();
+    ctx.moveTo(cx - gap - 100, cy);
+    ctx.lineTo(cx - gap, cy);
+    ctx.moveTo(cx + gap, cy);
+    ctx.lineTo(cx + gap + 100, cy);
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    /* Charges */
+    ctx.font = 'bold 20px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (var i = 0; i < 4; i++) {
+      var py = cy - plateH / 2 + (plateH / 5) * (i + 1);
+      ctx.fillStyle = '#ff5555';
+      ctx.fillText('+', cx - gap - 18, py);
+      ctx.fillStyle = '#42a5f5';
+      ctx.fillText('\u2212', cx + gap + 18, py);
+    }
+
+    /* Labels */
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.fillStyle = '#f5c842';
+    ctx.fillText('Q = CV', cx, cy + plateH / 2 + 40);
+    ctx.fillStyle = '#29b6f6';
+    ctx.fillText('C', cx, cy - plateH / 2 - 25);
+    ctx.fillStyle = '#ff5555';
+    ctx.font = 'bold 14px "Segoe UI", sans-serif';
+    ctx.fillText('V', cx - gap - 60, cy - 15);
+  }
+
+  function drawEnergyDiagram() {
+    var cx = W / 2, cy = H / 2;
+    /* Draw capacitor with energy field */
+    drawCapDiagram(cx, cy - 20, 80);
+
+    /* Electric field lines between plates */
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(245,200,66,0.4)';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 5; i++) {
+      var py = cy - 60 + i * 20;
+      ctx.beginPath();
+      ctx.moveTo(cx - 15, py);
+      ctx.lineTo(cx + 15, py);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillStyle = '#f5c842';
+    ctx.textAlign = 'center';
+    ctx.fillText('E = \u00BDCV\u00B2 = Q\u00B2/2C = \u00BDQV', cx, cy + 100);
+  }
+
+  function drawDielectricDiagram() {
+    var cx = W / 2, cy = H / 2;
+    var plateH = 100, gap = 40;
+
+    /* Plates */
+    ctx.beginPath();
+    ctx.moveTo(cx - gap, cy - plateH / 2);
+    ctx.lineTo(cx - gap, cy + plateH / 2);
+    ctx.strokeStyle = '#29b6f6'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + gap, cy - plateH / 2);
+    ctx.lineTo(cx + gap, cy + plateH / 2);
+    ctx.stroke();
+
+    /* Dielectric fill */
+    ctx.fillStyle = 'rgba(41,182,246,0.1)';
+    ctx.fillRect(cx - gap + 3, cy - plateH / 2, gap * 2 - 6, plateH);
+
+    /* Dielectric label */
+    ctx.font = 'bold 14px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(41,182,246,0.6)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\u03B5\u1D63', cx, cy);
+
+    /* Dimension markers */
+    ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.fillStyle = '#8b9dc3';
+    ctx.fillText('d', cx, cy + plateH / 2 + 20);
+    ctx.fillText('A', cx - gap - 30, cy);
+
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillStyle = '#f5c842';
+    ctx.fillText('C = \u03B5\u2080\u03B5\u1D63A/d', cx, cy + plateH / 2 + 50);
+  }
+
+  function drawSeriesDiagram() {
+    chargeProgress = 1;
+    calcPhysics();
+    var origType = configType;
+    configType = 'series';
+    calcPhysics();
+    drawSeriesCircuit();
+    configType = origType;
+  }
+
+  function drawParallelDiagram() {
+    chargeProgress = 1;
+    var origType = configType;
+    configType = 'parallel';
+    calcPhysics();
+    drawParallelCircuit();
+    configType = origType;
+  }
+
+  function drawMixedDiagram() {
+    chargeProgress = 1;
+    var origType = configType;
+    configType = 'mixed';
+    calcPhysics();
+    drawMixedCircuit();
+    configType = origType;
+  }
+
+  /* ================================================================
+     LEARNING PANELS — Live equations (KaTeX) + What-if coach
+     ================================================================ */
+
+  var _learnCache = { eq: '', coach: '' };
+
+  /* Join a per-cap series like "V_1, V_2, …" with formatted values. */
+  function joinCaps(sym, arr) {
+    var parts = [];
+    for (var i = 0; i < arr.length; i++) parts.push(sym + '_' + (i + 1) + '=' + fmtNum(arr[i]));
+    return parts.join(',\\; ');
+  }
+
+  function updateLearnPanels() {
+    var eqEl = document.getElementById('lp-eq-body');
+    var coEl = document.getElementById('lp-coach-body');
+    if (!eqEl || !coEl) return;
+    var p = phys, V = voltage, n = p.n, i;
+    var eq = '', co = '';
+
+    if (configType === 'series') {
+      eq += '<div class="eq-line">\\[ \\dfrac{1}{C_{eq}} = \\sum_{i=1}^{' + n + '} \\dfrac{1}{C_i} \\Rightarrow C_{eq} = ' + fmtNum(p.Ceq) + '\\;\\mu\\mathrm{F} \\]</div>';
+      eq += '<div class="eq-line">\\( Q = C_{eq}V = ' + fmtNum(p.Qt) + '\\;\\mu\\mathrm{C}\\;\\text{(same on each)} \\)</div>';
+      eq += '<div class="eq-line">\\( ' + joinCaps('V', p.Vi) + '\\;\\mathrm{V} \\)</div>';
+    } else if (configType === 'parallel') {
+      eq += '<div class="eq-line">\\[ C_{eq} = \\sum_{i=1}^{' + n + '} C_i = ' + fmtNum(p.Ceq) + '\\;\\mu\\mathrm{F} \\]</div>';
+      eq += '<div class="eq-line">\\( \\text{same } V=' + fmtNum(V) + '\\;\\mathrm{V},\\; Q_i = C_i V \\)</div>';
+      eq += '<div class="eq-line">\\( ' + joinCaps('Q', p.Qi) + '\\;\\mu\\mathrm{C} \\)</div>';
+    } else {
+      /* mixed: G series groups, parallel within each */
+      var grpCs = [], grpVs = [];
+      for (i = 0; i < p.groups.length; i++) { grpCs.push(fmtNum(p.groups[i].Cg)); grpVs.push(fmtNum(p.groups[i].Vg)); }
+      eq += '<div class="eq-line">\\( \\text{' + arrangementText(n, p.G) + '} \\)</div>';
+      eq += '<div class="eq-line">\\( C_{group} = ' + grpCs.join(',\\; ') + '\\;\\mu\\mathrm{F} \\)</div>';
+      eq += '<div class="eq-line">\\[ \\dfrac{1}{C_{eq}} = \\sum_{g} \\dfrac{1}{C_{group,g}} \\Rightarrow C_{eq} = ' + fmtNum(p.Ceq) + '\\;\\mu\\mathrm{F} \\]</div>';
+      eq += '<div class="eq-line">\\( Q = C_{eq}V = ' + fmtNum(p.Qt) + '\\;\\mu\\mathrm{C}\\;\\text{(through each group)} \\)</div>';
+    }
+    eq += '<div class="eq-line">\\( E = \\tfrac{1}{2}C_{eq}V^2 = ' + fmtNum(p.Et) + '\\;\\mathrm{mJ} \\)</div>';
+
+    /* What-if coach */
+    var minC = Math.min.apply(null, p.C), maxC = Math.max.apply(null, p.C);
+    if (configType === 'series') {
+      co += '<div class="coach-item">Series C<sub>eq</sub> (<strong>' + fmtNum(p.Ceq) + ' µF</strong>) is always <strong>smaller</strong> than the smallest capacitor (' + minC + ' µF).</div>';
+      co += '<div class="coach-item">All ' + n + ' capacitors hold the <strong>same charge</strong> Q = ' + fmtNum(p.Qt) + ' µC; the <strong>smallest</strong> one takes the <strong>largest voltage</strong>.</div>';
+      co += '<div class="coach-item">Use series when you need a higher voltage rating than a single capacitor allows.</div>';
+    } else if (configType === 'parallel') {
+      co += '<div class="coach-item">Parallel C<sub>eq</sub> (<strong>' + fmtNum(p.Ceq) + ' µF</strong>) is the <strong>sum</strong> &mdash; larger than any single capacitor (' + maxC + ' µF).</div>';
+      co += '<div class="coach-item">All ' + n + ' capacitors share V = ' + fmtNum(V) + ' V; the <strong>largest</strong> stores the <strong>most charge and energy</strong>.</div>';
+      co += '<div class="coach-item">Parallel banks are the standard way to add capacitance for power-factor correction.</div>';
+    } else {
+      co += '<div class="coach-item">Arrangement: <strong>' + arrangementText(n, p.G) + '</strong> &mdash; caps inside a group are in parallel, the ' + p.G + ' groups are in series.</div>';
+      co += '<div class="coach-item">Each parallel group is added up first, then the groups combine in series (reciprocal sum) → C<sub>eq</sub> = ' + fmtNum(p.Ceq) + ' µF.</div>';
+      co += '<div class="coach-item">Fewer series groups → higher C<sub>eq</sub>; more series groups → lower C<sub>eq</sub> but higher voltage rating.</div>';
+    }
+    co += '<div class="coach-item">Energy scales with V²: doubling V<sub>supply</sub> would give <strong>' + fmtNum(p.Et * 4) + ' mJ</strong>.</div>';
+
+    if (eq !== _learnCache.eq) { eqEl.innerHTML = eq; _learnCache.eq = eq; }
+    if (co !== _learnCache.coach) { coEl.innerHTML = co; _learnCache.coach = co; }
+  }
+
+  function wireLearnPanels() {
+    var expAll = document.getElementById('learn-expand-all');
+    var colAll = document.getElementById('learn-collapse-all');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.learn-card'));
+    if (expAll) expAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = true; }); });
+    if (colAll) colAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+  }
+
+  /* ================================================================
+     SHOW-CALCULATIONS MODAL
+     ================================================================ */
+
+  function calcStep(num, title, formula, calc, result) {
+    var html = '<div class="cs-step"><div class="cs-step-hd">';
+    html += '<span class="cs-num">Step ' + num + '</span><span class="cs-title">' + title + '</span></div>';
+    if (formula) html += '<div class="cs-formula">' + formula + '</div>';
+    if (calc)    html += '<div class="cs-calc">' + calc + '</div>';
+    if (result != null) html += '<div class="cs-result">→ <strong>' + result + '</strong></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function buildCalcSteps() {
+    var p = phys, V = voltage, C = p.C, n = p.n, i;
+    var f2 = function (x) { return (Math.round(x * 100) / 100).toFixed(2); };
+    var f4 = function (x) { return (Math.round(x * 1000000) / 1000000).toFixed(6); };
+    var sum = function (a) { var s = 0; for (var k = 0; k < a.length; k++) s += a[k]; return s; };
+
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">Given &mdash; Current State</span><div class="cs-given">';
+    html += '<span>Config = ' + configType + '</span><span>' + n + ' capacitor' + (n > 1 ? 's' : '') + '</span>';
+    for (i = 0; i < n; i++) html += '<span>C' + (i + 1) + ' = ' + C[i] + ' µF</span>';
+    html += '<span>V = ' + fmtNum(V) + ' V</span></div>';
+    html += '<p class="cs-si-note">ⓘ Worked in µF / µC / mJ. Internally 1 µF = 10⁻⁶ F; energy 1 µF·V² = 1 µJ = 10⁻³ mJ.</p></div>';
+
+    var s = 1, et;
+
+    if (configType === 'series') {
+      var recipTerms = [], recipVals = [], rs = 0;
+      for (i = 0; i < n; i++) { recipTerms.push('\\dfrac{1}{' + C[i] + '}'); recipVals.push(f4(1 / C[i])); rs += 1 / C[i]; }
+      html += calcStep(s++, 'Sum the reciprocals',
+        '\\[ \\dfrac{1}{C_{eq}} = \\sum_{i=1}^{' + n + '} \\dfrac{1}{C_i} \\]',
+        '\\( \\dfrac{1}{C_{eq}} = ' + recipTerms.join('+') + ' = ' + recipVals.join(' + ') + ' \\)',
+        f4(rs) + ' µF⁻¹');
+      html += calcStep(s++, 'Equivalent capacitance',
+        '\\[ C_{eq} = \\dfrac{1}{\\sum 1/C_i} \\]',
+        '\\( C_{eq} = \\dfrac{1}{' + f4(rs) + '} \\)',
+        fmtNum(p.Ceq) + ' µF  (always < smallest, ' + Math.min.apply(null, C) + ' µF)');
+      html += calcStep(s++, 'Total charge — same on every capacitor',
+        '\\[ Q = C_{eq}\\,V \\]',
+        '\\( Q = ' + fmtNum(p.Ceq) + ' \\times ' + fmtNum(V) + ' \\)',
+        fmtNum(p.Qt) + ' µC');
+      var vTerms = [];
+      for (i = 0; i < n; i++) vTerms.push('V_' + (i + 1) + ' = \\dfrac{' + f2(p.Qt) + '}{' + C[i] + '} = ' + f2(p.Vi[i]));
+      html += calcStep(s++, 'Voltage division (Vᵢ = Q / Cᵢ)',
+        '\\[ V_i = \\dfrac{Q}{C_i} \\]',
+        '\\( ' + vTerms.join(',\\;\\; ') + ' \\)',
+        'Σ Vᵢ = ' + f2(sum(p.Vi)) + ' V = V supply ✓');
+    } else if (configType === 'parallel') {
+      html += calcStep(s++, 'Add the capacitances',
+        '\\[ C_{eq} = \\sum_{i=1}^{' + n + '} C_i \\]',
+        '\\( C_{eq} = ' + C.join(' + ') + ' \\)',
+        fmtNum(p.Ceq) + ' µF  (always > largest, ' + Math.max.apply(null, C) + ' µF)');
+      html += calcStep(s++, 'Each capacitor sees the full supply voltage',
+        '\\[ V_1 = V_2 = \\dots = V_{' + n + '} = V \\]',
+        '\\( V = ' + fmtNum(V) + '\\;\\mathrm{V} \\)',
+        fmtNum(V) + ' V across each');
+      var qTerms = [];
+      for (i = 0; i < n; i++) qTerms.push('Q_' + (i + 1) + ' = ' + C[i] + ' \\times ' + f2(V) + ' = ' + f2(p.Qi[i]));
+      html += calcStep(s++, 'Charge divides with capacitance (Qᵢ = Cᵢ V)',
+        '\\[ Q_i = C_i\\,V \\]',
+        '\\( ' + qTerms.join(',\\;\\; ') + ' \\)',
+        'Σ Qᵢ = ' + fmtNum(p.Qt) + ' µC');
+    } else {
+      /* mixed: G series groups (parallel within each) */
+      var groups = p.groups, G = p.G, gi;
+      var grpExpr = [], grpVals = [];
+      for (gi = 0; gi < G; gi++) {
+        var mem = groups[gi].members, terms = [];
+        for (i = 0; i < mem.length; i++) terms.push('' + C[mem[i]]);
+        grpExpr.push('(' + terms.join('+') + ')');
+        grpVals.push(fmtNum(groups[gi].Cg));
+      }
+      html += calcStep(s++, 'Step 1 — sum each parallel group',
+        '\\[ C_{group,g} = \\sum_{i \\in g} C_i \\]',
+        '\\( ' + grpExpr.join(',\\;\\; ') + ' = ' + grpVals.join(',\\;\\; ') + ' \\)',
+        arrangementText(n, G));
+
+      var rTerms = [], rVals = [], rs = 0;
+      for (gi = 0; gi < G; gi++) { rTerms.push('\\dfrac{1}{' + fmtNum(groups[gi].Cg) + '}'); rVals.push(f4(1 / groups[gi].Cg)); rs += 1 / groups[gi].Cg; }
+      html += calcStep(s++, 'Step 2 — combine the ' + G + ' groups in series',
+        '\\[ \\dfrac{1}{C_{eq}} = \\sum_g \\dfrac{1}{C_{group,g}} \\]',
+        '\\( \\dfrac{1}{C_{eq}} = ' + rTerms.join('+') + ' = ' + rVals.join(' + ') + ' = ' + f4(rs) + ' \\)',
+        fmtNum(p.Ceq) + ' µF');
+
+      html += calcStep(s++, 'Step 3 — total charge (same through every series group)',
+        '\\[ Q = C_{eq}\\,V \\]',
+        '\\( Q = ' + fmtNum(p.Ceq) + ' \\times ' + fmtNum(V) + ' \\)',
+        fmtNum(p.Qt) + ' µC');
+
+      var vgTerms = [], vgSum = 0;
+      for (gi = 0; gi < G; gi++) { vgTerms.push('V_{g' + (gi + 1) + '} = \\dfrac{' + f2(p.Qt) + '}{' + fmtNum(groups[gi].Cg) + '} = ' + f2(groups[gi].Vg)); vgSum += groups[gi].Vg; }
+      html += calcStep(s++, 'Step 4 — voltage across each group (Vg = Q / C_group)',
+        '\\[ V_g = \\dfrac{Q}{C_{group,g}} \\]',
+        '\\( ' + vgTerms.join(',\\;\\; ') + ' \\)',
+        'Σ Vg = ' + f2(vgSum) + ' V = V supply ✓');
+
+      var qiTerms = [];
+      for (i = 0; i < n; i++) qiTerms.push('Q_' + (i + 1) + ' = ' + C[i] + ' \\times ' + f2(p.Vi[i]) + ' = ' + f2(p.Qi[i]));
+      html += calcStep(s++, 'Step 5 — charge on each capacitor (Qᵢ = Cᵢ Vg)',
+        '\\[ Q_i = C_i\\,V_{g(i)} \\]',
+        '\\( ' + qiTerms.join(',\\;\\; ') + ' \\)',
+        'within a group the Qᵢ sum to the group charge Q');
+    }
+
+    et = 0.5 * p.Ceq * V * V;   /* µF·V² = µJ */
+    var eParts = []; for (i = 0; i < n; i++) eParts.push('E' + (i + 1) + '=' + fmtNum(p.Ei[i]));
+    html += calcStep(s++, 'Energy stored',
+      '\\[ E = \\tfrac{1}{2}\\,C_{eq}\\,V^2 \\]',
+      '\\( E = \\tfrac{1}{2} \\times ' + fmtNum(p.Ceq) + ' \\times ' + fmtNum(V) + '^2 = ' + f2(et) + '\\;\\mu J \\)',
+      fmtNum(p.Et) + ' mJ  (per cap: ' + eParts.join(', ') + ' mJ)');
+    html += calcStep(s++, 'Engineering note', '',
+      'Capacitor banks like this are used for power-factor correction, DC-link energy storage and filtering. Always check each capacitor’s voltage against its rated voltage — in a <strong>series</strong> bank the <strong>smallest</strong> capacitor carries the <strong>highest</strong> voltage and fails first.', null);
+    return html;
+  }
+
+  function openCalc() {
+    if (!calcModalEl || !calcBodyEl) return;
+    calcBodyEl.innerHTML = buildCalcSteps();
+    calcModalEl.classList.add('active');
+    var cb = document.getElementById('calc-modal-close'); if (cb) cb.focus();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCalc() {
+    if (!calcModalEl) return;
+    calcModalEl.classList.remove('active');
+    document.body.style.overflow = '';
+    var b = document.getElementById('btn-calc'); if (b) b.focus();
+  }
+
+  /* ================================================================
+     EXPORT — CSV + PNG
+     ================================================================ */
+
+  function exportCSV() {
+    var p = phys, i;
+    var rows = [
+      ['Parameter', 'Value', 'Unit'],
+      ['Configuration', configType, ''],
+      ['Number of capacitors', p.n, ''],
+      ['Supply voltage', fmtNum(voltage), 'V'],
+      ['Equivalent capacitance', fmtNum(p.Ceq), 'uF'],
+      ['Total charge', fmtNum(p.Qt), 'uC'],
+      ['Total energy', fmtNum(p.Et), 'mJ']
+    ];
+    for (i = 0; i < p.n; i++) {
+      rows.push(['C' + (i + 1), p.C[i], 'uF']);
+      rows.push(['V across C' + (i + 1), fmtNum(p.Vi[i]), 'V']);
+      rows.push(['Q on C' + (i + 1), fmtNum(p.Qi[i]), 'uC']);
+      rows.push(['E in C' + (i + 1), fmtNum(p.Ei[i]), 'mJ']);
+    }
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'capacitor-bank-' + configType + '.csv';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  function exportPNG() {
+    /* Make sure the canvas reflects the current circuit before snapshot. */
+    var wasMode = mode;
+    if (wasMode !== 'simulate' && !(mode === 'explore' && selectedConcept)) { calcPhysics(); chargeProgress = 1; drawCircuit(); }
+    var off = document.createElement('canvas');
+    off.width = cvs.width; off.height = cvs.height;
+    var octx = off.getContext('2d');
+    octx.drawImage(cvs, 0, 0);
+    octx.font = 'bold 16px "Segoe UI", sans-serif';
+    octx.fillStyle = 'rgba(225,231,243,0.55)';
+    octx.textAlign = 'right';
+    octx.fillText('NHIT VisualLab — Capacitor Bank', off.width - 16, off.height - 14);
+    var a = document.createElement('a');
+    a.download = 'capacitor-bank-' + configType + '.png';
+    a.href = off.toDataURL('image/png');
+    a.click();
+  }
+
+  /* ================================================================
+     RIGHT-CLICK CONTEXT MENU
+     ================================================================ */
+
+  function closeCtxMenu() { if (ctxMenu) ctxMenu.classList.remove('active'); }
+
+  function showCtxMenu(clientX, clientY) {
+    if (!ctxMenu) return;
+    var items = [
+      { label: 'Copy Cₑq value', act: function () { if (navigator.clipboard) navigator.clipboard.writeText(fmtNum(phys.Ceq) + ' µF'); } },
+      { label: 'Export PNG', act: exportPNG },
+      { label: 'Export CSV', act: exportCSV },
+      { sep: true },
+      { label: (showCharges ? 'Hide' : 'Show') + ' charges', act: function () { chkCharge.checked = !showCharges; chkCharge.dispatchEvent(new Event('change')); } },
+      { label: 'Reset charging', act: function () { resetCharging(); render(); } },
+      { sep: true },
+      { label: 'Reset all', act: resetAll }
+    ];
+    var html = '';
+    items.forEach(function (it, i) {
+      if (it.sep) { html += '<div class="ctx-sep"></div>'; }
+      else { html += '<div class="ctx-item" data-i="' + i + '">' + it.label + '</div>'; }
+    });
+    ctxMenu.innerHTML = html;
+    ctxMenu.classList.add('active');
+    var mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    ctxMenu.style.left = Math.min(clientX, vw - mw - 8) + 'px';
+    ctxMenu.style.top  = Math.min(clientY, vh - mh - 8) + 'px';
+    ctxMenu.querySelectorAll('.ctx-item').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var it = items[parseInt(el.dataset.i, 10)];
+        closeCtxMenu();
+        if (it && it.act) it.act();
+      });
+    });
+  }
+
+  /* ================================================================
+     SOUND (Web Audio — correct / incorrect chimes)
+     ================================================================ */
+
+  function playTone(ok) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var t = audioCtx.currentTime;
+      var freqs = ok ? [660, 990] : [330, 220];
+      freqs.forEach(function (f, i) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = ok ? 'sine' : 'sawtooth';
+        o.frequency.value = f;
+        o.connect(g); g.connect(audioCtx.destination);
+        var s = t + i * 0.12;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.exponentialRampToValueAtTime(ok ? 0.16 : 0.14, s + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + 0.16);
+        o.start(s); o.stop(s + 0.18);
+      });
+    } catch (e) { /* audio unsupported — ignore */ }
+  }
+
+  /* ================================================================
+     INIT
+     ================================================================ */
+
+  /* Calc modal wiring */
+  var calcBtn = document.getElementById('btn-calc');
+  if (calcBtn) calcBtn.addEventListener('click', openCalc);
+  var calcClose = document.getElementById('calc-modal-close');
+  if (calcClose) calcClose.addEventListener('click', closeCalc);
+  if (calcModalEl) calcModalEl.addEventListener('click', function (e) { if (e.target === calcModalEl) closeCalc(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && calcModalEl && calcModalEl.classList.contains('active')) closeCalc();
+  });
+
+  /* Export buttons */
+  abCsv.addEventListener('click', exportCSV);
+  abPng.addEventListener('click', exportPNG);
+
+  /* Context menu */
+  cvs.addEventListener('contextmenu', function (e) { e.preventDefault(); showCtxMenu(e.clientX, e.clientY); });
+  document.addEventListener('click', function (e) { if (ctxMenu && !ctxMenu.contains(e.target)) closeCtxMenu(); });
+  document.addEventListener('scroll', closeCtxMenu, true);
+
+  wireLearnPanels();
+
+  /* Responsive canvas */
+  window.addEventListener('resize', resizeCanvas);
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(function () { if (cvs.parentElement.style.display !== 'none') resizeCanvas(); }).observe(cvs);
+  }
+
+  /* Initial setup */
+  buildCapSliders();
+  updateMixedGroupsUI();
+  calcPhysics();
+  chargeProgress = 0;
+  lastSnap = snap();
+  updateUndoButtons();
+  switchMode('simulate');
+
+})();

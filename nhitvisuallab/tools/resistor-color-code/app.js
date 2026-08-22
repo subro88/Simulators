@@ -1,0 +1,884 @@
+(function () {
+  'use strict';
+
+  /* ═══════════════════════════════════════════════════════════════
+     Resistor Color Code Calculator
+     ═══════════════════════════════════════════════════════════════ */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ── EIA colour data ──────────────────────────────────────────
+     index === digit for 0..9; gold/silver/none are tail entries.
+     mult  = multiplier value, tol = tolerance %, tc = ppm/°C       */
+  var COLORS = [
+    { name: 'Black',  hex: '#1a1a1a', digit: 0,    mult: 1,     tol: null, tc: 250,  txt: '#fff' },
+    { name: 'Brown',  hex: '#6d4124', digit: 1,    mult: 10,    tol: 1,    tc: 100,  txt: '#fff' },
+    { name: 'Red',    hex: '#d32f2f', digit: 2,    mult: 100,   tol: 2,    tc: 50,   txt: '#fff' },
+    { name: 'Orange', hex: '#ef6c00', digit: 3,    mult: 1e3,   tol: null, tc: 15,   txt: '#fff' },
+    { name: 'Yellow', hex: '#f7c600', digit: 4,    mult: 1e4,   tol: null, tc: 25,   txt: '#000' },
+    { name: 'Green',  hex: '#2e9e3f', digit: 5,    mult: 1e5,   tol: 0.5,  tc: 20,   txt: '#fff' },
+    { name: 'Blue',   hex: '#1565c0', digit: 6,    mult: 1e6,   tol: 0.25, tc: 10,   txt: '#fff' },
+    { name: 'Violet', hex: '#7b1fa2', digit: 7,    mult: 1e7,   tol: 0.1,  tc: 5,    txt: '#fff' },
+    { name: 'Grey',   hex: '#9e9e9e', digit: 8,    mult: 1e8,   tol: 0.05, tc: 1,    txt: '#000' },
+    { name: 'White',  hex: '#f0f0f0', digit: 9,    mult: 1e9,   tol: null, tc: null, txt: '#000' },
+    { name: 'Gold',   hex: '#c9a227', digit: null, mult: 0.1,   tol: 5,    tc: null, txt: '#000' },
+    { name: 'Silver', hex: '#c0c0c0', digit: null, mult: 0.01,  tol: 10,   tc: null, txt: '#000' },
+    { name: 'None',   hex: null,      digit: null, mult: null,  tol: 20,   tc: null, txt: '#888' }
+  ];
+  var I = { BLACK:0, BROWN:1, RED:2, ORANGE:3, YELLOW:4, GREEN:5, BLUE:6, VIOLET:7, GREY:8, WHITE:9, GOLD:10, SILVER:11, NONE:12 };
+
+  /* valid colour-index sets per band role */
+  var DIGIT_IDX = [0,1,2,3,4,5,6,7,8,9];
+  var MULT_IDX  = [11,10,0,1,2,3,4,5,6,7,8,9];                 /* silver,gold,black..white */
+  var TOL_IDX   = [1,2,5,6,7,8,10,11,12];                      /* brown,red,green,blue,violet,grey,gold,silver,none */
+  var TC_IDX    = [0,1,2,3,4,5,6,7,8];                         /* black..grey */
+
+  /* ── State ───────────────────────────────────────────────────── */
+  var state = {
+    bands: 4,
+    /* selected colour index per role */
+    d1: I.YELLOW, d2: I.VIOLET, d3: I.BLACK, mult: I.RED, tol: I.GOLD, tc: I.BROWN,
+    mode: 'simulate',
+    soundOn: true,
+    audioCtx: null
+  };
+
+  var canvas = $('resistor-canvas');
+  var ctx = canvas.getContext('2d');
+
+  /* ═══════════════ Sound ═══════════════ */
+  function getAudioCtx() {
+    if (!state.audioCtx) {
+      try { state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { state.audioCtx = null; }
+    }
+    return state.audioCtx;
+  }
+  function playTone(freq, dur, type, vol) {
+    if (!state.soundOn) return;
+    var ac = getAudioCtx(); if (!ac) return;
+    try {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.type = type || 'sine'; o.frequency.value = freq;
+      g.gain.value = vol || 0.05;
+      o.connect(g); g.connect(ac.destination);
+      var t = ac.currentTime;
+      g.gain.setValueAtTime(vol || 0.05, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  function playClick()   { playTone(800, 0.05, 'square', 0.04); }
+  function playSuccess() { playTone(880, 0.12, 'sine', 0.1); setTimeout(function(){ playTone(1100, 0.15, 'sine', 0.1); }, 110); }
+  function playError()   { playTone(300, 0.2, 'sawtooth', 0.06); }
+
+  /* ═══════════════ Engine ═══════════════ */
+  function bandOrder(bands) {
+    /* returns array of colour indices in physical left→right order */
+    if (bands === 3) return [state.d1, state.d2, state.mult];
+    if (bands === 4) return [state.d1, state.d2, state.mult, state.tol];
+    if (bands === 5) return [state.d1, state.d2, state.d3, state.mult, state.tol];
+    return [state.d1, state.d2, state.d3, state.mult, state.tol, state.tc];
+  }
+
+  function digitsValue() {
+    if (state.bands <= 4) return COLORS[state.d1].digit * 10 + COLORS[state.d2].digit;
+    return COLORS[state.d1].digit * 100 + COLORS[state.d2].digit * 10 + COLORS[state.d3].digit;
+  }
+
+  function resistance() { return digitsValue() * COLORS[state.mult].mult; }
+
+  function tolerancePct() {
+    if (state.bands === 3) return 20;
+    return COLORS[state.tol].tol;
+  }
+
+  function formatOhms(v) {
+    if (v === 0) return '0 Ω';
+    var unit = 'Ω', d = v;
+    if (v >= 1e9)      { d = v / 1e9; unit = 'GΩ'; }
+    else if (v >= 1e6) { d = v / 1e6; unit = 'MΩ'; }
+    else if (v >= 1e3) { d = v / 1e3; unit = 'kΩ'; }
+    else if (v < 1)    { d = v * 1000; unit = 'mΩ'; }
+    var s = (Math.round(d * 1000) / 1000).toString();
+    return s + ' ' + unit;
+  }
+
+  /* E-series preferred values (per decade) */
+  var E12 = [10,12,15,18,22,27,33,39,47,56,68,82];
+  var E24 = [10,11,12,13,15,16,18,20,22,24,27,30,33,36,39,43,47,51,56,62,68,75,82,91];
+  var E96 = [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976];
+
+  function nearestEseries(v) {
+    if (v <= 0) return { label: '—', exact: false };
+    var pick = state.bands >= 5 ? { vals: E96, scale: 100, name: 'E96' }
+                                : { vals: E24, scale: 10,  name: 'E24' };
+    var exp = Math.floor(Math.log10(v));
+    var best = null, bestErr = Infinity;
+    for (var e = exp - 1; e <= exp + 1; e++) {
+      for (var k = 0; k < pick.vals.length; k++) {
+        var cand = pick.vals[k] / pick.scale * Math.pow(10, e);
+        var err = Math.abs(cand - v) / v;
+        if (err < bestErr) { bestErr = err; best = cand; }
+      }
+    }
+    return { label: formatOhms(best) + ' (' + pick.name + ')', exact: bestErr < 1e-9 };
+  }
+
+  /* ═══════════════ Canvas render ═══════════════ */
+  function sizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth || canvas.parentElement.clientWidth;
+    var h = Math.max(220, Math.min(300, Math.round(w * 0.34)));
+    canvas.style.height = h + 'px';
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w: w, h: h };
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function draw(opts) {
+    opts = opts || {};
+    var dim = sizeCanvas();
+    var w = dim.w, h = dim.h;
+    ctx.clearRect(0, 0, w, h);
+
+    var cy = h * 0.46;
+    var bodyH = Math.min(96, h * 0.42);
+    var bodyW = Math.min(w * 0.62, 430);
+    var bodyX = (w - bodyW) / 2;
+    var bodyY = cy - bodyH / 2;
+
+    /* leads */
+    ctx.strokeStyle = '#9aa6bf';
+    ctx.lineWidth = Math.max(4, bodyH * 0.07);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bodyX - (bodyX - 8), cy); ctx.lineTo(bodyX + 6, cy);
+    ctx.moveTo(bodyX + bodyW - 6, cy);   ctx.lineTo(w - 8, cy);
+    ctx.stroke();
+
+    /* body (cylindrical beige) */
+    var grad = ctx.createLinearGradient(0, bodyY, 0, bodyY + bodyH);
+    grad.addColorStop(0,   '#9c8158');
+    grad.addColorStop(0.18,'#e9d3a6');
+    grad.addColorStop(0.5, '#f4e6c8');
+    grad.addColorStop(0.82,'#d8bd8e');
+    grad.addColorStop(1,   '#8d7349');
+    ctx.fillStyle = grad;
+    roundRect(ctx, bodyX, bodyY, bodyW, bodyH, bodyH * 0.30);
+    ctx.fill();
+    /* end caps darker */
+    ctx.fillStyle = 'rgba(0,0,0,.12)';
+    roundRect(ctx, bodyX, bodyY, bodyW * 0.10, bodyH, bodyH * 0.30); ctx.fill();
+    roundRect(ctx, bodyX + bodyW * 0.90, bodyY, bodyW * 0.10, bodyH, bodyH * 0.30); ctx.fill();
+
+    /* bands */
+    var order = bandOrder(state.bands);
+    var n = order.length;
+    var bandW = Math.max(10, bodyW * 0.052);
+    /* layout: group the value bands toward the left, tolerance (and tc) toward the right */
+    var leftCount = (state.bands === 3) ? 3 : (n - (state.bands === 6 ? 2 : 1));
+    var gapL = bodyW * 0.052;
+    var startX = bodyX + bodyW * 0.13;
+
+    function drawBand(idx, x) {
+      var col = COLORS[idx];
+      if (col.hex === null) return; /* 'None' draws nothing */
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, bodyY - 1, bandW, bodyH + 2);
+      ctx.clip();
+      /* shade band for cylinder feel */
+      var bg = ctx.createLinearGradient(0, bodyY, 0, bodyY + bodyH);
+      bg.addColorStop(0, shade(col.hex, -0.35));
+      bg.addColorStop(0.4, col.hex);
+      bg.addColorStop(0.65, shade(col.hex, 0.12));
+      bg.addColorStop(1, shade(col.hex, -0.4));
+      ctx.fillStyle = bg;
+      ctx.fillRect(x, bodyY - 1, bandW, bodyH + 2);
+      ctx.restore();
+    }
+
+    var x = startX;
+    for (var i = 0; i < leftCount; i++) { drawBand(order[i], x); x += bandW + gapL; }
+    /* right-aligned tolerance / tc bands */
+    var rightCount = n - leftCount;
+    var rx = bodyX + bodyW - bodyW * 0.13 - bandW;
+    var rxStart = rx - (rightCount - 1) * (bandW + gapL);
+    for (var j = 0; j < rightCount; j++) {
+      drawBand(order[leftCount + j], rxStart + j * (bandW + gapL));
+    }
+
+    /* glossy highlight */
+    ctx.fillStyle = 'rgba(255,255,255,.16)';
+    roundRect(ctx, bodyX + 4, bodyY + bodyH * 0.12, bodyW - 8, bodyH * 0.16, 4);
+    ctx.fill();
+
+    /* value label under resistor (hidden in question modes) */
+    if (!opts.hideValue) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffca28';
+      ctx.font = '700 ' + Math.round(h * 0.13) + 'px "Courier New", monospace';
+      ctx.fillText(formatOhms(resistance()), w / 2, cy + bodyH / 2 + h * 0.18);
+      ctx.fillStyle = '#8b9dc3';
+      ctx.font = '600 ' + Math.round(h * 0.072) + 'px "Segoe UI", sans-serif';
+      var tcTxt = (state.bands === 6 && COLORS[state.tc].tc != null) ? '  ·  ' + COLORS[state.tc].tc + ' ppm/°C' : '';
+      ctx.fillText('±' + tolerancePct() + '%' + tcTxt, w / 2, cy + bodyH / 2 + h * 0.30);
+    } else {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#8b9dc3';
+      ctx.font = '600 ' + Math.round(h * 0.09) + 'px "Segoe UI", sans-serif';
+      ctx.fillText('What is this resistance?', w / 2, cy + bodyH / 2 + h * 0.22);
+    }
+  }
+
+  function shade(hex, amt) {
+    var c = hex.replace('#', '');
+    if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+    var r = parseInt(c.substr(0,2),16), g = parseInt(c.substr(2,2),16), b = parseInt(c.substr(4,2),16);
+    if (amt >= 0) { r += (255-r)*amt; g += (255-g)*amt; b += (255-b)*amt; }
+    else { r *= (1+amt); g *= (1+amt); b *= (1+amt); }
+    return 'rgb(' + (r|0) + ',' + (g|0) + ',' + (b|0) + ')';
+  }
+
+  /* ═══════════════ Readouts ═══════════════ */
+  function updateReadouts() {
+    var r = resistance(), tol = tolerancePct();
+    $('rb-value').textContent = formatOhms(r);
+    $('rb-tol').textContent = '±' + tol + '%';
+    var lo = r * (1 - tol / 100), hi = r * (1 + tol / 100);
+    $('rb-range').textContent = formatOhms(lo) + ' – ' + formatOhms(hi);
+    var tcWrap = $('rb-tc-wrap');
+    if (state.bands === 6 && COLORS[state.tc].tc != null) {
+      tcWrap.style.display = '';
+      $('rb-tc').textContent = COLORS[state.tc].tc + ' ppm/°C';
+    } else { tcWrap.style.display = 'none'; }
+    var es = nearestEseries(r);
+    $('rb-eseries').textContent = es.exact ? es.label + ' ✓' : es.label;
+  }
+
+  /* ═══════════════ Band selector UI ═══════════════ */
+  function colHeads() {
+    if (state.bands === 3) return [['1st','Digit'],['2nd','Digit'],['','Multiplier']];
+    if (state.bands === 4) return [['1st','Digit'],['2nd','Digit'],['','Multiplier'],['','Tolerance']];
+    if (state.bands === 5) return [['1st','Digit'],['2nd','Digit'],['3rd','Digit'],['','Multiplier'],['','Tolerance']];
+    return [['1st','Digit'],['2nd','Digit'],['3rd','Digit'],['','Multiplier'],['','Tolerance'],['','Temp Co']];
+  }
+  function colRoles() {
+    if (state.bands === 3) return ['d1','d2','mult'];
+    if (state.bands === 4) return ['d1','d2','mult','tol'];
+    if (state.bands === 5) return ['d1','d2','d3','mult','tol'];
+    return ['d1','d2','d3','mult','tol','tc'];
+  }
+  function idxSetFor(role) {
+    if (role === 'mult') return MULT_IDX;
+    if (role === 'tol')  return TOL_IDX;
+    if (role === 'tc')   return TC_IDX;
+    return DIGIT_IDX;
+  }
+  function swatchValueText(role, idx) {
+    var c = COLORS[idx];
+    if (role === 'tc')   return c.tc != null ? c.tc + ' ppm' : '—';
+    if (role === 'tol')  return c.tol != null ? '±' + c.tol + '%' : '—';
+    if (role === 'mult') return '×' + (c.mult >= 1 ? c.mult.toLocaleString('en-US') : c.mult);
+    return c.digit != null ? String(c.digit) : '—';
+  }
+
+  function buildBandSelector() {
+    var wrap = $('band-selector');
+    wrap.innerHTML = '';
+    var heads = colHeads(), roles = colRoles();
+    roles.forEach(function (role, ci) {
+      var col = document.createElement('div');
+      col.className = 'band-col';
+      var head = document.createElement('div');
+      head.className = 'band-col-head';
+      head.innerHTML = (heads[ci][0] ? '<span class="bch-pos">' + heads[ci][0] + '</span> ' : '') + heads[ci][1];
+      col.appendChild(head);
+      var sw = document.createElement('div');
+      sw.className = 'band-swatches';
+      idxSetFor(role).forEach(function (idx) {
+        var b = document.createElement('button');
+        b.className = 'rcc-swatch' + (state[role] === idx ? ' active' : '');
+        b.setAttribute('data-role', role);
+        b.setAttribute('data-idx', idx);
+        var c = COLORS[idx];
+        var chip = (c.hex === null)
+          ? '<span class="rcc-chip none-chip"></span>'
+          : '<span class="rcc-chip" style="background:' + c.hex + '"></span>';
+        b.innerHTML = chip +
+          '<span class="rcc-sw-name">' + c.name + '</span>' +
+          '<span class="rcc-sw-val">' + swatchValueText(role, idx) + '</span>';
+        b.addEventListener('click', function () {
+          state[role] = idx;
+          playClick();
+          refresh();
+        });
+        sw.appendChild(b);
+      });
+      col.appendChild(sw);
+      wrap.appendChild(col);
+    });
+  }
+
+  function refresh() {
+    /* re-validate selections for current band count */
+    if (state.bands >= 5) {
+      if (COLORS[state.d3].digit == null) state.d3 = I.BLACK;
+    }
+    buildBandSelector();
+    updateReadouts();
+    draw();
+  }
+
+  /* ═══════════════ Reverse: value → bands ═══════════════ */
+  function setBandsFromValue(ohms, tolPct) {
+    var msg = $('rev-msg');
+    if (!(ohms > 0)) { msg.textContent = 'Enter a value above 0.'; msg.className = 'rev-msg warn'; return; }
+    var nd = state.bands <= 4 ? 2 : 3;
+    /* mantissa in [1,10), exponent */
+    var exp = Math.floor(Math.log10(ohms) + 1e-9);
+    var mant = ohms / Math.pow(10, exp);
+    var digits = Math.round(mant * Math.pow(10, nd - 1));
+    var multExp = exp - (nd - 1);
+    /* carry if rounding pushed digits to nd+1 places (e.g. 9.99→1000) */
+    if (digits >= Math.pow(10, nd)) { digits = Math.round(digits / 10); multExp += 1; }
+    if (digits < Math.pow(10, nd - 1)) { digits *= 10; multExp -= 1; }
+
+    /* multiplier exponent must map to silver(-2)..white(9) */
+    if (multExp < -2 || multExp > 9) {
+      msg.textContent = 'Out of range for ' + state.bands + '-band display.';
+      msg.className = 'rev-msg warn'; return;
+    }
+    var multIdx = (multExp === -2) ? I.SILVER : (multExp === -1) ? I.GOLD : multExp; /* 0..9 maps to digit colour index */
+
+    /* split digits into colour indices */
+    var ds = String(digits).padStart(nd, '0').split('').map(Number);
+    state.d1 = ds[0]; state.d2 = ds[1];
+    if (nd === 3) state.d3 = ds[2];
+    state.mult = multIdx;
+
+    /* tolerance */
+    if (state.bands >= 4) {
+      var tIdx = TOL_IDX.filter(function (i) { return COLORS[i].tol === tolPct; })[0];
+      if (tIdx != null) state.tol = tIdx;
+    }
+
+    var actual = digits * Math.pow(10, multExp);
+    var err = Math.abs(actual - ohms) / ohms;
+    if (err < 1e-9) { msg.textContent = 'Exact ✓'; msg.className = 'rev-msg ok'; }
+    else {
+      msg.textContent = 'Closest with ' + nd + ' digits: ' + formatOhms(actual) +
+        (state.bands <= 4 ? ' — try 5-band for more precision' : '');
+      msg.className = 'rev-msg warn';
+    }
+    refresh();
+    playSuccess();
+  }
+
+  /* ═══════════════ Random ═══════════════ */
+  function randInt(n) { return Math.floor(Math.random() * n); }
+  function randomResistor() {
+    state.d1 = DIGIT_IDX[1 + randInt(9)];        /* avoid leading 0 */
+    state.d2 = DIGIT_IDX[randInt(10)];
+    state.d3 = DIGIT_IDX[randInt(10)];
+    state.mult = MULT_IDX[randInt(MULT_IDX.length)];
+    state.tol = [I.BROWN, I.RED, I.GOLD, I.SILVER][randInt(4)];
+    state.tc  = TC_IDX[randInt(TC_IDX.length)];
+  }
+
+  /* ═══════════════ Mode switching ═══════════════ */
+  var SECTIONS = {
+    simulate: ['sim-panel', 'bandcount-bar'],
+    explore:  ['cat-row', 'item-selector', 'item-info'],
+    practice: ['practice-panel', 'practice-bar'],
+    quiz:     ['quiz-panel', 'quiz-bar']
+  };
+  function hideAll() {
+    ['sim-panel','bandcount-bar','cat-row','item-selector','item-info',
+     'practice-panel','practice-bar','quiz-panel','quiz-bar','quiz-result'].forEach(function (id) {
+      var el = $(id); if (el) el.style.display = 'none';
+    });
+  }
+  var calcSnap = null;
+  function saveCalc() {
+    calcSnap = { bands: state.bands, d1: state.d1, d2: state.d2, d3: state.d3, mult: state.mult, tol: state.tol, tc: state.tc };
+  }
+  function restoreCalc() {
+    if (!calcSnap) return;
+    state.bands = calcSnap.bands; state.d1 = calcSnap.d1; state.d2 = calcSnap.d2; state.d3 = calcSnap.d3;
+    state.mult = calcSnap.mult; state.tol = calcSnap.tol; state.tc = calcSnap.tc;
+    document.querySelectorAll('#bandcount-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', +p.getAttribute('data-bands') === state.bands);
+    });
+  }
+
+  function setMode(mode) {
+    if (state.mode === 'simulate' && mode !== 'simulate') saveCalc();
+    state.mode = mode;
+    hideAll();
+    if (mode === 'simulate') restoreCalc();
+    var cc = $('canvas-card');
+    if (mode === 'explore') { cc.style.display = 'none'; }
+    else { cc.style.display = ''; }
+
+    (SECTIONS[mode] || []).forEach(function (id) {
+      var el = $(id); if (el) el.style.display = '';
+    });
+
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', p.getAttribute('data-mode') === mode);
+    });
+
+    if (mode === 'simulate') { refresh(); }
+    else if (mode === 'explore') { renderExplore(); }
+    else if (mode === 'practice') { newPractice(); }
+    else if (mode === 'quiz') { startQuiz(); }
+    playClick();
+  }
+
+  /* ═══════════════ Explore ═══════════════ */
+  var EXPLORE = {
+    basics: [
+      { name: 'What is a resistor band?', body: 'A resistor’s value is printed as a ring of coloured bands because the parts are too small for printed numbers. Each colour maps to a number. Reading from the end away from the tolerance band, the first bands are <strong>significant digits</strong>, then a <strong>multiplier</strong> (power of ten), then <strong>tolerance</strong>, and optionally a <strong>temperature coefficient</strong>.', note: 'The tolerance band (often gold or silver) tells you which end to start from.' },
+      { name: 'Significant digits', body: 'The digit bands form a whole number. A 4-band resistor has 2 digit bands; 5 and 6-band resistors have 3 for an extra significant figure used in precision parts.', formula: '4-band: D1 D2     5/6-band: D1 D2 D3', note: 'Yellow-Violet = 47.' },
+      { name: 'The multiplier', body: 'The multiplier band is the power of ten the digits are multiplied by. Black = ×1, red = ×100, gold = ×0.1. Gold and silver multipliers give sub-10 Ω values.', formula: 'R = digits × multiplier', note: '47 × ×100 (red) = 4700 Ω.' },
+      { name: 'Tolerance', body: 'Tolerance is how far the real value may stray from the nominal one. Gold = ±5%, silver = ±10%, brown = ±1%, red = ±2%. No band means ±20%.', note: 'A 1 kΩ ±5% part can be 950–1050 Ω.' }
+    ],
+    chart: [
+      { name: 'Full EIA colour chart', body: 'Every colour and what it means in each band position:', table: true },
+      { name: 'Memory aid (mnemonic)', body: 'A classic way to remember 0–9 (Black, Brown, Red, Orange, Yellow, Green, Blue, Violet, Grey, White): “Bad Beer Rots Our Young Guts But Vodka Goes Well” — the first letters give the colour order.', note: 'Black=0 is the easy anchor.' },
+      { name: 'Tolerance colours', body: 'Tighter-tolerance colours: brown ±1%, red ±2%, green ±0.5%, blue ±0.25%, violet ±0.1%, grey ±0.05%, plus gold ±5% and silver ±10%.', note: 'Precision (1% and better) parts almost always have 5 or 6 bands.' }
+    ],
+    howto: [
+      { name: 'Read a 4-band resistor', body: 'Put the tolerance band (gold/silver) on the right. Read the first two bands as digits, the third as the multiplier.', formula: 'Brown-Black-Red-Gold = 1,0,×100 = 1000 Ω ±5%', note: 'That’s 1 kΩ.' },
+      { name: 'Read a 5-band resistor', body: 'Three digit bands, then multiplier, then tolerance — an extra significant figure for precision values.', formula: 'Brown-Green-Black-Brown-Brown = 150 ×10 = 1500 Ω ±1%', note: 'That’s 1.5 kΩ.' },
+      { name: 'Read a 6-band resistor', body: 'The first five bands are read exactly like a 5-band part. The sixth band is the temperature coefficient in ppm/°C.', formula: '6th band brown = 100 ppm/°C', note: 'Lower ppm = more stable with temperature.' },
+      { name: 'The gold-band trick', body: 'Gold and silver are almost never used as digit bands, so when you see one it is the tolerance band — instantly telling you which way round to read the resistor.', note: 'If both ends look like digits, pick the reading that gives a standard E-series value.' }
+    ],
+    series: [
+      { name: 'Why E-series exists', body: 'Resistors are made only in standard <strong>preferred values</strong>. The spacing is geometric so that, allowing for tolerance, the ranges of adjacent values just meet without gaps or large overlaps.', note: 'This is why you can’t buy a 1234 Ω resistor off the shelf.' },
+      { name: 'E12 and E24', body: 'E12 has 12 values per decade (10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82) used for ±10% parts. E24 doubles that to 24 values for ±5% parts.', formula: 'Step ratio E12 ≈ 10^(1/12) ≈ 1.21', note: '4.7 kΩ, 2.2 kΩ, 3.3 kΩ are all E12/E24.' },
+      { name: 'E96 for precision', body: 'E96 has 96 values per decade for ±1% resistors — which is why precision parts need a third digit band. The calculator shows the nearest E96 value in 5 and 6-band mode.', note: 'E192 (0.5% and tighter) goes finer still.' }
+    ],
+    applications: [
+      { name: 'Current limiting', body: 'A series resistor limits current into LEDs and inputs. Reading the band code correctly tells you the limiting value at a glance.', formula: 'R = (Vsupply − Vled) / Iled', note: '330 Ω (orange-orange-brown) is a classic LED resistor.' },
+      { name: 'Pull-up / pull-down', body: 'Logic inputs use pull-ups/downs, commonly 4.7 kΩ or 10 kΩ — values you’ll learn to recognise by their bands (yellow-violet-red, brown-black-orange).', note: 'I²C buses use 4.7 kΩ pull-ups.' },
+      { name: 'Voltage dividers & sensors', body: 'Two resistors set a reference or read a sensor. Precision dividers use 5 or 6-band 1% parts so the ratio stays accurate over temperature.', formula: 'Vout = Vin × R2/(R1+R2)' }
+    ]
+  };
+  var exploreCat = 'basics', exploreIdx = 0;
+
+  function renderExplore() {
+    var grid = $('concept-grid');
+    grid.innerHTML = '';
+    EXPLORE[exploreCat].forEach(function (item, i) {
+      var card = document.createElement('div');
+      card.className = 'is-card' + (i === exploreIdx ? ' active' : '');
+      card.innerHTML = '<div class="is-card-name">' + item.name + '</div>';
+      card.addEventListener('click', function () { exploreIdx = i; renderExplore(); playClick(); });
+      grid.appendChild(card);
+    });
+    var item = EXPLORE[exploreCat][exploreIdx];
+    var info = $('item-info');
+    var html = '<h3>' + item.name + '</h3><p>' + item.body + '</p>';
+    if (item.formula) html += '<div class="formula-box">' + item.formula + '</div>';
+    if (item.table) html += chartTableHTML();
+    if (item.note) html += '<div class="example-box"><div class="step">💡 ' + item.note + '</div></div>';
+    info.innerHTML = html;
+  }
+
+  function chartTableHTML() {
+    var rows = '';
+    COLORS.forEach(function (c) {
+      var chip = c.hex === null
+        ? '<span class="chart-swatch" style="background:repeating-linear-gradient(45deg,#2a3050,#2a3050 3px,#1a1f2e 3px,#1a1f2e 6px)"></span>'
+        : '<span class="chart-swatch" style="background:' + c.hex + '"></span>';
+      rows += '<tr><td>' + chip + c.name + '</td>' +
+        '<td>' + (c.digit != null ? c.digit : '—') + '</td>' +
+        '<td>' + (c.mult != null ? '×' + (c.mult >= 1 ? c.mult.toLocaleString('en-US') : c.mult) : '—') + '</td>' +
+        '<td>' + (c.tol != null ? '±' + c.tol + '%' : '—') + '</td>' +
+        '<td>' + (c.tc != null ? c.tc : '—') + '</td></tr>';
+    });
+    return '<table class="chart-table"><tr><th>Colour</th><th>Digit</th><th>Mult</th><th>Tol</th><th>ppm/°C</th></tr>' + rows + '</table>';
+  }
+
+  /* ═══════════════ Practice ═══════════════ */
+  var practiceScore = { correct: 0, total: 0 };
+  var pCurrent = null;
+
+  function genRandomState(bands) {
+    var s = {};
+    s.d1 = 1 + randInt(9);
+    s.d2 = randInt(10);
+    s.d3 = randInt(10);
+    s.mult = MULT_IDX[randInt(MULT_IDX.length)];
+    s.tol = [I.BROWN, I.RED, I.GOLD, I.SILVER][randInt(4)];
+    s.bands = bands;
+    return s;
+  }
+  function applyTempState(s) {
+    state.bands = s.bands; state.d1 = s.d1; state.d2 = s.d2; state.d3 = s.d3;
+    state.mult = s.mult; state.tol = s.tol;
+    document.querySelectorAll('#bandcount-tabs .pill').forEach(function (p) {
+      p.classList.toggle('active', +p.getAttribute('data-bands') === s.bands);
+    });
+  }
+
+  function newPractice() {
+    var bands = [4, 4, 5][randInt(3)];
+    var s = genRandomState(bands);
+    applyTempState(s);
+    var r = resistance();
+    /* choose a sensible display unit for the expected answer */
+    var unit = pickUnit(r);
+    pCurrent = { r: r, unit: unit };
+    draw({ hideValue: true });
+    $('pp-prompt').innerHTML = 'Read the resistance of this <strong>' + bands + '-band</strong> resistor and enter it in <strong>' + unit.label + '</strong>.';
+    $('pp-unit').textContent = unit.label;
+    $('pp-input').value = '';
+    $('pp-input').disabled = false;
+    $('pp-feedback').textContent = '';
+    $('pp-feedback').className = 'feedback';
+    $('pp-solution').style.display = 'none';
+    $('pp-check').style.display = '';
+    $('pp-next').style.display = 'none';
+  }
+
+  function pickUnit(r) {
+    if (r >= 1e6) return { div: 1e6, label: 'MΩ' };
+    if (r >= 1e3) return { div: 1e3, label: 'kΩ' };
+    return { div: 1, label: 'Ω' };
+  }
+
+  function checkPractice() {
+    if (!pCurrent) return;
+    var val = parseFloat($('pp-input').value);
+    if (isNaN(val)) { $('pp-feedback').textContent = 'Enter a number first.'; $('pp-feedback').className = 'feedback wrong'; return; }
+    var expected = pCurrent.r / pCurrent.unit.div;
+    var ok = Math.abs(val - expected) / (expected || 1) < 0.01;
+    practiceScore.total++;
+    if (ok) { practiceScore.correct++; $('pp-feedback').textContent = '✓ Correct!'; $('pp-feedback').className = 'feedback correct'; playSuccess(); }
+    else { $('pp-feedback').textContent = '✗ Not quite.'; $('pp-feedback').className = 'feedback wrong'; playError(); }
+    $('pbar-score-val').textContent = practiceScore.correct + ' / ' + practiceScore.total;
+    /* solution */
+    var order = bandOrder(state.bands).map(function (i) { return COLORS[i].name; }).join('-');
+    var nd = state.bands <= 4 ? '2 digits' : '3 digits';
+    $('pp-solution').style.display = '';
+    $('pp-solution').innerHTML = '<strong>Bands:</strong> ' + order + '<br>' +
+      '<strong>Read:</strong> ' + nd + ' = ' + digitsValue() + ', multiplier ×' + COLORS[state.mult].mult +
+      '<br><strong>Value:</strong> ' + digitsValue() + ' × ' + COLORS[state.mult].mult + ' = ' +
+      formatOhms(pCurrent.r) + ' (±' + tolerancePct() + '%) = <strong>' + (pCurrent.r / pCurrent.unit.div) + ' ' + pCurrent.unit.label + '</strong>';
+    $('pp-input').disabled = true;
+    $('pp-check').style.display = 'none';
+    $('pp-next').style.display = '';
+    draw({ hideValue: false });
+  }
+
+  /* ═══════════════ Quiz ═══════════════ */
+  var QUIZ_SIZE = 5;
+  var quiz = { qs: [], idx: 0, score: 0, answered: false };
+
+  function buildQuizQuestion() {
+    var type = randInt(4);
+    var bands = [4, 4, 5][randInt(3)];
+    var s = genRandomState(bands);
+    applyTempState(s);
+    var r = resistance();
+    var order = bandOrder(bands);
+
+    if (type === 0) {
+      /* read value (MCQ) */
+      var correct = formatOhms(r);
+      var opts = [correct];
+      while (opts.length < 4) {
+        var f = formatOhms(r * [0.1, 10, 100, 0.01, 1000][randInt(5)]);
+        if (opts.indexOf(f) === -1) opts.push(f);
+      }
+      return { stateSnap: s, draw: true, prompt: 'What is the value of this ' + bands + '-band resistor?',
+               options: shuffle(opts), answer: correct, explain: 'Digits ' + digitsValue() + ' × ' + COLORS[state.mult].mult + ' = ' + correct + '.' };
+    }
+    if (type === 1) {
+      /* multiplier band colour */
+      var mc = COLORS[state.mult].name;
+      var o2 = [mc];
+      while (o2.length < 4) { var c = COLORS[MULT_IDX[randInt(MULT_IDX.length)]].name; if (o2.indexOf(c) === -1) o2.push(c); }
+      return { stateSnap: s, draw: true, prompt: 'Which band colour is the <strong>multiplier</strong> on this resistor?',
+               options: shuffle(o2), answer: mc, explain: 'The multiplier band is ' + mc + ' (×' + COLORS[state.mult].mult + ').' };
+    }
+    if (type === 2) {
+      /* tolerance meaning */
+      var tName = COLORS[state.tol].name, tPct = '±' + COLORS[state.tol].tol + '%';
+      var o3 = [tPct];
+      [1,2,5,10,0.5,0.25].forEach(function (p) { var s2 = '±' + p + '%'; if (o3.indexOf(s2) === -1 && o3.length < 4) o3.push(s2); });
+      return { stateSnap: s, draw: false, prompt: 'A <strong>' + tName + '</strong> tolerance band means what tolerance?',
+               options: shuffle(o3.slice(0,4)), answer: tPct, explain: tName + ' = ' + tPct + '.' };
+    }
+    /* type 3: gold/silver meaning (no draw) */
+    var qpool = [
+      { p: 'As a tolerance band, what does <strong>gold</strong> mean?', a: '±5%', o: ['±5%','±10%','±1%','±2%'], e: 'Gold tolerance = ±5%.' },
+      { p: 'As a tolerance band, what does <strong>silver</strong> mean?', a: '±10%', o: ['±10%','±5%','±1%','±0.5%'], e: 'Silver tolerance = ±10%.' },
+      { p: 'As a <strong>multiplier</strong> band, what does gold mean?', a: '×0.1', o: ['×0.1','×10','×0.01','×1'], e: 'Gold multiplier = ×0.1 (for sub-10 Ω values).' },
+      { p: 'What digit does the colour <strong>black</strong> represent?', a: '0', o: ['0','1','8','9'], e: 'Black = 0.' },
+      { p: 'What digit does the colour <strong>violet</strong> represent?', a: '7', o: ['7','5','6','9'], e: 'Violet = 7.' }
+    ];
+    var q = qpool[randInt(qpool.length)];
+    return { stateSnap: s, draw: false, prompt: q.p, options: shuffle(q.o.slice()), answer: q.a, explain: q.e };
+  }
+
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = randInt(i + 1); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  function startQuiz() {
+    quiz.qs = []; quiz.idx = 0; quiz.score = 0;
+    for (var i = 0; i < QUIZ_SIZE; i++) quiz.qs.push(buildQuizQuestion());
+    $('quiz-result').style.display = 'none';
+    $('quiz-panel').style.display = '';
+    $('quiz-bar').style.display = '';
+    renderQuiz();
+  }
+
+  function renderQuiz() {
+    var q = quiz.qs[quiz.idx];
+    quiz.answered = false;
+    $('qbar-num').textContent = (quiz.idx + 1);
+    /* set up the resistor for this question */
+    applyTempState(q.stateSnap);
+    var cc = $('canvas-card');
+    if (q.draw) { cc.style.display = ''; draw({ hideValue: true }); }
+    else { cc.style.display = ''; draw({ hideValue: false }); }
+
+    var html = '<p class="q-prompt">' + q.prompt + '</p><div class="q-options">';
+    q.options.forEach(function (opt) {
+      html += '<button class="q-opt" data-opt="' + String(opt).replace(/"/g, '&quot;') + '">' + opt + '</button>';
+    });
+    html += '</div>';
+    var panel = $('quiz-panel');
+    panel.innerHTML = html;
+    panel.querySelectorAll('.q-opt').forEach(function (b) {
+      b.addEventListener('click', function () { answerQuiz(b.getAttribute('data-opt'), b); });
+    });
+  }
+
+  function answerQuiz(choice, btn) {
+    if (quiz.answered) return;
+    quiz.answered = true;
+    var q = quiz.qs[quiz.idx];
+    var correct = String(q.answer);
+    var opts = $('quiz-panel').querySelectorAll('.q-opt');
+    opts.forEach(function (b) {
+      var v = b.getAttribute('data-opt');
+      if (v === correct) b.classList.add('correct');
+      else if (b === btn) b.classList.add('wrong');
+      b.style.pointerEvents = 'none';
+    });
+    if (choice === correct) { quiz.score++; playSuccess(); } else { playError(); }
+    /* reveal value if it was hidden */
+    if (q.draw) draw({ hideValue: false });
+    var exp = document.createElement('div');
+    exp.className = 'solution-panel';
+    exp.style.display = '';
+    exp.innerHTML = (choice === correct ? '<strong style="color:var(--green)">Correct!</strong> ' : '<strong style="color:var(--red)">Not quite.</strong> ') + q.explain;
+    $('quiz-panel').appendChild(exp);
+    var next = document.createElement('button');
+    next.className = 'btn btn-primary';
+    next.style.marginTop = '12px';
+    next.textContent = (quiz.idx < QUIZ_SIZE - 1) ? 'Next Question →' : 'See Results';
+    next.addEventListener('click', function () {
+      if (quiz.idx < QUIZ_SIZE - 1) { quiz.idx++; renderQuiz(); }
+      else showQuizResult();
+    });
+    $('quiz-panel').appendChild(next);
+  }
+
+  function showQuizResult() {
+    $('quiz-panel').style.display = 'none';
+    $('quiz-bar').style.display = 'none';
+    var pct = quiz.score / QUIZ_SIZE;
+    var stars = pct >= 1 ? 5 : pct >= 0.8 ? 4 : pct >= 0.6 ? 3 : pct >= 0.4 ? 2 : pct >= 0.2 ? 1 : 0;
+    var starStr = '';
+    for (var i = 0; i < 5; i++) starStr += i < stars ? '★' : '☆';
+    var msg = pct >= 0.8 ? 'Excellent — you can read resistors fluently!' : pct >= 0.6 ? 'Good work — keep practising the trickier bands.' : 'Review the colour chart in Explore and try again.';
+    var res = $('quiz-result');
+    res.style.display = '';
+    res.innerHTML = '<h3>Quiz Complete</h3><div class="stars" style="color:var(--gold)">' + starStr + '</div>' +
+      '<div class="score">' + quiz.score + ' / ' + QUIZ_SIZE + '</div>' +
+      '<p style="color:var(--text-dim);margin:8px 0 14px">' + msg + '</p>' +
+      '<button class="btn btn-primary" id="quiz-retry">Try Again</button>';
+    $('quiz-retry').addEventListener('click', startQuiz);
+    playSuccess();
+  }
+
+  /* ═══════════════ Context menu / export ═══════════════ */
+  function exportPNG() {
+    var tmp = document.createElement('canvas');
+    tmp.width = canvas.width; tmp.height = canvas.height;
+    var tc = tmp.getContext('2d');
+    tc.fillStyle = '#0a0e14'; tc.fillRect(0, 0, tmp.width, tmp.height);
+    tc.drawImage(canvas, 0, 0);
+    var fs = Math.round(tmp.width * 0.022); if (fs < 11) fs = 11;
+    tc.font = '600 ' + fs + 'px "Segoe UI", system-ui, sans-serif';
+    tc.textAlign = 'right'; tc.textBaseline = 'bottom';
+    tc.fillStyle = 'rgba(255,255,255,0.28)';
+    tc.fillText('NHIT VisualLab', tmp.width - 12, tmp.height - 8);
+    var a = document.createElement('a');
+    a.href = tmp.toDataURL('image/png');
+    a.download = 'resistor_' + formatOhms(resistance()).replace(/[^0-9a-zA-Z]/g, '') + '.png';
+    a.click();
+  }
+  function copyReading() {
+    var order = bandOrder(state.bands).map(function (i) { return COLORS[i].name; }).join('-');
+    var txt = order + ' = ' + formatOhms(resistance()) + ' ±' + tolerancePct() + '%';
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+  }
+
+  /* ═══════════════ Show-Calculations modal ═══════════════ */
+  function openCalc() {
+    var roles = colRoles();
+    var order = bandOrder(state.bands);
+    var digits = digitsValue();
+    var r = resistance(), tol = tolerancePct();
+    var lo = r * (1 - tol / 100), hi = r * (1 + tol / 100);
+    var es = nearestEseries(r);
+    var nd = state.bands <= 4 ? 2 : 3;
+
+    var bandList = order.map(function (idx, i) {
+      var role = roles[i];
+      var label = role === 'mult' ? 'multiplier' : role === 'tol' ? 'tolerance' : role === 'tc' ? 'temp-co' : 'digit ' + (i + 1);
+      return '<span>' + COLORS[idx].name + ' <em style="color:var(--text-dim)">(' + label + ')</em></span>';
+    }).join('');
+
+    var digitColors = order.slice(0, nd).map(function (idx) { return COLORS[idx].name + '=' + COLORS[idx].digit; }).join(', ');
+
+    var html = '';
+    html += '<div class="cs-inputs"><span class="cs-badge">' + state.bands + '-Band Resistor</span>' +
+            '<div class="cs-given">' + bandList + '</div>' +
+            '<p class="cs-si-note">Read from the end opposite the tolerance band (usually gold/silver).</p></div>';
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 1</span><span class="cs-title">Significant digits</span></div>' +
+            '<div class="cs-formula">' + digitColors + '</div>' +
+            '<div class="cs-result">Digits = <strong>' + digits + '</strong></div></div>';
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 2</span><span class="cs-title">Apply the multiplier</span></div>' +
+            '<div class="cs-formula">R = digits &times; multiplier</div>' +
+            '<div class="cs-calc">R = ' + digits + ' &times; &times;' + (COLORS[state.mult].mult >= 1 ? COLORS[state.mult].mult.toLocaleString('en-US') : COLORS[state.mult].mult) + '  (' + COLORS[state.mult].name + ')</div>' +
+            '<div class="cs-result">= <strong>' + formatOhms(r) + '</strong></div></div>';
+
+    if (state.bands >= 4) {
+      html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 3</span><span class="cs-title">Tolerance &amp; range</span></div>' +
+              '<div class="cs-formula">' + COLORS[state.tol].name + ' &rarr; &plusmn;' + tol + '%</div>' +
+              '<div class="cs-calc">' + formatOhms(r) + ' &times; (1 &plusmn; ' + tol + '/100)</div>' +
+              '<div class="cs-result">Range = <strong>' + formatOhms(lo) + ' &ndash; ' + formatOhms(hi) + '</strong></div></div>';
+    } else {
+      html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 3</span><span class="cs-title">Tolerance</span></div>' +
+              '<div class="cs-formula">No tolerance band &rarr; &plusmn;20%</div>' +
+              '<div class="cs-result">Range = <strong>' + formatOhms(lo) + ' &ndash; ' + formatOhms(hi) + '</strong></div></div>';
+    }
+
+    if (state.bands === 6 && COLORS[state.tc].tc != null) {
+      html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Step 4</span><span class="cs-title">Temperature coefficient</span></div>' +
+              '<div class="cs-result">' + COLORS[state.tc].name + ' &rarr; <strong>' + COLORS[state.tc].tc + ' ppm/&deg;C</strong></div></div>';
+    }
+
+    html += '<div class="cs-step"><div class="cs-step-hd"><span class="cs-num">Check</span><span class="cs-title">Nearest standard value</span></div>' +
+            '<div class="cs-result">' + (es.exact ? 'Exact standard value: ' : 'Closest preferred value: ') + '<strong>' + es.label + '</strong></div></div>';
+
+    $('calc-modal-body').innerHTML = html;
+    $('calc-modal').classList.add('active');
+  }
+  function closeCalc() { $('calc-modal').classList.remove('active'); }
+
+  /* ═══════════════ Wire up ═══════════════ */
+  function init() {
+    /* mode tabs */
+    document.querySelectorAll('#mode-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () { setMode(p.getAttribute('data-mode')); });
+    });
+    /* band count */
+    document.querySelectorAll('#bandcount-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        state.bands = +p.getAttribute('data-bands');
+        document.querySelectorAll('#bandcount-tabs .pill').forEach(function (q) { q.classList.remove('active'); });
+        p.classList.add('active');
+        playClick();
+        refresh();
+      });
+    });
+    /* explore category */
+    document.querySelectorAll('#cat-tabs .pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        exploreCat = p.getAttribute('data-cat'); exploreIdx = 0;
+        document.querySelectorAll('#cat-tabs .pill').forEach(function (q) { q.classList.remove('active'); });
+        p.classList.add('active');
+        renderExplore(); playClick();
+      });
+    });
+    /* random + sound */
+    $('btn-random').addEventListener('click', function () { randomResistor(); refresh(); playClick(); });
+    $('btn-calc').addEventListener('click', function () { openCalc(); playClick(); });
+    $('calc-modal-close').addEventListener('click', closeCalc);
+    $('calc-modal').addEventListener('click', function (e) { if (e.target === $('calc-modal')) closeCalc(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCalc(); });
+    $('btn-sound').addEventListener('click', function () {
+      state.soundOn = !state.soundOn;
+      $('btn-sound').textContent = state.soundOn ? '🔊' : '🔇';
+      $('btn-sound').setAttribute('aria-pressed', state.soundOn);
+      if (state.soundOn) playClick();
+    });
+    /* reverse */
+    $('rev-go').addEventListener('click', function () {
+      var v = parseFloat($('rev-value').value) * parseFloat($('rev-unit').value);
+      setBandsFromValue(v, parseFloat($('rev-tol').value));
+    });
+    $('rev-value').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('rev-go').click(); });
+    /* practice */
+    $('pp-check').addEventListener('click', checkPractice);
+    $('pp-next').addEventListener('click', newPractice);
+    $('pp-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') checkPractice(); });
+    /* export / context menu */
+    $('canvas-export-btn').addEventListener('click', exportPNG);
+    var menu = $('ctx-menu');
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var rect = canvas.parentElement.getBoundingClientRect();
+      menu.style.left = (e.clientX - rect.left) + 'px';
+      menu.style.top = (e.clientY - rect.top) + 'px';
+      menu.style.display = 'block';
+    });
+    document.addEventListener('click', function () { menu.style.display = 'none'; });
+    menu.querySelectorAll('.ctx-item').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var act = b.getAttribute('data-action');
+        if (act === 'save-img') exportPNG();
+        else if (act === 'copy-data') copyReading();
+        else if (act === 'reset') { state.d1 = I.YELLOW; state.d2 = I.VIOLET; state.d3 = I.BLACK; state.mult = I.RED; state.tol = I.GOLD; state.tc = I.BROWN; state.bands = 4;
+          document.querySelectorAll('#bandcount-tabs .pill').forEach(function (q) { q.classList.toggle('active', q.getAttribute('data-bands') === '4'); });
+          refresh(); }
+        menu.style.display = 'none';
+      });
+    });
+    /* resize */
+    window.addEventListener('resize', function () {
+      if (state.mode === 'simulate') draw();
+      else if (state.mode === 'practice' && pCurrent) draw({ hideValue: $('pp-input').disabled ? false : true });
+      else if (state.mode === 'quiz') { var q = quiz.qs[quiz.idx]; if (q) draw({ hideValue: q.draw && !quiz.answered }); }
+    });
+
+    setMode('simulate');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Automotive Differential Mechanism Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive 3D Automotive Differential Mechanism simulator powered by Python FastAPI physics calculations and Three.js WebGL graphics." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <!-- Three.js r128, OrbitControls, & GLTFLoader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Top Navigation & Live Telemetry Status -->
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Automobile Engineering</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Differential Mechanism V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <h1>Automotive Differential Mechanism</h1>
+    <p class="subtitle">Python Physics Engine (FastAPI / NumPy) &bull; Real-Time WebGL 3D Visualization &bull; Crown &amp; Pinion &bull; Sun &amp; Spider Gears</p>
+  </header>
+
+  <!-- Controls Bar with Mode Tabs & Presets -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="cruising_highway">Highway Cruising (Straight)</option>
+        <option value="sharp_hairpin_left">Sharp Hairpin (Left Turn)</option>
+        <option value="ice_patch_slip">Black Ice Patch (Left Slip)</option>
+        <option value="garage_jacked_test">Service Inspection (One Wheel Jacked)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="clutch.html" title="Open Friction Clutch Simulator">Friction Clutch V2</a>
+      <a class="btn-secondary" href="/nhitvisuallab/tools/steering-geometry/index.html" title="Open Steering Simulator">Steering Geometry</a>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 1. SIMULATE & 3D MODEL VIEWPORT                                  -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <!-- Left: Interactive 3D WebGL Canvas & Controls Overlay -->
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode components outwards to inspect gears">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+      </div>
+
+      <!-- Right: Real-time Controls & Telemetry -->
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Driving Maneuver</span>
+          <span style="font-size:0.75rem;color:var(--text-dim);">Final Drive 4:1</span>
+        </div>
+
+        <!-- Vehicle Maneuver Buttons -->
+        <div class="btn-grid" id="maneuver-group">
+          <button class="btn-choice active" data-maneuver="straight">Straight Ahead</button>
+          <button class="btn-choice" data-maneuver="left">Left Turn</button>
+          <button class="btn-choice" data-maneuver="right">Right Turn</button>
+          <button class="btn-choice" data-maneuver="slip">Mud/Ice Slip</button>
+        </div>
+
+        <!-- Propeller Input RPM Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Driveshaft Input RPM</span>
+            <span class="control-value" id="val-rpm">1200 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="300" max="3600" step="100" value="1200" />
+        </div>
+
+        <!-- Turn Severity / Bias Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Outer Wheel Bias (Turn Angle)</span>
+            <span class="control-value" id="val-turn">60%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-turn" min="50" max="90" step="2" value="60" />
+        </div>
+
+        <!-- Engine Torque Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Engine Input Torque</span>
+            <span class="control-value" id="val-torque">200 N·m</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-torque" min="50" max="500" step="10" value="200" />
+        </div>
+
+        <!-- Spider Count Selection -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Spider Planet Pinions</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-choice active" data-spider="2" style="flex:1;">2 Spider Pinions</button>
+            <button class="btn-choice" data-spider="4" style="flex:1;">4 Spider Pinions (HD)</button>
+          </div>
+        </div>
+
+        <!-- Live Server Telemetry Readout -->
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Crown Wheel Speed:</span>
+            <span class="telemetry-val" id="st-crown">300 RPM</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Left Wheel Speed:</span>
+            <span class="telemetry-val" id="st-left" style="color:var(--accent);">300 RPM</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Right Wheel Speed:</span>
+            <span class="telemetry-val" id="st-right" style="color:var(--green);">300 RPM</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Spider Pinion Spin:</span>
+            <span class="telemetry-val" id="st-spider" style="color:var(--yellow);">0.0 RPM (Locked)</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Torque (Left / Right):</span>
+            <span class="telemetry-val" id="st-torque-left">400 N·m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Delivered Power:</span>
+            <span class="telemetry-val" id="st-power">25.13 kW</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-kinematic-eq">
+            300.0 RPM (Left) + 300.0 RPM (Right) = 600.0 RPM = 2 × 300.0 RPM (Crown)
+          </div>
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Straight driving: Spider pinions locked relative to carrier (zero self-rotation).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 2. EXPLORE MODE                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Drive Pinion &amp; Crown Wheel</h3>
+        <p>Transfers longitudinal propeller shaft drive 90° to the transverse axle shaft while providing final drive torque multiplication (4:1 reduction ratio).</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Differential Carrier Housing</h3>
+        <p>Rigid cast-steel cage bolted directly to the crown wheel. Rotates at speed <em>N<sub>crown</sub></em> and carries the internal cross-pin holding the spider pinions.</p>
+      </div>
+      <div class="info-card">
+        <h3>3. Spider Planet Pinions</h3>
+        <p>Bevel pinions mounted on the carrier cross-pin. During straight driving they don't spin on their pins. In turns, they spin to subtract speed from the inner wheel and add it to the outer wheel.</p>
+      </div>
+      <div class="info-card">
+        <h3>4. Axle Sun Gears</h3>
+        <p>Bevel side gears splined directly to the left and right drive half-shafts that power the road wheels.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 3. PRACTICE MODE                                                  -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Kinematic Speed Equation Verification</h3>
+      <p>1. Set the Driveshaft Input RPM slider to <strong>2400 RPM</strong> (Crown Wheel speed = 600 RPM).<br>
+         2. Select the <strong>Left Turn</strong> maneuver condition with 75% Outer Wheel Bias.<br>
+         3. Observe the inner left wheel speed drops to 300 RPM while the outer right wheel speed rises to 900 RPM.<br>
+         4. Verify the kinematic equation holds true: <strong>(300 + 900) / 2 = 600 RPM</strong>!</p>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 4. QUIZ MODE                                                      -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What happens to the spider planet pinions when a vehicle turns left?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; They rotate on their cross-pin, speeding up the outer right wheel while slowing the inner left wheel.
+        </li>
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--red)';this.style.color='var(--red)';">
+          &#10007; They lock completely and disconnect drive from the right axle shaft.
+        </li>
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--red)';this.style.color='var(--red)';">
+          &#10007; They disengage from the crown wheel.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 5. USER GUIDE (Expandable)                                       -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span aria-hidden="true">&#128214;</span>
+      User Guide — Automotive Differential Simulator V2
+    </div>
+    <details open>
+      <summary><span class="guide-num">1</span> Overview &amp; Architecture</summary>
+      <div class="guide-body">
+        The V2 Automotive Differential Simulator uses a decoupled architecture. The physical kinematics, torque split, and friction calculations are computed in real time on a Python FastAPI backend using NumPy, while the 3D scene is rendered locally via Three.js and WebGL.
+      </div>
+    </details>
+    <details>
+      <summary><span class="guide-num">2</span> Setting Up Driving Conditions</summary>
+      <div class="guide-body">
+        Use the vehicle maneuver buttons (Straight, Left Turn, Right Turn, Mud/Ice Slip) to simulate realistic cornering and traction conditions. Adjust the driveshaft RPM slider and Turn Bias to evaluate differential behavior under varying speeds.
+      </div>
+    </details>
+    <details>
+      <summary><span class="guide-num">3</span> Exploded View Inspection</summary>
+      <div class="guide-body">
+        Click the <strong>💥 Exploded View</strong> button overlay inside the 3D viewport to separate the crown wheel, spider pinions, sun gears, and axles outwards to inspect internal gear meshing.
+      </div>
+    </details>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 6. SEO ARTICLE                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section class="seo-article">
+    <h2>How an Automotive Open Differential Works</h2>
+    <p>An <strong>Automotive Differential</strong> is a planetary bevel-gear mechanism designed to allow the left and right driven road wheels to rotate at different angular velocities when turning, while continuing to transmit torque from the engine driveshaft.</p>
+    
+    <h3>The Fundamental Differential Kinematic Equation</h3>
+    <p>Because the spider planet pinions mesh with both axle sun gears simultaneously, any decrease in the inner wheel speed results in an identical increase in the outer wheel speed:</p>
+    <p style="font-family:var(--font-mono);font-size:1.05rem;color:var(--accent);padding:8px 0;">
+      N<sub>left</sub> + N<sub>right</sub> = 2 &times; N<sub>crown</sub>
+    </p>
+
+    <h3>Explore Related Simulators</h3>
+    <p>Deepen your engineering studies with the <a href="clutch.html">Automotive Friction Clutch V2 Simulator</a>, <a href="/nhitvisuallab/tools/steering-geometry/index.html">Steering Geometry &amp; Alignment Simulator</a>, and <a href="/nhitvisuallab/tools/gear-trains/index.html">Gear Trains Simulator</a>.</p>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 7. SITE FOOTER                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+      <a href="/nhitvisuallab/about/index.html">About</a>
+      <a href="/nhitvisuallab/privacy-policy/index.html">Privacy Policy</a>
+      <a href="/nhitvisuallab/terms/index.html">Terms of Use</a>
+      <a href="/nhitvisuallab/contact/index.html">Contact</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<!-- Application Controller Scripts -->
+<script src="js/differential3d.js"></script>
+<script src="js/simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>
