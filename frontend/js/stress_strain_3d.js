@@ -46,7 +46,7 @@ class StressStrain3D {
   loadModel() {
     const loader = new THREE.GLTFLoader();
     loader.load(
-      'models/stress_strain.glb',
+      '/models/stress_strain.glb',
       (gltf) => {
         const model = gltf.scene;
         this.scene.add(model);

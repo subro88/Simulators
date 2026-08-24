@@ -46,7 +46,7 @@ class SliderCrank3D {
   loadModel() {
     const loader = new THREE.GLTFLoader();
     loader.load(
-      'models/slider_crank.glb',
+      '/models/slider_crank.glb',
       (gltf) => {
         const model = gltf.scene;
         this.scene.add(model);

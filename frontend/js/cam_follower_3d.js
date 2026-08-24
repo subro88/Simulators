@@ -83,7 +83,7 @@
     loadModel() {
       const loader = new THREE.GLTFLoader();
       loader.load(
-        'models/cam_follower.glb',
+        '/models/cam_follower.glb',
         (gltf) => {
           const root = gltf.scene;
           this.scene.add(root);

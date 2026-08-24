@@ -124,7 +124,7 @@
 
     loadModel() {
       const loader = new THREE.GLTFLoader();
-      const modelPath = 'models/differential.glb';
+      const modelPath = '/models/differential.glb';
 
       loader.load(
         modelPath,

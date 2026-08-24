@@ -83,7 +83,7 @@
     loadModel() {
       const loader = new THREE.GLTFLoader();
       loader.load(
-        'models/valve_timing.glb',
+        '/models/valve_timing.glb',
         (gltf) => {
           const root = gltf.scene;
           this.scene.add(root);

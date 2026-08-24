@@ -13,7 +13,7 @@ from typing import Dict, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from app.simulation import (
     DifferentialEngine, DifferentialInput, DifferentialOutput,
@@ -648,20 +648,52 @@ register_engine_ws_route("overall-equipment-effectiveness", overall_equipment_ef
 
 # ── Static File Mounts & Frontend Routes ─────────────────────────────────────
 
-if NHITVISUALLAB_DIR.exists():
-    app.mount("/nhitvisuallab", StaticFiles(directory=str(NHITVISUALLAB_DIR), html=True), name="nhitvisuallab")
-
 if (FRONTEND_DIR / "css").exists():
     app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
+    app.mount("/nhitvisuallab/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="nhit_css")
 if (FRONTEND_DIR / "js").exists():
     app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
+    app.mount("/nhitvisuallab/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="nhit_js")
 if (FRONTEND_DIR / "models").exists():
     app.mount("/models", StaticFiles(directory=str(FRONTEND_DIR / "models")), name="models")
-
-@app.get("/lathe_turning.html")
-async def serve_lathe_turning():
-    return FileResponse(str(FRONTEND_DIR / "lathe_turning.html"))
+    app.mount("/nhitvisuallab/models", StaticFiles(directory=str(FRONTEND_DIR / "models")), name="nhit_models")
 
 @app.get("/")
+@app.get("/index.html")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
+
+@app.get("/nhitvisuallab/{page_name}.html")
+async def serve_nhit_v2_redirect(page_name: str):
+    v2_file = FRONTEND_DIR / f"{page_name}.html"
+    if v2_file.exists():
+        return RedirectResponse(url=f"/{page_name}.html")
+    nhit_path = NHITVISUALLAB_DIR / f"{page_name}.html"
+    if nhit_path.exists():
+        return FileResponse(str(nhit_path))
+    raise HTTPException(status_code=404, detail="Page not found")
+
+@app.get("/{page_name}.html")
+async def serve_frontend_page(page_name: str):
+    file_path = FRONTEND_DIR / f"{page_name}.html"
+    if file_path.exists():
+        return FileResponse(str(file_path))
+    nhit_path = NHITVISUALLAB_DIR / f"{page_name}.html"
+    if nhit_path.exists():
+        return FileResponse(str(nhit_path))
+    raise HTTPException(status_code=404, detail="Page not found")
+
+if NHITVISUALLAB_DIR.exists():
+    if (NHITVISUALLAB_DIR / "Icons").exists():
+        app.mount("/Icons", StaticFiles(directory=str(NHITVISUALLAB_DIR / "Icons")), name="nhitvisuallab_icons")
+    if (NHITVISUALLAB_DIR / "shared").exists():
+        app.mount("/shared", StaticFiles(directory=str(NHITVISUALLAB_DIR / "shared")), name="nhitvisuallab_shared")
+    if (NHITVISUALLAB_DIR / "brand").exists():
+        app.mount("/brand", StaticFiles(directory=str(NHITVISUALLAB_DIR / "brand")), name="nhitvisuallab_brand")
+    if (NHITVISUALLAB_DIR / "tools").exists():
+        app.mount("/tools", StaticFiles(directory=str(NHITVISUALLAB_DIR / "tools"), html=True), name="nhitvisuallab_tools")
+    app.mount("/nhitvisuallab", StaticFiles(directory=str(NHITVISUALLAB_DIR), html=True), name="nhitvisuallab")
+
+
+
+

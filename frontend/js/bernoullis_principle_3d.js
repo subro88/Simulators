@@ -46,7 +46,7 @@ class BernoullisPrinciple3D {
   loadModel() {
     const loader = new THREE.GLTFLoader();
     loader.load(
-      'models/bernoullis_principle.glb',
+      '/models/bernoullis_principle.glb',
       (gltf) => {
         const model = gltf.scene;
         this.scene.add(model);

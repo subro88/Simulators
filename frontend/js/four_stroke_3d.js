@@ -99,7 +99,7 @@
 
     loadModel() {
       const loader = new THREE.GLTFLoader();
-      const modelPath = 'models/four_stroke_engine.glb';
+      const modelPath = '/models/four_stroke_engine.glb';
 
       loader.load(
         modelPath,

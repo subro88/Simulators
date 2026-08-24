@@ -101,7 +101,7 @@
 
     loadModel() {
       const loader = new THREE.GLTFLoader();
-      const modelPath = 'models/clutch.glb';
+      const modelPath = '/models/clutch.glb';
 
       loader.load(
         modelPath,

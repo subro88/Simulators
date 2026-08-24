@@ -46,7 +46,7 @@ class OhmsLaw3D {
   loadModel() {
     const loader = new THREE.GLTFLoader();
     loader.load(
-      'models/ohms_law.glb',
+      '/models/ohms_law.glb',
       (gltf) => {
         const model = gltf.scene;
         this.scene.add(model);
