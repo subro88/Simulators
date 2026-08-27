@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Design, Estimation &amp; Costing | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Design, Estimation & Costing Virtual Lab for WBSCTE 6th Sem EE (EE/S6/EDEC). Simulate Residential & Industrial Sub-circuits, Cable Sizing, Voltage Drop & Bill of Quantities, and inspect 3D Distribution Board model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 6th Semester (EE/S6/EDEC)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Design, Estimation &amp; Costing Virtual Lab</h1>
+    <p class="subtitle">Industrial Motor Feeder Sizing, Cable Voltage Drop (IS 732), Sub-circuit Distribution &amp; BOM</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">IE Rules &amp; NEC</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IS 732 Wiring Rules</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Distribution Board &amp; Cable Drum</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Main Distribution Board Enclosure, DIN-Rail MCB Circuit Breakers, Armoured Cable Drum, and Neutral/Earth Busbar.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="edec-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Installation:</label>
+        <select id="inst-select" class="edec-select">
+          <option value="motor">1. 3-Phase Industrial Motor Feeder (37 kW, 415V)</option>
+          <option value="residential">2. Residential Lighting &amp; Power Sub-circuits (5 kW, 230V)</option>
+          <option value="service">3. Overhead / Underground Service Connection (15 kW)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Power (kW):</label>
+        <input type="number" id="p-kw-in" value="37" min="1" max="250" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Run Length (m):</label>
+        <input type="number" id="len-in" value="80" min="5" max="300" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Conductor:</label>
+        <select id="cond-select" class="edec-select">
+          <option value="aluminum" selected>Aluminum (XLPE Armoured)</option>
+          <option value="copper">Copper (PVC Insulated)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-cable">Size Cable &amp; Breaker &#9654;</button>
+        <button class="btn-action success" id="btn-gen-bom">Generate Bill of Materials</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Distribution Feeder Schematic -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Main Switchboard Single Line Feeder &amp; Cable Route</span>
+          <span class="badge" id="csa-badge">Recommended Cable: 35 mm&sup2; Al</span>
+        </div>
+        <canvas id="edec-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Design Parameters &amp; Voltage Drop Compliance</span>
+        </div>
+        <div class="edec-grid">
+          <div class="edec-box"><span class="edec-lbl">Full Load Current (I_fl)</span><span class="edec-val" id="disp-ifl">67.33 A</span></div>
+          <div class="edec-box"><span class="edec-lbl">Cable Cross-Section (CSA)</span><span class="edec-val" id="disp-csa" style="color:#f59e0b;font-weight:700;">35.0 mm&sup2; XLPE/Al</span></div>
+          <div class="edec-box"><span class="edec-lbl">Voltage Drop (&Delta;V)</span><span class="edec-val" id="disp-vdrop">6.12 V (1.47 %)</span></div>
+          <div class="edec-box"><span class="edec-lbl">IS 732 Compliance</span><span class="edec-val" id="disp-comp" style="color:#10b981;font-weight:700;">PASS (&le; 3.0 % Permissible)</span></div>
+          <div class="edec-box"><span class="edec-lbl">Recommended MCCB</span><span class="edec-val" id="disp-mccb">100 A 3-Pole MCCB</span></div>
+          <div class="edec-box"><span class="edec-lbl">Earthing GI Conductor</span><span class="edec-val">25 x 6 mm GI Strip</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Electrical Estimator Engineering Log:</div>
+          <div class="console-log" id="edec-log">
+            &gt; Initialized Electrical Design, Estimation &amp; Costing Virtual Lab.<br>
+            &gt; 3-Phase 415V Induction Motor Feeder: P = 37.0 kW, cos &phi; = 0.85, &eta; = 90.0%.<br>
+            &gt; Full load line current I = 37000 / (&radic;3 &times; 415 &times; 0.85 &times; 0.90) = 67.33 A.<br>
+            &gt; Selected 3.5 Core 35 mm&sup2; Aluminium Armoured Cable for 80.0m run. Voltage drop = 1.47% (Pass).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S6/EDEC Electrical Design, Estimation &amp; Costing</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Indian Electricity (IE) Rules &amp; NEC</h3>
+          <p>Rule 28: Low, Medium, High and Extra High Voltage ratings.<br>Rule 46: Periodic inspection of installations.<br>Rule 54: Declared voltage limits ($\pm 6\%$ for low/medium voltage, $\pm 12.5\%$ for extra high voltage).<br>Rule 77: Minimum ground clearances for overhead lines.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Sub-circuit Design Standards (IS 732)</h3>
+          <p><strong>Lighting Sub-circuit:</strong> Maximum load $800\text{W}$ or $10$ points per circuit.<br><strong>Power Sub-circuit:</strong> Maximum load $3000\text{W}$ or $2$ socket outlets per circuit.<br>Maximum allowable feeder voltage drop $\le 3.0\%$ from consumer intake point.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Cable Sizing &amp; Derating Factors</h3>
+          <p>Current rating modified by: Ambient temperature factor $k_t$, Grouping factor $k_g$, and Thermal soil resistivity $k_s$. Required $I_{rated} = \frac{I_{fl}}{k_t \cdot k_g \cdot k_s}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Earth Electrode Resistance (IS 3043)</h3>
+          <p>Pipe and plate earthing with charcoal and salt layers. Substation earth resistance $\le 1.0\Omega$, industrial $\le 2.0\Omega$, domestic consumer $\le 5.0\Omega$.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('edec-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcCable() {
+  const pKw = parseFloat(document.getElementById('p-kw-in').value) || 37;
+  const lenM = parseFloat(document.getElementById('len-in').value) || 80;
+  const mat = document.getElementById('cond-select').value;
+
+  const v = 415, pf = 0.85, eta = 0.90;
+  const ifl = (pKw * 1000.0) / (Math.sqrt(3) * v * pf * eta);
+
+  const density = mat === 'aluminum' ? 1.5 : 3.5;
+  const calcCsa = ifl / density;
+  const standards = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300];
+  const csa = standards.find(s => s >= calcCsa) || 300;
+
+  const rho = mat === 'aluminum' ? 0.0287 : 0.0178;
+  const rCable = (rho * lenM) / csa;
+  const xCable = 0.08 * (lenM / 1000.0);
+  const sinPhi = Math.sin(Math.acos(pf));
+  const vdrop = Math.sqrt(3) * ifl * (rCable * pf + xCable * sinPhi);
+  const pctDrop = (vdrop / v) * 100.0;
+  const compliant = pctDrop <= 3.0;
+
+  const breakers = [16, 25, 32, 40, 63, 80, 100, 125, 160, 200, 250, 400];
+  const mccb = breakers.find(b => b >= ifl * 1.25) || 400;
+
+  document.getElementById('disp-ifl').textContent = `${ifl.toFixed(2)} A`;
+  document.getElementById('disp-csa').textContent = `${csa}.0 mm² ${mat === 'aluminum' ? 'XLPE/Al' : 'PVC/Cu'}`;
+  document.getElementById('disp-vdrop').textContent = `${vdrop.toFixed(2)} V (${pctDrop.toFixed(2)} %)`;
+  document.getElementById('disp-comp').textContent = compliant ? 'PASS (≤ 3.0 % Permissible)' : 'FAIL (> 3.0 % Exceeded)';
+  document.getElementById('disp-comp').style.color = compliant ? '#10b981' : '#ef4444';
+  document.getElementById('disp-mccb').textContent = `${mccb} A 3-Pole MCCB`;
+  document.getElementById('csa-badge').textContent = `Recommended Cable: ${csa} mm² ${mat === 'aluminum' ? 'Al' : 'Cu'}`;
+
+  return { ifl, csa, vdrop, pctDrop, mccb };
+}
+
+function drawSchematic() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcCable();
+
+  // Left Box: Main LT Switchboard
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(40, 80, 140, 240);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(40, 80, 140, 240);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('MAIN LT PANEL', 110, 105);
+
+  // MCCB representation inside panel
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(60, 130, 100, 50);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.strokeRect(60, 130, 100, 50);
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 10px monospace';
+  ctx.fillText(`${res.mccb}A MCCB`, 110, 160);
+
+  // Cable Run Conduit Line Across Middle
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(180, 155);
+  ctx.lineTo(480, 155);
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText(`3.5C x ${res.csa} mm² Armoured Cable (${document.getElementById('len-in').value}m)`, 330, 140);
+  ctx.fillStyle = '#10b981';
+  ctx.font = '10px monospace';
+  ctx.fillText(`ΔV = ${res.vdrop.toFixed(2)}V (${res.pctDrop.toFixed(2)}%)`, 330, 180);
+
+  // Right Box: Motor Control Centre / Load Terminal
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(480, 80, 160, 240);
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(480, 80, 160, 240);
+
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText('3-PHASE MOTOR LOAD', 560, 105);
+
+  // Motor Rotor Symbol
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.arc(560, 190, 45, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.fillText('M', 560, 195);
+  ctx.font = '10px monospace';
+  ctx.fillText(`${document.getElementById('p-kw-in').value} kW 415V`, 560, 215);
+}
+
+const pIn = document.getElementById('p-kw-in');
+const lenIn = document.getElementById('len-in');
+const condSel = document.getElementById('cond-select');
+const logEl = document.getElementById('edec-log');
+
+[pIn, lenIn, condSel].forEach(el => el.addEventListener('input', () => {
+  drawSchematic();
+}));
+
+document.getElementById('btn-calc-cable').addEventListener('click', () => {
+  const res = calcCable();
+  logEl.innerHTML += `<br>&gt; [CABLE SIZING RE-CALCULATED] P = ${pIn.value} kW, Run = ${lenIn.value} m &rarr; Selected ${res.csa} mm&sup2; cable. Voltage drop = ${res.pctDrop.toFixed(2)}%.`;
+  drawSchematic();
+});
+
+document.getElementById('btn-gen-bom').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [BILL OF MATERIALS] Generated schedule: 1x 100A MCCB, 80m 35mm&sup2; XLPE cable, 2x Cable Glands (Double Compression), 8x Copper lugs, 10m 25x6mm GI earth strip.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_design_estimation.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawSchematic();
+</script>
+</body>
+</html>

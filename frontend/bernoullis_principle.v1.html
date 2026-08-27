@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Bernoulli's Principle &amp; Venturimeter — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Venturimeter &amp; Bernoulli Principle Fluid Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Thermal &amp; Fluid Engineering</span>
+      <span>/</span>
+      <style>/* inline badge */</style>
+      <span style="color:var(--text);font-weight:600;">Bernoulli's Principle V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Bernoulli's Principle &amp; Venturi Flowmeter</h1>
+    <p class="subtitle">Python Fluid Mechanics Engine &bull; Real-Time WebGL 3D Visualization &bull; Velocity Acceleration, Static Pressure Drop &amp; Discharge Q</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Fluid Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Fluid Preset --</option>
+        <option value="water_venturi_meter">Water Pipe Venturi Flowmeter</option>
+        <option value="air_carburetor_throat">Air Carburetor Throat</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="continuity_equation.html" title="Open Continuity Equation Simulator">Continuity Eq V2</a>
+      <a class="btn-secondary" href="reynolds_number.html" title="Open Reynolds Number Simulator">Reynolds Number V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode Venturimeter components">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Venturi Pressure &amp; Velocity Gradient Schematic</div>
+          <canvas id="2d-schematic-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Venturi &amp; Manometer Parameters</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Inlet Pipe Diameter (d1)</span>
+            <span class="control-value" id="val-d1">100 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-d1" min="50" max="300" step="5" value="100" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Throat Diameter (d2)</span>
+            <span class="control-value" id="val-d2">50 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-d2" min="20" max="200" step="5" value="50" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Manometer Differential Head (h)</span>
+            <span class="control-value" id="val-h">250 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-h" min="20" max="1000" step="10" value="250" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Inlet Static Pressure (P1)</span>
+            <span class="control-value" id="val-p1">200 kPa</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-p1" min="50" max="500" step="10" value="200" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Inlet Velocity (v1):</span>
+            <span class="telemetry-val" id="st-v1" style="color:var(--text);">0.74 m/s</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Throat Velocity (v2):</span>
+            <span class="telemetry-val" id="st-v2" style="color:var(--accent);">2.96 m/s</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Throat Pressure (P2):</span>
+            <span class="telemetry-val" id="st-p2" style="color:var(--green);">195.8 kPa</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Flow Rate (Q):</span>
+            <span class="telemetry-val" id="st-q" style="color:var(--yellow);">5.81 L/s</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Venturi Flow: Inlet Velocity v1 = 0.74 m/s, Throat Velocity v2 = 2.96 m/s | Throat Pressure P2 = 195.8 kPa | Flow Rate Q = 5.81 L/s.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Bernoulli's Conservation Principle</h3>
+        <p>In an incompressible, inviscid fluid stream, total mechanical energy along a streamline remains constant: $\frac{P}{\rho g} + \frac{v^2}{2g} + z = C$. As fluid speeds up in the constriction, static pressure drops!</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Venturimeter Discharge Measurement</h3>
+        <p>The volumetric flow rate $Q = C_d \frac{A_1 A_2}{\sqrt{A_1^2 - A_2^2}} \sqrt{2g \Delta h}$ directly relates the differential manometer head $\Delta h$ to mass flow.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Throat Constriction &amp; Velocity Multiplication</h3>
+      <p>1. Set $d1 = 100\text{ mm}$ and $d2 = 50\text{ mm}$ (Area Ratio $A1/A2 = 4$).<br>
+         2. Observe throat velocity $v2$ is exactly <strong>4 times</strong> inlet velocity $v1$.<br>
+         3. Notice static pressure drops significantly at the throat to conserve energy!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What happens to static pressure when a fluid accelerates through a Venturi throat?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; Static pressure decreases (kinetic energy increases at the expense of pressure head)
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/bernoullis_principle_3d.js"></script>
+<script src="/js/bernoullis_principle_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

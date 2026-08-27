@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>8051 Microcontroller &amp; Embedded Systems | NHIT VisualLab</title>
+  <meta name="description" content="Interactive 8051 Microcontroller & Embedded Systems Virtual Lab for WBSCTE 5th Sem EE (EE/S5/MPMC). Simulate UART Baud Rate Generator, Stepper Motor Interfacing, Port I/O Telemetry, and inspect 3D DIP-40 8051 Chip model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 5th Semester (EE/S5/MPMC)</span>
+  </nav>
+
+  <header>
+    <h1>8051 Microcontroller &amp; Embedded Systems Virtual Lab</h1>
+    <p class="subtitle">Timer Mode 2 Baud Rate Generator, Port I/O Registers &amp; 4-Phase Stepper Motor Interfacing</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">8051 Architecture</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; SFR Memory Map</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">8051 DIP-40 Chip &amp; Crystal Base</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of DIP-40 Microcontroller Chip, 11.0592 MHz Quartz Crystal Oscillator, Port Header Pin Bus, and Stepper Motor Driver Base.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="mc-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Peripheral Task:</label>
+        <select id="mc-task-select" class="mc-select">
+          <option value="baud">1. UART Serial Baud Rate (Timer 1 Mode 2 Auto-Reload)</option>
+          <option value="stepper">2. 4-Phase Stepper Motor Direction &amp; Step Sequence</option>
+          <option value="ports">3. Bit-Addressable Port P1 / P2 LED Bar Interfacing</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Baud Rate (bps):</label>
+        <select id="baud-select" class="mc-select">
+          <option value="9600" selected>9600 bps (TH1 = 0xFD)</option>
+          <option value="4800">4800 bps (TH1 = 0xFA)</option>
+          <option value="2400">2400 bps (TH1 = 0xF4)</option>
+          <option value="19200">19200 bps (SMOD = 1, TH1 = 0xFD)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Stepper RPM:</label>
+        <input type="number" id="rpm-in" value="120" min="10" max="500" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-toggle-step">Rotate Stepper ⏵</button>
+        <button class="btn-action warning" id="btn-send-uart">Send UART Byte (0x55)</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Stepper Motor View -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">4-Phase Stepper Rotor &amp; Port P1 Logic State</span>
+          <span class="badge" id="step-badge">Step Angle = 1.8° (200 Steps/Rev)</span>
+        </div>
+        <canvas id="mc-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">8051 SFR Registers &amp; Machine Timing</span>
+        </div>
+        <div class="mc-grid">
+          <div class="mc-box"><span class="mc-lbl">TH1 Reload Value</span><span class="mc-val" id="disp-th1" style="color:#f59e0b;font-weight:700;">0xFD (253 Decimal)</span></div>
+          <div class="mc-box"><span class="mc-lbl">Machine Cycle Time</span><span class="mc-val">1.085 &mu;s (11.0592 MHz)</span></div>
+          <div class="mc-box"><span class="mc-lbl">Stepper Pulse Frequency</span><span class="mc-val" id="disp-stepf">400.0 Hz</span></div>
+          <div class="mc-box"><span class="mc-lbl">TMOD Register</span><span class="mc-val">0x20 (Timer 1, 8-bit Auto)</span></div>
+          <div class="mc-box"><span class="mc-lbl">PCON.7 (SMOD)</span><span class="mc-val" id="disp-smod">0 (Normal Baud)</span></div>
+          <div class="mc-box"><span class="mc-lbl">Serial Status (SCON)</span><span class="mc-val" style="color:#10b981;">0x50 (Mode 1, 8-bit UART)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Keil C51 / Embedded UART Serial Monitor:</div>
+          <div class="console-log" id="mc-log">
+            &gt; Initialized 8051 Microcontroller Virtual Lab.<br>
+            &gt; XTAL = 11.0592 MHz. Machine Cycle = 12 / 11.0592 MHz = 1.085 &mu;s.<br>
+            &gt; Configured TMOD = 0x20: Timer 1 Mode 2 Auto-reload.<br>
+            &gt; TH1 = 0xFD loaded for 9600 Baud rate. Serial transmission enabled.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S5/MPMC Microprocessor &amp; Microcontroller</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. 8051 Timers &amp; Serial Communication</h3>
+          <p>Timer 1 in Mode 2 (8-bit auto-reload) acts as UART baud rate generator. $\text{Baud} = \frac{2^{\text{SMOD}}}{32} \times \frac{f_{osc}}{12 \times (256 - \text{TH1})}$. Using $11.0592\text{MHz}$ crystal allows exact zero-error standard baud rates ($9600, 4800, 2400$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Stepper Motor Interfacing</h3>
+          <p>4-Phase unipolar stepper motor driven via ULN2003 Darlington array connected to Port P1. Step sequences: Full-step 4-phase ($1000 \to 0100 \to 0010 \to 0001$) and Half-step 8-phase.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Interrupt Architecture</h3>
+          <p>5 vectored interrupts: External INT0 ($0003\text{H}$), Timer 0 ($000B\text{H}$), External INT1 ($0013\text{H}$), Timer 1 ($001B\text{H}$), and Serial RI/TI ($0023\text{H}$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Memory Organization</h3>
+          <p>Separate Program (ROM) and Data (RAM) address spaces (Harvard architecture). 128 bytes internal RAM (Bank 0-3, Bit-addressable area $20\text{H}-2\text{FH}$, General RAM) and Special Function Registers (SFRs).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('mc-canvas');
+const ctx = canvas.getContext('2d');
+let isStepRunning = false;
+let stepAngle = 0;
+let stepPhaseIdx = 0;
+
+const stepSeq = ['1000', '0100', '0010', '0001'];
+
+function drawStepper() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Left Area: Rotating Stepper Motor
+  const cx = 180, cy = 210, rOuter = 110, rInner = 65;
+
+  // Stator 4 Poles
+  const poles = ['A (P1.0)', 'B (P1.1)', 'C (P1.2)', 'D (P1.3)'];
+  const poleAngles = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
+
+  for (let i = 0; i < 4; i++) {
+    const px = cx + rOuter * Math.cos(poleAngles[i]);
+    const py = cy + rOuter * Math.sin(poleAngles[i]);
+    const isActive = (i === stepPhaseIdx);
+
+    ctx.fillStyle = isActive ? '#f59e0b' : '#334155';
+    ctx.beginPath(); ctx.arc(px, py, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = isActive ? '#fff' : '#64748b';
+    ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(poles[i], px, py + 4);
+  }
+
+  // Rotating Rotor Disc with Teeth
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.arc(cx, cy, rInner, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
+
+  // Rotor Pointer Arrow
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 4;
+  const tipX = cx + (rInner - 8) * Math.cos(stepAngle);
+  const tipY = cy + (rInner - 8) * Math.sin(stepAngle);
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tipX, tipY); ctx.stroke();
+
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath(); ctx.arc(tipX, tipY, 6, 0, Math.PI * 2); ctx.fill();
+
+  // Center Hub
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Right Area: Port P1 Pin Status Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(380, 70, 280, 280);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(380, 70, 280, 280);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText('PORT P1 (0x90) BIT LOGIC TELEMETRY', 400, 100);
+
+  // 8 Pin Indicators
+  const curBits = stepSeq[stepPhaseIdx].padStart(8, '0');
+  for (let i = 0; i < 8; i++) {
+    const bitVal = curBits[7 - i] === '1';
+    const py = 130 + i * 26;
+
+    ctx.fillStyle = bitVal ? '#10b981' : '#334155';
+    ctx.beginPath(); ctx.arc(415, py, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px monospace';
+    ctx.fillText(`P1.${i} : ${bitVal ? 'HIGH (1)' : 'LOW (0)'}`, 435, py + 4);
+  }
+
+  if (isStepRunning) {
+    stepAngle += 0.05;
+    stepPhaseIdx = Math.floor((stepAngle / (Math.PI / 2)) % 4);
+    requestAnimationFrame(drawStepper);
+  }
+}
+
+const baudSel = document.getElementById('baud-select');
+const rpmIn = document.getElementById('rpm-in');
+const btnStep = document.getElementById('btn-toggle-step');
+const logEl = document.getElementById('mc-log');
+
+baudSel.addEventListener('change', () => {
+  const b = baudSel.value;
+  let th1 = '0xFD';
+  let dec = 253;
+  let smod = '0';
+  if (b === '4800') { th1 = '0xFA'; dec = 250; }
+  else if (b === '2400') { th1 = '0xF4'; dec = 244; }
+  else if (b === '19200') { th1 = '0xFD'; dec = 253; smod = '1'; }
+
+  document.getElementById('disp-th1').textContent = `${th1} (${dec} Decimal)`;
+  document.getElementById('disp-smod').textContent = smod;
+  logEl.innerHTML += `<br>&gt; [BAUD CONFIGURE] Set Baud = ${b} bps &rarr; TH1 reload value = ${th1}, SMOD = ${smod}.`;
+});
+
+rpmIn.addEventListener('input', () => {
+  const rpm = parseFloat(rpmIn.value) || 120;
+  const freq = (rpm * 200) / 60.0;
+  document.getElementById('disp-stepf').textContent = `${freq.toFixed(1)} Hz`;
+});
+
+btnStep.addEventListener('click', () => {
+  isStepRunning = !isStepRunning;
+  btnStep.textContent = isStepRunning ? 'Pause Stepper ⏸' : 'Rotate Stepper ⏵';
+  btnStep.style.background = isStepRunning ? '#f59e0b' : '#00b0ff';
+  if (isStepRunning) drawStepper();
+});
+
+document.getElementById('btn-send-uart').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [UART TX] Sent byte 0x55 (\'U\') via SBUF: TI interrupt flag set, transmission verified.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/microcontroller_8051.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawStepper();
+</script>
+</body>
+</html>

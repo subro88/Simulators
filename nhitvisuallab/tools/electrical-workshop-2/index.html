@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Workshop - II Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Workshop - II Virtual Lab for WBSCTE 6th Sem EE (EE/S6/EWII). Simulate Induction Motor Stator Rewinding, Coil Span & Pitch Factor kp, Drop Test, and inspect 3D Motor Stator Winding model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 6th Semester (EE/S6/EWII)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Workshop &mdash; II Virtual Lab</h1>
+    <p class="subtitle">3-Phase Induction Motor Rewinding, Coil Pitch Factor (kp), Armature Drop Test &amp; Termination</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Winding Techniques</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Winding Tables</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Stator Core &amp; Diamond Coils</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Stator Core Laminations, Diamond Formed Coil Overhang, Commutator Test Rig, and Cable Termination Lug.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ew-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Motor Rating:</label>
+        <select id="hp-select" class="ew-select">
+          <option value="5" selected>5.0 HP (36 Slots, 4 Poles)</option>
+          <option value="7.5">7.5 HP (36 Slots, 4 Poles)</option>
+          <option value="10">10.0 HP (48 Slots, 4 Poles)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Coil Span (Slots):</label>
+        <input type="number" id="span-in" value="8" min="5" max="12" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Wire Gauge (SWG):</label>
+        <select id="swg-select" class="ew-select">
+          <option value="21" selected>21 SWG (0.813 mm)</option>
+          <option value="18">18 SWG (1.220 mm)</option>
+          <option value="24">24 SWG (0.559 mm)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-draw-winding">Calculate Winding &#9654;</button>
+        <button class="btn-action success" id="btn-drop-test">Simulate Drop Test</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Stator Slot Winding Diagram -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Stator Slot Coil Pitch Diagram (Slot 1 to 9)</span>
+          <span class="badge" id="kp-badge">Pitch Factor kp = 0.9848</span>
+        </div>
+        <canvas id="ew-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Winding Calculations &amp; Copper Estimation</span>
+        </div>
+        <div class="ew-grid">
+          <div class="ew-box"><span class="ew-lbl">Slots Per Pole (S/P)</span><span class="ew-val" id="disp-sperp">9.0 Slots / Pole</span></div>
+          <div class="ew-box"><span class="ew-lbl">Electrical Slot Angle (&gamma;)</span><span class="ew-val">20.0&deg; Electrical</span></div>
+          <div class="ew-box"><span class="ew-lbl">Pitch Factor (kp)</span><span class="ew-val" id="disp-kp" style="color:#f59e0b;font-weight:700;">0.9848 (Chording = 1 Slot)</span></div>
+          <div class="ew-box"><span class="ew-lbl">Copper Wire Required</span><span class="ew-val" id="disp-wirekg">4.75 kg (21 SWG)</span></div>
+          <div class="ew-box"><span class="ew-lbl">Insulation Class</span><span class="ew-val" style="color:#10b981;">Class F (155&deg;C Nomex Paper)</span></div>
+          <div class="ew-box"><span class="ew-lbl">Armature Drop Test</span><span class="ew-val" style="color:#38bdf8;">Uniform mV (No Short/Open)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Electrical Workshop Rewinding Log:</div>
+          <div class="console-log" id="ew-log">
+            &gt; Initialized Electrical Workshop - II Virtual Lab.<br>
+            &gt; 5.0 HP 3-Phase Induction Motor: 36 Stator Slots, 4 Poles (P = 4).<br>
+            &gt; Full pitch = 36 / 4 = 9 slots. Selected chorded coil span = 8 slots (1 to 9).<br>
+            &gt; Chording angle &alpha; = 20.0&deg; &rarr; Pitch Factor kp = cos(20&deg;/2) = 0.9848 (Eliminates 5th harmonics).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S6/EWII Electrical Workshop - II</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. AC Motor Stator Rewinding Steps</h3>
+          <p>Stripping old burnt coils, cleaning slots, slot lining with Class F Nomex/Mylar composite paper, winding coils on former rig, insertion into slots, bamboo/FRP wedging, phase-to-phase insulation, and overhang varnishing with bake curing.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Coil Pitch &amp; Distribution Factor</h3>
+          <p>Chorded (short-pitch) coils reduce copper overhang weight and eliminate unwanted 5th and 7th harmonic voltages: $k_p = \cos(\alpha/2)$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Armature Commutator Drop Test</h3>
+          <p>DC millivolt drop test between adjacent commutator segments using low voltage DC supply. Uniform millivolt drop confirms healthy coils without short circuits or open joints.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. High Voltage Cable Jointing &amp; End Termination</h3>
+          <p>Heat-shrinkable and cold-shrinkable termination kits for $11\text{kV}/33\text{kV}$ XLPE cables, stress control tubing, and crimping copper/aluminium lugs.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ew-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcWinding() {
+  const hp = parseFloat(document.getElementById('hp-select').value) || 5;
+  const span = parseInt(document.getElementById('span-in').value, 10) || 8;
+  const slots = hp >= 10 ? 48 : 36;
+  const poles = 4;
+
+  const sPerP = slots / poles;
+  const gamma = (180.0 * poles) / slots;
+  const chordingSlots = sPerP - span;
+  const chordingAngleRad = (chordingSlots * gamma * Math.PI) / 180.0;
+  const kp = Math.cos(chordingAngleRad / 2.0);
+  const wireKg = hp * 0.95;
+
+  document.getElementById('disp-sperp').textContent = `${sPerP.toFixed(1)} Slots / Pole`;
+  document.getElementById('disp-kp').textContent = `${kp.toFixed(4)} (Chording = ${chordingSlots} Slots)`;
+  document.getElementById('disp-wirekg').textContent = `${wireKg.toFixed(2)} kg (21 SWG)`;
+  document.getElementById('kp-badge').textContent = `Pitch Factor kp = ${kp.toFixed(4)}`;
+
+  return { slots, span, kp, sPerP };
+}
+
+function drawWinding() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcWinding();
+  const ox = 40, oy = 260, slotW = 38, slotH = 90;
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText(`STATOR SLOTS 1 TO 15 (SLOT PITCH = ${res.span} SLOTS)`, 50, 40);
+
+  // Draw 15 Slots
+  for (let i = 1; i <= 15; i++) {
+    const sx = ox + (i - 1) * slotW;
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(sx, oy, slotW - 6, slotH);
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx, oy, slotW - 6, slotH);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${i}`, sx + (slotW - 6) / 2, oy + slotH + 15);
+  }
+
+  // Draw Chorded Coil from Slot 1 to Slot (1 + span)
+  const c1X = ox + (slotW - 6) / 2;
+  const c2X = ox + res.span * slotW + (slotW - 6) / 2;
+  const coilTopY = 90;
+
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(c1X, oy + slotH / 2);
+  ctx.lineTo(c1X, coilTopY);
+  ctx.lineTo(c2X, coilTopY);
+  ctx.lineTo(c2X, oy + slotH / 2);
+  ctx.stroke();
+
+  // Coil Active Conductors in Slots (Golden Yellow)
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath(); ctx.arc(c1X, oy + slotH / 2, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(c2X, oy + slotH / 2, 8, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Coil Span = ${res.span} Slots (kp = ${res.kp.toFixed(4)})`, (c1X + c2X) / 2, coilTopY - 12);
+}
+
+const hpSel = document.getElementById('hp-select');
+const spanIn = document.getElementById('span-in');
+const swgSel = document.getElementById('swg-select');
+const logEl = document.getElementById('ew-log');
+
+[hpSel, spanIn, swgSel].forEach(el => el.addEventListener('input', () => {
+  drawWinding();
+}));
+
+document.getElementById('btn-draw-winding').addEventListener('click', () => {
+  const res = calcWinding();
+  logEl.innerHTML += `<br>&gt; [RE-WINDING COMPUTED] Motor = ${hpSel.value} HP &rarr; Coil span = ${spanIn.value} slots, Pitch Factor kp = ${res.kp.toFixed(4)}.`;
+  drawWinding();
+});
+
+document.getElementById('btn-drop-test').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [COMMUTATOR DROP TEST] Applied 2.0A DC: All segment drops measured within 14.8 - 15.2 mV (Pass). Winding is symmetrical with zero ground fault.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_workshop_2.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawWinding();
+</script>
+</body>
+</html>

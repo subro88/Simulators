@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Applied &amp; Digital Electronics Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Applied & Digital Electronics Virtual Lab for WBSCTE 4th Sem EE (EE/S4/ADE). Simulate 555 Timer Astable Square Waves, Op-Amp Active Filters, JK Flip-Flop Modulo Counters, and inspect 3D IC Trainer model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/ADE)</span>
+  </nav>
+
+  <header>
+    <h1>Applied &amp; Digital Electronics Virtual Lab</h1>
+    <p class="subtitle">NE555 Astable Square Wave Generator, Op-Amp Active Filters &amp; JK Flip-Flop Modulo-16 Ripple Counter</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Digital Logic</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; 555 &amp; Op-Amp Pinout</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Electronics Trainer &amp; IC Modules</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Electronics Trainer Base, DIP-8 741 Op-Amp IC, NE555 Timer Oscillator, 7476 Dual JK Flip-Flop Counter IC, and Seven-Segment LED Display Module.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ade-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Circuit Mode:</label>
+        <select id="ade-mode-select" class="ade-select">
+          <option value="555">1. NE555 Astable Square Wave Oscillator</option>
+          <option value="counter">2. JK Flip-Flop 4-bit Asynchronous Modulo-16 Counter</option>
+          <option value="opamp">3. LM741 Op-Amp Active Low-Pass Filter (fc = 1.5 kHz)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">RA (k&Omega;):</label>
+        <input type="number" id="ra-in" value="10" min="1" max="100" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">RB (k&Omega;):</label>
+        <input type="number" id="rb-in" value="47" min="1" max="200" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">C (&mu;F):</label>
+        <input type="number" id="c-in" value="0.1" min="0.001" max="10" step="0.01" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-toggle-osc">Run Waveform ⏵</button>
+        <button class="btn-action success" id="btn-clk-pulse">Manual Clock Pulse</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Real-time Waveform -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Oscilloscope Live Waveform &amp; 4-bit Binary State (Q3 Q2 Q1 Q0)</span>
+          <span class="badge" id="freq-badge">f = 138.46 Hz</span>
+        </div>
+        <canvas id="ade-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Timing Characteristics &amp; Counter Register</span>
+        </div>
+        <div class="ade-grid">
+          <div class="ade-box"><span class="ade-lbl">Oscillation Freq (f)</span><span class="ade-val" id="disp-f">138.46 Hz</span></div>
+          <div class="ade-box"><span class="ade-lbl">Duty Cycle (D)</span><span class="ade-val" id="disp-duty">54.81 %</span></div>
+          <div class="ade-box"><span class="ade-lbl">Time High (t_high)</span><span class="ade-val" id="disp-th">3.950 ms</span></div>
+          <div class="ade-box"><span class="ade-lbl">Time Low (t_low)</span><span class="ade-val" id="disp-tl">3.257 ms</span></div>
+          <div class="ade-box"><span class="ade-lbl">4-bit Counter State</span><span class="ade-val" id="disp-count" style="color:#f59e0b;font-weight:700;">DEC 12 (BIN 1100)</span></div>
+          <div class="ade-box"><span class="ade-lbl">7-Segment Hex Digit</span><span class="ade-val" id="disp-hex" style="color:#ef4444;font-weight:700;">'C' Displayed</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Digital Signal Diagnostics:</div>
+          <div class="console-log" id="ade-log">
+            &gt; Initialized Applied &amp; Digital Electronics Virtual Lab.<br>
+            &gt; NE555 Astable Mode: RA = 10.0k&Omega;, RB = 47.0k&Omega;, C = 0.10&mu;F.<br>
+            &gt; Frequency f = 1.44 / [(RA + 2*RB)*C] = 138.46 Hz. Duty cycle D = 54.81%.<br>
+            &gt; 7476 JK Flip-Flop ripple counter incremented to decimal count 12.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/ADE Applied &amp; Digital Electronics</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. NE555 Timer Astable Multivibrator</h3>
+          <p>Charge time $t_H = 0.693(R_A + R_B)C$, Discharge time $t_L = 0.693 R_B C$. Oscillation frequency $f = \frac{1.44}{(R_A + 2R_B)C}$ and Duty cycle $D = \frac{R_A + R_B}{R_A + 2R_B} \times 100\%$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. JK Flip-Flops &amp; Counters</h3>
+          <p>Master-slave JK flip-flops eliminate race-around conditions when $J=K=1$. Modulo-N asynchronous ripple counters cascade clock pulses through toggle stages ($T_{clock} = 2^N$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Operational Amplifier Applications</h3>
+          <p>Virtual ground concept ($V_+ = V_-$). Inverting Amplifier $A_v = -\frac{R_f}{R_1}$, Non-inverting $A_v = 1 + \frac{R_f}{R_1}$, Active Sallen-Key low-pass filter with $-40\text{dB/decade}$ rolloff.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Data Converters (ADC &amp; DAC)</h3>
+          <p>R-2R Ladder DAC output voltage $V_{out} = -V_{ref} \sum_{i=1}^n \frac{b_i}{2^i}$. Successive Approximation Register (SAR) ADC conversion speed $n$ clock cycles.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ade-canvas');
+const ctx = canvas.getContext('2d');
+let isOscRunning = false;
+let wavePhase = 0;
+let counterVal = 12;
+
+function calc555() {
+  const ra = (parseFloat(document.getElementById('ra-in').value) || 10) * 1e3;
+  const rb = (parseFloat(document.getElementById('rb-in').value) || 47) * 1e3;
+  const c = (parseFloat(document.getElementById('c-in').value) || 0.1) * 1e-6;
+
+  const th = 0.693 * (ra + rb) * c;
+  const tl = 0.693 * rb * c;
+  const period = th + tl;
+  const freq = 1.0 / period;
+  const duty = (th / period) * 100.0;
+
+  document.getElementById('disp-f').textContent = `${freq.toFixed(2)} Hz`;
+  document.getElementById('disp-duty').textContent = `${duty.toFixed(2)} %`;
+  document.getElementById('disp-th').textContent = `${(th * 1000).toFixed(3)} ms`;
+  document.getElementById('disp-tl').textContent = `${(tl * 1000).toFixed(3)} ms`;
+  document.getElementById('freq-badge').textContent = `f = ${freq.toFixed(2)} Hz`;
+}
+
+function drawAde() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Top Area: Oscilloscope Screen
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(50, 40, 600, 180);
+  ctx.strokeStyle = '#334155';
+  ctx.strokeRect(50, 40, 600, 180);
+
+  // Oscilloscope Grid Lines
+  ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+  ctx.lineWidth = 1;
+  for (let x = 50; x <= 650; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, 220); ctx.stroke();
+  }
+  for (let y = 40; y <= 220; y += 45) {
+    ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(650, y); ctx.stroke();
+  }
+
+  // Draw Square Wave
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let px = 50; px <= 650; px++) {
+    const cycle = (px + wavePhase) % 80;
+    const isHigh = cycle < 45;
+    const py = isHigh ? 80 : 170;
+    if (px === 50) ctx.moveTo(px, py);
+    else {
+      if (cycle === 0 || cycle === 45) ctx.lineTo(px, isHigh ? 80 : 170);
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#34d399';
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText('CH1: NE555 PIN 3 OUT (0V - 5V TTL)', 65, 60);
+
+  // Bottom Area: 4-Bit Flip-Flop Register Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(50, 240, 600, 150);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.strokeRect(50, 240, 600, 150);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText('4-BIT MODULO-16 ASYNCHRONOUS RIPPLE COUNTER (7476)', 70, 265);
+
+  // 4 Flip-Flop Boxes: Q3, Q2, Q1, Q0
+  const bits = [
+    (counterVal >> 3) & 1,
+    (counterVal >> 2) & 1,
+    (counterVal >> 1) & 1,
+    counterVal & 1
+  ];
+  const labels = ['FF3 (Q3, MSB)', 'FF2 (Q2)', 'FF1 (Q1)', 'FF0 (Q0, LSB)'];
+
+  for (let i = 0; i < 4; i++) {
+    const bx = 80 + i * 140;
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(bx, 280, 120, 90);
+    ctx.strokeStyle = bits[i] ? '#f59e0b' : '#64748b';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, 280, 120, 90);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(labels[i], bx + 60, 300);
+
+    // State Light
+    ctx.fillStyle = bits[i] ? '#10b981' : '#334155';
+    ctx.beginPath(); ctx.arc(bx + 60, 335, 16, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(bits[i] ? '1' : '0', bx + 60, 340);
+  }
+
+  if (isOscRunning) {
+    wavePhase += 3;
+    requestAnimationFrame(drawAde);
+  }
+}
+
+const raIn = document.getElementById('ra-in');
+const rbIn = document.getElementById('rb-in');
+const cIn = document.getElementById('c-in');
+const btnOsc = document.getElementById('btn-toggle-osc');
+const logEl = document.getElementById('ade-log');
+
+[raIn, rbIn, cIn].forEach(el => el.addEventListener('input', () => {
+  calc555();
+  if (!isOscRunning) drawAde();
+}));
+
+btnOsc.addEventListener('click', () => {
+  isOscRunning = !isOscRunning;
+  btnOsc.textContent = isOscRunning ? 'Pause Waveform ⏸' : 'Run Waveform ⏵';
+  btnOsc.style.background = isOscRunning ? '#f59e0b' : '#00b0ff';
+  if (isOscRunning) drawAde();
+});
+
+document.getElementById('btn-clk-pulse').addEventListener('click', () => {
+  counterVal = (counterVal + 1) % 16;
+  const hex = counterVal.toString(16).toUpperCase();
+  const bin = counterVal.toString(2).padStart(4, '0');
+  document.getElementById('disp-count').textContent = `DEC ${counterVal} (BIN ${bin})`;
+  document.getElementById('disp-hex').textContent = `'${hex}' Displayed`;
+  logEl.innerHTML += `<br>&gt; [CLOCK PULSE] Triggered negative clock edge: Counter transitioned to ${counterVal} (0x${hex}).`;
+  if (!isOscRunning) drawAde();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/applied_digital_electronics.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+calc555();
+drawAde();
+</script>
+</body>
+</html>

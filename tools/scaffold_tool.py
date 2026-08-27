@@ -1,0 +1,150 @@
+"""Scaffold a new V2 tool page following the canonical section structure.
+
+Usage:
+    python tools/scaffold_tool.py <slug> "<Title>" [<category>]
+
+Creates:
+    nhitvisuallab/tools/<slug>/index.html   (canonical V2 page: V1 sections + 3D embed)
+    nhitvisuallab/tools/<slug>/v1.html      (pristine backup, same as index.html)
+    frontend/models/<slug_underscored>.glb  (placeholder 3D model)
+
+The page already loads the shared sidebar and the V2 3D embed, so a new tool is
+V2-compliant immediately. Register the slug in nhitvisuallab/shared/sidebar/sidebar.js
+(CATEGORY_DATA / COURSE_DATA) to make it discoverable.
+"""
+import sys, pathlib
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import blender.glb_writer as gw
+
+TPL = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{TITLE} — NHIT VisualLab</title>
+<style>
+ body{{margin:0;background:#0a0e17;color:#dce3f0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}}
+ main#app{{max-width:1100px;margin:0 auto;padding:18px 16px 40px}}
+ header h1{{color:#7aa2ff;font-size:24px;margin:6px 0 2px}}
+ .subtitle{{color:#6b7a99;margin:0 0 14px;font-size:13px}}
+ .panel{{background:#0c111c;border:1px solid #1e2740;border-radius:12px;padding:14px 16px;margin:14px 0}}
+ .panel h2{{color:#cdd7ee;font-size:16px;margin:0 0 10px}}
+ #sim-canvas{{display:block;border-radius:10px}}
+ .readout-value{{font-weight:700;color:#29b6f6}}
+</style>
+</head>
+<body>
+<main id="app">
+  <header>
+    <h1 id="tool-title">{TITLE}</h1>
+    <p class="subtitle">{CATEGORY} — V1 simulation with V2 3D model</p>
+  </header>
+
+  <section id="sim-section" class="panel">
+    <h2>Simulation</h2>
+    <canvas id="sim-canvas" width="800" height="420" style="width:100%;background:#050a12;border:1px solid #1e2740;border-radius:10px;"></canvas>
+  </section>
+
+  <section id="ctrl-panel" class="panel">
+    <h2>Controls</h2>
+    <div id="sim-controls"><!-- parameter inputs / sliders go here --></div>
+  </section>
+
+  <section id="results-row" class="panel">
+    <h2>Results</h2>
+    <div id="readouts"><span class="readout-value" id="res-out">—</span></div>
+  </section>
+
+  <section id="explore-wrapper" class="panel">
+    <h2>Explore / Theory</h2>
+    <div class="formula-box"><div class="fb-formula" id="fb-formula"></div></div>
+    <div class="example-box"><div class="eb-body" id="eb-body"></div></div>
+  </section>
+
+  <!-- V2_3D_EMBED -->
+  <div id="model3d-wrapper">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">{TITLE}</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of this apparatus. Pick a component on the right, then drag to rotate · scroll to zoom · right-drag to pan.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+  <style>
+    .sim3d-section{{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}}
+    .sim3d-section h2{{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}}
+    .sim3d-blurb{{margin:0 0 12px;line-height:1.5;color:#aebfd4;}}
+    .sim3d-layout{{display:flex;gap:14px;align-items:flex-start;min-width:0;}}
+    .hidden{{display:none!important;}}
+    .sim3d-wrap{{position:relative;flex:1 1 auto;min-width:0;width:100%!important;max-width:none!important;}}
+    .sim3d-canvas{{width:100%!important;height:460px!important;display:block;background:#0a0e17;border-radius:8px;touch-action:none;cursor:grab;}}
+    .sim3d-canvas:active{{cursor:grabbing;}}
+    .sim3d-hint{{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}}
+    .sim3d-components{{flex:0 0 180px!important;width:180px!important;max-height:460px;overflow:auto;display:flex;flex-direction:column;gap:8px;}}
+    .sim3d-comp{{display:flex;flex-direction:column;gap:4px;align-items:stretch;text-align:left;padding:9px 11px;border:1px solid #1e2c44;background:#0c1320;color:#cdd7ee;border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s;}}
+    .sim3d-comp:hover{{background:#13203a;}}
+    .sim3d-comp.active{{background:#29b6f6;color:#080c14;font-weight:700;border-color:#29b6f6;}}
+    .sim3d-thumb{{width:100%;height:84px;object-fit:cover;background:#0a0e17;border-radius:6px;display:block;}}
+    .controls-bar{{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;flex-wrap:wrap;gap:12px;margin:16px 0 4px;}}
+    .ctrl-group{{display:flex;align-items:center;gap:10px;}}
+    .ctrl-label{{color:#aebfd4;font-size:.82rem;}}
+    .pill-tabs{{display:flex;background:#0a0e17;border-radius:8px;padding:3px;gap:3px;flex-wrap:wrap;}}
+    .pill{{padding:6px 13px;border:none;background:transparent;color:#aebfd4;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600;}}
+    .pill.active{{background:#29b6f6;color:#0b111a;font-weight:700;box-shadow:0 0 10px rgba(41,182,246,.35);}}
+    .v2-model-pane .sim3d-section{{margin-top:0;}}
+    .sim3d-section{{position:relative;}}
+    .sim3d-fs-btn{{position:absolute;top:10px;right:12px;z-index:5;padding:6px 10px;border:1px solid #1e2c44;background:#0c1320;color:#cdd7ee;border-radius:7px;cursor:pointer;font-size:12px;}}
+    .sim3d-fs-btn:hover{{background:#13203a;}}
+    .sim3d-section.fullscreen{{position:fixed;inset:0;z-index:9998;margin:0;border-radius:0;background:#0a0e17;display:flex;flex-direction:column;padding:0;}}
+    .sim3d-section.fullscreen .sim3d-blurb{{display:none;}}
+    .sim3d-section.fullscreen .sim3d-layout{{flex:1;min-height:0;margin:0;}}
+    .sim3d-section.fullscreen .sim3d-wrap{{flex:1;min-height:0;}}
+    .sim3d-section.fullscreen .sim3d-canvas{{width:100%!important;height:100%!important;}}
+    .sim3d-section.fullscreen .sim3d-resize{{display:none;}}
+    .sim3d-resize{{height:10px;cursor:ns-resize;background:linear-gradient(#1e2c44,#0e1726);border-radius:0 0 8px 8px;margin-top:2px;}}
+  </style>
+  <script>window.$=window.$||function(id){{return document.getElementById(id)}};window.V2_TOOL_ID="{SLUG}";window.V2_MODEL="{MODEL}";window.V2_COMPONENTS_URL="/models/{MODEL}_components.json";</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+  <script src="/js/v2_model_embed.js"></script>
+</main>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>
+"""
+
+def main():
+    if len(sys.argv) < 3:
+        print("usage: python tools/scaffold_tool.py <slug> \"<Title>\" [<category>]")
+        sys.exit(1)
+    slug = sys.argv[1].strip().lower()
+    title = sys.argv[2]
+    category = sys.argv[3] if len(sys.argv) > 3 else "Engineering"
+    model = slug.replace("-", "_")
+    tool_dir = ROOT / "nhitvisuallab" / "tools" / slug
+    if (tool_dir / "index.html").exists():
+        print(f"ERROR: {tool_dir/'index.html'} already exists. Aborting to avoid overwrite.")
+        sys.exit(1)
+    tool_dir.mkdir(parents=True, exist_ok=True)
+    html = TPL.format(TITLE=title, CATEGORY=category, SLUG=slug, MODEL=model)
+    (tool_dir / "index.html").write_text(html, encoding="utf-8")
+    (tool_dir / "v1.html").write_text(html, encoding="utf-8")  # pristine backup
+    gw.generate(slug)
+    print(f"Created tool '{slug}':")
+    print(f"  - {tool_dir/'index.html'}")
+    print(f"  - {tool_dir/'v1.html'} (backup)")
+    print(f"  - frontend/models/{model}.glb")
+    print("Next: implement #sim-section / #ctrl-panel / #results-row, refine the GLB,")
+    print("       and add the slug to CATEGORY_DATA in nhitvisuallab/shared/sidebar/sidebar.js")
+
+if __name__ == "__main__":
+    main()

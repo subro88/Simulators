@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Cement Physical Testing Simulator — WBSCTE Civil Engg | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Cement Testing Simulator (Vicat Consistency, Setting Times, Fineness &amp; Mortar Strength) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="../../shared/site.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<a href="index.html#app" class="skip-link">Skip to content</a>
+
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+
+  <!-- Breadcrumb -->
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span style="margin-left:auto;" id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </span>
+  </nav>
+
+  <!-- Header -->
+  <header>
+    <h1>Cement Physical Testing &amp; Quality Control (IS 4031)</h1>
+    <p class="subtitle">Python Engine &bull; Real-Time WebGL 3D Vicat Apparatus &bull; Standard Consistency &bull; Setting Times &bull; Mortar Strength</p>
+  </header>
+
+  <!-- Controls Bar -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="explore">Explore Parts</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--surface2);padding:5px 10px;outline:none;cursor:pointer;color:var(--text);border:1px solid var(--border);border-radius:6px;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="vicat_consistency_standard">Standard Consistency (28.5% Water)</option>
+        <option value="mortar_strength_7day">7-Day Cube Strength (OPC 43)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-guide" href="index.html#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; User Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <!-- V2_3D_EMBED -->
+<div id="model3d-wrapper" class="hidden">
+  <section id="sim3d-section" class="sim3d-section">
+    <h2>3D Model — <span id="sim3d-title">Cement Testing Lab (IS 4031)</span></h2>
+    <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of this apparatus. Pick a component on the right, then drag to rotate · scroll to zoom · right-drag to pan.</p>
+    <div class="sim3d-layout">
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+      </div>
+      <aside id="sim3d-components" class="sim3d-components"></aside>
+    </div>
+  </section>
+</div>
+<style>
+  .sim3d-section{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}
+  .sim3d-section h2{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}
+  .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:#aebfd4;}
+  .hidden{display:none!important;}
+  .sim3d-layout{display:flex;gap:14px;align-items:flex-start;min-width:0;}
+  .sim3d-wrap{position:relative;flex:1 1 auto;min-width:0;width:100%!important;max-width:none!important;}
+  .sim3d-canvas{width:100%!important;height:460px!important;display:block;background:#0a0e17;border-radius:8px;touch-action:none;cursor:grab;}
+  .sim3d-canvas:active{cursor:grabbing;}
+  .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}
+  .sim3d-components{flex:0 0 180px!important;width:180px!important;max-height:460px;overflow:auto;display:flex;flex-direction:column;gap:8px;}
+  .sim3d-comp{display:flex;flex-direction:column;gap:4px;align-items:stretch;text-align:left;padding:9px 11px;border:1px solid #1e2c44;background:#0c1320;color:#cdd7ee;border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s;}
+  .sim3d-comp:hover{background:#13203a;}
+  .sim3d-comp.active{background:#29b6f6;color:#080c14;font-weight:700;border-color:#29b6f6;}
+  .sim3d-thumb{width:100%;height:84px;object-fit:cover;background:#0a0e17;border-radius:6px;display:block;}
+  .controls-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;flex-wrap:wrap;gap:12px;margin:16px 0 4px;}
+  .ctrl-group{display:flex;align-items:center;gap:10px;}
+  .ctrl-label{color:#aebfd4;font-size:.82rem;}
+  .pill-tabs{display:flex;background:#0a0e17;border-radius:8px;padding:3px;gap:3px;flex-wrap:wrap;}
+  .pill{padding:6px 13px;border:none;background:transparent;color:#aebfd4;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600;}
+  .pill.active{background:#29b6f6;color:#0b111a;font-weight:700;box-shadow:0 0 10px rgba(41,182,246,.35);}
+  .v2-model-pane .sim3d-section{margin-top:0;}
+  .sim3d-section{position:relative;}
+  .sim3d-fs-btn{position:absolute;top:10px;right:12px;z-index:5;padding:6px 10px;border:1px solid #1e2c44;background:#0c1320;color:#cdd7ee;border-radius:7px;cursor:pointer;font-size:12px;}
+  .sim3d-fs-btn:hover{background:#13203a;}
+  .sim3d-section.fullscreen{position:fixed;inset:0;z-index:9998;margin:0;border-radius:0;background:#0a0e17;display:flex;flex-direction:column;padding:0;}
+  .sim3d-section.fullscreen .sim3d-blurb{display:none;}
+  .sim3d-section.fullscreen .sim3d-layout{flex:1;min-height:0;margin:0;}
+  .sim3d-section.fullscreen .sim3d-wrap{flex:1;min-height:0;}
+  .sim3d-section.fullscreen .sim3d-canvas{width:100%!important;height:100%!important;}
+  .sim3d-section.fullscreen .sim3d-resize{display:none;}
+  .sim3d-resize{height:10px;cursor:ns-resize;background:linear-gradient(#1e2c44,#0e1726);border-radius:0 0 8px 8px;margin-top:2px;}
+</style>
+<script>window.$=window.$||function(id){return document.getElementById(id)};window.V2_TOOL_ID="cement-testing";window.V2_MODEL="cement_testing";window.V2_COMPONENTS_URL="/models/cement_testing_components.json";</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="/js/v2_model_embed.js"></script>
+
+      </div>
+      <div class="viewport-container" style="width:100%;height:520px;background:radial-gradient(circle at center, #09121d 0%, #03070d 100%);border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--border);">
+        <canvas id="webgl-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        <div class="canvas-overlay-hint" style="position:absolute;bottom:12px;left:12px;background:rgba(0,0,0,0.65);padding:6px 12px;border-radius:20px;font-size:0.75rem;color:var(--text-dim);">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="simulate-wrapper">
+    <div class="sim-grid" style="display:grid;grid-template-columns:1fr 380px;gap:16px;">
+      
+      <div class="canvas-card">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Working 2D Vicat Apparatus Schematic &amp; Penetration Gauge</div>
+        <canvas id="cement-2d-canvas" style="width:100%;height:380px;display:block;background:#080c14;border-radius:8px;border:1px solid var(--border);"></canvas>
+      </div>
+
+      <div class="controls-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px;">
+        <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);">
+          <span class="panel-title" style="font-size:0.9rem;font-weight:700;color:var(--accent);text-transform:uppercase;">&#9881; Test Parameters</span>
+          <span id="st-test-name" style="font-size:0.75rem;font-weight:700;color:var(--gold);">Consistency Test</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;font-weight:600;margin-bottom:4px;"><span>Select Laboratory Test</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            <button class="pill active" data-test-type="consistency" style="flex:1;">Consistency</button>
+            <button class="pill" data-test-type="setting_time" style="flex:1;">Setting Time</button>
+            <button class="pill" data-test-type="fineness" style="flex:1;">Fineness</button>
+            <button class="pill" data-test-type="compressive_strength" style="flex:1;">Strength</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Water Percentage (P%)</span>
+            <span class="control-value" id="val-water" style="color:var(--accent);font-family:var(--mono);">28.5%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-water" min="20.0" max="35.0" step="0.5" value="28.5" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Elapsed Time</span>
+            <span class="control-value" id="val-time" style="color:var(--accent);font-family:var(--mono);">45 min</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-time" min="5" max="360" step="5" value="45" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>90µm Sieve Residue</span>
+            <span class="control-value" id="val-sieve" style="color:var(--accent);font-family:var(--mono);">4.2 g</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-sieve" min="0.0" max="15.0" step="0.5" value="4.2" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Mortar Cube Curing</span>
+            <span class="control-value" id="val-days" style="color:var(--accent);font-family:var(--mono);">7 days</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-days" min="1" max="28" step="1" value="7" style="width:100%;" />
+        </div>
+
+        <div class="telemetry-box" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Vicat Penetration:</span><span class="telemetry-val" id="st-pen" style="color:var(--accent);font-family:var(--mono);font-weight:700;">6.0 mm</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Initial Setting Time:</span><span class="telemetry-val" id="st-init-time" style="color:var(--gold);font-family:var(--mono);font-weight:700;">35 min</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Final Setting Time:</span><span class="telemetry-val" id="st-fin-time" style="font-family:var(--mono);font-weight:700;">228 min</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Mortar Cube Strength:</span><span class="telemetry-val" id="st-strength" style="color:var(--green);font-family:var(--mono);font-weight:700;">30.1 MPa</span></div>
+
+          <div id="st-status" style="color:var(--green);font-weight:700;font-size:0.8rem;margin-top:6px;border-top:1px dashed var(--border);padding-top:6px;">
+            PASSED: Standard Consistency achieved (5-7mm from bottom).
+          </div>
+          <div id="st-note" style="color:var(--text-dim);font-size:0.75rem;">
+            Vicat Plunger Penetration = 6.0 mm at 28.5% Water ratio.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE MODE ═══════════════════════════════════════════ -->
+  <div id="explore-wrapper" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
+      <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+        <h3 style="color:var(--accent);margin-bottom:8px;">1. Vicat Standard Consistency</h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">Defined as the water percentage required to permit a Vicat plunger of 10 mm diameter to penetrate to a point 5 to 7 mm from the bottom of the Vicat mould (IS 4031 Part 4).</p>
+      </div>
+      <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+        <h3 style="color:var(--accent);margin-bottom:8px;">2. Setting Time Criteria</h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">Initial setting time must not be less than 30 minutes for OPC, and final setting time must not exceed 600 minutes (10 hours).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRACTICE MODE ═══════════════════════════════════════════ -->
+  <div id="practice-wrapper" style="display:none">
+    <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+      <h3 style="color:var(--accent);margin-bottom:8px;">Guided Experiment: Standard Consistency Determination</h3>
+      <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">1. Adjust water percentage slider $P\%$ until Vicat plunger penetration reaches <strong>5-7 mm</strong> from the bottom of the mould.<br>
+         2. Record the exact $P\%$ value for setting time tests ($0.85 P$).</p>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════ -->
+  <div id="quiz-wrapper" style="display:none">
+    <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+      <h3 style="color:var(--accent);margin-bottom:8px;">Question: What is the minimum initial setting time for OPC per IS 269?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 30 minutes
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- User Guide Section -->
+  <section id="user-guide" style="margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;">
+    <h2 style="color:var(--gold);margin-bottom:8px;">&#128214; User Guide &amp; Test Procedures</h2>
+    <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.6;">Learn how to perform standard laboratory tests for Cement according to Indian Standards IS 4031 &amp; IS 269 using this simulator.</p>
+  </section>
+
+  <!-- Footer -->
+  <footer style="margin-top:30px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-size:0.8rem;">
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</main>
+
+<script src="/js/cement_testing_3d.js"></script>
+<script src="/js/cement_testing_simulator.js"></script>
+<script>
+  // Tab Switching logic matching lathe-machine
+  document.querySelectorAll('#mode-tabs .pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#mode-tabs .pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const mode = pill.dataset.mode;
+      
+      document.getElementById('model3d-wrapper').style.display = mode === '3d-model' ? 'block' : 'none';
+      document.getElementById('simulate-wrapper').style.display = mode === 'simulate' ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = mode === 'explore' ? 'block' : 'none';
+      document.getElementById('practice-wrapper').style.display = mode === 'practice' ? 'block' : 'none';
+      document.getElementById('quiz-wrapper').style.display = mode === 'quiz' ? 'block' : 'none';
+    });
+  });
+</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+</body>
+</html>

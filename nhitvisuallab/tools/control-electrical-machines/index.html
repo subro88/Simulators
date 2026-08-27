@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control of Electrical Machines | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Control of Electrical Machines Virtual Lab for WBSCTE 6th Sem EE (EE/S6/CEM). Simulate Star-Delta Starter Timing Transitions, Rotor Resistance Starters, Dynamic Braking, and inspect 3D Starter Cabinet model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 6th Semester (EE/S6/CEM)</span>
+  </nav>
+
+  <header>
+    <h1>Control of Electrical Machines Virtual Lab</h1>
+    <p class="subtitle">Automatic Star-Delta Starter Timing Transition, Starting Current Inrush &amp; Dynamic Braking</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Motor Starters</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Starter Schematics</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Star-Delta Starter &amp; Motor Unit</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Star-Delta Contactor Cabinet, Thermal Overload Bi-Metal Relay, 3-Phase Induction Motor, and Rotor Resistance Bank.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="cem-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Starter Method:</label>
+        <select id="starter-select" class="cem-select">
+          <option value="star_delta" selected>1. Automatic Star-Delta Starter (Timer = 6.0s)</option>
+          <option value="dol">2. Direct-on-Line (DOL) Starter (Full 6x Inrush Current)</option>
+          <option value="rotor_res">3. Slip-Ring Rotor Resistance 3-Step Starter</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Motor (kW):</label>
+        <input type="number" id="motor-kw-in" value="22" min="5" max="150" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Timer (s):</label>
+        <input type="number" id="timer-in" value="6" min="2" max="15" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-start-motor">Start Motor (Run Timer) ⏵</button>
+        <button class="btn-action danger" id="btn-dynamic-brake">Dynamic DC Injection Braking</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Starter Transition View -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Motor Current Inrush &amp; Speed Transient vs Time</span>
+          <span class="badge" id="starter-badge" style="background:#10b981;">CURRENT MODE: DELTA RUNNING (415V)</span>
+        </div>
+        <canvas id="cem-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Contactor State &amp; Starting Inrush Reduction</span>
+        </div>
+        <div class="cem-grid">
+          <div class="cem-box"><span class="cem-lbl">Operating State</span><span class="cem-val" id="disp-mode" style="color:#10b981;font-weight:700;">DELTA (Full 415V Line)</span></div>
+          <div class="cem-box"><span class="cem-lbl">Starting Line Current</span><span class="cem-val" id="disp-istart">78.25 A (1/3 of DOL)</span></div>
+          <div class="cem-box"><span class="cem-lbl">DOL Inrush Comparison</span><span class="cem-val">234.75 A (Unreduced)</span></div>
+          <div class="cem-box"><span class="cem-lbl">Starting Torque (% FL)</span><span class="cem-val" id="disp-torque">33.3 % (Star) &rarr; 100%</span></div>
+          <div class="cem-box"><span class="cem-lbl">Transition Timer</span><span class="cem-val" id="disp-timer">6.0 s (Switched to Delta)</span></div>
+          <div class="cem-box"><span class="cem-lbl">Main + Delta Contactors</span><span class="cem-val" style="color:#10b981;">CLOSED (K1 + K3)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Machine Controller Sequence Telemetry:</div>
+          <div class="console-log" id="cem-log">
+            &gt; Initialized Control of Electrical Machines Virtual Lab.<br>
+            &gt; 22.0 kW 415V Induction Motor: Full load current Ifl = 39.12 A, DOL Inrush = 234.75 A.<br>
+            &gt; Phase 1 (0 to 6.0s): Star contactor (K2) closed &rarr; Line current reduced to 78.25 A (33.3%).<br>
+            &gt; Phase 2 (> 6.0s): Timer expired &rarr; Delta contactor (K3) energized. Motor running at rated 1450 RPM.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S6/CEM Control of Electrical Machines</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Star-Delta Starting Method</h3>
+          <p>Phase voltage in Star is $\frac{V_L}{\sqrt{3}} \approx 58\%$. Starting current $I_{star} = \frac{1}{3} I_{DOL}$ and Starting torque $T_{star} = \frac{1}{3} T_{DOL}$. Transition timer switches contactors at $\approx 80\%$ rated speed.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Direct-on-Line (DOL) vs Auto-Transformer</h3>
+          <p>DOL starters apply full voltage with $5-7\times$ inrush current (suitable for $<5\text{HP}$). Auto-transformer starters offer tapping options ($50\%, 65\%, 80\%$) where $I_{line} = x^2 I_{DOL}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Slip-Ring Rotor Resistance Starters</h3>
+          <p>External 3-step resistance bank connected to rotor slip rings maximizes starting torque ($T_{start} \propto \frac{R_2}{\sqrt{R_2^2 + X_2^2}}$) while simultaneously suppressing starting current.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Dynamic &amp; Plugging Electric Braking</h3>
+          <p><strong>Dynamic Braking:</strong> AC supply disconnected and DC current injected into stator to produce stationary braking flux.<br><strong>Plugging:</strong> Reversing any two stator phases produces rapid reverse torque.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('cem-canvas');
+const ctx = canvas.getContext('2d');
+let isMotorRunning = false;
+let simTime = 0;
+
+function calcStarter() {
+  const kw = parseFloat(document.getElementById('motor-kw-in').value) || 22;
+  const tSet = parseFloat(document.getElementById('timer-in').value) || 6;
+
+  const ifl = (kw * 1000.0) / (Math.sqrt(3) * 415 * 0.86 * 0.90);
+  const idol = ifl * 6.0;
+  const istar = idol / 3.0;
+
+  document.getElementById('disp-istart').textContent = `${istar.toFixed(2)} A (1/3 of DOL)`;
+  document.getElementById('disp-timer').textContent = `${tSet.toFixed(1)} s (Transition Set)`;
+
+  return { kw, ifl, idol, istar, tSet };
+}
+
+function drawStarter() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcStarter();
+  const cx = 60, cy = 350, w = 580, h = 260;
+
+  // Grid & Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + w, cy); ctx.stroke(); // Time axis (s)
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - h); ctx.stroke(); // Current axis (A)
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('0', cx - 15, cy + 12);
+  ctx.fillText('12s', cx + w - 20, cy + 15);
+  ctx.fillText('Time t (seconds)', cx + w / 2 - 40, cy + 30);
+  ctx.fillText('Line Current (A)', cx - 55, cy - h + 10);
+  ctx.fillText('DOL (234A)', cx - 65, cy - h * 0.9);
+  ctx.fillText('Star (78A)', cx - 60, cy - h * 0.35);
+
+  // Transition vertical line at t = 6s
+  const transX = cx + (res.tSet / 12.0) * w;
+  ctx.strokeStyle = '#f59e0b';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(transX, cy); ctx.lineTo(transX, cy - h); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px Segoe UI';
+  ctx.fillText(`STAR → DELTA SWITCH (t = ${res.tSet}s)`, transX - 60, cy - h + 20);
+
+  // Star-Delta Current Inrush Curve (Cyan)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let t = 0; t <= 12.0; t += 0.1) {
+    let curr = 0;
+    if (t < res.tSet) {
+      // Star phase: Starts at istar, drops to ~0.5*istar as motor accelerates
+      curr = res.istar * (0.4 + 0.6 * Math.exp(-t / 1.5));
+    } else {
+      // Delta switch bump: brief inrush spike to ~1.8*ifl, then settles to rated Ifl
+      const dt = t - res.tSet;
+      curr = res.ifl + (res.ifl * 1.5 * Math.exp(-dt / 0.8));
+    }
+    const px = cx + (t / 12.0) * w;
+    const py = cy - (curr / (res.idol * 1.1)) * h;
+    if (t === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Speed curve (Green)
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let t = 0; t <= 12.0; t += 0.1) {
+    let speedPct = 0;
+    if (t < res.tSet) speedPct = 0.80 * (1.0 - Math.exp(-t / 2.0));
+    else speedPct = 0.80 + 0.20 * (1.0 - Math.exp(-(t - res.tSet) / 1.2));
+
+    const px = cx + (t / 12.0) * w;
+    const py = cy - (speedPct * 0.9) * h;
+    if (t === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#10b981';
+  ctx.fillText('Rotor Speed RPM (0 → 1450 RPM)', cx + 220, cy - h * 0.75);
+}
+
+const kwIn = document.getElementById('motor-kw-in');
+const timerIn = document.getElementById('timer-in');
+const logEl = document.getElementById('cem-log');
+
+[kwIn, timerIn].forEach(el => el.addEventListener('input', () => {
+  drawStarter();
+}));
+
+document.getElementById('btn-start-motor').addEventListener('click', () => {
+  const res = calcStarter();
+  logEl.innerHTML += `<br>&gt; [STARTER RUN TRIGGERED] Star contactor closed: Starting current = ${res.istar.toFixed(1)} A. Transition to Delta in ${res.tSet} s.`;
+  drawStarter();
+});
+
+document.getElementById('btn-dynamic-brake').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [DYNAMIC DC BRAKING] Stator disconnected from 415V AC; 24V DC injected. Rotor brought to standstill in 1.8 seconds without mechanical brake wear.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/control_electrical_machines.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawStarter();
+</script>
+</body>
+</html>

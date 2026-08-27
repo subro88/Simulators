@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Automotive Friction Clutch Simulator &mdash; Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Free online Single-Plate and Multi-Plate Automotive Friction Clutch simulator. Calculates torque capacity T = n * mu * W * Rm, friction wear, slip, and pedal engagement." />
+  <link rel="canonical" href="index.html" />
+
+  <link rel="stylesheet" href="../../shared/site.css?v=20.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b27; --surface2: #1f2535; --border: #2a3050;
+      --accent: #29b6f6; --green: #3ddc84; --red: #ff5252; --orange: #ff9800; --yellow: #ffd600;
+      --text: #dde3f0; --text-dim: #6b7a99; --mono: 'Courier New', monospace; --radius: 12px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding: 0 16px; min-height: 100vh; }
+    #app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
+    header { text-align: center; padding: 6px 0; }
+    header h1 { font-size: 1.85rem; font-weight: 700; background: linear-gradient(120deg, var(--accent), #80d8ff, var(--yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: var(--text-dim); font-size: .85rem; margin-top: 3px; }
+
+    .sim3d-section { margin: 14px 0; padding: 16px 18px; background: #0e1726; border: 1px solid #1e2c44; border-radius: 10px; color: #dce6f5; }
+    .sim3d-section h2 { margin: 0 0 6px; font-size: 1.15rem; color: #7fd1ff; }
+    .sim3d-blurb { margin: 0 0 12px; line-height: 1.5; color: #aebfd4; font-size: .88rem; }
+    .sim3d-wrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
+    .sim3d-canvas { width: 100%; height: 320px; display: block; background: #0e1726; border-radius: 8px; touch-action: none; cursor: grab; }
+    .sim3d-canvas:active { cursor: grabbing; }
+    .sim3d-hint { position: absolute; right: 10px; bottom: 8px; font-size: 12px; color: #6b7f9c; background: rgba(0,0,0,.35); padding: 2px 8px; border-radius: 6px; }
+
+    .controls-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); flex-wrap: wrap; gap: 12px; }
+    .ctrl-group { display: flex; align-items: center; gap: 10px; }
+    .ctrl-label { font-size: .8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; }
+    .pill-tabs { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 3px; }
+    .pill { padding: 6px 14px; border: none; background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font-size: .82rem; font-weight: 600; transition: all .18s; }
+    .pill.active { background: var(--accent); color: #0b111a; font-weight: 700; box-shadow: 0 0 10px rgba(41,182,246,.35); }
+    .pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+    .head-actions { display: flex; gap: 8px; }
+    .btn-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font-size: .78rem; color: var(--text-dim); text-decoration: none; font-weight: 600; }
+    .btn-link:hover { border-color: var(--accent); color: var(--accent); }
+
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 14px; align-items: start; }
+    @media(max-width: 1050px) { .layout { grid-template-columns: 1fr; } }
+    
+    .canvas-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; position: relative; }
+    #clutch-canvas { display: block; width: 100%; height: 580px; background: #0a0d14; border-radius: 8px; }
+    
+    .controls-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .panel-title { font-size: .92rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    
+    .control-block { display: flex; flex-direction: column; gap: 6px; background: var(--surface2); padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+    .control-header { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 600; }
+    .control-val { color: var(--accent); font-family: var(--mono); font-weight: 700; }
+    .slider-styled { -webkit-appearance: none; appearance: none; height: 6px; background: #0f1219; border: 1px solid var(--border); border-radius: 4px; outline: none; cursor: pointer; }
+    .slider-styled::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid #fff; }
+    
+    .btn-group { display: flex; gap: 6px; }
+    .btn { flex: 1; padding: 7px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 6px; cursor: pointer; font-size: .78rem; font-weight: 600; text-align: center; }
+    .btn.active { background: var(--accent); color: #0b111a; border-color: var(--accent); font-weight: 700; }
+    
+    .stats-box { background: #0a0d14; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: .78rem; }
+    .stat-row { display: flex; justify-content: space-between; }
+    .stat-key { color: var(--text-dim); }
+    .stat-val { font-weight: 700; color: var(--green); }
+
+    .mode-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+    .explore-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .explore-card h3 { color: var(--accent); font-size: 1rem; }
+    .explore-card p { color: var(--text-dim); font-size: .85rem; line-height: 1.6; }
+
+    .quiz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .quiz-opt { padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: .85rem; transition: all .15s; }
+    .quiz-opt:hover { border-color: var(--accent); color: var(--accent); }
+    .quiz-opt.correct { background: rgba(61,220,132,.18); border-color: var(--green); color: var(--green); }
+    .quiz-opt.wrong { background: rgba(255,82,82,.18); border-color: var(--red); color: var(--red); }
+
+    .seo-article { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px; color: var(--text-dim); line-height: 1.7; font-size: .93rem; }
+    .seo-article h2 { font-size: 1.2rem; color: var(--text); margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<a href="#app" class="skip-link">Skip to content</a>
+
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="site-nav-title">Automobile Engineering</span>
+  </nav>
+
+  <header>
+    <h1>Automotive Friction Clutch Simulator</h1>
+    
+    
+
+    <p class="subtitle">Single-Plate &amp; Multi-Plate Clutch &bull; Diaphragm Spring Force &bull; Torque Capacity &amp; Slip</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Explore</button>
+        <button class="pill" data-value="practice">Practice</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-link" href="../automotive-differential/index.html" title="Differential Simulator">Differential</a>
+      <a class="btn-link" href="../gear-trains/index.html" title="Gear Trains">Gear Trains</a>
+    </div>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    
+
+<div class="layout">
+      <div class="canvas-card">
+        <canvas id="clutch-canvas" width="1000" height="580"></canvas>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-title">&#9881; Clutch Parameters</div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Clutch Type</span></div>
+          <div class="btn-group">
+            <button class="btn active" id="btn-single">Single-Plate (Dry)</button>
+            <button class="btn" id="btn-multi">Multi-Plate (Wet)</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Clutch Pedal Position</span><span class="control-val" id="val-pedal">0% (Engaged)</span></div>
+          <input type="range" class="slider-styled" id="slider-pedal" min="0" max="100" step="1" value="0" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Axial Spring Force (W)</span><span class="control-val" id="val-w">3000 N</span></div>
+          <input type="range" class="slider-styled" id="slider-w" min="1000" max="6000" step="250" value="3000" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Friction Coefficient (&mu;)</span><span class="control-val" id="val-mu">0.35</span></div>
+          <input type="range" class="slider-styled" id="slider-mu" min="0.15" max="0.50" step="0.01" value="0.35" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-header"><span>Engine Flywheel Speed</span><span class="control-val" id="val-eng">2400 RPM</span></div>
+          <input type="range" class="slider-styled" id="slider-eng" min="800" max="4000" step="100" value="2400" />
+        </div>
+
+        <div class="stats-box">
+          <div class="stat-row"><span class="stat-key">Mean Radius (Rm):</span><span class="stat-val" id="st-rm">0.115 m</span></div>
+          <div class="stat-row"><span class="stat-key">Torque Capacity (T):</span><span class="stat-val" id="st-torque" style="color:var(--yellow)">241.5 N·m</span></div>
+          <div class="stat-row"><span class="stat-key">Gearbox Shaft Speed:</span><span class="stat-val" id="st-out-rpm" style="color:var(--green)">2400 RPM</span></div>
+          <div class="stat-row"><span class="stat-key">Clutch State:</span><span class="stat-val" id="st-state" style="color:var(--accent)">Fully Engaged</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">Single &amp; Multi-Plate Clutch Mechanism</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive friction clutch assembly showing Flywheel, Driven Disc, Pressure Plate, Diaphragm Springs, and Throw-Out Bearing.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate &bull; Scroll to zoom</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ EXPLORE MODE ════════════════════════════════════════════ -->
+  <div id="explore-wrapper" style="display:none">
+    <div class="mode-card-grid">
+      <div class="explore-card">
+        <h3>1. Engine Flywheel</h3>
+        <p>Bolted to the crankshaft flange. Acts as the primary driving friction face and energy flywheel.</p>
+      </div>
+      <div class="explore-card">
+        <h3>2. Friction Disc / Plate</h3>
+        <p>Splined to the gearbox input shaft. Features high-friction organic or ceramic linings and axial damper springs.</p>
+      </div>
+      <div class="explore-card">
+        <h3>3. Diaphragm Spring &amp; Pressure Plate</h3>
+        <p>Provides constant axial clamping force W to press the friction disc firmly against the flywheel.</p>
+      </div>
+      <div class="explore-card">
+        <h3>4. Release Bearing (Throw-out)</h3>
+        <p>Depressed by the clutch pedal linkage to flex the diaphragm spring fingers and release clamp pressure.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRACTICE MODE ═══════════════════════════════════════════ -->
+  <div id="practice-wrapper" style="display:none">
+    <div class="explore-card">
+      <h3>Guided Experiment: Torque Capacity Calculation</h3>
+      <p>1. Set Spring Force W = 4000 N, Friction &mu; = 0.35.<br>
+      2. For Single-Plate (n = 2), verify T = 2 * 0.35 * 4000 * 0.115 = 322 N·m.<br>
+      3. Switch to Multi-Plate (n = 6), observe T triples to 966 N·m!</p>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" style="display:none">
+    <div class="quiz-card">
+      <h3>Question 1: Why are multi-plate clutches preferred in motorcycles and heavy equipment?</h3>
+      <div class="quiz-opt" onclick="checkQuiz(this, true)">A) They transmit much higher torque in a compact diameter.</div>
+      <div class="quiz-opt" onclick="checkQuiz(this, false)">B) They do not generate friction heat.</div>
+      <div class="quiz-opt" onclick="checkQuiz(this, false)">C) They do not require pedal pressure.</div>
+    </div>
+  </div>
+  <!-- ═══ USER GUIDE — Inline expandable (SEO-friendly) ═══════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span class="guide-icon-badge" aria-hidden="true">&#128214;</span>
+      User Guide &mdash; Automotive Friction Clutch Simulator
+    </div>
+    <details open><summary><span class="guide-section-num">1</span> Overview</summary>
+      <div class="guide-content">
+        <p>The <strong>Automotive Friction Clutch Simulator</strong> models the behaviour of Single-Plate and Multi-Plate automotive friction clutches. It calculates torque capacity using the formula <strong>T = n &times; &mu; &times; W &times; R<sub>m</sub></strong>, shows friction wear, clutch slip, and pedal engagement force, and animates the pressure plate clamping action.</p>
+        <p>A clutch is a mechanical device that connects and disconnects the engine from the gearbox. During gear changes, the driver presses the clutch pedal, which releases the spring clamping force, allowing the engine and gearbox to momentarily spin independently.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">2</span> Selecting Clutch Type</summary>
+      <div class="guide-content">
+        <p>Use the <strong>Clutch Type</strong> buttons to switch between:</p>
+        <ul>
+          <li><strong>Single-Plate</strong> — one friction disc; standard in passenger cars. Simple, light, and sufficient for moderate torque.</li>
+          <li><strong>Multi-Plate</strong> — multiple interleaved friction discs; used in motorcycles, high-performance cars, and trucks where higher torque capacity is needed in a compact package.</li>
+          <li><strong>Diaphragm Spring</strong> — replaces the coil spring with a conical diaphragm spring for lower pedal effort and better clamp load consistency. Most modern cars use this type.</li>
+        </ul>
+      </div></details>
+    <details><summary><span class="guide-section-num">3</span> Adjusting Parameters</summary>
+      <div class="guide-content">
+        <p>Five sliders control the clutch design parameters:</p>
+        <ul>
+          <li><strong>Clamp Force W (N)</strong> — the spring clamping force pressing the friction disc against the flywheel.</li>
+          <li><strong>Friction Coefficient &mu;</strong> — depends on lining material (dry: 0.25&ndash;0.45; wet: 0.08&ndash;0.15).</li>
+          <li><strong>Number of Plates n</strong> — 1 for single-plate; 2&ndash;8 for multi-plate.</li>
+          <li><strong>Mean Radius R<sub>m</sub> (mm)</strong> — average of inner and outer friction disc radius.</li>
+          <li><strong>Engine RPM</strong> — input speed to calculate slip torque and engagement behaviour.</li>
+        </ul>
+      </div></details>
+    <details><summary><span class="guide-section-num">4</span> Reading the Readout</summary>
+      <div class="guide-content">
+        <p>The live stats panel shows:</p>
+        <ul>
+          <li><strong>Torque Capacity T</strong> — maximum torque the clutch can transmit before slipping.</li>
+          <li><strong>Slip Condition</strong> — whether the clutch is engaged, slipping, or disengaged.</li>
+          <li><strong>Wear Rate</strong> — relative wear index based on pressure and velocity.</li>
+          <li><strong>Pedal Force</strong> — estimated force the driver must apply to disengage the clutch.</li>
+        </ul>
+      </div></details>
+    <details><summary><span class="guide-section-num">5</span> Practice &amp; Quiz</summary>
+      <div class="guide-content">
+        <p><strong>Explore</strong> mode explains friction lining materials, uniform pressure vs uniform wear assumptions, and how diaphragm springs achieve lower pedal effort. <strong>Quiz</strong> tests understanding of the torque formula, friction coefficient values, and multi-plate clutch advantages.</p>
+      </div></details>
+  </section>
+
+  <!-- ═══ SEO Article ═════════════════════════════════════════════ -->
+  <section class="seo-article">
+    <h2>How Automotive Friction Clutches Work</h2>
+    <p>An <strong>Automotive Friction Clutch</strong> is the mechanical coupling between the engine flywheel and the gearbox input shaft. It allows smooth engagement and disengagement of the drive, enabling gear changes and vehicle starting from rest without stalling the engine.</p>
+
+    <h3>Torque Capacity Formula</h3>
+    <p>The torque capacity of a friction clutch is given by:</p>
+    <p><strong>T = n &times; &mu; &times; W &times; R<sub>m</sub></strong></p>
+    <p>Where: <em>n</em> = number of friction surfaces, <em>&mu;</em> = coefficient of friction, <em>W</em> = axial clamping force (N), and <em>R<sub>m</sub></em> = mean friction radius (m). Increasing any of these factors increases torque capacity. Multi-plate clutches multiply torque capacity by increasing <em>n</em> without increasing diameter.</p>
+
+    <h3>Single-Plate vs Multi-Plate Clutches</h3>
+    <p>A <strong>single-plate clutch</strong> has one friction disc sandwiched between the flywheel face and the pressure plate. It is simple, light, and easy to service &mdash; the standard choice for passenger cars. A <strong>multi-plate clutch</strong> uses multiple interleaved friction and drive plates, dramatically increasing torque capacity in the same diameter. Motorcycles and high-performance cars use wet multi-plate clutches running in oil, which improves cooling and longevity but reduces friction coefficient.</p>
+
+    <h3>Diaphragm Spring Clutch</h3>
+    <p>Modern vehicles use a <strong>diaphragm spring clutch</strong> where the coil spring assembly is replaced by a conical diaphragm (Belleville) spring. This provides a more progressive pedal feel, consistent clamp load across the wear range, and lower release force. The diaphragm acts as both the pressure plate spring and the release lever, reducing part count.</p>
+
+    <h3>Uniform Pressure vs Uniform Wear Assumptions</h3>
+    <p>Two design assumptions govern friction clutch calculations. The <strong>uniform pressure theory</strong> assumes constant contact pressure across the disc and gives R<sub>m</sub> = (2/3) &times; (R<sub>o</sub>&sup3; &minus; R<sub>i</sub>&sup3;) / (R<sub>o</sub>&sup2; &minus; R<sub>i</sub>&sup2;). The <strong>uniform wear theory</strong> assumes that wear is uniform and gives R<sub>m</sub> = (R<sub>o</sub> + R<sub>i</sub>) / 2. Uniform wear is more realistic for a worn-in clutch; uniform pressure applies to a new clutch.</p>
+
+    <h3>Explore Related Simulators</h3>
+    <p>Continue with the <a href="../automotive-differential/index.html">Automotive Differential Simulator</a>, <a href="../gear-trains/index.html">Gear Trains Simulator</a>, <a href="../steering-geometry/index.html">Steering Geometry Simulator</a>, and <a href="../four-stroke-engine/index.html">Four-Stroke Engine Simulator</a>.</p>
+  </section>
+
+
+  <!-- ── Site Footer ── -->
+  <footer class="site-footer">
+    <nav class="site-footer-nav">
+      <a href="../../index.html">Home</a>
+      <a href="../../about/index.html">About</a>
+      <a href="../../privacy-policy/index.html">Privacy Policy</a>
+      <a href="../../terms/index.html">Terms of Use</a>
+      <a href="../../contact/index.html">Contact</a>
+    </nav>
+    <p class="site-footer-copy">&copy; 2026 NHIT VisualLab</p>
+  </footer>
+</main>
+
+
+<script src="../../shared/related.js?v=11" defer></script>
+<script src="../../shared/unit-memory.js?v=3" defer></script>
+<script src="../../shared/share-params.js?v=1" defer></script>
+<script src="../../shared/cookie-notice.js?v=2" defer></script>
+<script src="../../shared/ads-collapse.js?v=2" defer></script>
+<script src="../../shared/three3d/three.min.js"></script>
+<script src="../../shared/three3d/viewer.js"></script>
+<script src="../../shared/three3d/models.js"></script>
+<script>if(typeof Sim3D!=='undefined') Sim3D.mount('automotive-clutch', document.getElementById('sim3d-canvas'));</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+(function(){
+  const modeTabs = document.querySelectorAll('#mode-tabs .pill');
+  const simWrap = document.getElementById('sim-wrapper');
+  const expWrap = document.getElementById('explore-wrapper');
+  const pracWrap = document.getElementById('practice-wrapper');
+  const quizWrap = document.getElementById('quiz-wrapper');
+
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      modeTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const val = tab.dataset.value;
+      const m3dWrap = document.getElementById('model3d-wrapper');
+      simWrap.style.display = val === 'simulate' ? 'block' : 'none';
+      if (m3dWrap) m3dWrap.style.display = val === '3d-model' ? 'block' : 'none';
+      expWrap.style.display = val === 'explore' ? 'block' : 'none';
+      pracWrap.style.display = val === 'practice' ? 'block' : 'none';
+      quizWrap.style.display = val === 'quiz' ? 'block' : 'none';
+    });
+  });
+
+  const c3d = document.getElementById('sim3d-canvas');
+  const ctx3d = c3d.getContext('2d');
+  c3d.width = 640; c3d.height = 320;
+  let angle3d = 0;
+
+  function render3D() {
+    ctx3d.clearRect(0, 0, 640, 320);
+    angle3d += 0.02;
+    ctx3d.save();
+    ctx3d.translate(320, 160);
+    ctx3d.fillStyle = '#455a64'; ctx3d.fillRect(-120, -90, 20, 180);
+    ctx3d.fillStyle = '#ff9800'; ctx3d.fillRect(-90, -75, 12, 150);
+    ctx3d.fillStyle = '#607d8b'; ctx3d.fillRect(-70, -85, 18, 170);
+    ctx3d.restore();
+    requestAnimationFrame(render3D);
+  }
+  render3D();
+
+  const canvas = document.getElementById('clutch-canvas');
+  const ctx = canvas.getContext('2d');
+  const CW = 1000, CH = 580;
+  canvas.width = CW; canvas.height = CH;
+
+  const S = {
+    type: 'single',
+    pedal: 0,
+    W: 3000,
+    mu: 0.35,
+    engRpm: 2400,
+    outRpm: 2400,
+    Ro: 0.14,
+    Ri: 0.09,
+    t: 0
+  };
+
+  document.getElementById('btn-single').onclick = () => setType('single');
+  document.getElementById('btn-multi').onclick = () => setType('multi');
+
+  function setType(t) {
+    S.type = t;
+    document.getElementById('btn-single').classList.toggle('active', t==='single');
+    document.getElementById('btn-multi').classList.toggle('active', t==='multi');
+  }
+
+  const sPedal = document.getElementById('slider-pedal');
+  const sW = document.getElementById('slider-w');
+  const sMu = document.getElementById('slider-mu');
+  const sEng = document.getElementById('slider-eng');
+
+  sPedal.oninput = e => { S.pedal = parseInt(e.target.value); document.getElementById('val-pedal').textContent = S.pedal === 0 ? '0% (Engaged)' : S.pedal === 100 ? '100% (Disengaged)' : `${S.pedal}%`; };
+  sW.oninput = e => { S.W = parseInt(e.target.value); document.getElementById('val-w').textContent = `${S.W} N`; };
+  sMu.oninput = e => { S.mu = parseFloat(e.target.value); document.getElementById('val-mu').textContent = `${S.mu.toFixed(2)}`; };
+  sEng.oninput = e => { S.engRpm = parseInt(e.target.value); document.getElementById('val-eng').textContent = `${S.engRpm} RPM`; };
+
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = (now - lastT) / 1000;
+    lastT = now;
+    S.t += dt;
+
+    const n = S.type === 'single' ? 2 : 6;
+    const Rm = (S.Ro + S.Ri) / 2.0;
+    const maxT = n * S.mu * S.W * Rm;
+
+    const engageFactor = 1.0 - (S.pedal / 100.0);
+    S.outRpm = S.engRpm * engageFactor;
+
+    document.getElementById('st-rm').textContent = `${Rm.toFixed(3)} m`;
+    document.getElementById('st-torque').textContent = `${(maxT * engageFactor).toFixed(1)} N·m`;
+    document.getElementById('st-out-rpm').textContent = `${Math.round(S.outRpm)} RPM`;
+
+    let stateStr = 'Fully Engaged';
+    let stateColor = 'var(--green)';
+    if (S.pedal >= 95) { stateStr = 'Disengaged (Free)'; stateColor = 'var(--red)'; }
+    else if (S.pedal > 5) { stateStr = 'Slipping (Partial Friction)'; stateColor = 'var(--yellow)'; }
+
+    const stEl = document.getElementById('st-state');
+    stEl.textContent = stateStr;
+    stEl.style.color = stateColor;
+
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, CW, CH);
+    const cx = 500, cy = 290;
+    const flyGap = (S.pedal / 100.0) * 45;
+
+    ctx.fillStyle = '#455a64'; ctx.fillRect(cx - 220, cy - 180, 50, 360);
+    ctx.strokeStyle = '#263238'; ctx.lineWidth = 4; ctx.strokeRect(cx - 220, cy - 180, 50, 360);
+
+    ctx.fillStyle = '#cfd8dc'; ctx.fillRect(cx - 170, cy - 160, 10, 320);
+
+    ctx.fillStyle = '#90a4ae'; ctx.fillRect(100, cy - 25, 120, 50);
+
+    const plateX = cx - 145 + flyGap * 0.5;
+    ctx.fillStyle = '#ff9800'; ctx.fillRect(plateX, cy - 150, 16, 300);
+    ctx.strokeStyle = '#e65100'; ctx.lineWidth = 2; ctx.strokeRect(plateX, cy - 150, 16, 300);
+
+    ctx.fillStyle = '#ffd600'; ctx.fillRect(plateX - 10, cy - 40, 36, 80);
+
+    const pressX = cx - 110 + flyGap;
+    ctx.fillStyle = '#607d8b'; ctx.fillRect(pressX, cy - 160, 30, 320);
+    ctx.strokeStyle = '#37474f'; ctx.lineWidth = 3; ctx.strokeRect(pressX, cy - 160, 30, 320);
+
+    ctx.strokeStyle = '#29b6f6'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(pressX + 30, cy - 140); ctx.lineTo(pressX + 80, cy - 30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pressX + 30, cy + 140); ctx.lineTo(pressX + 80, cy + 30); ctx.stroke();
+
+    const bearX = pressX + 85;
+    ctx.fillStyle = '#00e5ff'; ctx.fillRect(bearX, cy - 35, 24, 70);
+
+    ctx.fillStyle = '#78909c'; ctx.fillRect(plateX + 16, cy - 20, 350, 40);
+
+    ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 12px var(--mono)'; ctx.textAlign = 'center';
+    ctx.fillText('Engine Flywheel', cx - 195, cy - 195);
+    ctx.fillText('Friction Plate', plateX + 8, cy - 165);
+    ctx.fillText('Pressure Plate', pressX + 15, cy + 180);
+    ctx.fillText('Release Bearing', bearX + 12, cy + 55);
+  }
+
+  window.checkQuiz = function(el, isCorrect) {
+    if (isCorrect) { el.classList.add('correct'); el.innerHTML += ' &#10004; Correct!'; }
+    else { el.classList.add('wrong'); el.innerHTML += ' &#10008; Incorrect'; }
+  };
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

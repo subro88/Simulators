@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Maintenance &amp; Practice Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Maintenance & Practice Virtual Lab for WBSCTE 4th Sem EE (EE/S4/PFII). Simulate Transformer Oil Breakdown Voltage (BDV) Sparkover, Motor Insulation Megger Testing, and inspect 3D Oil BDV Tester model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/PFII)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Maintenance &amp; Practice Virtual Lab</h1>
+    <p class="subtitle">Transformer Oil Dielectric BDV Testing, Motor Insulation Megger Diagnostic &amp; High-Voltage Safety</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Maintenance Standards</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IS 6792 Standards</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Oil BDV Tester &amp; Megger Tester</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Oil BDV Test Cell Cup, Spherical Spark Electrodes (2.5mm gap), Motor Insulation Megger Tester, and Earth Pit Test Clamp.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="emp-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Procedure:</label>
+        <select id="maint-select" class="emp-select">
+          <option value="oil_bdv">1. Transformer Oil Dielectric BDV Test (IS 6792, Gap = 2.5mm)</option>
+          <option value="megger">2. 3-Phase Motor Stator Insulation Megger Test (1000V DC)</option>
+          <option value="earth">3. Substation Earth Pit Grid Resistance Testing</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Voltage Ramp (kV):</label>
+        <input type="number" id="bdv-in" value="42" min="10" max="80" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-fire-bdv">Apply High Voltage Ramp &#9654;</button>
+        <button class="btn-action success" id="btn-filter-oil">Purify / Dehydrate Oil</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Spark Animation -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Dielectric Breakdown Sparkover Cell &amp; Megger Dial</span>
+          <span class="badge" id="oil-badge" style="background:#10b981;">BDV: 42.0 kV (HEALTHY)</span>
+        </div>
+        <canvas id="emp-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Insulation Telemetry &amp; Serviceability</span>
+        </div>
+        <div class="emp-grid">
+          <div class="emp-box"><span class="emp-lbl">Breakdown Voltage (BDV)</span><span class="emp-val" id="disp-bdv">42.0 kV (2.5mm Gap)</span></div>
+          <div class="emp-box"><span class="emp-lbl">Oil Health Grade</span><span class="emp-val" id="disp-grade" style="color:#10b981;">GOOD (Serviceable)</span></div>
+          <div class="emp-box"><span class="emp-lbl">Insulation R (Motor)</span><span class="emp-val">&gt; 150.0 M&Omega; (Safe)</span></div>
+          <div class="emp-box"><span class="emp-lbl">Min Standard R_min</span><span class="emp-val">1.42 M&Omega; (IEEE 43)</span></div>
+          <div class="emp-box"><span class="emp-lbl">Transformer Status</span><span class="emp-val" style="color:#10b981;">APPROVED FOR SERVICE</span></div>
+          <div class="emp-box"><span class="emp-lbl">Moisture ppm</span><span class="emp-val">&lt; 15 ppm (Dry Oil)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Maintenance Diagnostic Console:</div>
+          <div class="console-log" id="emp-log">
+            &gt; Initialized Electrical Maintenance &amp; Testing Virtual Lab.<br>
+            &gt; Oil Test Cell setup: Spherical electrodes with standard 2.50mm gauge gap.<br>
+            &gt; Applied voltage ramp rate: 2.0 kV/sec per IS 6792 standard.<br>
+            &gt; Dielectric flashover occurred at 42.0 kV. Oil is healthy and certified for 33kV transformer operation.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/PFII Electrical Maintenance &amp; Practice</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Transformer Oil Testing (IS 6792)</h3>
+          <p>Dielectric breakdown voltage (BDV) indicates oil purity and moisture content. New untreated oil must withstand $\ge 30\text{kV}$, filtered treated oil $\ge 60\text{kV}$. Other tests: Acidity, Tan delta, Flash point, and Dissolved Gas Analysis (DGA).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Insulation Resistance (Megger Test)</h3>
+          <p>IEEE 43 standard: Minimum insulation resistance $R_{ins} = kV + 1\text{ M}\Omega$. Polarization Index ($PI = \frac{R_{10\text{min}}}{R_{1\text{min}}}$): $PI \ge 2.0$ indicates clean, dry insulation.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Earth Pit Maintenance</h3>
+          <p>Periodic watering with saline/charcoal slurry. Earth grid resistance $R \le 1.0\Omega$ for substations and $R \le 5.0\Omega$ for domestic consumer installations.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Substation Preventive Maintenance</h3>
+          <p>Thermographic infrared scanning for hot joints, Buchholz relay gas release check, silica gel breather color (Blue $\to$ Dry, Pink $\to$ Moisture saturated).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('emp-canvas');
+const ctx = canvas.getContext('2d');
+let isSparking = false;
+let sparkProgress = 0;
+
+function drawBDV() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Oil Test Cell Acrylic Container
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(100, 70, 500, 260);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(100, 70, 500, 260);
+
+  // Mineral Insulating Oil Fill (Golden Yellow)
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+  ctx.fillRect(103, 110, 494, 217);
+
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText('TRANSFORMER MINERAL INSULATING OIL (IS 335)', 120, 100);
+
+  // Left Spherical Electrode
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath(); ctx.arc(310, 210, 28, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(100, 204, 182, 12); // Left HV Lead
+
+  // Right Spherical Electrode
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath(); ctx.arc(390, 210, 28, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillRect(418, 204, 182, 12); // Right Ground Lead
+
+  // Gap dimension label
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('2.5mm Gap', 350, 165);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(338, 172); ctx.lineTo(362, 172); ctx.stroke();
+
+  // Dielectric Spark Flash
+  if (isSparking) {
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(338, 210);
+    ctx.lineTo(345, 200 + Math.random() * 20);
+    ctx.lineTo(355, 200 + Math.random() * 20);
+    ctx.lineTo(362, 210);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(103, 232, 249, 0.6)';
+    ctx.beginPath(); ctx.arc(350, 210, 25, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Voltage reading bar at bottom
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(100, 350, 500, 40);
+  ctx.strokeStyle = '#64748b';
+  ctx.strokeRect(100, 350, 500, 40);
+
+  const bdvVal = parseFloat(document.getElementById('bdv-in').value) || 42;
+  const barW = (bdvVal / 80.0) * 480;
+  ctx.fillStyle = bdvVal >= 30 ? '#10b981' : '#ef4444';
+  ctx.fillRect(110, 360, barW, 20);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(`Applied Test Voltage: ${bdvVal.toFixed(1)} kV / 80 kV`, 120, 375);
+}
+
+const bdvIn = document.getElementById('bdv-in');
+const logEl = document.getElementById('emp-log');
+
+document.getElementById('btn-fire-bdv').addEventListener('click', () => {
+  const bdv = parseFloat(bdvIn.value) || 42;
+  isSparking = true;
+  drawBDV();
+  setTimeout(() => {
+    isSparking = false;
+    drawBDV();
+  }, 600);
+
+  const isGood = bdv >= 30;
+  document.getElementById('disp-bdv').textContent = `${bdv.toFixed(1)} kV (2.5mm Gap)`;
+  document.getElementById('disp-grade').textContent = isGood ? 'GOOD (Serviceable)' : 'CRITICAL (High Moisture)';
+  document.getElementById('disp-grade').style.color = isGood ? '#10b981' : '#ef4444';
+  document.getElementById('oil-badge').textContent = `BDV: ${bdv.toFixed(1)} kV (${isGood ? 'HEALTHY' : 'FAILED'})`;
+  document.getElementById('oil-badge').style.background = isGood ? '#10b981' : '#ef4444';
+
+  logEl.innerHTML += `<br>&gt; [HV FLASHOVER] Sparkover triggered at ${bdv} kV. Dielectric strength status: ${isGood ? 'PASS (IS 6792)' : 'FAIL - Filtration required'}.`;
+});
+
+document.getElementById('btn-filter-oil').addEventListener('click', () => {
+  bdvIn.value = 65;
+  document.getElementById('disp-bdv').textContent = '65.0 kV (2.5mm Gap)';
+  document.getElementById('disp-grade').textContent = 'EXCELLENT (>50 kV Fresh Standard)';
+  document.getElementById('disp-grade').style.color = '#10b981';
+  document.getElementById('oil-badge').textContent = 'BDV: 65.0 kV (TREATED OIL)';
+  document.getElementById('oil-badge').style.background = '#10b981';
+  logEl.innerHTML += '<br>&gt; [CENTRIFUGAL FILTRATION] Dehydrated and degassed oil: Moisture reduced to < 8 ppm, BDV upgraded to 65.0 kV.';
+  drawBDV();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_maintenance_practice.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawBDV();
+</script>
+</body>
+</html>

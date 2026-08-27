@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Slider-Crank Mechanism Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Slider-Crank Mechanism Kinematics Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Theory of Machines</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Slider-Crank V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Slider-Crank Mechanism Kinematics</h1>
+    <p class="subtitle">Python Dynamics Engine &bull; Real-Time WebGL 3D Visualization &bull; Piston Displacement, Velocity &amp; Acceleration &bull; Obliquity Ratio</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="automotive_piston">Automotive Engine Piston</option>
+        <option value="compressor_short_rod">Air Compressor (Short Rod)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="/four_bar.html" title="Open Four-Bar Simulator">Four-Bar V2</a>
+      <a class="btn-secondary" href="/gear_trains.html" title="Open Gear Trains Simulator">Gear Trains V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode mechanism outward">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Kinematic Linkage Schematic</div>
+          <canvas id="2d-schematic-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Mechanism Parameters</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Crank Radius (r)</span>
+            <span class="control-value" id="val-r">50 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-r" min="20" max="150" step="5" value="50" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Connecting Rod Length (l)</span>
+            <span class="control-value" id="val-l">200 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-l" min="80" max="500" step="10" value="200" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Crank Speed (RPM)</span>
+            <span class="control-value" id="val-rpm">1500 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="100" max="6000" step="100" value="1500" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Crank Angle (&theta;)</span>
+            <span class="control-value" id="val-theta">45&deg;</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-theta" min="0" max="360" step="5" value="45" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Obliquity Ratio (&lambda; = r/l):</span>
+            <span class="telemetry-val" id="st-lambda" style="color:var(--accent);">0.250</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Piston Displacement (x):</span>
+            <span class="telemetry-val" id="st-disp" style="color:var(--green);">20.7 mm</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Piston Velocity (v):</span>
+            <span class="telemetry-val" id="st-vel" style="color:var(--yellow);">6.18 m/s</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Piston Acceleration (a):</span>
+            <span class="telemetry-val" id="st-acc">854.2 m/s&sup2;</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Slider-Crank: Stroke = 100.0 mm | Piston Velocity = 6.18 m/s | Acceleration = 854.2 m/s² (Obliquity ratio λ = 0.250).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Inversion of Slider-Crank Mechanism</h3>
+        <p>By fixing different links (crank, connecting rod, or slider), we get key industrial inversions: Whitworth quick return, Rotary IC engine, oscillating cylinder, and hand pump.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Obliquity Ratio Impact</h3>
+        <p>A smaller obliquity ratio ($\lambda = r/l$) reduces side-thrust forces on the cylinder wall, reducing friction wear.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Peak Piston Velocity Angle</h3>
+      <p>1. Set $r = 50\text{ mm}$ and $l = 200\text{ mm}$ ($\lambda = 0.25$).<br>
+         2. Sweep crank angle $\theta$ from $0^\circ$ to $90^\circ$.<br>
+         3. Observe peak velocity occurs slightly before $90^\circ$ (around $\theta \approx 76^\circ$) due to connecting rod obliquity!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is the piston stroke length for a crank radius r = 60 mm?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 120 mm (Stroke S = 2 * r)
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/slider_crank_3d.js"></script>
+<script src="/js/slider_crank_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

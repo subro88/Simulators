@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RDBMS &amp; SQL Database Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Relational Database Management System (RDBMS) & SQL Virtual Lab for WBSCTE 4th Sem CST. Test SQL Queries (SELECT, JOIN, GROUP BY), analyze 1NF/2NF/3NF/BCNF Normalization, and inspect 3D Database Storage Model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 4th Semester (CST/4/403)</span>
+  </nav>
+
+  <header>
+    <h1>RDBMS &amp; SQL Database Virtual Lab</h1>
+    <p class="subtitle">Relational Algebra, SQL Query Optimizer, 1NF/2NF/3NF Normalization &amp; ACID Concurrency Control</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">ER Models &amp; Normalization</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; SQL Cheat Sheet</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Architecture — <span id="sim3d-title">RDBMS Disk &amp; B+ Tree Index Engine</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of relational table disk storage cylinders, Primary/Foreign Key relations, B+ Tree Index search hierarchy, and Transaction WAL buffer.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="rdbms-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Sample Query:</label>
+        <select id="query-select" class="rdbms-select">
+          <option value="select_where">1. Filter: SELECT * FROM Employees WHERE salary &gt; 45000</option>
+          <option value="inner_join">2. Relational Join: Employees INNER JOIN Departments</option>
+          <option value="group_by">3. Aggregation: SELECT dept, AVG(salary) GROUP BY dept</option>
+          <option value="norm_3nf">4. Normalization Check: Verify 3NF Functional Dependencies</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-exec">Run SQL &#9654;</button>
+        <button class="btn-action warning" id="btn-reset">Reset Schema</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Database Results -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Live Relational Tables &amp; Query Results</span>
+          <span class="badge" id="norm-badge">3NF Compliant</span>
+        </div>
+        <canvas id="rdbms-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Query Execution Plan &amp; ACID State</span>
+        </div>
+        <div class="query-plan-card">
+          <div class="plan-title">Optimized Execution Plan:</div>
+          <div class="plan-text" id="disp-plan">Index Scan (idx_salary) -&gt; Filter Condition (salary &gt; 45000) -&gt; Hash Aggregate -&gt; Output (3 Rows Returned).</div>
+        </div>
+
+        <div class="acid-grid">
+          <div class="acid-box"><span class="acid-lbl">Atomicity (A)</span><span class="acid-val">Active (WAL)</span></div>
+          <div class="acid-box"><span class="acid-lbl">Consistency (C)</span><span class="acid-val">Keys Valid</span></div>
+          <div class="acid-box"><span class="acid-lbl">Isolation (I)</span><span class="acid-val">Read Committed</span></div>
+          <div class="acid-box"><span class="acid-lbl">Durability (D)</span><span class="acid-val">Sync to Disk</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">RDBMS Engine Log:</div>
+          <div class="console-log" id="rdbms-log">
+            &gt; Initialized Relational Database Engine.<br>
+            &gt; Table 'Employees' loaded: 4 records.<br>
+            &gt; Executed: SELECT * FROM Employees WHERE salary &gt; 45000.<br>
+            &gt; Returned: Alice Sharma (65K), Bob Mondal (52K), David Roy (48K).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/4/403 Relational Database Management System</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Relational Database Normalization</h3>
+          <p><strong>1NF:</strong> Atomic values (no multi-valued attributes).<br><strong>2NF:</strong> 1NF + No partial dependency (non-prime attributes fully dependent on candidate key).<br><strong>3NF:</strong> 2NF + No transitive dependency ($X \to Y \to Z$).<br><strong>BCNF:</strong> For every functional dependency $X \to Y$, $X$ must be a superkey.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. ACID Transaction Properties</h3>
+          <p><strong>Atomicity:</strong> All-or-nothing execution via undo logs.<br><strong>Consistency:</strong> Preserves database integrity constraints.<br><strong>Isolation:</strong> Concurrency control avoiding dirty reads.<br><strong>Durability:</strong> Committed updates persist after power failure.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Relational Algebra Operations</h3>
+          <p>Selection ($\sigma$), Projection ($\pi$), Cartesian Product ($\times$), Set Union ($\cup$), Set Difference ($-$), Natural Join ($\bowtie$), and Theta Join.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. B+ Tree Indexing</h3>
+          <p>Self-balancing multi-way search tree where all data pointers reside in leaf nodes, linked sequentially for efficient range queries ($O(\log_B N)$ search complexity).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('rdbms-canvas');
+const ctx = canvas.getContext('2d');
+let queryMode = 'select_where';
+
+function drawRDBMS() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#090e1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw Employees Table Header
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(50, 40, 600, 36);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText('TABLE: Employees (emp_id [PK], name, dept_id [FK], salary)', 65, 63);
+
+  // Table Columns
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(50, 76, 600, 30);
+  ctx.fillStyle = '#93c5fd';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText('emp_id', 70, 96);
+  ctx.fillText('name', 170, 96);
+  ctx.fillText('dept_id', 350, 96);
+  ctx.fillText('salary', 480, 96);
+
+  const rows = [
+    {id: 101, n: 'Alice Sharma', d: 'D01 (CSE)', s: '₹65,000', match: true},
+    {id: 102, n: 'Bob Mondal', d: 'D02 (ECE)', s: '₹52,000', match: true},
+    {id: 103, n: 'Charlie Sen', d: 'D01 (CSE)', s: '₹40,000', match: false},
+    {id: 104, n: 'David Roy', d: 'D03 (ME)', s: '₹48,000', match: true},
+  ];
+
+  rows.forEach((r, i) => {
+    const y = 106 + i * 36;
+    const isHigh = queryMode === 'select_where' && r.match;
+    ctx.fillStyle = isHigh ? '#065f46' : '#111827';
+    ctx.fillRect(50, y, 600, 34);
+    ctx.strokeStyle = isHigh ? '#10b981' : '#374151';
+    ctx.strokeRect(50, y, 600, 34);
+
+    ctx.fillStyle = isHigh ? '#a7f3d0' : '#d1d5db';
+    ctx.font = '12px Segoe UI';
+    ctx.fillText(r.id, 70, y + 22);
+    ctx.fillText(r.n, 170, y + 22);
+    ctx.fillText(r.d, 350, y + 22);
+    ctx.fillText(r.s, 480, y + 22);
+  });
+
+  // Table Departments
+  ctx.fillStyle = '#4c1d95';
+  ctx.fillRect(50, 270, 600, 32);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.fillText('TABLE: Departments (dept_id [PK], dept_name)', 65, 292);
+
+  const depts = [
+    {id: 'D01', n: 'Computer Science & Technology'},
+    {id: 'D02', n: 'Electronics & Telecomm Engg'},
+    {id: 'D03', n: 'Mechanical Engineering'}
+  ];
+  depts.forEach((d, i) => {
+    const y = 302 + i * 32;
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(50, y, 600, 30);
+    ctx.strokeStyle = '#374151';
+    ctx.strokeRect(50, y, 600, 30);
+    ctx.fillStyle = '#e9d5ff';
+    ctx.fillText(d.id, 70, y + 20);
+    ctx.fillText(d.n, 200, y + 20);
+  });
+}
+
+const qSelect = document.getElementById('query-select');
+const logEl = document.getElementById('rdbms-log');
+const planEl = document.getElementById('disp-plan');
+
+document.getElementById('btn-exec').addEventListener('click', () => {
+  queryMode = qSelect.value;
+  if (queryMode === 'select_where') {
+    planEl.textContent = 'Index Scan on idx_salary -> Filter (salary > 45000) -> Materialize 3 rows.';
+    logEl.innerHTML += '<br>&gt; Executed SELECT: Filtered 3 matching records (> ₹45,000).';
+  } else if (queryMode === 'inner_join') {
+    planEl.textContent = 'Hash Join on Employees.dept_id = Departments.dept_id -> 4 matching records.';
+    logEl.innerHTML += '<br>&gt; Executed INNER JOIN: Merged Employee records with Department names.';
+  } else if (queryMode === 'group_by') {
+    planEl.textContent = 'Hash Aggregate on dept_id -> AVG(salary) calculated per department.';
+    logEl.innerHTML += '<br>&gt; Grouped by department: CSE Avg=₹52,500, ECE Avg=₹52,000.';
+  } else {
+    planEl.textContent = 'Dependency Graph Verification: Functional dependencies satisfy 3NF (No transitive dependency).';
+    logEl.innerHTML += '<br>&gt; 3NF Normalization Verified: All non-key attributes depend only on Primary Key.';
+  }
+  drawRDBMS();
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  queryMode = 'select_where';
+  logEl.innerHTML = '&gt; Reset database schema to initial state.';
+  drawRDBMS();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/rdbms_sql_database.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawRDBMS();
+</script>
+</body>
+</html>

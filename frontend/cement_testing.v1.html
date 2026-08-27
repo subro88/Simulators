@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Cement Physical Testing Simulator — WBSCTE Civil Engg | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Cement Testing Simulator (Vicat Consistency, Setting Times, Fineness &amp; Mortar Strength) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <button class="sidebar-toggle-btn btn-secondary" style="background:var(--accent);color:#000;font-weight:700;border:none;padding:4px 10px;margin-right:8px;">☰ Menu</button>
+      <a href="index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Civil Engineering (WBSCTE 3rd Sem)</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Cement Testing Lab V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Cement Physical Testing &amp; Quality Control (IS 4031)</h1>
+    <p class="subtitle">Python Engine &bull; Real-Time WebGL 3D Vicat Apparatus &bull; Standard Consistency &bull; Setting Times &bull; Mortar Strength</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="vicat_consistency_standard">Standard Consistency (28.5% Water)</option>
+        <option value="mortar_strength_7day">7-Day Cube Strength (OPC 43)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="four_bar.html" title="Open Four-Bar Simulator">Four-Bar V2</a>
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode Vicat apparatus outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Vicat Apparatus Schematic</div>
+          <canvas id="cement-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Test Parameters</span>
+          <span id="st-test-name" style="font-size:0.75rem;font-weight:700;color:var(--accent);">Consistency Test</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row"><span>Select Laboratory Test</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            <button class="btn-choice active" data-test-type="consistency" style="flex:1;">Consistency</button>
+            <button class="btn-choice" data-test-type="setting_time" style="flex:1;">Setting Time</button>
+            <button class="btn-choice" data-test-type="fineness" style="flex:1;">Fineness</button>
+            <button class="btn-choice" data-test-type="compressive_strength" style="flex:1;">Strength</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Water Percentage (P%)</span>
+            <span class="control-value" id="val-water">28.5%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-water" min="20.0" max="35.0" step="0.5" value="28.5" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Elapsed Time</span>
+            <span class="control-value" id="val-time">45 min</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-time" min="5" max="360" step="5" value="45" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>90µm Sieve Residue</span>
+            <span class="control-value" id="val-sieve">4.2 g</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-sieve" min="0.0" max="15.0" step="0.5" value="4.2" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Mortar Cube Curing</span>
+            <span class="control-value" id="val-days">7 days</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-days" min="1" max="28" step="1" value="7" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Vicat Penetration:</span>
+            <span class="telemetry-val" id="st-pen" style="color:var(--accent);">6.0 mm</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Initial Setting Time:</span>
+            <span class="telemetry-val" id="st-init-time" style="color:var(--yellow);">35 min</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Final Setting Time:</span>
+            <span class="telemetry-val" id="st-fin-time">228 min</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Mortar Cube Strength:</span>
+            <span class="telemetry-val" id="st-strength" style="color:var(--green);">30.1 MPa</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-status" style="color:var(--green);font-weight:700;">
+            PASSED: Standard Consistency achieved (5-7mm from bottom).
+          </div>
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Vicat Plunger Penetration = 6.0 mm at 28.5% Water ratio.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Vicat Standard Consistency</h3>
+        <p>Defined as the water percentage required to permit a Vicat plunger of 10 mm diameter to penetrate to a point 5 to 7 mm from the bottom of the Vicat mould (IS 4031 Part 4).</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Setting Time Criteria</h3>
+        <p>Initial setting time must not be less than 30 minutes for OPC, and final setting time must not exceed 600 minutes (10 hours).</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Standard Consistency Determination</h3>
+      <p>1. Adjust water percentage slider $P\%$ until Vicat plunger penetration reaches <strong>5-7 mm</strong> from the bottom of the mould.<br>
+         2. Record the exact $P\%$ value for setting time tests ($0.85 P$).</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is the minimum initial setting time for OPC per IS 269?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 30 minutes
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="js/sidebar.js"></script>
+<script src="js/cement_testing_3d.js"></script>
+<script src="js/cement_testing_simulator.js"></script>
+</body>
+</html>

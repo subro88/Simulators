@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Computer Graphics Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Computer Graphics Virtual Lab for WBSCTE 4th Sem CST. Rasterize lines with DDA and Bresenham Algorithms, generate Midpoint Circles, perform 2D Geometric Transformations, and test Cohen-Sutherland Clipping.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 4th Semester (CST/4/405)</span>
+  </nav>
+
+  <header>
+    <h1>Computer Graphics Virtual Lab</h1>
+    <p class="subtitle">DDA &amp; Bresenham Line Rasterization, Midpoint Circle, 2D Transformations &amp; Cohen-Sutherland Clipping</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Algorithms &amp; Math</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Graphics Formulas</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Frame Buffer &amp; Raster CRT Display</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Raster Display CRT electron gun, Frame Buffer Pixel Grid matrix, Hardware Rasterizer Core, 2D Transformation Matrix Gizmo, and Clipping Frustum.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="cg-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Algorithm:</label>
+        <select id="algo-select" class="cg-select">
+          <option value="bresenham_line">1. Bresenham's Integer Line Drawing</option>
+          <option value="dda_line">2. Digital Differential Analyzer (DDA) Line</option>
+          <option value="midpoint_circle">3. Midpoint Circle Generation</option>
+          <option value="transform_2d">4. 2D Rotation &amp; Scaling Transformation</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">(X1, Y1):</label>
+        <input type="number" id="pt-x1" value="3" min="0" max="25" class="num-input">
+        <input type="number" id="pt-y1" value="2" min="0" max="25" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">(X2, Y2):</label>
+        <input type="number" id="pt-x2" value="18" min="0" max="25" class="num-input">
+        <input type="number" id="pt-y2" value="12" min="0" max="25" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-raster">Rasterize &#9654;</button>
+        <button class="btn-action warning" id="btn-clear">Clear Grid</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Raster Matrix -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Discrete Frame Buffer Pixel Grid (25 &times; 20)</span>
+          <span class="badge" id="pixel-count-badge">16 Pixels Active</span>
+        </div>
+        <canvas id="cg-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Decision Parameter &amp; Transformation Matrix</span>
+        </div>
+        <div class="matrix-card">
+          <div class="mat-title">2D Homogeneous Matrix:</div>
+          <div class="mat-box" id="disp-matrix">
+            [ cos(45&deg;)  -sin(45&deg;)   0 ]<br>
+            [ sin(45&deg;)   cos(45&deg;)   0 ]<br>
+            [    0           0       1 ]
+          </div>
+        </div>
+
+        <div class="formula-card">
+          <div class="form-title">Decision Parameter Recurrence:</div>
+          <div class="form-text" id="disp-formula">P[k] = 2&Delta;y &minus; &Delta;x &bull; If P[k] &lt; 0: P[k+1] = P[k] + 2&Delta;y else P[k+1] = P[k] + 2&Delta;y &minus; 2&Delta;x</div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Rasterization Pixel Trace:</div>
+          <div class="console-log" id="cg-log">
+            &gt; Initialized Computer Graphics Lab.<br>
+            &gt; Algorithm: Bresenham Line Drawing (Integer Arithmetic).<br>
+            &gt; Line from (3, 2) to (18, 12): &Delta;x=15, &Delta;y=10, Initial P0 = 5.<br>
+            &gt; Generated 16 discrete frame buffer pixel points.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/4/405 Computer Graphics</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Bresenham's Integer Line Algorithm</h3>
+          <p>Eliminates floating-point arithmetic and rounding errors in DDA by using integer decision parameter $P_k = 2\Delta y - \Delta x$. Fast and hardware-efficient for GPU scanline conversion.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Midpoint Circle Algorithm</h3>
+          <p>Exploits 8-way circle symmetry. Decision parameter at midpoint $M$: $P_k = 1 - r$. If $P_k < 0$, select pixel $E$ ($P_{k+1} = P_k + 2x_{k+1} + 1$), else select $SE$ ($P_{k+1} = P_k + 2x_{k+1} + 1 - 2y_{k+1}$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. 2D Geometric Transformations</h3>
+          <p>Represented via $3 \times 3$ homogeneous matrices: Translation ($T$), Scaling ($S$), and Rotation ($R$). Allows composite transformations via matrix multiplication ($M = M_3 \cdot M_2 \cdot M_1$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Cohen-Sutherland Line Clipping</h3>
+          <p>Assigns 4-bit region outcodes (Top, Bottom, Right, Left: <strong>TBRL</strong>) to endpoints. Trivial Accept if $\text{Code}_1 \lor \text{Code}_2 = 0000_2$, Trivial Reject if $\text{Code}_1 \land \text{Code}_2 \neq 0000_2$.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('cg-canvas');
+const ctx = canvas.getContext('2d');
+const cols = 28, rows = 18;
+const cellW = 24, cellH = 22;
+let pixels = [];
+
+function drawGrid() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#080c16';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw Grid Lines
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  for (let c = 0; c <= cols; c++) {
+    ctx.beginPath(); ctx.moveTo(c * cellW, 0); ctx.lineTo(c * cellW, rows * cellH); ctx.stroke();
+  }
+  for (let r = 0; r <= rows; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * cellH); ctx.lineTo(cols * cellW, r * cellH); ctx.stroke();
+  }
+
+  // Draw Active Pixels
+  pixels.forEach(p => {
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(p.x * cellW + 1, (rows - 1 - p.y) * cellH + 1, cellW - 2, cellH - 2);
+  });
+}
+
+const x1In = document.getElementById('pt-x1');
+const y1In = document.getElementById('pt-y1');
+const x2In = document.getElementById('pt-x2');
+const y2In = document.getElementById('pt-y2');
+const algoSel = document.getElementById('algo-select');
+const logEl = document.getElementById('cg-log');
+
+function rasterize() {
+  pixels = [];
+  const x0 = parseInt(x1In.value) || 3;
+  const y0 = parseInt(y1In.value) || 2;
+  const x1 = parseInt(x2In.value) || 18;
+  const y1 = parseInt(y2In.value) || 12;
+
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let pk = 2 * dy - dx;
+  let cy = y0;
+
+  for (let cx = x0; cx <= x1; cx++) {
+    pixels.push({x: cx, y: cy});
+    if (pk < 0) {
+      pk += 2 * dy;
+    } else {
+      cy += 1;
+      pk += 2 * dy - 2 * dx;
+    }
+  }
+
+  document.getElementById('pixel-count-badge').textContent = `${pixels.length} Pixels Active`;
+  logEl.innerHTML += `<br>&gt; Rasterized ${pixels.length} pixels between (${x0},${y0}) and (${x1},${y1}).`;
+  drawGrid();
+}
+
+document.getElementById('btn-raster').addEventListener('click', rasterize);
+document.getElementById('btn-clear').addEventListener('click', () => {
+  pixels = [];
+  document.getElementById('pixel-count-badge').textContent = '0 Pixels Active';
+  drawGrid();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/computer_graphics.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+rasterize();
+</script>
+</body>
+</html>

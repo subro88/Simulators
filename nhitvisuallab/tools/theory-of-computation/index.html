@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theory of Computation Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Theory of Computation & Automata Virtual Lab for WBSCTE 5th Sem CST. Test Deterministic Finite Automata (DFA), Nondeterministic Finite Automata (NFA), Regular Expressions, and inspect 3D Turing Machine model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 5th Semester (CST/5/504)</span>
+  </nav>
+
+  <header>
+    <h1>Theory of Computation Virtual Lab</h1>
+    <p class="subtitle">Deterministic Finite Automata (DFA), Regular Expressions, Chomsky Hierarchy &amp; Turing Machine</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Chomsky Hierarchy</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Automata Cheat Sheet</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Architecture — <span id="sim3d-title">Turing Machine Tape &amp; Automata States</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Infinite Turing Machine Tape ribbon, Read/Write Head needle actuator, DFA State Ring nodes (q0, q1), and Automata Transition bar.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="toc-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Language Language L:</label>
+        <select id="lang-select" class="toc-select">
+          <option value="ends_01">L1: Set of all binary strings ending with '01'</option>
+          <option value="contains_101">L2: Set of binary strings containing substring '101'</option>
+          <option value="even_zeros">L3: Strings with even number of 0s</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Binary String (&Sigma;={0,1}):</label>
+        <input type="text" id="str-in" value="101101" class="str-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-eval">Test String &#9654;</button>
+        <button class="btn-action warning" id="btn-step-toc">Step Automaton</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & State Transitions -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">DFA State Transition Diagram: &delta;(q, &sigma;)</span>
+          <span class="badge" id="accept-badge" style="background:#10b981;">ACCEPTED (q2 &isin; F)</span>
+        </div>
+        <canvas id="toc-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Automata Formal Definition &amp; Chomsky Classification</span>
+        </div>
+        <div class="toc-grid">
+          <div class="toc-box"><span class="toc-lbl">Chomsky Hierarchy</span><span class="toc-val">Type-3: Regular Language</span></div>
+          <div class="toc-box"><span class="toc-lbl">Automaton Class</span><span class="toc-val">Deterministic Finite Automaton (DFA)</span></div>
+          <div class="toc-box"><span class="toc-lbl">Start State (q0)</span><span class="toc-val">q0 (Initial Node)</span></div>
+          <div class="toc-box"><span class="toc-lbl">Accept States (F)</span><span class="toc-val">{ q2 } (Double Ring)</span></div>
+          <div class="toc-box"><span class="toc-lbl">Current State</span><span class="toc-val" id="disp-curr-state">q2 (Final State)</span></div>
+          <div class="toc-box"><span class="toc-lbl">Decision</span><span class="toc-val" id="disp-decision" style="color:#10b981;font-weight:700;">STRING ACCEPTED</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">State Machine Step-by-Step Execution:</div>
+          <div class="console-log" id="toc-log">
+            &gt; Initialized Theory of Computation Automata Lab.<br>
+            &gt; Target Language: Strings ending in '01'. &Sigma; = {0, 1}.<br>
+            &gt; Trace: &delta;(q0, 1) &rarr; q0 &rarr; &delta;(q0, 0) &rarr; q1 &rarr; &delta;(q1, 1) &rarr; q2 &rarr; &delta;(q2, 1) &rarr; q0 &rarr; &delta;(q0, 0) &rarr; q1 &rarr; &delta;(q1, 1) &rarr; q2.<br>
+            &gt; Final State q2 &isin; F: String '101101' is ACCEPTED by DFA.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/5/504 Theory of Computation</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Finite Automata (DFA vs NFA)</h3>
+          <p>5-tuple $(Q, \Sigma, \delta, q_0, F)$. DFA transition $\delta: Q \times \Sigma \to Q$. NFA transition $\delta: Q \times \Sigma \to 2^Q$. Subset construction algorithm converts any NFA to an equivalent DFA.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Regular Expressions &amp; Pumping Lemma</h3>
+          <p>Equivalence with Regular Languages via Arden's Theorem. Pumping Lemma ($w = xyz, |xy| \le p, |y| \ge 1, xy^i z \in L$) proves non-regularity of languages such as $a^n b^n$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Context-Free Grammars (CFG) &amp; PDA</h3>
+          <p>Chomsky Hierarchy Type-2. Pushdown Automata (PDA) add an auxiliary LIFO stack memory. Chomsky Normal Form ($A \to BC$ or $A \to a$) enables $O(n^3)$ CYK parsing.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Turing Machines &amp; Computability</h3>
+          <p>Type-0 recursively enumerable languages. Church-Turing Thesis and Halting Problem undecidability proof via diagonal argument.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('toc-canvas');
+const ctx = canvas.getContext('2d');
+let activeState = 'q2';
+
+function drawDFA() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const states = [
+    {id: 'q0', x: 140, y: 200, isFinal: false},
+    {id: 'q1', x: 350, y: 200, isFinal: false},
+    {id: 'q2', x: 560, y: 200, isFinal: true}
+  ];
+
+  // Start Arrow
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(60, 200); ctx.lineTo(110, 200); ctx.stroke();
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('Start ▶', 50, 190);
+
+  // Transitions
+  ctx.strokeStyle = '#64748b';
+  // q0 -> q1 (0)
+  ctx.beginPath(); ctx.moveTo(170, 190); ctx.lineTo(320, 190); ctx.stroke();
+  ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 12px Segoe UI'; ctx.fillText('0', 245, 180);
+
+  // q1 -> q2 (1)
+  ctx.beginPath(); ctx.moveTo(380, 190); ctx.lineTo(530, 190); ctx.stroke();
+  ctx.fillText('1', 455, 180);
+
+  // q2 -> q1 (0)
+  ctx.beginPath(); ctx.arc(455, 230, 110, 0.4, Math.PI - 0.4); ctx.stroke();
+  ctx.fillText('0', 455, 330);
+
+  // q0 self-loop (1)
+  ctx.beginPath(); ctx.arc(140, 145, 25, 0.3, Math.PI - 0.3, true); ctx.stroke();
+  ctx.fillText('1', 140, 110);
+
+  // Draw States
+  states.forEach(s => {
+    const isAct = (s.id === activeState);
+    ctx.fillStyle = isAct ? '#0369a1' : '#1e293b';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = isAct ? '#38bdf8' : '#94a3b8';
+    ctx.lineWidth = isAct ? 3 : 2;
+    ctx.stroke();
+
+    if (s.isFinal) {
+      ctx.beginPath(); ctx.arc(s.x, s.y, 24, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.id, s.x, s.y + 5);
+  });
+}
+
+const strIn = document.getElementById('str-in');
+const logEl = document.getElementById('toc-log');
+
+function evaluateString() {
+  const s = strIn.value.trim();
+  let curr = 'q0';
+  let path = ['q0'];
+
+  for (let c of s) {
+    if (curr === 'q0') {
+      curr = (c === '0') ? 'q1' : 'q0';
+    } else if (curr === 'q1') {
+      curr = (c === '1') ? 'q2' : 'q1';
+    } else if (curr === 'q2') {
+      curr = (c === '0') ? 'q1' : 'q0';
+    }
+    path.push(curr);
+  }
+
+  activeState = curr;
+  const isAccepted = (curr === 'q2');
+
+  document.getElementById('disp-curr-state').textContent = `${curr} (${isAccepted ? 'Final State' : 'Non-Final State'})`;
+  document.getElementById('disp-decision').textContent = isAccepted ? 'STRING ACCEPTED' : 'STRING REJECTED';
+  document.getElementById('disp-decision').style.color = isAccepted ? '#10b981' : '#ef4444';
+  document.getElementById('accept-badge').textContent = isAccepted ? 'ACCEPTED (q2 ∈ F)' : 'REJECTED (∉ F)';
+  document.getElementById('accept-badge').style.background = isAccepted ? '#10b981' : '#ef4444';
+
+  logEl.innerHTML += `<br>&gt; Evaluated '${s}': Path = ${path.join(' -> ')}. Result = ${isAccepted ? 'ACCEPTED' : 'REJECTED'}.`;
+  drawDFA();
+}
+
+document.getElementById('btn-eval').addEventListener('click', evaluateString);
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/theory_of_computation.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawDFA();
+</script>
+</body>
+</html>

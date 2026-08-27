@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Process Control &amp; Instrumentation | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Process Control & Instrumentation Virtual Lab for WBSCTE 6th Sem EE (EE/S6/PC). Simulate 4-20mA Current Loops, Pneumatic Control Valve Cv Sizing, Process Response Curves, and inspect 3D Diaphragm Valve model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 6th Semester (EE/S6/PC)</span>
+  </nav>
+
+  <header>
+    <h1>Process Control &amp; Instrumentation Virtual Lab</h1>
+    <p class="subtitle">4-20mA Current Loop Transmitter, Pneumatic Control Valve Sizing (Cv) &amp; Closed-Loop Tank Level</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">P&amp;ID Standards</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; ISA 5.1 Standards</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Control Valve &amp; Transmitter Tank</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Pneumatic Diaphragm Valve, 4-20mA Pressure Transmitter, Process Buffer Tank, and RTD Temperature Probe.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="pc-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Control Loop:</label>
+        <select id="pc-loop-select" class="pc-select">
+          <option value="current_loop">1. 4-20mA Pressure Transmitter Calibration (0-10 Bar)</option>
+          <option value="valve_cv">2. Pneumatic Control Valve Flow Coefficient (Cv Sizing)</option>
+          <option value="tank_level">3. Closed-Loop Process Tank Level Control</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Pressure (Bar):</label>
+        <input type="number" id="p-bar-in" value="6.5" min="0" max="10" step="0.5" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Flow Q (GPM):</label>
+        <input type="number" id="q-gpm-in" value="85" min="10" max="300" step="5" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">&Delta;P Valve (psi):</label>
+        <input type="number" id="dp-in" value="15" min="2" max="60" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-pc">Process Update &#9654;</button>
+        <button class="btn-action success" id="btn-calibrate-4ma">4mA Zero Calibration</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Instrument Loop View -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">4-20mA Current Loop Signal &amp; Pneumatic Diaphragm Actuator</span>
+          <span class="badge" id="ma-badge">Transmitter Output: 14.40 mA</span>
+        </div>
+        <canvas id="pc-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Process Variable Telemetry &amp; Valve Sizing</span>
+        </div>
+        <div class="pc-grid">
+          <div class="pc-box"><span class="pc-lbl">Transmitter Current (I)</span><span class="pc-val" id="disp-ma" style="color:#f59e0b;font-weight:700;">14.40 mA (65.0%)</span></div>
+          <div class="pc-box"><span class="pc-lbl">Process Pressure</span><span class="pc-val" id="disp-bar">6.50 Bar (Line)</span></div>
+          <div class="pc-box"><span class="pc-lbl">Required Valve Cv</span><span class="pc-val" id="disp-cv" style="color:#38bdf8;font-weight:700;">21.95 US GPM/psi&frac12;</span></div>
+          <div class="pc-box"><span class="pc-lbl">Valve Travel Lift</span><span class="pc-val" id="disp-lift">65.0 % Open (Linear)</span></div>
+          <div class="pc-box"><span class="pc-lbl">Control Loop Health</span><span class="pc-val" style="color:#10b981;">LOCKED IN CONTROL</span></div>
+          <div class="pc-box"><span class="pc-lbl">Zero / Span Status</span><span class="pc-val" style="color:#10b981;">CALIBRATED (ISA 5.1)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Process Instrumentation Loop Telemetry:</div>
+          <div class="console-log" id="pc-log">
+            &gt; Initialized Process Control &amp; Instrumentation Virtual Lab.<br>
+            &gt; Two-Wire 4-20mA Current Loop: Span = 0 to 10.0 Bar, Measured PV = 6.50 Bar (65.0%).<br>
+            &gt; Transmitter Signal I = 4.0 + (16.0 &times; 0.65) = 14.40 mA DC.<br>
+            &gt; Pneumatic Equal Percentage Control Valve: Q = 85 GPM, &Delta;P = 15.0 psi &rarr; Sized Cv = 21.95.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S6/PC Process Control &amp; Instrumentation</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. 4-20mA Current Loop Standard</h3>
+          <p>Two-wire transmitter standard where $4\text{mA}$ represents live zero ($0\%$) and $20\text{mA}$ represents full scale span ($100\%$). Immune to lead wire voltage drops and cable resistance over long plant distances.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Control Valve Flow Coefficient ($C_v$)</h3>
+          <p>$C_v = Q \sqrt{\frac{SG}{\Delta P}}$, defined as flow of water in US GPM at $60^\circ\text{F}$ that passes through the valve with a $1.0\text{ psi}$ pressure drop.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Pneumatic Diaphragm Actuators</h3>
+          <p>Air-to-Open (Fail-Close, FC) vs Air-to-Close (Fail-Open, FO) safety mechanisms controlled via $3-15\text{ psig}$ pneumatic signal converted by I/P current-to-pressure converters.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Temperature &amp; Flow Transducers</h3>
+          <p>RTD Pt100 ($R_t = R_0(1 + \alpha t)$), Thermocouple Seebeck voltage, and Electromagnetic / Ultrasonic flowmeters.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('pc-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcProcess() {
+  const pBar = parseFloat(document.getElementById('p-bar-in').value) || 6.5;
+  const qGpm = parseFloat(document.getElementById('q-gpm-in').value) || 85;
+  const dpPsi = parseFloat(document.getElementById('dp-in').value) || 15;
+
+  const pct = (pBar / 10.0) * 100.0;
+  const iMa = 4.0 + (16.0 * (pct / 100.0));
+  const cv = qGpm * Math.sqrt(1.0 / dpPsi);
+
+  document.getElementById('disp-ma').textContent = `${iMa.toFixed(2)} mA (${pct.toFixed(1)}%)`;
+  document.getElementById('disp-bar').textContent = `${pBar.toFixed(2)} Bar (Line)`;
+  document.getElementById('disp-cv').textContent = `${cv.toFixed(2)} US GPM/psi½`;
+  document.getElementById('disp-lift').textContent = `${pct.toFixed(1)} % Open`;
+  document.getElementById('ma-badge').textContent = `Transmitter Output: ${iMa.toFixed(2)} mA`;
+
+  return { pBar, qGpm, dpPsi, pct, iMa, cv };
+}
+
+function drawProcess() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcProcess();
+
+  // Left Area: 4-20mA Current Gauge Dial
+  const cx = 170, cy = 200, r = 100;
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('4-20 mA TRANSMITTER GAUGE', cx, cy - 65);
+
+  // Meter Needle (Amber)
+  const angle = Math.PI * 0.75 + (res.pct / 100.0) * (Math.PI * 1.5);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + (r - 20) * Math.cos(angle), cy + (r - 20) * Math.sin(angle));
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText(`${res.iMa.toFixed(2)} mA`, cx, cy + 50);
+
+  // Right Area: Pneumatic Diaphragm Valve Lift Animation
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(360, 60, 300, 300);
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(360, 60, 300, 300);
+
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText('PNEUMATIC CONTROL VALVE (Cv Sizing)', 510, 90);
+
+  // Valve Body Pipe
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(390, 240, 240, 40);
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+  ctx.strokeRect(390, 240, 240, 40);
+
+  // Valve Plug Stem & Lift Position
+  const maxLift = 70;
+  const liftPx = (res.pct / 100.0) * maxLift;
+  const plugY = 240 - liftPx;
+
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(495, plugY, 30, 25);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  ctx.strokeRect(495, plugY, 30, 25);
+
+  // Stem line up to Diaphragm
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(510, plugY); ctx.lineTo(510, 130); ctx.stroke();
+
+  // Top Actuator Diaphragm Chamber (Dome)
+  ctx.fillStyle = '#334155';
+  ctx.beginPath(); ctx.arc(510, 130, 45, Math.PI, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText(`LIFT: ${res.pct.toFixed(0)}% (Cv = ${res.cv.toFixed(1)})`, 510, 320);
+}
+
+const pBarIn = document.getElementById('p-bar-in');
+const qGpmIn = document.getElementById('q-gpm-in');
+const dpIn = document.getElementById('dp-in');
+const logEl = document.getElementById('pc-log');
+
+[pBarIn, qGpmIn, dpIn].forEach(el => el.addEventListener('input', () => {
+  drawProcess();
+}));
+
+document.getElementById('btn-calc-pc').addEventListener('click', () => {
+  const res = calcProcess();
+  logEl.innerHTML += `<br>&gt; [PROCESS UPDATE] Pressure = ${pBarIn.value} Bar &rarr; Current I = ${res.iMa.toFixed(2)} mA, Sized Valve Cv = ${res.cv.toFixed(2)}.`;
+  drawProcess();
+});
+
+document.getElementById('btn-calibrate-4ma').addEventListener('click', () => {
+  pBarIn.value = 0.0;
+  const res = calcProcess();
+  logEl.innerHTML += '<br>&gt; [CALIBRATION] Zero reference verified: 0.0 Bar &rarr; 4.00 mA Live Zero output (Pass).';
+  drawProcess();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/process_control_instrumentation.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawProcess();
+</script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Gear Trains &amp; Speed Ratios Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Simple, Compound &amp; Reverted Gear Trains Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Theory of Machines</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Gear Trains V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Gear Trains &amp; Speed Ratios</h1>
+    <p class="subtitle">Python Kinematics Engine &bull; Real-Time WebGL 3D Visualization &bull; Simple, Compound &amp; Reverted Trains &bull; Torque Multiplication</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="speed_reducer">3:1 Speed Reducer</option>
+        <option value="high_torque_compound">High Torque Compound Train</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="/four_bar.html" title="Open Four-Bar Simulator">Four-Bar V2</a>
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode gear components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Meshing Gears Schematic</div>
+          <canvas id="gear-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Gear Configuration</span>
+          <span id="st-train-type" style="font-size:0.75rem;font-weight:700;color:var(--accent);">Simple Train</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row"><span>Train Layout</span></div>
+          <div style="display:flex;gap:4px;">
+            <button class="btn-choice active" data-train-type="simple" style="flex:1;">Simple</button>
+            <button class="btn-choice" data-train-type="compound" style="flex:1;">Compound</button>
+            <button class="btn-choice" data-train-type="reverted" style="flex:1;">Reverted</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Driver Gear Teeth (Z1)</span>
+            <span class="control-value" id="val-z1">20 T</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-z1" min="12" max="60" step="1" value="20" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Idler Gear Teeth (Z2)</span>
+            <span class="control-value" id="val-z2">40 T</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-z2" min="12" max="80" step="1" value="40" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Driven Gear Teeth (Z3)</span>
+            <span class="control-value" id="val-z3">60 T</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-z3" min="12" max="120" step="1" value="60" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Input Speed</span>
+            <span class="control-value" id="val-rpm">1440 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="200" max="3000" step="50" value="1440" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Overall Gear Ratio (i):</span>
+            <span class="telemetry-val" id="st-ratio" style="color:var(--accent);">3.00:1</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Output Shaft Speed:</span>
+            <span class="telemetry-val" id="st-out-rpm" style="color:var(--green);">480 RPM</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Output Torque:</span>
+            <span class="telemetry-val" id="st-out-torque" style="color:var(--yellow);">288.0 N·m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Rotation Direction:</span>
+            <span class="telemetry-val" id="st-dir">Same as Driver</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Simple Gear Train: Gear Ratio i = 3.00:1 | Output Speed = 480 RPM | Output Torque = 288.0 N·m.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Purpose of Idler Gears</h3>
+        <p>Idler gears do not affect the overall speed ratio ($i = Z_{\text{out}} / Z_{\text{in}}$), but they change the direction of output rotation and bridge physical center distance gaps.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Compound Gear Trains</h3>
+        <p>Mounting multiple gears on the same shaft enables massive speed reduction ratios in compact gearbox volumes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Torque Multiplication Calculation</h3>
+      <p>1. Set Driver $Z_1 = 20$, Driven $Z_3 = 60$ (Ratio 3:1).<br>
+         2. Apply 100 N·m Input Torque.<br>
+         3. Observe Output Torque triples to <strong>288.0 N·m</strong> (at 96% efficiency)!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What effect does adding 1 idler gear have on a simple gear train?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; Reverses the direction of rotation without changing the speed ratio.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/gear_trains_3d.js"></script>
+<script src="/js/gear_trains_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

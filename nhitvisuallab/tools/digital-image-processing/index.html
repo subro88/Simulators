@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Image Processing Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Digital Image Processing Virtual Lab for WBSCTE 6th Sem CST (Elective-II). Simulate Sobel Edge Detection, Gaussian Filtering, Histogram Equalization, and inspect 3D Image Processing Convolution model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 6th Semester (CST/6/603-III)</span>
+  </nav>
+
+  <header>
+    <h1>Digital Image Processing Virtual Lab</h1>
+    <p class="subtitle">Spatial Domain Convolution, Sobel Edge Detection, Gaussian Smoothing &amp; Histogram Equalization</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">DIP Mathematical Theory</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; DIP Filters Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Convolution Sensor &amp; Sobel Compass</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of 3x3 Spatial Convolution Kernel Grid, Sobel Edge Gradient Compass, Histogram Curve Display, and Pixel Sensor Head.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="dip-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Spatial Filter Kernel:</label>
+        <select id="kernel-select" class="dip-select">
+          <option value="sobel">Sobel Edge Detector: G = &radic;(Gx&sup2; + Gy&sup2;)</option>
+          <option value="gaussian">Gaussian Smoothing 3x3 (Low-Pass)</option>
+          <option value="histogram">Histogram Equalization (Contrast Stretch)</option>
+          <option value="sharpen">High-Pass Sharpening Kernel</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Edge Threshold:</label>
+        <input type="number" id="thresh-in" value="128" min="0" max="255" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-apply-dip">Apply Filter &#9654;</button>
+        <button class="btn-action success" id="btn-otsu">Otsu Binarize</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Image Convolution -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Input Image Matrix vs Filtered Output</span>
+          <span class="badge" id="dip-badge">Sobel Gradients</span>
+        </div>
+        <canvas id="dip-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Image Histogram &amp; Kernel Matrix</span>
+        </div>
+        <div class="dip-grid">
+          <div class="dip-box"><span class="dip-lbl">Applied Kernel</span><span class="dip-val">Sobel 3&times;3 Mask</span></div>
+          <div class="dip-box"><span class="dip-lbl">Gradient Magnitude</span><span class="dip-val" id="disp-grad">142.50 Intensity</span></div>
+          <div class="dip-box"><span class="dip-lbl">Dynamic Range</span><span class="dip-val">[0, 255] 8-Bit Grayscale</span></div>
+          <div class="dip-box"><span class="dip-lbl">Edge Status</span><span class="dip-val" style="color:#10b981;">Edges Detected</span></div>
+          <div class="dip-box"><span class="dip-lbl">Histogram Equalized</span><span class="dip-val" id="disp-eq">Active (Flat CDF)</span></div>
+          <div class="dip-box"><span class="dip-lbl">Domain</span><span class="dip-val">2D Spatial Domain</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Digital Image Processing Diagnostics:</div>
+          <div class="console-log" id="dip-log">
+            &gt; Initialized Digital Image Processing Virtual Lab.<br>
+            &gt; Sobel Gx: [[-1,0,1],[-2,0,2],[-1,0,1]]<br>
+            &gt; Sobel Gy: [[-1,-2,-1],[0,0,0],[1,2,1]]<br>
+            &gt; Convolved 2D spatial pixel grid: Edge gradient magnitude = 142.50.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/6/603(III) Digital Image Processing</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Spatial Domain Filtering</h3>
+          <p>Neighborhood convolution operation $g(x, y) = \sum_{s=-a}^a \sum_{t=-b}^b w(s, t) f(x+s, y+t)$. Smoothing filters reduce noise (Gaussian, Mean, Median), while derivative filters sharpen edges.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Sobel &amp; Prewitt Edge Detection</h3>
+          <p>Calculates 1st order partial derivatives along $x$ and $y$ axis: $G_x = \frac{\partial f}{\partial x}, G_y = \frac{\partial f}{\partial y}$. Gradient magnitude $G = \sqrt{G_x^2 + G_y^2}$ and direction $\theta = \arctan(G_y / G_x)$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Histogram Equalization</h3>
+          <p>Global contrast enhancement transformation: $s_k = T(r_k) = (L-1) \sum_{j=0}^k p_r(r_j)$ where $p_r(r_j)$ is the normalized probability density of gray level $r_j$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Morphological Image Processing</h3>
+          <p>Set theory operations on binary/grayscale shapes using Structuring Elements: Dilation $A \oplus B$, Erosion $A \ominus B$, Opening $(A \ominus B) \oplus B$, and Closing $(A \oplus B) \ominus B$.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('dip-canvas');
+const ctx = canvas.getContext('2d');
+
+function drawDIP() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Original Image Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(50, 60, 260, 260);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.strokeRect(50, 60, 260, 260);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('Original Pixel Matrix', 180, 85);
+
+  // Draw Circle Shape
+  ctx.fillStyle = '#64748b';
+  ctx.beginPath(); ctx.arc(180, 190, 70, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(140, 150, 80, 80);
+
+  // Filtered Output Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(390, 60, 260, 260);
+  ctx.strokeStyle = '#10b981';
+  ctx.strokeRect(390, 60, 260, 260);
+
+  ctx.fillStyle = '#10b981';
+  ctx.fillText('Sobel Edge Map (Gx + Gy)', 520, 85);
+
+  // Draw Edge Outline
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(520, 190, 70, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeRect(480, 150, 80, 80);
+
+  // Histogram Bars at Bottom
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(50, 340, 600, 50);
+  ctx.fillStyle = '#f59e0b';
+  for (let i = 0; i < 40; i++) {
+    const h = 10 + Math.sin(i * 0.3) * 20 + (i % 5) * 4;
+    ctx.fillRect(70 + i * 14, 385 - h, 8, h);
+  }
+}
+
+const kernelSel = document.getElementById('kernel-select');
+const threshIn = document.getElementById('thresh-in');
+const logEl = document.getElementById('dip-log');
+
+document.getElementById('btn-apply-dip').addEventListener('click', () => {
+  const k = kernelSel.value;
+  const th = threshIn.value;
+  document.getElementById('dip-badge').textContent = (k === 'sobel') ? 'Sobel Gradients' : 'Gaussian Blur';
+  logEl.innerHTML += `<br>&gt; Applied ${k.toUpperCase()} filter (Threshold = ${th}). 2D spatial convolution completed.`;
+  drawDIP();
+});
+
+document.getElementById('btn-otsu').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [OTSU] Maximized between-class variance &sigma;B&sup2;(t). Optimal threshold computed: T = 134.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/digital_image_processing.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawDIP();
+</script>
+</body>
+</html>

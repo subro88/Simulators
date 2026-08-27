@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Two-Stroke Engine Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Two-Stroke Petrol &amp; Uniflow Diesel Engine Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Automobile Engineering</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Two-Stroke Engine V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Two-Stroke Internal Combustion Engine</h1>
+    <p class="subtitle">Python Scavenging &amp; Port Timing Engine &bull; Real-Time WebGL 3D Visualization &bull; 1 Power Stroke / Revolution</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="high_rev_kart">125cc High-Rev Kart Engine</option>
+        <option value="marine_uniflow_diesel">Large Marine Uniflow Diesel Engine</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="/four_stroke.html" title="Open Four-Stroke Engine Simulator">Four-Stroke V2</a>
+      <a class="btn-secondary" href="/clutch.html" title="Open Friction Clutch Simulator">Friction Clutch V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode engine components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Port Scavenging Schematic</div>
+          <canvas id="engine-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Engine Parameters</span>
+          <span id="st-phase" style="font-size:0.75rem;font-weight:700;color:var(--accent);">1. POWER STROKE</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Cylinder Bore</span>
+            <span class="control-value" id="val-bore">66 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-bore" min="40" max="150" step="1" value="66" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Piston Stroke</span>
+            <span class="control-value" id="val-stroke">58 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-stroke" min="40" max="150" step="1" value="58" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Engine Speed</span>
+            <span class="control-value" id="val-rpm">4500 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="1000" max="10000" step="200" value="4500" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>BMEP Pressure</span>
+            <span class="control-value" id="val-bmep">6.5 bar</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-bmep" min="2.0" max="16.0" step="0.5" value="6.5" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Displacement:</span>
+            <span class="telemetry-val" id="st-disp">198 cc</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Scavenging Efficiency:</span>
+            <span class="telemetry-val" id="st-scavenge" style="color:var(--green);">69.9%</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Brake Power (BP):</span>
+            <span class="telemetry-val" id="st-bp" style="color:var(--accent);">96.5 kW</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Brake Torque:</span>
+            <span class="telemetry-val" id="st-torque">204.8 N·m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Power Stroke Frequency:</span>
+            <span class="telemetry-val" id="st-freq" style="color:var(--yellow);">75 Hz</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Delivering 96.5 kW at 4500 RPM (75 power strokes/sec).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Crankcase Compression</h3>
+        <p>In cross-scavenged 2-stroke engines, the underside of the piston compresses the fresh air-fuel mixture inside the crankcase before transfer.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Transfer &amp; Exhaust Ports</h3>
+        <p>Instead of poppet valves, piston skirt displacement uncovers ports cut directly into the cylinder liner to transfer fresh charge and expel exhaust gases.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Power Density Comparison</h3>
+      <p>1. Compare 2-stroke vs 4-stroke at 4500 RPM.<br>
+         2. Notice that the 2-stroke fires <strong>75 power strokes per second</strong> (every revolution), providing higher power density per unit engine weight!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: Why does a 2-stroke engine produce 1 power stroke per revolution?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; Because intake/scavenging and exhaust processes occur simultaneously near Bottom Dead Center (BDC).
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/two_stroke_3d.js"></script>
+<script src="/js/two_stroke_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

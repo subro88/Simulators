@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Aggregate Physical Testing Simulator — WBSCTE Civil Engg | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Aggregate Testing Simulator (Impact Value AIV, Crushing Value ACV, Sand Bulking &amp; Flakiness Index) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="../../shared/site.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<a href="index.html#app" class="skip-link">Skip to content</a>
+
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+
+  <!-- Breadcrumb -->
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span style="margin-left:auto;" id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </span>
+  </nav>
+
+  <!-- Header -->
+  <header>
+    <h1>Coarse &amp; Fine Aggregate Testing (IS 2386)</h1>
+    <p class="subtitle">Python Engine &bull; Real-Time WebGL 3D Impact Machine &bull; Impact Value AIV &bull; Crushing Value ACV &bull; Sand Bulking &bull; Flakiness Index</p>
+  </header>
+
+  <!-- Controls Bar -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="explore">Explore Parts</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--surface2);padding:5px 10px;outline:none;cursor:pointer;color:var(--text);border:1px solid var(--border);border-radius:6px;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="wearing_course_granite">Granite Aggregate (Wearing Course)</option>
+        <option value="sand_max_bulking">Peak Sand Bulking at 5% Moisture</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-guide" href="index.html#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; User Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2>3D Model &mdash; <span>Aggregate Impact Test Machine</span></h2>
+        <div style="display:flex;gap:8px;">
+          <button id="btn-toggle-explode" class="btn btn-primary">💥 Exploded View</button>
+          <button id="btn-reset-cam" class="btn btn-ghost">🎥 Reset View</button>
+        </div>
+      </div>
+      <div class="viewport-container" style="width:100%;height:520px;background:radial-gradient(circle at center, #09121d 0%, #03070d 100%);border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--border);">
+        <canvas id="webgl-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        <div class="canvas-overlay-hint" style="position:absolute;bottom:12px;left:12px;background:rgba(0,0,0,0.65);padding:6px 12px;border-radius:20px;font-size:0.75rem;color:var(--text-dim);">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="simulate-wrapper">
+    <div class="sim-grid" style="display:grid;grid-template-columns:1fr 380px;gap:16px;">
+      
+      <div class="canvas-card">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Working 2D Impact Machine &amp; Sand Bulking Curve</div>
+        <canvas id="aggregate-2d-canvas" style="width:100%;height:380px;display:block;background:#080c14;border-radius:8px;border:1px solid var(--border);"></canvas>
+      </div>
+
+      <div class="controls-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px;">
+        <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);">
+          <span class="panel-title" style="font-size:0.9rem;font-weight:700;color:var(--accent);text-transform:uppercase;">&#9881; Test Parameters</span>
+          <span id="st-test-name" style="font-size:0.75rem;font-weight:700;color:var(--gold);">Impact Value Test</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;font-weight:600;margin-bottom:4px;"><span>Select Aggregate Test</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            <button class="pill active" data-test-type="impact_value" style="flex:1;">Impact (AIV)</button>
+            <button class="pill" data-test-type="crushing_value" style="flex:1;">Crushing (ACV)</button>
+            <button class="pill" data-test-type="sand_bulking" style="flex:1;">Sand Bulking</button>
+            <button class="pill" data-test-type="flakiness_elongation" style="flex:1;">Flakiness (FI)</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Passing 2.36mm Sieve (W2)</span>
+            <span class="control-value" id="val-fines" style="color:var(--accent);font-family:var(--mono);">42.0 g</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-fines" min="10.0" max="120.0" step="1.0" value="42.0" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Sand Moisture Content</span>
+            <span class="control-value" id="val-moisture" style="color:var(--accent);font-family:var(--mono);">4.5%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-moisture" min="0.0" max="12.0" step="0.5" value="4.5" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Flaky Particles Mass</span>
+            <span class="control-value" id="val-flaky" style="color:var(--accent);font-family:var(--mono);">48.0 g</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-flaky" min="10.0" max="150.0" step="2.0" value="48.0" style="width:100%;" />
+        </div>
+
+        <div class="telemetry-box" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Aggregate Impact Value (AIV):</span><span class="telemetry-val" id="st-aiv" style="color:var(--accent);font-family:var(--mono);font-weight:700;">12.0%</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Aggregate Crushing Value:</span><span class="telemetry-val" id="st-acv" style="color:var(--gold);font-family:var(--mono);font-weight:700;">2.3%</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Sand Bulking:</span><span class="telemetry-val" id="st-bulking" style="color:var(--green);font-family:var(--mono);font-weight:700;">31.5%</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Flakiness Index (FI):</span><span class="telemetry-val" id="st-fi" style="font-family:var(--mono);font-weight:700;">9.6%</span></div>
+
+          <div id="st-suitability" style="color:var(--green);font-weight:700;font-size:0.8rem;margin-top:6px;border-top:1px dashed var(--border);padding-top:6px;">
+            SUITABLE for Wearing Course (Bituminous Concrete & Rigid Pavement).
+          </div>
+          <div id="st-note" style="color:var(--text-dim);font-size:0.75rem;">
+            Aggregate Impact Value (AIV) = 12.0% (SUITABLE for Wearing Course).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE MODE ═══════════════════════════════════════════ -->
+  <div id="explore-wrapper" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
+      <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+        <h3 style="color:var(--accent);margin-bottom:8px;">1. Aggregate Impact Value (AIV)</h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">Measures aggregate resistance to sudden shock loading. AIV &lt; 30% is mandatory for wearing surface courses in highways and airport runways.</p>
+      </div>
+      <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+        <h3 style="color:var(--accent);margin-bottom:8px;">2. Sand Bulking Mechanism</h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">Surface tension forms a film around damp sand particles, pushing them apart and increasing volume by up to 35% at 4-6% moisture content.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRACTICE MODE ═══════════════════════════════════════════ -->
+  <div id="practice-wrapper" style="display:none">
+    <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+      <h3 style="color:var(--accent);margin-bottom:8px;">Guided Experiment: Impact Value Determination</h3>
+      <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">1. Subject 350g aggregate sample to 15 hammer blows (13.5 to 14 kg falling 380 mm).<br>
+         2. Sieve through 2.36 mm IS Sieve and measure mass $W_2$.<br>
+         3. Calculate $AIV = (W_2 / 350) \times 100\%$.</p>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════ -->
+  <div id="quiz-wrapper" style="display:none">
+    <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+      <h3 style="color:var(--accent);margin-bottom:8px;">Question: What is the maximum allowed AIV for bituminous concrete wearing course?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 30%
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- User Guide Section -->
+  <section id="user-guide" style="margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;">
+    <h2 style="color:var(--gold);margin-bottom:8px;">&#128214; User Guide &amp; Test Procedures</h2>
+    <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.6;">Learn how to perform standard laboratory tests for Aggregates according to Indian Standard IS 2386 using this simulator.</p>
+  </section>
+
+  <!-- Footer -->
+  <footer style="margin-top:30px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-size:0.8rem;">
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</main>
+
+<script src="/js/aggregate_testing_3d.js"></script>
+<script src="/js/aggregate_testing_simulator.js"></script>
+<script>
+  // Tab Switching logic matching lathe-machine
+  document.querySelectorAll('#mode-tabs .pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#mode-tabs .pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const mode = pill.dataset.mode;
+      
+      document.getElementById('model3d-wrapper').style.display = mode === '3d-model' ? 'block' : 'none';
+      document.getElementById('simulate-wrapper').style.display = mode === 'simulate' ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = mode === 'explore' ? 'block' : 'none';
+      document.getElementById('practice-wrapper').style.display = mode === 'practice' ? 'block' : 'none';
+      document.getElementById('quiz-wrapper').style.display = mode === 'quiz' ? 'block' : 'none';
+    });
+  });
+</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+</body>
+</html>

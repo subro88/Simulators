@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Aggregate Physical Testing Simulator — WBSCTE Civil Engg | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Aggregate Testing Simulator (Impact Value AIV, Crushing Value ACV, Sand Bulking &amp; Flakiness Index) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <button class="sidebar-toggle-btn btn-secondary" style="background:var(--accent);color:#000;font-weight:700;border:none;padding:4px 10px;margin-right:8px;">☰ Menu</button>
+      <a href="index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Civil Engineering (WBSCTE 3rd Sem)</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Aggregate Testing Lab V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Coarse &amp; Fine Aggregate Testing (IS 2386)</h1>
+    <p class="subtitle">Python Engine &bull; Real-Time WebGL 3D Impact Machine &bull; Impact Value AIV &bull; Crushing Value ACV &bull; Sand Bulking &bull; Flakiness Index</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="wearing_course_granite">Granite Aggregate (Wearing Course)</option>
+        <option value="sand_max_bulking">Peak Sand Bulking at 5% Moisture</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="cement_testing.html" title="Open Cement Testing Simulator">Cement Testing V2</a>
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode Aggregate apparatus outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Impact Machine &amp; Sand Bulking Curve</div>
+          <canvas id="aggregate-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Test Parameters</span>
+          <span id="st-test-name" style="font-size:0.75rem;font-weight:700;color:var(--accent);">Impact Value Test</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row"><span>Select Aggregate Test</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            <button class="btn-choice active" data-test-type="impact_value" style="flex:1;">Impact (AIV)</button>
+            <button class="btn-choice" data-test-type="crushing_value" style="flex:1;">Crushing (ACV)</button>
+            <button class="btn-choice" data-test-type="sand_bulking" style="flex:1;">Sand Bulking</button>
+            <button class="btn-choice" data-test-type="flakiness_elongation" style="flex:1;">Flakiness (FI)</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Passing 2.36mm Sieve (W2)</span>
+            <span class="control-value" id="val-fines">42.0 g</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-fines" min="10.0" max="120.0" step="1.0" value="42.0" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Sand Moisture Content</span>
+            <span class="control-value" id="val-moisture">4.5%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-moisture" min="0.0" max="12.0" step="0.5" value="4.5" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Flaky Particles Mass</span>
+            <span class="control-value" id="val-flaky">48.0 g</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-flaky" min="10.0" max="150.0" step="2.0" value="48.0" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Aggregate Impact Value (AIV):</span>
+            <span class="telemetry-val" id="st-aiv" style="color:var(--accent);">12.0%</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Aggregate Crushing Value:</span>
+            <span class="telemetry-val" id="st-acv" style="color:var(--yellow);">2.3%</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Sand Bulking:</span>
+            <span class="telemetry-val" id="st-bulking" style="color:var(--green);">31.5%</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Flakiness Index (FI):</span>
+            <span class="telemetry-val" id="st-fi">9.6%</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-suitability" style="color:var(--green);font-weight:700;">
+            SUITABLE for Wearing Course (Bituminous Concrete & Rigid Pavement).
+          </div>
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Aggregate Impact Value (AIV) = 12.0% (SUITABLE for Wearing Course).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Aggregate Impact Value (AIV)</h3>
+        <p>Measures aggregate resistance to sudden shock loading. AIV < 30% is mandatory for wearing surface courses in highways and airport runways.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Sand Bulking Mechanism</h3>
+        <p>Surface tension forms a film around damp sand particles, pushing them apart and increasing volume by up to 35% at 4-6% moisture content.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Impact Value Determination</h3>
+      <p>1. Subject 350g aggregate sample to 15 hammer blows (13.5 to 14 kg falling 380 mm).<br>
+         2. Sieve through 2.36 mm IS Sieve and measure mass $W_2$.<br>
+         3. Calculate $AIV = (W_2 / 350) \times 100\%$.</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is the maximum allowed AIV for bituminous concrete wearing course?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 30%
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="js/sidebar.js"></script>
+<script src="js/aggregate_testing_3d.js"></script>
+<script src="js/aggregate_testing_simulator.js"></script>
+</body>
+</html>

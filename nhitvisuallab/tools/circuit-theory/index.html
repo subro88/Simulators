@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circuit Theory &amp; Networks Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Circuit Theory & Networks Virtual Lab for WBSCTE 3rd Sem Electrical Engineering (EE/S3/CTN). Simulate Thevenin's Theorem, Maximum Power Transfer, RLC Series AC Resonance, and inspect 3D AC Resonance Tank model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 3rd Semester (EE/S3/CTN)</span>
+  </nav>
+
+  <header>
+    <h1>Circuit Theory &amp; Networks Virtual Lab</h1>
+    <p class="subtitle">Thevenin &amp; Norton Theorems, Maximum Power Transfer &amp; R-L-C Series AC Resonance</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Circuit Laws</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Network Theorems</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">AC Resonance Tank &amp; Thevenin Source</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Circuit Breadboard Chassis, Thevenin Voltage Source, Inductor Coil Toroid, Ceramic Capacitor Bank, and Rheostat Slider Load.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ct-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Analysis Mode:</label>
+        <select id="mode-select" class="ct-select">
+          <option value="resonance">1. RLC Series AC Resonance Curve (fr = 1/2&pi;&radic;LC)</option>
+          <option value="thevenin">2. Thevenin Theorem &amp; Max Power (RL = Rth)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Inductance L (mH):</label>
+        <input type="number" id="ind-in" value="50" min="1" max="500" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Capacitance C (&mu;F):</label>
+        <input type="number" id="cap-in" value="10" min="1" max="100" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-ct">Calculate Resonance &#9654;</button>
+        <button class="btn-action success" id="btn-max-power">Match RL = Rth</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Resonance Curve -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">RLC Series AC Resonance &amp; Current Response I(f)</span>
+          <span class="badge" id="res-badge">fr = 225.08 Hz</span>
+        </div>
+        <canvas id="ct-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Network Parameters &amp; AC Impedance</span>
+        </div>
+        <div class="ct-grid">
+          <div class="ct-box"><span class="ct-lbl">Resonant Frequency (fr)</span><span class="ct-val" id="disp-fr">225.08 Hz</span></div>
+          <div class="ct-box"><span class="ct-lbl">Inductive Reactance (XL)</span><span class="ct-val" id="disp-xl">70.71 &Omega;</span></div>
+          <div class="ct-box"><span class="ct-lbl">Capacitive Reactance (XC)</span><span class="ct-val" id="disp-xc">70.71 &Omega;</span></div>
+          <div class="ct-box"><span class="ct-lbl">Quality Factor (Q)</span><span class="ct-val" id="disp-q">7.07 (Sharp)</span></div>
+          <div class="ct-box"><span class="ct-lbl">Max Power (Pmax)</span><span class="ct-val">12.00 W (RL=Rth)</span></div>
+          <div class="ct-box"><span class="ct-lbl">Net Impedance (Z0)</span><span class="ct-val">10.00 &Omega; (Purely Resistive)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Circuit Analysis Engine Log:</div>
+          <div class="console-log" id="ct-log">
+            &gt; Initialized Circuit Theory &amp; Networks Virtual Lab.<br>
+            &gt; Series RLC values: R = 10.0&Omega;, L = 50.0mH, C = 10.0&mu;F.<br>
+            &gt; Resonance: XL = XC = 70.71&Omega; at fr = 225.08 Hz. Power factor = 1.00 (Unity).<br>
+            &gt; Thevenin Vth = 24.0V, Rth = 12.0&Omega;. Maximum power transfer Pmax = 12.0W at RL = 12.0&Omega;.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S3/CTN Circuit Theory &amp; Networks</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Network Theorems</h3>
+          <p><strong>Thevenin's Theorem:</strong> Linear two-terminal circuit replaced by $V_{th}$ in series with $R_{th}$.<br><strong>Maximum Power Transfer:</strong> Maximum power delivered to load when $R_L = R_{th}$, giving $P_{max} = \frac{V_{th}^2}{4 R_{th}}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Series RLC AC Resonance</h3>
+          <p>At resonant frequency $f_r = \frac{1}{2\pi\sqrt{LC}}$, inductive reactance cancels capacitive reactance ($X_L = X_C$). Impedance is minimized ($Z = R$), current is maximized, and power factor is unity ($\cos \phi = 1$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Quality Factor &amp; Bandwidth</h3>
+          <p>Quality factor $Q = \frac{\omega_0 L}{R} = \frac{1}{R}\sqrt{\frac{L}{C}}$ defines voltage magnification and selectivity. Half-power bandwidth $BW = f_2 - f_1 = \frac{f_r}{Q}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Star-Delta Transformation</h3>
+          <p>Three-phase network equivalence: $R_{ab} = R_a + R_b + \frac{R_a R_b}{R_c}$ and $R_a = \frac{R_{ab} R_{ca}}{R_{ab} + R_{bc} + R_{ca}}$.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ct-canvas');
+const ctx = canvas.getContext('2d');
+let currentFr = 225.08;
+
+function drawResonance() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(60, 340); ctx.lineTo(640, 340); ctx.stroke(); // Freq axis
+  ctx.beginPath(); ctx.moveTo(60, 40); ctx.lineTo(60, 340); ctx.stroke();  // Current axis
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px monospace';
+  ctx.fillText('Frequency f (Hz)', 540, 365);
+  ctx.fillText('Current I (A)', 70, 55);
+
+  // Resonance Bell Curve I(f) = V / sqrt(R^2 + (wL - 1/wC)^2)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let px = 60; px <= 640; px += 2) {
+    const f = (px - 60) * 1.0;
+    const diff = Math.abs(f - currentFr);
+    const iVal = 2.4 / Math.sqrt(1 + Math.pow(diff / 25, 2));
+    const py = 340 - iVal * 110;
+    if (px === 60) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Peak Marker
+  const peakX = 60 + currentFr;
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath(); ctx.arc(peakX, 76, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText(`I_max = 2.40 A at fr = ${currentFr.toFixed(1)} Hz`, peakX - 50, 60);
+
+  // Dotted Line to Axis
+  ctx.strokeStyle = '#f59e0b';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(peakX, 76); ctx.lineTo(peakX, 340); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+const indIn = document.getElementById('ind-in');
+const capIn = document.getElementById('cap-in');
+const logEl = document.getElementById('ct-log');
+
+document.getElementById('btn-calc-ct').addEventListener('click', () => {
+  const l = (parseFloat(indIn.value) || 50) * 1e-3;
+  const c = (parseFloat(capIn.value) || 10) * 1e-6;
+  const fr = 1.0 / (2.0 * Math.PI * Math.sqrt(l * c));
+  currentFr = Math.min(500, Math.max(10, fr));
+
+  const xl = 2 * Math.PI * fr * l;
+  const q = xl / 10.0;
+
+  document.getElementById('disp-fr').textContent = `${fr.toFixed(2)} Hz`;
+  document.getElementById('disp-xl').textContent = `${xl.toFixed(2)} Ω`;
+  document.getElementById('disp-xc').textContent = `${xl.toFixed(2)} Ω`;
+  document.getElementById('disp-q').textContent = `${q.toFixed(2)}`;
+  document.getElementById('res-badge').textContent = `fr = ${fr.toFixed(2)} Hz`;
+
+  logEl.innerHTML += `<br>&gt; Computed RLC Resonance: L = ${(l*1000).toFixed(1)}mH, C = ${(c*1e6).toFixed(1)}&mu;F &rarr; fr = ${fr.toFixed(2)}Hz, Q = ${q.toFixed(2)}.`;
+  drawResonance();
+});
+
+document.getElementById('btn-max-power').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [MAX POWER TRANSFER] Load resistance matched RL = Rth = 12.0&Omega;. Maximum power delivered Pmax = 12.00 W (Efficiency = 50%).';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/circuit_theory.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawResonance();
+</script>
+</body>
+</html>

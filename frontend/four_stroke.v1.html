@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Four-Stroke Engine Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Four-Stroke Petrol (Otto) &amp; Diesel Internal Combustion Engine Simulator powered by Python FastAPI thermodynamics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <!-- Three.js r128, OrbitControls, & GLTFLoader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Top Navigation & Live Telemetry Status -->
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Automobile Engineering</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Four-Stroke Engine V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <h1>Four-Stroke Internal Combustion Engine</h1>
+    <p class="subtitle">Python Thermodynamics Engine (Otto &amp; Diesel Cycles) &bull; Real-Time WebGL 3D Visualization &bull; Slider-Crank Kinematics &bull; Valve Timing</p>
+  </header>
+
+  <!-- Controls Bar with Mode Tabs & Presets -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="naturally_aspirated_petrol">2.0L 4-Cyl Petrol (Naturally Aspirated)</option>
+        <option value="heavy_duty_diesel">3.0L Turbo Diesel (C.I. Engine)</option>
+        <option value="high_rpm_sport">High-RPM Performance Engine</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="/clutch.html" title="Open Friction Clutch Simulator">Friction Clutch V2</a>
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 1. SIMULATE & 3D MODEL VIEWPORT                                  -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <!-- Left: Viewport (2D Schematic / 3D WebGL Canvas) -->
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode engine components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <!-- 2D Working Schematic Canvas -->
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Cylinder Cross-Section &amp; P-V Diagram</div>
+          <canvas id="engine-2d-canvas" style="width:100%;height:220px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <!-- Right: Real-time Controls & Telemetry -->
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Engine Parameters</span>
+          <span id="st-phase" style="font-size:0.75rem;font-weight:700;color:var(--accent);">1. INTAKE STROKE</span>
+        </div>
+
+        <!-- Engine Cycle Type -->
+        <div class="control-block">
+          <div class="control-label-row"><span>Cycle Type</span></div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-choice active" data-engine-type="petrol_otto" style="flex:1;">Petrol (Otto Cycle)</button>
+            <button class="btn-choice" data-engine-type="diesel_cycle" style="flex:1;">Diesel (C.I. Cycle)</button>
+          </div>
+        </div>
+
+        <!-- Cylinder Bore Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Cylinder Bore</span>
+            <span class="control-value" id="val-bore">85 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-bore" min="50" max="150" step="1" value="85" />
+        </div>
+
+        <!-- Piston Stroke Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Piston Stroke</span>
+            <span class="control-value" id="val-stroke">88 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-stroke" min="50" max="180" step="1" value="88" />
+        </div>
+
+        <!-- Compression Ratio Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Compression Ratio (r)</span>
+            <span class="control-value" id="val-cr">10.5:1</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-cr" min="7.0" max="22.0" step="0.5" value="10.5" />
+        </div>
+
+        <!-- Engine RPM Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Engine Speed</span>
+            <span class="control-value" id="val-rpm">3000 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="600" max="7000" step="100" value="3000" />
+        </div>
+
+        <!-- BMEP Pressure Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Brake Mean Eff. Pressure (BMEP)</span>
+            <span class="control-value" id="val-bmep">10.0 bar</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-bmep" min="2.0" max="24.0" step="0.5" value="10.0" />
+        </div>
+
+        <!-- Live Server Telemetry Readout -->
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Total Displacement:</span>
+            <span class="telemetry-val" id="st-disp">1997 cc (499 cc/cyl)</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Air Standard Efficiency:</span>
+            <span class="telemetry-val" id="st-eff" style="color:var(--green);">61.0%</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Brake Power (BP):</span>
+            <span class="telemetry-val" id="st-bp" style="color:var(--accent);">99.9 kW</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Brake Torque:</span>
+            <span class="telemetry-val" id="st-torque">317.9 N·m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Indicated Power (IP):</span>
+            <span class="telemetry-val" id="st-ip" style="color:var(--yellow);">117.5 kW</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-formula">
+            η_air = 61.0% | BP = 99.9 kW | T = 317.9 N·m
+          </div>
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Operating at 3000 RPM with 99.9 kW Brake Power.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 2. EXPLORE MODE                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Cylinder Block &amp; Piston</h3>
+        <p>The piston reciprocates inside the cylinder bore, converting high-pressure gas expansion from combustion into linear kinetic energy.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Connecting Rod &amp; Crankshaft</h3>
+        <p>Converts linear piston reciprocation into continuous rotary motion at the output flywheel via slider-crank kinematics.</p>
+      </div>
+      <div class="info-card">
+        <h3>3. Intake &amp; Exhaust Valves</h3>
+        <p>Camshaft-driven poppet valves that open and close at precise crank angles to control air/fuel induction and burnt gas scavenging.</p>
+      </div>
+      <div class="info-card">
+        <h3>4. Spark Plug / Fuel Injector</h3>
+        <p>Provides electric spark ignition for Petrol (Otto) engines or high-pressure diesel atomization for Compression Ignition (C.I.) engines.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Air Standard Efficiency vs Compression Ratio</h3>
+      <p>1. Set Engine Type to <strong>Petrol (Otto Cycle)</strong>.<br>
+         2. Start with a Compression Ratio of <strong>8.0:1</strong> (Efficiency = 56.5%).<br>
+         3. Increase Compression Ratio to <strong>12.0:1</strong> and observe air-standard efficiency rises to <strong>63.0%</strong>.<br>
+         4. Verify why modern direct-injection petrol engines run higher compression ratios to optimize thermal efficiency!</p>
+    </div>
+
+    <div class="info-card" style="margin-top:16px;">
+      <h3>Thermodynamic Cycle Mathematical Formulation</h3>
+      <p><strong>1. Compression Ratio ($r$):</strong></p>
+      \[ r = \dfrac{V_{BDC}}{V_{TDC}} = \dfrac{V_s + V_c}{V_c} = 10.50 \]
+
+      <p style="margin-top:12px;"><strong>2. Cylinder Swept Volume ($V_s$):</strong></p>
+      \( V_s = \dfrac{\pi}{4}B^2L = \dfrac{\pi}{4}(86.0\,\mathrm{mm})^2(86.0\,\mathrm{mm}) = 499.6\;\mathrm{cm^3} \)
+
+      <p style="margin-top:12px;"><strong>3. Isentropic Compression Temperature ($T_2$):</strong></p>
+      \( T_2 = T_1 r^{\gamma-1} = 319.0 \times 10.50^{0.4} = \mathbf{817\;\mathrm{K}} \)
+
+      <p style="margin-top:12px;"><strong>4. Peak Combustion Temperature ($T_3$):</strong></p>
+      \( T_3 = T_2 + \dfrac{q_{in}}{c_v} = 817 + \dfrac{1350}{0.718} = \mathbf{2699\;\mathrm{K}} \)
+
+      <p style="margin-top:12px;"><strong>5. Ideal Otto Cycle Thermal Efficiency ($\eta_{th}$):</strong></p>
+      \[ \eta_{th} = 1 - \dfrac{1}{r^{\gamma-1}} = 1 - \dfrac{1}{10.50^{0.4}} = \mathbf{61.0\%} \]
+
+      <p style="margin-top:12px;"><strong>6. Indicated Mean Effective Pressure ($\mathrm{IMEP}$):</strong></p>
+      \( \mathrm{IMEP} = \dfrac{W_{net}}{V_s} = \dfrac{0.5010\;\mathrm{kJ}}{499.6\;\mathrm{cm^3}} = \mathbf{10.03\;\mathrm{bar}} \)
+
+      <p style="margin-top:12px;"><strong>7. Indicated Power Output ($\dot{W}_i$):</strong></p>
+      \[ \dot{W}_i = \mathrm{IMEP}\cdot V_s\cdot n_{cyl}\cdot \dfrac{N}{120} = \mathbf{41.8\;\mathrm{kW}} \]
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 4. QUIZ MODE                                                      -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: How many crankshaft revolutions complete 1 full four-stroke thermodynamic cycle?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; 2 Revolutions (720° crank rotation).
+        </li>
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--red)';this.style.color='var(--red)';">
+          &#10007; 1 Revolution (360° crank rotation).
+        </li>
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--red)';this.style.color='var(--red)';">
+          &#10007; 4 Revolutions (1440° crank rotation).
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 5. USER GUIDE & SEO ARTICLE                                       -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span aria-hidden="true">&#128214;</span>
+      User Guide — Four-Stroke Engine Simulator V2
+    </div>
+    <details open>
+      <summary><span class="guide-num">1</span> Four-Stroke Cycle Overview</summary>
+      <div class="guide-body">
+        The four strokes are: 1. Intake (0–180°), 2. Compression (180–360°), 3. Power (360–540°), and 4. Exhaust (540–720°).
+      </div>
+    </details>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+      <a href="/nhitvisuallab/about/index.html">About</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/four_stroke_3d.js"></script>
+<script src="/js/four_stroke_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

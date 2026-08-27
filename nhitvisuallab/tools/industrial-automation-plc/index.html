@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Industrial Automation &amp; PLC Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Industrial Automation & PLC Virtual Lab for WBSCTE 6th Sem EE (EE/S6/IA). Simulate Ladder Logic Rungs (NO/NC, Latching, Timers TON, Counters CTU), SCADA HMI Telemetry, and inspect 3D Modular PLC model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 6th Semester (EE/S6/IA)</span>
+  </nav>
+
+  <header>
+    <h1>Industrial Automation &amp; PLC Virtual Lab</h1>
+    <p class="subtitle">Interactive Ladder Logic Rung Execution (IEC 61131-3), On-Delay Timers (TON) &amp; SCADA HMI Telemetry</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">IEC 61131-3 PLC</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; PLC Instruction Set</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Modular PLC Rack &amp; SCADA HMI</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Modular PLC CPU Rack, Digital I/O Module, 24V DC Power Supply, and SCADA Touch Screen Panel.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ia-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Routine:</label>
+        <select id="plc-routine-select" class="ia-select">
+          <option value="start_stop">1. Direct-on-Line Motor Start/Stop Latching Rung</option>
+          <option value="ton_delay">2. Conveyor Belt Timer-On Delay (TON PT=5.0s)</option>
+          <option value="batch_count">3. Part Packaging Counter (CTU PV=10)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action success" id="btn-pb-start">START (I0.0) 🟢</button>
+        <button class="btn-action danger" id="btn-pb-stop">STOP (I0.1) 🔴</button>
+        <button class="btn-action warning" id="btn-pb-trip">Overload (I0.2) ⚡</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Ladder Logic Runner -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">IEC 61131-3 Real-Time Animated Ladder Logic Rung</span>
+          <span class="badge" id="plc-badge" style="background:#10b981;">PLC RUN MODE (Scan = 1.45 ms)</span>
+        </div>
+        <canvas id="ia-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">PLC Memory Bits &amp; SCADA HMI Telemetry</span>
+        </div>
+        <div class="ia-grid">
+          <div class="ia-box"><span class="ia-lbl">Motor Contactor (Q0.0)</span><span class="ia-val" id="disp-q0" style="color:#10b981;font-weight:700;">TRUE (Energized 24V)</span></div>
+          <div class="ia-box"><span class="ia-lbl">Start PB (I0.0 NO)</span><span class="ia-val" id="disp-i0">FALSE (Released)</span></div>
+          <div class="ia-box"><span class="ia-lbl">Stop PB (I0.1 NC)</span><span class="ia-val" id="disp-i1">TRUE (Closed / Normal)</span></div>
+          <div class="ia-box"><span class="ia-lbl">Overload O/L (I0.2)</span><span class="ia-val" id="disp-i2" style="color:#10b981;">NORMAL (Healthy)</span></div>
+          <div class="ia-box"><span class="ia-lbl">TON Timer Elapsed (ET)</span><span class="ia-val" id="disp-et">5.0 / 5.0 s (DN = 1)</span></div>
+          <div class="ia-box"><span class="ia-lbl">SCADA Plant State</span><span class="ia-val" id="disp-scada" style="color:#10b981;font-weight:700;">CONVEYOR ACTIVE</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Siemens S7 / Allen-Bradley PLC Scan Diagnostics:</div>
+          <div class="console-log" id="ia-log">
+            &gt; Initialized Industrial Automation &amp; PLC Virtual Lab.<br>
+            &gt; CPU in RUN mode. Ladder logic scan cycle time = 1.45 ms.<br>
+            &gt; Rung 1: (I0.0 OR Q0.0) AND (NOT I0.1) AND (NOT I0.2) &rarr; Output coil Q0.0 energized.<br>
+            &gt; SCADA HMI: Animation state set to RUNNING. Profinet telemetry live.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S6/IA Industrial Automation &amp; PLC</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. IEC 61131-3 Programming Languages</h3>
+          <p>Ladder Diagram (LD), Function Block Diagram (FBD), Structured Text (ST), Instruction List (IL), and Sequential Function Chart (SFC).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Timer &amp; Counter Instructions</h3>
+          <p><strong>TON (Timer On-Delay):</strong> Starts timing when input is true; sets Done bit when $ET \ge PT$.<br><strong>TOF (Timer Off-Delay)</strong> &amp; <strong>CTU/CTD</strong> (Up/Down Pulse Counters).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. PLC Hardware &amp; Scan Cycle</h3>
+          <p>Three cyclic phases: 1. Input Scan (Image table update), 2. Program Execution (Rung logic evaluation), 3. Output Update (Field actuator switching). Typical scan time $1-5\text{ms}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. SCADA &amp; Industrial Networks</h3>
+          <p>Human-Machine Interface (HMI) screens, Alarming, Trend logging, Modbus RTU/TCP, Profinet, and OPC UA integration.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ia-canvas');
+const ctx = canvas.getContext('2d');
+
+let isQ0On = true;
+let isStartPressed = false;
+let isStopPressed = false;
+let isOverload = false;
+
+function drawLadder() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Left & Right Power Rails (L1 & L2)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(50, 40); ctx.lineTo(50, 380); ctx.stroke(); // Left Power Rail (24V)
+  ctx.beginPath(); ctx.moveTo(650, 40); ctx.lineTo(650, 380); ctx.stroke(); // Right Power Rail (0V)
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px monospace';
+  ctx.fillText('+24V', 35, 30);
+  ctx.fillText('0V', 640, 30);
+
+  // Rung 1: Start (I0.0) in parallel with Q0.0, in series with Stop (I0.1 NC) and OL (I0.2 NC) -> Coil Q0.0
+  const rungY = 130;
+  const isPowered = isQ0On && !isStopPressed && !isOverload;
+
+  // Power flow left line
+  ctx.strokeStyle = isPowered ? '#10b981' : '#64748b';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(50, rungY); ctx.lineTo(120, rungY); ctx.stroke();
+
+  // Contact 1: I0.0 (NO) Top Branch
+  drawContact(ctx, 120, rungY, isStartPressed, 'I0.0 (START)');
+
+  // Contact 2: Q0.0 Seal-in (NO) Bottom Branch
+  ctx.beginPath(); ctx.moveTo(120, rungY); ctx.lineTo(120, rungY + 70); ctx.lineTo(140, rungY + 70); ctx.stroke();
+  drawContact(ctx, 140, rungY + 70, isQ0On, 'Q0.0 (LATCH)');
+  ctx.beginPath(); ctx.moveTo(200, rungY + 70); ctx.lineTo(220, rungY + 70); ctx.lineTo(220, rungY); ctx.stroke();
+
+  // Parallel junction continuation
+  ctx.beginPath(); ctx.moveTo(180, rungY); ctx.lineTo(280, rungY); ctx.stroke();
+
+  // Contact 3: I0.1 (NC Stop)
+  drawNCContact(ctx, 280, rungY, !isStopPressed, 'I0.1 (STOP)');
+
+  // Contact 4: I0.2 (NC Overload)
+  ctx.beginPath(); ctx.moveTo(340, rungY); ctx.lineTo(410, rungY); ctx.stroke();
+  drawNCContact(ctx, 410, rungY, !isOverload, 'I0.2 (O/L)');
+
+  // Line to Coil
+  ctx.beginPath(); ctx.moveTo(470, rungY); ctx.lineTo(540, rungY); ctx.stroke();
+
+  // Output Coil: Q0.0 ( )
+  drawCoil(ctx, 540, rungY, isPowered, 'Q0.0 (MOTOR)');
+  ctx.beginPath(); ctx.moveTo(600, rungY); ctx.lineTo(650, rungY); ctx.stroke();
+
+  // Bottom Area: SCADA Graphic Status Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(80, 270, 540, 90);
+  ctx.strokeStyle = isPowered ? '#10b981' : '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(80, 270, 540, 90);
+
+  ctx.fillStyle = isPowered ? '#10b981' : '#ef4444';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText(isPowered ? '● SCADA PLANT STATUS: 3-PHASE CONVEYOR MOTOR RUNNING' : '■ SCADA PLANT STATUS: MOTOR STOPPED / IDLE', 350, 310);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px monospace';
+  ctx.fillText(`PROFINET IO-Link: [I0.0=${isStartPressed?1:0}, I0.1=${isStopPressed?1:0}, I0.2=${isOverload?1:0}] → [Q0.0=${isPowered?1:0}]`, 350, 335);
+}
+
+function drawContact(ctx, x, y, closed, label) {
+  ctx.strokeStyle = closed ? '#10b981' : '#64748b';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + 15, y);
+  ctx.moveTo(x + 15, y - 18); ctx.lineTo(x + 15, y + 18);
+  ctx.moveTo(x + 35, y - 18); ctx.lineTo(x + 35, y + 18);
+  ctx.moveTo(x + 35, y); ctx.lineTo(x + 50, y);
+  ctx.stroke();
+
+  ctx.fillStyle = closed ? '#10b981' : '#94a3b8';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + 25, y - 24);
+}
+
+function drawNCContact(ctx, x, y, closed, label) {
+  ctx.strokeStyle = closed ? '#10b981' : '#64748b';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + 15, y);
+  ctx.moveTo(x + 15, y - 18); ctx.lineTo(x + 15, y + 18);
+  ctx.moveTo(x + 35, y - 18); ctx.lineTo(x + 35, y + 18);
+  ctx.moveTo(x + 35, y); ctx.lineTo(x + 50, y);
+  ctx.moveTo(x + 12, y + 16); ctx.lineTo(x + 38, y - 16); // Diagonal slash
+  ctx.stroke();
+
+  ctx.fillStyle = closed ? '#10b981' : '#94a3b8';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + 25, y - 24);
+}
+
+function drawCoil(ctx, x, y, active, label) {
+  ctx.strokeStyle = active ? '#10b981' : '#64748b';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + 12, y);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x + 22, y, 16, -Math.PI / 2, Math.PI / 2, true);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x + 38, y, 16, Math.PI / 2, -Math.PI / 2, true);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x + 48, y); ctx.lineTo(x + 60, y);
+  ctx.stroke();
+
+  ctx.fillStyle = active ? '#10b981' : '#94a3b8';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + 30, y - 24);
+}
+
+const btnStart = document.getElementById('btn-pb-start');
+const btnStop = document.getElementById('btn-pb-stop');
+const btnTrip = document.getElementById('btn-pb-trip');
+const logEl = document.getElementById('ia-log');
+
+btnStart.addEventListener('click', () => {
+  isQ0On = true;
+  isStopPressed = false;
+  isOverload = false;
+  document.getElementById('disp-q0').textContent = 'TRUE (Energized 24V)';
+  document.getElementById('disp-q0').style.color = '#10b981';
+  document.getElementById('disp-scada').textContent = 'CONVEYOR ACTIVE';
+  document.getElementById('disp-scada').style.color = '#10b981';
+  logEl.innerHTML += '<br>&gt; [PLC INPUT I0.0] Start Pushbutton pressed: Rung 1 energized coil Q0.0 (Seal-in latched).';
+  drawLadder();
+});
+
+btnStop.addEventListener('click', () => {
+  isQ0On = false;
+  isStopPressed = true;
+  document.getElementById('disp-q0').textContent = 'FALSE (De-energized)';
+  document.getElementById('disp-q0').style.color = '#64748b';
+  document.getElementById('disp-scada').textContent = 'STOPPED BY OPERATOR';
+  document.getElementById('disp-scada').style.color = '#64748b';
+  logEl.innerHTML += '<br>&gt; [PLC INPUT I0.1] Stop Pushbutton pressed: Rung 1 opened, Q0.0 dropped out.';
+  drawLadder();
+});
+
+btnTrip.addEventListener('click', () => {
+  isQ0On = false;
+  isOverload = !isOverload;
+  document.getElementById('disp-q0').textContent = 'FALSE (TRIPPED)';
+  document.getElementById('disp-q0').style.color = '#ef4444';
+  document.getElementById('disp-scada').textContent = isOverload ? 'TRIP ALARM: THERMAL OVERLOAD' : 'MOTOR STOPPED / IDLE';
+  document.getElementById('disp-scada').style.color = '#ef4444';
+  logEl.innerHTML += `<br>&gt; [PLC ALARM I0.2] Thermal Overload contact ${isOverload ? 'TRIPPED' : 'RESET'}. Immediate interlock cutoff.`;
+  drawLadder();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/industrial_automation_plc.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawLadder();
+</script>
+</body>
+</html>

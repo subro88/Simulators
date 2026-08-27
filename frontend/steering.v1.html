@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Steering Geometry &amp; Alignment Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Ackermann Steering Geometry, Turning Radius, Toe, Camber, Caster &amp; Kingpin Inclination Simulator powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Automobile Engineering</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Steering Geometry V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Steering Geometry &amp; Wheel Alignment</h1>
+    <p class="subtitle">Python Kinematics Engine &bull; Real-Time WebGL 3D Visualization &bull; Ackermann Linkage &bull; Turning Radius &bull; Scrub Radius</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="city_hatchback">Compact City Car (Tight Turning Circle)</option>
+        <option value="formula_race_car">Race Car (High Direct Steering Ratio)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+      <a class="btn-secondary" href="/clutch.html" title="Open Friction Clutch Simulator">Friction Clutch V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode steering components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Ackermann Steering Linkage Schematic</div>
+          <canvas id="steering-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Steering Parameters</span>
+          <span style="font-size:0.75rem;font-weight:700;color:var(--accent);">Rack &amp; Pinion</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Handwheel Angle</span>
+            <span class="control-value" id="val-steer">180°</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-steer" min="-540" max="540" step="10" value="180" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Wheelbase (B)</span>
+            <span class="control-value" id="val-wb">2.6 m</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-wb" min="1.5" max="4.5" step="0.1" value="2.6" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Track Width (w)</span>
+            <span class="control-value" id="val-tw">1.5 m</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-tw" min="1.0" max="2.2" step="0.05" value="1.5" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Steering Gear Ratio</span>
+            <span class="control-value" id="val-ratio">16:1</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-ratio" min="10" max="24" step="1" value="16" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Inner Wheel Steer Angle:</span>
+            <span class="telemetry-val" id="st-inner" style="color:var(--accent);">11.3°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Actual Outer Wheel Angle:</span>
+            <span class="telemetry-val" id="st-outer" style="color:var(--green);">8.6°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Ideal Ackermann Outer Angle:</span>
+            <span class="telemetry-val" id="st-ideal">8.9°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Ackermann Error:</span>
+            <span class="telemetry-val" id="st-error" style="color:var(--yellow);">0.36°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Vehicle Turning Radius (CG):</span>
+            <span class="telemetry-val" id="st-radius">14.88 m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Scrub Radius:</span>
+            <span class="telemetry-val" id="st-scrub">21.5 mm</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Left Turn: Inner wheel at 11.3°, Outer wheel at 8.6° (Turning Radius: 14.88 m).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Ackermann Steering Principle</h3>
+        <p>Ensures all wheels roll around a single common instantaneous center of rotation (ICR) during cornering to eliminate lateral tire scrubbing.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Scrub Radius</h3>
+        <p>The distance at ground level between the kingpin steering axis projection and the center of the tire contact patch.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Turning Radius vs Wheelbase</h3>
+      <p>1. Increase vehicle wheelbase from 2.4 m to 3.5 m.<br>
+         2. Observe that turning radius increases significantly, demonstrating why compact cars have tighter turning circles!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What is the fundamental Ackermann condition equation?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; cot(θ) - cot(φ) = w / B
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/steering_3d.js"></script>
+<script src="/js/steering_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

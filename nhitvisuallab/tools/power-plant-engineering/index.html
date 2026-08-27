@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power Plant Engineering Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Power Plant Engineering Virtual Lab for WBSCTE 4th Sem EE (EE/S4/PPE). Simulate Thermal Rankine Cycle, Hydroelectric Francis Turbine Flow, Load Curve Economics, and inspect 3D Power Plant model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/PPE)</span>
+  </nav>
+
+  <header>
+    <h1>Power Plant Engineering Virtual Lab</h1>
+    <p class="subtitle">Thermal Rankine Steam Cycle, Hydro Turbine Flow &amp; Daily Load Curve Economics</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Generation Tech</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Plant Economics</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Thermal &amp; Hydro Generation Station</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Thermal Boiler Chimney, High-Pressure Steam Turbine Casing, Turbine-Driven Synchronous Generator, and Cooling Tower Hyperboloid.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ppe-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Plant Station:</label>
+        <select id="ppe-mode-select" class="ppe-select">
+          <option value="hydro">1. Hydroelectric Power Plant (P = 9.81*&eta;*Q*H)</option>
+          <option value="thermal">2. Thermal Power Plant (Rankine Cycle &eta;th = 38.5%)</option>
+          <option value="load">3. Grid Daily Load Curve &amp; Diversity Factor</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Flow Q (m&sup3;/s):</label>
+        <input type="number" id="flow-in" value="25" min="5" max="100" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Head H (m):</label>
+        <input type="number" id="head-in" value="85" min="10" max="300" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-ppe">Compute Generation &#9654;</button>
+        <button class="btn-action success" id="btn-green-offset">Carbon Offset Calc</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Flow Diagram -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Hydroelectric Penstock &amp; 24-Hour Grid Load Demand Profile</span>
+          <span class="badge" id="power-badge">Power Output = 18.34 MW</span>
+        </div>
+        <canvas id="ppe-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Plant Energy Output &amp; Grid Economics</span>
+        </div>
+        <div class="ppe-grid">
+          <div class="ppe-box"><span class="ppe-lbl">Electrical Power (P)</span><span class="ppe-val" id="disp-p-mw">18.34 MW</span></div>
+          <div class="ppe-box"><span class="ppe-lbl">Daily Generation</span><span class="ppe-val" id="disp-daily">387.4 MWh / Day</span></div>
+          <div class="ppe-box"><span class="ppe-lbl">Turbine Efficiency</span><span class="ppe-val">88.0 % (Francis)</span></div>
+          <div class="ppe-box"><span class="ppe-lbl">Annual Load Factor</span><span class="ppe-val">60.0 % (Baseload)</span></div>
+          <div class="ppe-box"><span class="ppe-lbl">CO2 Avoided (Clean)</span><span class="ppe-val" style="color:#10b981;">120,188 Tons / Yr</span></div>
+          <div class="ppe-box"><span class="ppe-lbl">Grid Frequency Sync</span><span class="ppe-val" style="color:#38bdf8;">50.00 Hz Locked</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Power Grid Dispatch Telemetry:</div>
+          <div class="console-log" id="ppe-log">
+            &gt; Initialized Power Plant Engineering Virtual Lab.<br>
+            &gt; Hydroelectric Station: Water Head H = 85.0m, Discharge Q = 25.0 m&sup3;/s.<br>
+            &gt; Francis Turbine Generator Output: P = 9.81 * 0.88 * 25 * 85 = 18.34 MW.<br>
+            &gt; Daily Energy Output = 387.4 MWh dispatched to 132kV transmission grid.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/PPE Power Plant Engineering</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Hydroelectric Power Generation</h3>
+          <p>Potential energy of water converted to mechanical energy in turbines: $P = 9.81 \cdot \eta \cdot Q \cdot H\text{ (kW)}$. Turbines: Pelton (High head $>300\text{m}$), Francis (Medium head $30-300\text{m}$), Kaplan (Low head $<30\text{m}$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Thermal Power Station (Rankine Cycle)</h3>
+          <p>Coal pulverized and combusted in boiler $\to$ Superheated high-pressure steam expands in turbine $\to$ Surface condenser condenses steam $\to$ Feed pump recirculates water. Overall thermal efficiency $\approx 35\% - 42\%$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Power Plant Economics &amp; Load Curves</h3>
+          <p>$\text{Load Factor} = \frac{\text{Average Load}}{\text{Peak Maximum Demand}}$, $\text{Diversity Factor} = \frac{\sum \text{Individual Max Demands}}{\text{Coincident System Max Demand}} > 1.0$, $\text{Plant Capacity Factor} = \frac{\text{Actual Energy Produced}}{\text{Rated Capacity} \times 8760\text{h}}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Nuclear &amp; Non-Conventional Energy</h3>
+          <p>Pressurized Water Reactor (PWR) and Boiling Water Reactor (BWR) using $U^{235}$ fission with control rods (Cadmium/Boron). Solar Photovoltaic (PV) MPPT tracking and Grid-tied Wind turbine generators.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ppe-canvas');
+const ctx = canvas.getContext('2d');
+
+function drawHydro() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Left Area: Dam Reservoir & Penstock
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.moveTo(50, 80); ctx.lineTo(180, 80); ctx.lineTo(180, 340); ctx.lineTo(50, 340);
+  ctx.fill();
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 3; ctx.stroke();
+
+  // Water Reservoir Fill
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+  ctx.fillRect(52, 100, 126, 238);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText('RESERVOIR', 80, 130);
+
+  // Penstock Tube
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 12;
+  ctx.beginPath(); ctx.moveTo(180, 240); ctx.lineTo(300, 310); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.fillText('Penstock', 210, 260);
+
+  // Power House & Turbine Housing
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(300, 260, 110, 90);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(300, 260, 110, 90);
+
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath(); ctx.arc(355, 305, 20, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.fillText('Turbine', 355, 310);
+
+  // Transmission Lines
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(355, 260); ctx.lineTo(355, 200); ctx.lineTo(620, 200); ctx.stroke();
+  ctx.fillStyle = '#ef4444';
+  ctx.textAlign = 'left';
+  ctx.fillText('132kV Grid Transmission', 460, 190);
+
+  // Load Curve Box at bottom right
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(440, 230, 220, 130);
+  ctx.strokeStyle = '#64748b';
+  ctx.strokeRect(440, 230, 220, 130);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('24-Hr Load Demand (MW)', 450, 248);
+
+  // Mini 24-hr Load Curve
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(450, 330);
+  ctx.bezierCurveTo(480, 330, 500, 290, 530, 280);
+  ctx.bezierCurveTo(560, 270, 580, 260, 610, 260);
+  ctx.lineTo(650, 320);
+  ctx.stroke();
+}
+
+const flowIn = document.getElementById('flow-in');
+const headIn = document.getElementById('head-in');
+const logEl = document.getElementById('ppe-log');
+
+document.getElementById('btn-calc-ppe').addEventListener('click', () => {
+  const q = parseFloat(flowIn.value) || 25;
+  const h = parseFloat(headIn.value) || 85;
+  const pKw = 9.81 * 0.88 * q * h;
+  const pMw = pKw * 1e-3;
+  const dailyMwh = pMw * 24.0 * 0.88;
+
+  document.getElementById('disp-p-mw').textContent = `${pMw.toFixed(2)} MW`;
+  document.getElementById('disp-daily').textContent = `${dailyMwh.toFixed(1)} MWh / Day`;
+  document.getElementById('power-badge').textContent = `Power Output = ${pMw.toFixed(2)} MW`;
+
+  logEl.innerHTML += `<br>&gt; Head H = ${h}m, Flow Q = ${q} m&sup3;/s &rarr; Dispatched P = ${pMw.toFixed(2)} MW (${dailyMwh.toFixed(1)} MWh/day).`;
+  drawHydro();
+});
+
+document.getElementById('btn-green-offset').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [CLEAN ENERGY] Carbon offset verified: 120,188 Metric Tons of CO2 avoided annually compared to coal-fired thermal plant.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/power_plant_engineering.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawHydro();
+</script>
+</body>
+</html>

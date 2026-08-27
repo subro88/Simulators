@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Four-Bar Linkage Kinematics Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Four-Bar Linkage Simulator (Grashof Criterion, Freudenstein Position Analysis &amp; Transmission Angle) powered by Python FastAPI physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Theory of Machines</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Four-Bar Linkage V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Four-Bar Linkage Kinematics &amp; Synthesis</h1>
+    <p class="subtitle">Python Kinematics Engine &bull; Real-Time WebGL 3D Visualization &bull; Grashof Law &bull; Freudenstein Equation &bull; Transmission Angle</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="standard_crank_rocker">Standard Crank-Rocker</option>
+        <option value="drag_link_double_crank">Drag-Link Double-Crank</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="/four_stroke.html" title="Open Four-Stroke Simulator">Four-Stroke V2</a>
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode linkage components outwards">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Planar Linkage &amp; Coupler Curve Diagram</div>
+          <canvas id="linkage-2d-canvas" style="width:100%;height:200px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Linkage Parameters</span>
+          <span id="st-grashof" style="font-size:0.75rem;font-weight:700;color:var(--accent);">Grashof Crank-Rocker</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Frame Link (a)</span>
+            <span class="control-value" id="val-a">180 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-a" min="60" max="300" step="5" value="180" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Crank Link (b)</span>
+            <span class="control-value" id="val-b">60 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-b" min="20" max="150" step="5" value="60" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Coupler Link (c)</span>
+            <span class="control-value" id="val-c">160 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-c" min="60" max="300" step="5" value="160" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Rocker Link (d)</span>
+            <span class="control-value" id="val-d">140 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-d" min="60" max="300" step="5" value="140" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Crank Speed</span>
+            <span class="control-value" id="val-rpm">60 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="10" max="300" step="10" value="60" />
+        </div>
+
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Transmission Angle (μ):</span>
+            <span class="telemetry-val" id="st-trans" style="color:var(--green);">54.2°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Output Rocker Speed:</span>
+            <span class="telemetry-val" id="st-rocker-speed" style="color:var(--accent);">42.5 RPM</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Coupler Angle (θ3):</span>
+            <span class="telemetry-val" id="st-coupler-ang">18.4°</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Rocker Angle (θ4):</span>
+            <span class="telemetry-val" id="st-rocker-ang">72.1°</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Grashof Crank-Rocker: Transmission Angle = 54.2° (Rocker Speed = 42.5 RPM).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Grashof's Criterion</h3>
+        <p>States that for a 4-bar linkage, if $s + l \le p + q$, at least one link can make a complete 360° revolution relative to the ground frame.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Transmission Angle (μ)</h3>
+        <p>The acute angle between the coupler link (c) and output rocker (d). For optimal force transmission without binding, $\mu \ge 40^\circ$.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Experiment: Transmission Angle Optimization</h3>
+      <p>1. Vary coupler link length $c$ and observe transmission angle $\mu$.<br>
+         2. Notice if $\mu < 40^\circ$, mechanical efficiency drops and joint friction binding increases!</p>
+    </div>
+  </section>
+
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: What condition must be met for Grashof's Law?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; s + l ≤ p + q
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<script src="/js/four_bar_3d.js"></script>
+<script src="/js/four_bar_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

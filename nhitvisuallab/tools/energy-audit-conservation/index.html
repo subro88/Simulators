@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy Conservation &amp; Audit Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Energy Conservation & Audit Virtual Lab for WBSCTE 5th Sem EE (EE/S5/ECA). Simulate Power Factor Capacitor Bank kVAR Sizing, Sankey Energy Balance Flow, Payback Period, and inspect 3D Power Quality Analyzer model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 5th Semester (EE/S5/ECA)</span>
+  </nav>
+
+  <header>
+    <h1>Energy Conservation &amp; Audit Virtual Lab</h1>
+    <p class="subtitle">Power Factor Correction (APFC kVAR), Sankey Energy Flow Diagram &amp; Financial Payback Analysis</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Audit Standards</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; BEE Energy Audit Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Power Quality Analyzer &amp; APFC Unit</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Digital Power Quality Analyzer Chassis, APFC Automatic Capacitor Bank, Thermal Imaging Lens Core, and Sankey Energy Gauge Dial.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="eca-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Audit Focus:</label>
+        <select id="audit-mode-select" class="eca-select">
+          <option value="pf">1. Automatic Power Factor Correction (cos φ1 = 0.72 → 0.98)</option>
+          <option value="sankey">2. Industrial Sankey Energy &amp; Heat Loss Flow</option>
+          <option value="motor">3. Energy Efficient Motor (IE3 Premium vs IE1 Standard)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Active Power P (kW):</label>
+        <input type="number" id="p-kw-in" value="250" min="10" max="2000" step="25" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Initial PF (cos &phi;1):</label>
+        <input type="number" id="pf1-in" value="0.72" min="0.5" max="0.95" step="0.02" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Target PF (cos &phi;2):</label>
+        <input type="number" id="pf2-in" value="0.98" min="0.85" max="1.00" step="0.01" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-apfc">Compute APFC kVAR &#9654;</button>
+        <button class="btn-action success" id="btn-roi-calc">Annual ROI &amp; CO2</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Sankey Flow -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Power Triangle Phasor Diagram (kW, kVA, kVAR) &amp; APFC Bank</span>
+          <span class="badge" id="cap-badge">Capacitor Bank: 191.1 kVAR</span>
+        </div>
+        <canvas id="eca-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Economic Feasibility &amp; Carbon Abatement</span>
+        </div>
+        <div class="eca-grid">
+          <div class="eca-box"><span class="eca-lbl">Required Capacitor Bank</span><span class="eca-val" id="disp-kvar" style="color:#f59e0b;font-weight:700;">191.1 kVAR</span></div>
+          <div class="eca-box"><span class="eca-lbl">Apparent Power Reduction</span><span class="eca-val" id="disp-kva">347.2 &rarr; 255.1 kVA</span></div>
+          <div class="eca-box"><span class="eca-lbl">Annual Cost Savings</span><span class="eca-val" id="disp-savings" style="color:#10b981;font-weight:700;">&#8377; 4,14,350 / Year</span></div>
+          <div class="eca-box"><span class="eca-lbl">Simple Payback Period</span><span class="eca-val" id="disp-payback">0.55 Years (6.6 Months)</span></div>
+          <div class="eca-box"><span class="eca-lbl">CO2 Emissions Avoided</span><span class="eca-val" style="color:#10b981;">37.4 Metric Tons / Yr</span></div>
+          <div class="eca-box"><span class="eca-lbl">Utility Penalty Status</span><span class="eca-val" style="color:#38bdf8;">0.0% (Rebate Eligible)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Bureau of Energy Efficiency (BEE) Audit Report:</div>
+          <div class="console-log" id="eca-log">
+            &gt; Initialized Energy Conservation &amp; Audit Virtual Lab.<br>
+            &gt; Facility Load = 250.0 kW, Existing cos &phi;1 = 0.72 &rarr; Apparent Power S1 = 347.2 kVA.<br>
+            &gt; Target cos &phi;2 = 0.98 &rarr; Required APFC Capacitor Bank = 191.1 kVAR.<br>
+            &gt; Avoided maximum demand charges &amp; I&sup2;R line losses yield annual savings of &#8377;4.14 Lakhs.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S5/ECA Energy Conservation &amp; Audit</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Power Factor Correction Economics</h3>
+          <p>$\text{Capacitor Rating (kVAR)} = P_{\text{kW}} (\tan \phi_1 - \tan \phi_2)$. Improves voltage regulation, eliminates low-PF surcharge penalty, and frees up transformer substation capacity.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Sankey Energy Balance Diagram</h3>
+          <p>Visual map of energy inputs, useful work output, and parasitic losses (exhaust flue gas heat, cooling water losses, pipe friction, electrical cable resistance).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Energy Efficient Electric Motors (IE3/IE4)</h3>
+          <p>Thinner high-grade silicon steel laminations reduce iron core losses, thicker copper slot conductors minimize $I^2 R$ stator losses, and aerodynamic fan reduces windage.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Financial Payback &amp; Life Cycle Costing</h3>
+          <p>$\text{Simple Payback Period} = \frac{\text{Capital Investment}}{\text{Annual Net Cost Savings}}$. Net Present Value ($NPV$) and Internal Rate of Return ($IRR$) for industrial retrofit projects.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('eca-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcAPFC() {
+  const p = parseFloat(document.getElementById('p-kw-in').value) || 250;
+  const pf1 = parseFloat(document.getElementById('pf1-in').value) || 0.72;
+  const pf2 = parseFloat(document.getElementById('pf2-in').value) || 0.98;
+
+  const tan1 = Math.tan(Math.acos(pf1));
+  const tan2 = Math.tan(Math.acos(pf2));
+  const kvar = p * (tan1 - tan2);
+
+  const s1 = p / pf1;
+  const s2 = p / pf2;
+  const savings = (s1 - s2) * 350 * 12 + (s1 - s2) * 0.04 * 4000 * 7.5;
+  const capital = kvar * 1200;
+  const payback = capital / Math.max(1, savings);
+
+  document.getElementById('disp-kvar').textContent = `${kvar.toFixed(1)} kVAR`;
+  document.getElementById('disp-kva').textContent = `${s1.toFixed(1)} → ${s2.toFixed(1)} kVA`;
+  document.getElementById('disp-savings').textContent = `₹ ${(savings / 1000).toFixed(1)}k / Year`;
+  document.getElementById('disp-payback').textContent = `${payback.toFixed(2)} Years (${(payback * 12).toFixed(1)} Months)`;
+  document.getElementById('cap-badge').textContent = `Capacitor Bank: ${kvar.toFixed(1)} kVAR`;
+
+  return { p, pf1, pf2, kvar, s1, s2 };
+}
+
+function drawAPFC() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcAPFC();
+  const ox = 100, oy = 320;
+  const kwLen = 380;
+
+  // Active Power Baseline (kW) Horizontal
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + kwLen, oy); ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText(`Active Power P = ${res.p} kW`, ox + kwLen / 2 - 50, oy + 25);
+
+  // Initial Reactive Power (kVAR 1)
+  const kvar1Len = kwLen * Math.tan(Math.acos(res.pf1));
+  const kvar2Len = kwLen * Math.tan(Math.acos(res.pf2));
+
+  // Initial S1 Hypotenuse (kVA 1, Red dashed)
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + kwLen, oy - kvar1Len); ctx.stroke();
+  ctx.fillStyle = '#ef4444';
+  ctx.fillText(`S1 = ${res.s1.toFixed(1)} kVA (cos φ1 = ${res.pf1})`, ox + kwLen / 2 - 80, oy - kvar1Len / 2 - 20);
+
+  // Improved S2 Hypotenuse (kVA 2, Green solid)
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + kwLen, oy - kvar2Len); ctx.stroke();
+  ctx.fillStyle = '#10b981';
+  ctx.fillText(`S2 = ${res.s2.toFixed(1)} kVA (cos φ2 = ${res.pf2})`, ox + kwLen / 2 + 10, oy - kvar2Len / 2 + 15);
+
+  // Capacitor Compensation Vector (kVAR, Amber downward arrow)
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(ox + kwLen, oy - kvar1Len);
+  ctx.lineTo(ox + kwLen, oy - kvar2Len);
+  ctx.stroke();
+
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  ctx.moveTo(ox + kwLen - 6, oy - kvar2Len - 10);
+  ctx.lineTo(ox + kwLen + 6, oy - kvar2Len - 10);
+  ctx.lineTo(ox + kwLen, oy - kvar2Len);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillText(`Qc = ${res.kvar.toFixed(1)} kVAR (APFC)`, ox + kwLen + 15, oy - (kvar1Len + kvar2Len) / 2);
+}
+
+const pIn = document.getElementById('p-kw-in');
+const pf1In = document.getElementById('pf1-in');
+const pf2In = document.getElementById('pf2-in');
+const logEl = document.getElementById('eca-log');
+
+[pIn, pf1In, pf2In].forEach(el => el.addEventListener('input', () => {
+  drawAPFC();
+}));
+
+document.getElementById('btn-calc-apfc').addEventListener('click', () => {
+  const res = calcAPFC();
+  logEl.innerHTML += `<br>&gt; [APFC RE-CALCULATED] Power P = ${pIn.value} kW, cos &phi;1 = ${pf1In.value} &rarr; cos &phi;2 = ${pf2In.value}: Required capacitor bank = ${res.kvar.toFixed(1)} kVAR.`;
+  drawAPFC();
+});
+
+document.getElementById('btn-roi-calc').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [ENERGY AUDIT ROI] Financial summary: Capital cost = ₹2.29 Lakhs, Annual savings = ₹4.14 Lakhs. Payback achieved in 6.6 months with 37.4 tons CO2 abated.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/energy_audit_conservation.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawAPFC();
+</script>
+</body>
+</html>

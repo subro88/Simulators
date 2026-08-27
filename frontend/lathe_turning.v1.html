@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Lathe Turning Mechanics &amp; Machining — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Lathe Turning Simulator powered by Python FastAPI machining physics engine and Three.js 3D WebGL." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Manufacturing &amp; Workshop</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Lathe Turning V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <header>
+    <h1>Lathe Turning Mechanics &amp; Machining</h1>
+    <p class="subtitle">Python Metal Cutting Engine &bull; Real-Time WebGL 3D Visualization &bull; Cutting Speed vc, Feed Rate f, MRR, Cutting Force Fc &amp; Spindle Power</p>
+  </header>
+
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Machining Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Turning Preset --</option>
+        <option value="roughing_steel_c45">Roughing Carbon Steel C45 (N = 800 RPM, f = 0.3 mm/rev)</option>
+        <option value="finishing_aluminum_6061">High-Speed Aluminum Finishing (N = 1800 RPM, f = 0.1 mm/rev)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="milling_cutting.html" title="Open Milling Simulator">Milling Mechanics V2</a>
+      <a class="btn-secondary" href="cnc_gcode_machining.html" title="Open CNC G-Code Simulator">CNC G-Code V2</a>
+    </div>
+  </div>
+
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode Lathe Components">💥 Exploded Lathe View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Cutting Force Fc &amp; MRR Real-Time Telemetry Monitor</div>
+          <canvas id="telemetry-chart-canvas" style="width:100%;height:180px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Machining Cutting Parameters</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Workpiece Initial Diameter D0</span>
+            <span class="control-value" id="val-diameter">50.0 mm</span>
+          </div>
+          <input type="range" id="input-diameter" min="10" max="200" step="1" value="50" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Spindle Speed N</span>
+            <span class="control-value" id="val-speed">800 RPM</span>
+          </div>
+          <input type="range" id="input-speed" min="100" max="4000" step="50" value="800" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Feed Rate f</span>
+            <span class="control-value" id="val-feed">0.25 mm/rev</span>
+          </div>
+          <input type="range" id="input-feed" min="0.05" max="1.0" step="0.05" value="0.25" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Depth of Cut ap</span>
+            <span class="control-value" id="val-doc">2.0 mm</span>
+          </div>
+          <input type="range" id="input-doc" min="0.5" max="8.0" step="0.5" value="2.0" />
+        </div>
+
+        <div class="panel-header" style="margin-top:16px;">
+          <span class="panel-title">&#128200; Calculated Machining Outputs</span>
+        </div>
+
+        <div class="results-box">
+          <div class="result-row">
+            <span class="result-label">Cutting Speed vc</span>
+            <span class="result-val highlight" id="res-vc">0.0 m/min</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Material Removal Rate MRR</span>
+            <span class="result-val" id="res-mrr">0.0 cm³/min</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Tangential Cutting Force Fc</span>
+            <span class="result-val" id="res-fc">0 N</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Required Spindle Power Pc</span>
+            <span class="result-val" id="res-power">0.00 kW</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Machining Time per 100mm</span>
+            <span class="result-val" id="res-time">0.0 s</span>
+          </div>
+        </div>
+
+        <div class="status-box" id="status-note">
+          Lathe turning engine active. Adjust parameters to view cutting forces and MRR.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 3D Model Mode -->
+  <section id="section-3d-model" class="mode-section">
+    <div class="info-card">
+      <h2>Interactive 3D Lathe &amp; Tool Post Structural Viewer</h2>
+      <p>Inspect the procedural 3D GLB model of the Lathe Chuck, Workpiece Stock, and Tool Post Assembly.</p>
+    </div>
+  </section>
+
+  <!-- Explore Mode -->
+  <section id="section-explore" class="mode-section">
+    <div class="info-card">
+      <h2>Lathe Turning Physics &amp; Merchant Circle Theory</h2>
+      <p><strong>Cutting Speed vc:</strong> vc = (π &bull; D0 &bull; N) / 1000 (m/min)</p>
+      <p><strong>Material Removal Rate MRR:</strong> MRR = vc &bull; f &bull; ap (cm³/min)</p>
+      <p><strong>Cutting Force Fc:</strong> Fc = kc &bull; f &bull; ap where kc is specific cutting pressure (N/mm²).</p>
+    </div>
+  </section>
+
+  <!-- Practice Mode -->
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h2>Machining Optimization Challenge</h2>
+      <p>Configure the spindle speed and feed rate to achieve a cutting speed between 120 and 150 m/min while keeping spindle power under 4.0 kW.</p>
+    </div>
+  </section>
+
+  <!-- Quiz Mode -->
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h2>Lathe Machining Knowledge Test</h2>
+      <p>Q1: What happens to cutting speed vc when workpiece diameter D0 increases at constant RPM?</p>
+      <ul>
+        <li>A) Decreases</li>
+        <li>B) Increases (Correct)</li>
+        <li>C) Remains constant</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<script src="/js/lathe_turning_3d.js"></script>
+<script src="/js/lathe_turning_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

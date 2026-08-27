@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Computer Aided Electrical Drawing | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Computer Aided Electrical Drawing Virtual Lab for WBSCTE 4th Sem EE (EE/S4/ED). Simulate 33/11kV Substation Single Line Diagram (SLD), AC Stator Winding Distribution, and inspect 3D Substation model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/ED)</span>
+  </nav>
+
+  <header>
+    <h1>Computer Aided Electrical Drawing Virtual Lab</h1>
+    <p class="subtitle">33/11kV Substation Single Line Diagram (SLD), AC Stator Winding CAD &amp; Busbar Protection Schematics</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Substation SLD</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; CAD Standards</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">33/11kV Substation Switchyard</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Substation Gantry Tower, Busbar Conductor Rail, Step-Down Transformer 33/11kV, and Vacuum Circuit Breaker Unit.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ed-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Drawing Schematic:</label>
+        <select id="cad-mode-select" class="ed-select">
+          <option value="sld">1. 33/11kV Outdoor Substation Single Line Diagram (SLD)</option>
+          <option value="winding">2. 3-Phase AC Stator Winding Layout (36 Slots, 4 Poles)</option>
+          <option value="dc_arm">3. DC Armature Simplex Lap &amp; Wave Winding</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Base MVA:</label>
+        <input type="number" id="mva-in" value="10" min="1" max="100" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">%Z Impedance:</label>
+        <input type="number" id="z-in" value="8.5" min="2" max="20" step="0.5" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-draw-sld">Re-draw CAD SLD &#9654;</button>
+        <button class="btn-action success" id="btn-fault-calc">Fault Level (MVA_sc)</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & CAD Viewer -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Interactive Substation CAD Schematic &amp; Busbar Flow</span>
+          <span class="badge" id="mva-badge">Short-Circuit MVA = 117.65 MVA</span>
+        </div>
+        <canvas id="ed-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">CAD Dimensions &amp; Winding Factors</span>
+        </div>
+        <div class="ed-grid">
+          <div class="ed-box"><span class="ed-lbl">Fault Level (MVA_sc)</span><span class="ed-val" id="disp-sc">117.65 MVA</span></div>
+          <div class="ed-box"><span class="ed-lbl">Slots / Pole / Phase (q)</span><span class="ed-val">3.0 (Distributed)</span></div>
+          <div class="ed-box"><span class="ed-lbl">Slot Pitch Angle (&gamma;)</span><span class="ed-val">20.0&deg; Electrical</span></div>
+          <div class="ed-box"><span class="ed-lbl">Distribution Factor (kd)</span><span class="ed-val">0.9598</span></div>
+          <div class="ed-box"><span class="ed-lbl">Pitch Factor (kp)</span><span class="ed-val">1.0000 (Full Pitch)</span></div>
+          <div class="ed-box"><span class="ed-lbl">Switchgear Rating</span><span class="ed-val" style="color:#10b981;">33kV 1250A VCB</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">AutoCAD / Electrical Schematic Log:</div>
+          <div class="console-log" id="ed-log">
+            &gt; Initialized Computer Aided Electrical Drawing Virtual Lab.<br>
+            &gt; Generated 33/11kV Substation Single Line Diagram.<br>
+            &gt; High Voltage Incoming: 33kV &rarr; Lightning Arrester &rarr; Isolator &rarr; VCB &rarr; 10MVA Power Transformer.<br>
+            &gt; Secondary 11kV Busbar &rarr; Feeders F1, F2, F3 protected by Overcurrent &amp; Earth Fault relays.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/ED Computer Aided Electrical Drawing</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. 33/11kV Substation SLD</h3>
+          <p>Standard layout includes: Incoming 33kV transmission lines, Surge/Lightning arresters, Isolating switches with earth blades, Instrument transformers (CT/PT), Circuit breakers (SF6/VCB), Power Transformer, and 11kV distribution switchgear.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. AC Machine Winding Design</h3>
+          <p>Slots per pole per phase $q = \frac{S}{P \cdot m}$. Distribution factor $k_d = \frac{\sin(q\gamma/2)}{q \sin(\gamma/2)}$. Chorded coil pitch factor $k_p = \cos(\alpha/2)$ eliminates 5th and 7th harmonics.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. DC Armature Lap &amp; Wave Windings</h3>
+          <p><strong>Lap Winding:</strong> $A = P$ parallel paths, ideal for high-current, low-voltage machines.<br><strong>Wave Winding:</strong> $A = 2$ parallel paths, ideal for high-voltage, low-current machines.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Indian Standard Graphical Symbols (IS 2032)</h3>
+          <p>Standard symbols for Transformers, Circuit Breakers, Isolators, Lightning Arresters, Earthings, Relays, and Motor Starters.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ed-canvas');
+const ctx = canvas.getContext('2d');
+
+function drawSLD() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Top Title Banner
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText('33/11kV SUBSTATION SINGLE LINE DIAGRAM (SLD)', 50, 40);
+
+  // 33kV Incoming Overhead Line
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(80, 70); ctx.lineTo(80, 110); ctx.stroke();
+  ctx.fillStyle = '#ef4444'; ctx.fillText('33kV Incoming', 90, 85);
+
+  // Lightning Arrester (LA)
+  ctx.strokeStyle = '#f59e0b';
+  ctx.beginPath(); ctx.moveTo(80, 110); ctx.lineTo(130, 110); ctx.lineTo(130, 130); ctx.stroke();
+  ctx.fillStyle = '#f59e0b'; ctx.font = '10px monospace'; ctx.fillText('LA', 140, 125);
+
+  // Isolator
+  ctx.strokeStyle = '#38bdf8';
+  ctx.beginPath(); ctx.moveTo(80, 110); ctx.lineTo(80, 150); ctx.stroke();
+  ctx.strokeRect(70, 150, 20, 20);
+  ctx.fillText('ISO', 100, 165);
+
+  // 33kV Circuit Breaker (VCB)
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(70, 185, 20, 25);
+  ctx.strokeStyle = '#fff';
+  ctx.strokeRect(70, 185, 20, 25);
+  ctx.fillText('33kV VCB', 100, 202);
+
+  // Line down to Transformer
+  ctx.strokeStyle = '#ef4444';
+  ctx.beginPath(); ctx.moveTo(80, 210); ctx.lineTo(80, 250); ctx.stroke();
+
+  // Step-Down Transformer Two Overlapping Circles
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(80, 265, 15, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(80, 285, 15, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('10 MVA 33/11kV', 110, 280);
+
+  // 11kV Outgoing Busbar Line
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(80, 320); ctx.lineTo(80, 350); ctx.lineTo(600, 350); ctx.stroke();
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText('11kV Substation Busbar', 460, 340);
+
+  // 3 Feeders F1, F2, F3 branching off 11kV bus
+  const feeders = [220, 360, 500];
+  feeders.forEach((fx, i) => {
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(fx, 350); ctx.lineTo(fx, 385); ctx.stroke();
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(fx - 8, 385, 16, 16);
+    ctx.strokeStyle = '#fff';
+    ctx.strokeRect(fx - 8, 385, 16, 16);
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Feeder ${i+1}`, fx, 412);
+  });
+}
+
+const mvaIn = document.getElementById('mva-in');
+const zIn = document.getElementById('z-in');
+const logEl = document.getElementById('ed-log');
+
+document.getElementById('btn-draw-sld').addEventListener('click', () => {
+  const mva = parseFloat(mvaIn.value) || 10;
+  const z = parseFloat(zIn.value) || 8.5;
+  const scMva = (mva / z) * 100.0;
+
+  document.getElementById('disp-sc').textContent = `${scMva.toFixed(2)} MVA`;
+  document.getElementById('mva-badge').textContent = `Short-Circuit MVA = ${scMva.toFixed(2)} MVA`;
+  logEl.innerHTML += `<br>&gt; Re-generated SLD with Base MVA = ${mva} MVA, %Z = ${z}% &rarr; Fault Level = ${scMva.toFixed(2)} MVA.`;
+  drawSLD();
+});
+
+document.getElementById('btn-fault-calc').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [SHORT-CIRCUIT MVA] Fault level calculated: Symmetrical fault current If = 117.65 MVA / (&radic;3 * 11kV) = 6.17 kA. VCB rating verified.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_cad_drawing.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawSLD();
+</script>
+</body>
+</html>

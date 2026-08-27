@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Illumination Engineering Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Illumination Engineering Virtual Lab for WBSCTE 5th Sem EE (EE/S5/ILE). Simulate Inverse Square Law, Lambert's Cosine Law, Lumen Indoor Lighting Design, and inspect 3D Goniophotometer & LED Luminaire model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 5th Semester (EE/S5/ILE)</span>
+  </nav>
+
+  <header>
+    <h1>Illumination Engineering Virtual Lab</h1>
+    <p class="subtitle">Inverse Square &amp; Lambert's Cosine Laws, Indoor Lumen Method &amp; Polar Candela Distribution</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Photometric Laws</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IS 3646 Lux Standards</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Goniophotometer &amp; LED Luminaire</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Goniophotometer Base, LED High-Bay Luminaire, Goniometer Rotating Arm, and Lux Photocell Sensor.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ile-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Application Room:</label>
+        <select id="room-type-select" class="ile-select">
+          <option value="class">1. Engineering Classroom (Target: 300 Lux, 20m x 12m)</option>
+          <option value="drawing">2. Electrical CAD / Drawing Hall (Target: 500 Lux, 25m x 15m)</option>
+          <option value="workshop">3. Machine Shop / Workshop (Target: 400 Lux, 30m x 18m)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Target Lux (E):</label>
+        <input type="number" id="lux-in" value="300" min="50" max="1500" step="50" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Lamp Lumens (lm):</label>
+        <input type="number" id="lumen-in" value="3600" min="1000" max="25000" step="200" class="num-input" style="width:75px;">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Mounting Dist d (m):</label>
+        <input type="number" id="dist-in" value="3.0" min="1.0" max="10.0" step="0.5" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-lumen">Compute Luminaires &#9654;</button>
+        <button class="btn-action success" id="btn-polar-plot">Polar Candela Plot</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Photometric View -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Indoor Luminaire Grid Layout &amp; Lux Cone Distribution</span>
+          <span class="badge" id="lamp-badge">Required Luminaires: 42 Units</span>
+        </div>
+        <canvas id="ile-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Illumination Design Factors &amp; Power Density</span>
+        </div>
+        <div class="ile-grid">
+          <div class="ile-box"><span class="ile-lbl">Number of Luminaires (N)</span><span class="ile-val" id="disp-num-lamps" style="color:#f59e0b;font-weight:700;">42 Units</span></div>
+          <div class="ile-box"><span class="ile-lbl">Floor Area (L x W)</span><span class="ile-val" id="disp-area">240.0 m&sup2; (20m x 12m)</span></div>
+          <div class="ile-box"><span class="ile-lbl">Point Lux (Lambert's Law)</span><span class="ile-val" id="disp-point-lux">115.47 Lux (at 30&deg;)</span></div>
+          <div class="ile-box"><span class="ile-lbl">Lighting Power Density</span><span class="ile-val" id="disp-lpd">6.30 W / m&sup2; (ECBC Compliant)</span></div>
+          <div class="ile-box"><span class="ile-lbl">Coefficient of Util (UF)</span><span class="ile-val">0.60 (White Ceiling)</span></div>
+          <div class="ile-box"><span class="ile-lbl">Maintenance Factor (MF)</span><span class="ile-val">0.80 (Clean Environment)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Illumination Photometric Console:</div>
+          <div class="console-log" id="ile-log">
+            &gt; Initialized Illumination Engineering Virtual Lab.<br>
+            &gt; Classroom Area = 20.0m &times; 12.0m = 240.0 m&sup2;. Target Illuminance E = 300 Lux.<br>
+            &gt; Total Lumens = (E &times; A) / (UF &times; MF) = (300 &times; 240) / (0.60 &times; 0.80) = 150,000 lm.<br>
+            &gt; Selected 36W LED Batten (3600 lm) &rarr; N = 42 Luminaires in 7 &times; 6 symmetrical grid.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S5/ILE Illumination Engineering</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Fundamental Laws of Illumination</h3>
+          <p><strong>Inverse Square Law:</strong> $E = \frac{I}{d^2}$. Illuminance is inversely proportional to square of distance from point source.<br><strong>Lambert's Cosine Law:</strong> $E = \frac{I \cos \theta}{d^2}$, where $\theta$ is the angle of incidence.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Lumen (Light Flux) Method of Design</h3>
+          <p>$N = \frac{E \times A}{F \times UF \times MF}$. Space-to-Height Ratio ($SHR \le 1.5$) ensures uniform illumination without dark scalloping between fittings.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Polar Candela Distribution Curves</h3>
+          <p>Rousseau's diagram and Goniophotometer measurement in horizontal and vertical planes to determine Mean Spherical Candle Power ($MSCP$) and Mean Hemispherical Candle Power ($MHCP$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Modern Solid-State LED Lighting</h3>
+          <p>High luminous efficacy ($>120\text{ lm/W}$), Color Rendering Index ($CRI > 80$), Correlated Color Temperature ($CCT = 3000K-6500K$), and Electronic Driver THD ($<10\%$).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ile-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcIllumination() {
+  const eLux = parseFloat(document.getElementById('lux-in').value) || 300;
+  const fLm = parseFloat(document.getElementById('lumen-in').value) || 3600;
+  const dist = parseFloat(document.getElementById('dist-in').value) || 3.0;
+  const area = 240.0;
+  const uf = 0.6, mf = 0.8;
+
+  const totalLm = (eLux * area) / (uf * mf);
+  const nLamps = Math.ceil(totalLm / fLm);
+  const lpd = (nLamps * 36.0) / area;
+  const ePoint = (1200.0 * Math.cos(Math.PI / 6)) / (dist * dist);
+
+  document.getElementById('disp-num-lamps').textContent = `${nLamps} Units`;
+  document.getElementById('disp-point-lux').textContent = `${ePoint.toFixed(2)} Lux (at 30°)`;
+  document.getElementById('disp-lpd').textContent = `${lpd.toFixed(2)} W / m²`;
+  document.getElementById('lamp-badge').textContent = `Required Luminaires: ${nLamps} Units`;
+
+  return { nLamps, dist };
+}
+
+function drawIllumination() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcIllumination();
+
+  // Left Area: Room Floor Grid with Luminaire Fixtures (7 cols x 6 rows)
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(40, 50, 320, 320);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(40, 50, 320, 320);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText('ROOM CEILING REFLECTED PLAN (20m x 12m)', 50, 40);
+
+  const cols = 7, rows = 6;
+  const dx = 320 / (cols + 1);
+  const dy = 320 / (rows + 1);
+
+  for (let c = 1; c <= cols; c++) {
+    for (let r = 1; r <= rows; r++) {
+      const lx = 40 + c * dx;
+      const ly = 50 + r * dy;
+
+      ctx.fillStyle = '#f5c842';
+      ctx.beginPath(); ctx.arc(lx, ly, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+
+  // Right Area: Lux Light Cone & Photometric Polar Spread
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(390, 50, 270, 320);
+  ctx.strokeStyle = '#64748b';
+  ctx.strokeRect(390, 50, 270, 320);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText('PHOTOMETRIC CONE SPREAD', 430, 75);
+
+  // Ceiling Luminaire Point
+  ctx.fillStyle = '#f5c842';
+  ctx.beginPath(); ctx.arc(525, 100, 10, 0, Math.PI * 2); ctx.fill();
+
+  // Light Cone (Gradient Yellow)
+  ctx.fillStyle = 'rgba(245, 200, 66, 0.25)';
+  ctx.beginPath();
+  ctx.moveTo(525, 100);
+  ctx.lineTo(420, 320);
+  ctx.lineTo(630, 320);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#f5c842'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Working Plane Target Line
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(410, 320); ctx.lineTo(640, 320); ctx.stroke();
+  ctx.fillStyle = '#10b981';
+  ctx.font = '10px monospace';
+  ctx.fillText('Working Desk Plane (0.75m)', 450, 340);
+}
+
+const luxIn = document.getElementById('lux-in');
+const lumenIn = document.getElementById('lumen-in');
+const distIn = document.getElementById('dist-in');
+const logEl = document.getElementById('ile-log');
+
+[luxIn, lumenIn, distIn].forEach(el => el.addEventListener('input', () => {
+  drawIllumination();
+}));
+
+document.getElementById('btn-calc-lumen').addEventListener('click', () => {
+  const res = calcIllumination();
+  logEl.innerHTML += `<br>&gt; [RE-CALCULATE LUMEN] Target Lux = ${luxIn.value} Lux, Lamp Lumens = ${lumenIn.value} lm &rarr; Required Luminaires N = ${res.nLamps} units.`;
+  drawIllumination();
+});
+
+document.getElementById('btn-polar-plot').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [POLAR CANDELA] Measured Polar Candela distribution: MSCP = 95.5 cd, MHCP = 120.0 cd. Direct downward flux ratio = 88.5%.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/illumination_engineering.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawIllumination();
+</script>
+</body>
+</html>

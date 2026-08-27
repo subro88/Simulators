@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Switchgear &amp; Protection Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Switchgear & Protection Virtual Lab for WBSCTE 5th Sem EE (EE/S5/SGP). Simulate IDMT Overcurrent Relay IEC Operating Curves, Merz-Price Differential Protection, Circuit Breakers, and inspect 3D Relay Chamber model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 5th Semester (EE/S5/SGP)</span>
+  </nav>
+
+  <header>
+    <h1>Switchgear &amp; Protection Virtual Lab</h1>
+    <p class="subtitle">IDMT Inverse Overcurrent Relay Operating Curves (IEC 60255), PSM/TMS &amp; VCB Arc Interruption</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Relay Standards</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IEC 60255 Curves</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">IDMT Induction Relay &amp; SF6 Breaker</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of IDMT Relay Chamber, Rotating Aluminum Disc, Current Setting Plug Bridge, and SF6 Circuit Breaker Pillar.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="sgp-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Protection Scheme:</label>
+        <select id="relay-mode-select" class="sgp-select">
+          <option value="idmt">1. Standard Inverse IDMT Overcurrent Relay (IEC 60255)</option>
+          <option value="very_inv">2. Very Inverse IDMT Relay (t = 13.5 / (PSM-1))</option>
+          <option value="diff">3. Transformer Merz-Price Percentage Differential</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Fault Current (A):</label>
+        <input type="number" id="fault-in" value="3500" min="500" max="15000" step="500" class="num-input" style="width:75px;">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Plug Setting (PS):</label>
+        <select id="ps-select" class="sgp-select">
+          <option value="1.0">100% (5.0A)</option>
+          <option value="1.25" selected>125% (6.25A)</option>
+          <option value="1.5">150% (7.5A)</option>
+          <option value="2.0">200% (10.0A)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">TMS (0.1 - 1.0):</label>
+        <input type="number" id="tms-in" value="0.5" min="0.05" max="1.0" step="0.05" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-fire-fault">Trigger Fault Current &#9654;</button>
+        <button class="btn-action danger" id="btn-trip-test">Trip Circuit Breaker</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & IDMT Curve -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">IDMT Operating Time Curve t(s) vs Plug Setting Multiplier (PSM)</span>
+          <span class="badge" id="trip-badge" style="background:#ef4444;">TRIP TIME = 2.436 s</span>
+        </div>
+        <canvas id="sgp-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Relay Setting Multipliers &amp; Circuit Breaker Telemetry</span>
+        </div>
+        <div class="sgp-grid">
+          <div class="sgp-box"><span class="sgp-lbl">Plug Setting Multiplier (PSM)</span><span class="sgp-val" id="disp-psm">7.00</span></div>
+          <div class="sgp-box"><span class="sgp-lbl">Operating Time (t_op)</span><span class="sgp-val" id="disp-top" style="color:#ef4444;font-weight:700;">2.436 s</span></div>
+          <div class="sgp-box"><span class="sgp-lbl">CT Secondary Current</span><span class="sgp-val" id="disp-is">43.75 A (CT 400/5)</span></div>
+          <div class="sgp-box"><span class="sgp-lbl">Circuit Breaker State</span><span class="sgp-val" id="disp-cb" style="color:#ef4444;font-weight:700;">TRIP SIGNAL ISSUED</span></div>
+          <div class="sgp-box"><span class="sgp-lbl">Arc Extinction Medium</span><span class="sgp-val" style="color:#38bdf8;">Vacuum (10&macr;&sup7; bar)</span></div>
+          <div class="sgp-box"><span class="sgp-lbl">Merz-Price Bias Slope</span><span class="sgp-val">20.0 % Slope (Stable)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Substation Relay Protection Event Log:</div>
+          <div class="console-log" id="sgp-log">
+            &gt; Initialized Switchgear &amp; Protection Virtual Lab.<br>
+            &gt; Protection Line: CT 400/5A, Plug Setting = 125% (6.25A pick-up), TMS = 0.50.<br>
+            &gt; Applied Symmetrical 3-Phase Fault Current = 3500.0 A.<br>
+            &gt; Calculated PSM = 7.00 &rarr; IEC Standard Inverse Relay operating time t = 2.436 s.<br>
+            &gt; Trip coil energized: VCB main contacts parted within 3 cycles (60 ms).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S5/SGP Switchgear &amp; Protection</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. IDMT Overcurrent Relay Characteristics</h3>
+          <p>Standard Inverse (IEC 60255): $t = \frac{0.14}{(PSM)^{0.02} - 1} \times TMS$.<br>Plug Setting Multiplier $PSM = \frac{I_{fault}}{\text{Plug Setting} \times CT_{sec}}$. Time Multiplier Setting ($TMS$) shifts curve vertically for graded discrimination.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Differential Protection (Merz-Price)</h3>
+          <p>Operates on vector difference of current entering and leaving the protected zone ($|I_1 - I_2| > k \frac{I_1 + I_2}{2}$). Biased restraining coils prevent false tripping under CT saturation during external through-faults.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Circuit Breakers &amp; Arc Extinction</h3>
+          <p>Restriking Voltage &amp; Rate of Rise of Restriking Voltage ($RRRV = \omega_n V_m \sin \omega_n t$). Vacuum Circuit Breakers (VCBs) utilize rapid dielectric recovery of metallic vapor in ultra-high vacuum ($10^{-7}\text{bar}$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Neutral Earthing &amp; Surge Arresters</h3>
+          <p>Solid vs Resistance Earthing to limit Earth Fault current. Metal Oxide Surge Arresters (ZnO) protect power transformers from atmospheric lightning and switching overvoltage surges.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('sgp-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcIDMT() {
+  const ifault = parseFloat(document.getElementById('fault-in').value) || 3500;
+  const ps = parseFloat(document.getElementById('ps-select').value) || 1.25;
+  const tms = parseFloat(document.getElementById('tms-in').value) || 0.5;
+
+  const isSec = ifault / 80.0; // CT 400/5
+  const ipick = ps * 5.0;
+  const psm = isSec / ipick;
+
+  let top = 99.0;
+  if (psm > 1.0) {
+    const denom = Math.pow(psm, 0.02) - 1.0;
+    top = (0.14 / Math.max(1e-4, denom)) * tms;
+  }
+
+  document.getElementById('disp-psm').textContent = psm.toFixed(2);
+  document.getElementById('disp-top').textContent = `${top.toFixed(3)} s`;
+  document.getElementById('disp-is').textContent = `${isSec.toFixed(2)} A (CT 400/5)`;
+  document.getElementById('trip-badge').textContent = `TRIP TIME = ${top.toFixed(3)} s`;
+
+  return { psm, top };
+}
+
+function drawSgpCurve() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cx = 70, cy = 360, w = 580, h = 300;
+
+  // Grid & Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + w, cy); ctx.stroke(); // X-axis (PSM)
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - h); ctx.stroke(); // Y-axis (Time s)
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('0', cx - 15, cy + 12);
+  ctx.fillText('20', cx + w - 10, cy + 15);
+  ctx.fillText('PSM (Multiplier)', cx + w / 2 - 40, cy + 30);
+  ctx.fillText('Time t(s)', cx - 55, cy - h + 10);
+  ctx.fillText('10s', cx - 30, cy - h * 0.9);
+  ctx.fillText('5s', cx - 25, cy - h * 0.5);
+  ctx.fillText('1s', cx - 25, cy - h * 0.1);
+
+  // Draw IEC IDMT Standard Inverse Curves for TMS = 0.2, 0.5, 1.0
+  const tmsList = [0.2, 0.5, 1.0];
+  const tmsColors = ['#64748b', '#38bdf8', '#f59e0b'];
+
+  tmsList.forEach((tms, idx) => {
+    ctx.strokeStyle = tmsColors[idx];
+    ctx.lineWidth = (tms === 0.5) ? 3 : 1.5;
+    ctx.beginPath();
+    for (let psm = 1.2; psm <= 20.0; psm += 0.2) {
+      const top = (0.14 / (Math.pow(psm, 0.02) - 1.0)) * tms;
+      const px = cx + ((psm - 1.0) / 19.0) * w;
+      const py = cy - Math.min(h, (top / 10.0) * h);
+      if (psm === 1.2) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  });
+
+  // Current Operating Point Marker
+  const cur = calcIDMT();
+  if (cur.psm >= 1.0 && cur.psm <= 20.0) {
+    const markX = cx + ((cur.psm - 1.0) / 19.0) * w;
+    const markY = cy - Math.min(h, (cur.top / 10.0) * h);
+
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(markX, markY, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = '#ef4444';
+    ctx.font = 'bold 11px Segoe UI';
+    ctx.fillText(`OPERATING POINT: PSM=${cur.psm.toFixed(1)}, t=${cur.top.toFixed(3)}s`, markX + 10, markY - 8);
+  }
+}
+
+const faultIn = document.getElementById('fault-in');
+const psSel = document.getElementById('ps-select');
+const tmsIn = document.getElementById('tms-in');
+const logEl = document.getElementById('sgp-log');
+
+[faultIn, psSel, tmsIn].forEach(el => el.addEventListener('input', () => {
+  drawSgpCurve();
+}));
+
+document.getElementById('btn-fire-fault').addEventListener('click', () => {
+  const cur = calcIDMT();
+  logEl.innerHTML += `<br>&gt; [FAULT INJECTED] Symmetrical Fault = ${faultIn.value} A &rarr; PSM = ${cur.psm.toFixed(2)}, Trip Operating Time = ${cur.top.toFixed(3)} s.`;
+  drawSgpCurve();
+});
+
+document.getElementById('btn-trip-test').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [VCB TRIP TEST] Tripping solenoid fired. 33kV Vacuum Interrupter opened cleanly. Arc extinguished at first zero crossing.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/switchgear_protection.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawSgpCurve();
+</script>
+</body>
+</html>

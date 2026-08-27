@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Measuring Instruments Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Measuring Instruments Virtual Lab for WBSCTE 3rd Sem Electrical Engineering (EE/S3/EMI). Simulate PMMC Meter Torque, 2-Wattmeter 3-Phase Power, Maxwell Inductance Bridge, and inspect 3D PMMC/Wattmeter model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 3rd Semester (EE/S3/EMI)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Measuring Instruments Virtual Lab</h1>
+    <p class="subtitle">PMMC Meter Deflection Torque, 2-Wattmeter 3-Phase Power Measurement &amp; Maxwell AC Bridge</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Instrument Types</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Instrument Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">PMMC Meter &amp; Dynamometer Movement</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Meter Housing Chassis, PMMC Horseshoe Permanent Magnet, Moving Coil Spindle, Red Indicator Needle, and Calibrated Scale Dial.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="emi-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Measurement Mode:</label>
+        <select id="inst-select" class="emi-select">
+          <option value="wattmeter">1. 2-Wattmeter Method (3-Phase Balanced Load)</option>
+          <option value="pmmc">2. PMMC DC Meter (Deflection &theta; = NBA/C &middot; I)</option>
+          <option value="maxwell">3. Maxwell AC Inductance Bridge (Lx = R2*R3*C4)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Wattmeter W1 (W):</label>
+        <input type="number" id="w1-in" value="1200" min="0" max="5000" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Wattmeter W2 (W):</label>
+        <input type="number" id="w2-in" value="400" min="-2000" max="5000" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-emi">Measure Power &amp; PF &#9654;</button>
+        <button class="btn-action success" id="btn-bridge-bal">Balance AC Bridge</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Meter Visualizer -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Analog Meter Dial &amp; Pointer Deflection Arc</span>
+          <span class="badge" id="pf-badge">Power Factor: 0.756 (Lag)</span>
+        </div>
+        <canvas id="emi-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Instrument Metrics &amp; Phase Angle</span>
+        </div>
+        <div class="emi-grid">
+          <div class="emi-box"><span class="emi-lbl">Total 3-Phase Power</span><span class="emi-val" id="disp-p">1600.00 W (W1 + W2)</span></div>
+          <div class="emi-box"><span class="emi-lbl">Power Factor (cos &phi;)</span><span class="emi-val" id="disp-cos">0.7559 Lagging</span></div>
+          <div class="emi-box"><span class="emi-lbl">Phase Angle (&phi;)</span><span class="emi-val" id="disp-phi">40.89&deg;</span></div>
+          <div class="emi-box"><span class="emi-lbl">PMMC Deflection</span><span class="emi-val" id="disp-theta">67.50&deg; Arc</span></div>
+          <div class="emi-box"><span class="emi-lbl">Measured Inductance</span><span class="emi-val">250.00 mH (Lx)</span></div>
+          <div class="emi-box"><span class="emi-lbl">Accuracy Class</span><span class="emi-val">Class 0.5 (Precision)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Electrical Measurement Telemetry:</div>
+          <div class="console-log" id="emi-log">
+            &gt; Initialized Electrical Measuring Instruments Virtual Lab.<br>
+            &gt; [2-WATTMETER METHOD] W1 = 1200W, W2 = 400W. Total Power P = 1600W.<br>
+            &gt; tan(&phi;) = &radic;3*(W1 - W2)/(W1 + W2) = 0.866 &rarr; &phi; = 40.89&deg;, cos(&phi;) = 0.756.<br>
+            &gt; Maxwell AC Bridge balanced: Detector null condition reached. Lx = 250mH.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S3/EMI Electrical Measuring Instruments</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. PMMC vs Moving Iron (MI) Meters</h3>
+          <p><strong>PMMC:</strong> DC only, linear scale, high sensitivity, Eddy current damping ($T_d = NBAI$).<br><strong>Moving Iron:</strong> AC &amp; DC, square-law non-linear scale ($T_d = \frac{1}{2}I^2 \frac{dL}{d\theta}$), Air friction damping.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Two-Wattmeter 3-Phase Power</h3>
+          <p>Total Active Power $P = W_1 + W_2$. Power factor angle $\tan \phi = \sqrt{3} \frac{W_1 - W_2}{W_1 + W_2}$. Special cases: $\cos \phi = 1 \implies W_1 = W_2$; $\cos \phi = 0.5 \implies W_2 = 0$; $\cos \phi = 0 \implies W_1 = -W_2$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. AC Measurement Bridges</h3>
+          <p><strong>Maxwell's Inductance Bridge:</strong> Measures medium-Q inductors ($L_x = R_2 R_3 C_4, R_x = \frac{R_2 R_3}{R_4}$).<br><strong>Schering Bridge:</strong> Measures capacitance and dielectric loss angle $\tan \delta$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Instrument Transformers</h3>
+          <p>Current Transformers (CT, secondary 5A) and Potential Transformers (PT, secondary 110V) for high voltage/current isolation and safety.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('emi-canvas');
+const ctx = canvas.getContext('2d');
+let currentAngleDeg = 45;
+
+function drawMeter() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cx = 350, cy = 340, radius = 220;
+
+  // Scale Arc
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.stroke();
+
+  // Scale Ticks
+  for (let i = 0; i <= 10; i++) {
+    const angle = Math.PI * 1.15 + (Math.PI * 0.7) * (i / 10.0);
+    const x1 = cx + (radius - 10) * Math.cos(angle);
+    const y1 = cy + (radius - 10) * Math.sin(angle);
+    const x2 = cx + (radius + 10) * Math.cos(angle);
+    const y2 = cy + (radius + 10) * Math.sin(angle);
+
+    ctx.strokeStyle = (i % 2 === 0) ? '#38bdf8' : '#94a3b8';
+    ctx.lineWidth = (i % 2 === 0) ? 3 : 1.5;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+    if (i % 2 === 0) {
+      const tx = cx + (radius - 28) * Math.cos(angle);
+      const ty = cy + (radius - 28) * Math.sin(angle);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 11px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${i * 10}%`, tx, ty);
+    }
+  }
+
+  // Pointer Needle
+  const pAngle = Math.PI * 1.15 + (Math.PI * 0.7) * (currentAngleDeg / 90.0);
+  const px = cx + (radius - 15) * Math.cos(pAngle);
+  const py = cy + (radius - 15) * Math.sin(pAngle);
+
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(px, py); ctx.stroke();
+
+  // Pivot Hub
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('PMMC / DYNAMOMETER DIAL INDICATOR', cx, 100);
+}
+
+const w1In = document.getElementById('w1-in');
+const w2In = document.getElementById('w2-in');
+const logEl = document.getElementById('emi-log');
+
+document.getElementById('btn-calc-emi').addEventListener('click', () => {
+  const w1 = parseFloat(w1In.value) || 1200;
+  const w2 = parseFloat(w2In.value) || 400;
+  const p = w1 + w2;
+  const tanPhi = Math.sqrt(3) * (w1 - w2) / Math.max(1, w1 + w2);
+  const phi = Math.atan(tanPhi);
+  const cosPhi = Math.cos(phi);
+  const phiDeg = phi * 180.0 / Math.PI;
+
+  currentAngleDeg = Math.min(90, Math.max(0, cosPhi * 90));
+
+  document.getElementById('disp-p').textContent = `${p.toFixed(2)} W`;
+  document.getElementById('disp-cos').textContent = `${cosPhi.toFixed(4)} Lagging`;
+  document.getElementById('disp-phi').textContent = `${phiDeg.toFixed(2)}°`;
+  document.getElementById('pf-badge').textContent = `Power Factor: ${cosPhi.toFixed(3)} (Lag)`;
+
+  logEl.innerHTML += `<br>&gt; Measured 3-Phase Power: W1 = ${w1}W, W2 = ${w2}W &rarr; Total P = ${p}W, Power Factor = ${cosPhi.toFixed(3)}.`;
+  drawMeter();
+});
+
+document.getElementById('btn-bridge-bal').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [MAXWELL BRIDGE] Adjusted standard capacitor C4 = 0.5&mu;F. Bridge null reached: Lx = 250.0mH, Rx = 2500&Omega;.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_measurements.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawMeter();
+</script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Concrete Workability Lab Simulator (IS 1199) &mdash; WBSCTE Civil Engg | NHIT VisualLab</title>
+  <meta name="description" content="Free online Concrete Workability simulator (Slump Cone Test, Compacting Factor Test, Vee-Bee Consistometer) with real-time Python physics and 3D WebGL model." />
+  
+  <link rel="stylesheet" href="../../shared/site.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+<a href="index.html#app" class="skip-link">Skip to content</a>
+
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+
+  <!-- Breadcrumb Nav -->
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span style="margin-left:auto;" id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </span>
+  </nav>
+
+  <!-- Header -->
+  <header>
+    <h1>Concrete Workability Testing (IS 1199)</h1>
+    <p class="subtitle">Python Engine &bull; Interactive 3D WebGL Apparatus &bull; Slump Cone &bull; Compacting Factor &bull; Vee-Bee Consistometer</p>
+  </header>
+
+  <!-- Controls Bar -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="explore">Explore Parts</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Concrete Mix Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--surface2);padding:5px 10px;outline:none;cursor:pointer;color:var(--text);border:1px solid var(--border);border-radius:6px;">
+        <option value="">-- Load Standard Mix --</option>
+        <option value="mass_concrete">Mass Concrete (w/c = 0.42, Dry Stiff)</option>
+        <option value="pumpable_mix">Pumped Concrete (w/c = 0.55 + 1.2% SP)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-guide" href="index.html#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#00e676;color:#000;text-decoration:none;">&#128214; User Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2>3D Model &mdash; <span>Concrete Workability Apparatus</span></h2>
+        <div style="display:flex;gap:8px;">
+          <button id="btn-toggle-explode" class="btn btn-primary" style="background:var(--accent);color:#000;font-weight:700;">💥 Exploded View</button>
+          <button id="btn-reset-cam" class="btn btn-ghost">🎥 Reset View</button>
+        </div>
+      </div>
+      <div class="viewport-container" style="width:100%;height:520px;background:radial-gradient(circle at center, #09121d 0%, #03070d 100%);border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--border);">
+        <canvas id="webgl-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        <div class="canvas-overlay-hint" style="position:absolute;bottom:12px;left:12px;background:rgba(0,0,0,0.65);padding:6px 12px;border-radius:20px;font-size:0.75rem;color:var(--text-dim);">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="simulate-wrapper">
+    <div class="sim-grid" style="display:grid;grid-template-columns:1fr 380px;gap:16px;">
+      
+      <div class="canvas-card">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Working 2D Concrete Slump &amp; Compacting Factor Schematic</div>
+        <canvas id="workability-2d-canvas" style="width:100%;height:380px;display:block;background:#080c14;border-radius:8px;border:1px solid var(--border);"></canvas>
+      </div>
+
+      <div class="controls-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px;">
+        <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);">
+          <span class="panel-title" style="font-size:0.9rem;font-weight:700;color:var(--accent);text-transform:uppercase;">&#9881; Mix Parameters</span>
+          <span id="st-test-name" style="font-size:0.75rem;font-weight:700;color:var(--accent);">Slump Cone Test</span>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;font-weight:600;margin-bottom:4px;"><span>Select Workability Test</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            <button class="pill active" data-test-type="slump_cone" style="flex:1;">Slump Cone</button>
+            <button class="pill" data-test-type="compacting_factor" style="flex:1;">Compacting Factor</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Water-Cement Ratio (w/c)</span>
+            <span class="control-value" id="val-wc" style="color:var(--accent);font-family:var(--mono);">0.50</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-wc" min="0.35" max="0.75" step="0.01" value="0.50" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Max Aggregate Size</span>
+            <span class="control-value" id="val-agg" style="color:var(--accent);font-family:var(--mono);">20 mm</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-agg" min="10" max="40" step="5" value="20" style="width:100%;" />
+        </div>
+
+        <div class="control-block">
+          <div class="control-label-row" style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span>Superplasticizer Dosage</span>
+            <span class="control-value" id="val-sp" style="color:var(--accent);font-family:var(--mono);">0.0%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-sp" min="0.0" max="2.0" step="0.1" value="0.0" style="width:100%;" />
+        </div>
+
+        <div class="telemetry-box" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Measured Slump:</span><span class="telemetry-val" id="st-slump" style="color:var(--accent);font-family:var(--mono);font-weight:700;">75.0 mm</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Compacting Factor:</span><span class="telemetry-val" id="st-cf" style="color:#ffd600;font-family:var(--mono);font-weight:700;">0.880</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Vee-Bee Time:</span><span class="telemetry-val" id="st-vb" style="font-family:var(--mono);font-weight:700;">6.5 s</span></div>
+          <div class="telemetry-row" style="display:flex;justify-content:space-between;font-size:0.82rem;"><span class="telemetry-key" style="color:var(--text-dim);">Flow Table Spread:</span><span class="telemetry-val" id="st-flow" style="font-family:var(--mono);font-weight:700;">45.0%</span></div>
+
+          <div id="st-degree" style="color:var(--accent);font-weight:700;font-size:0.82rem;margin-top:4px;border-top:1px dashed var(--border);padding-top:6px;">
+            Degree: Medium
+          </div>
+          <div id="st-suitability" style="color:#dde3f0;font-size:0.75rem;">
+            Suitable: Normal reinforced concrete, manual compaction, heavily reinforced sections.
+          </div>
+          <div id="st-note" style="color:var(--text-dim);font-size:0.72rem;">
+            Conforms to IS 1199 &amp; IS 456 Table 2.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE MODE ═══════════════════════════════════════════ -->
+  <div id="explore-wrapper" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
+      <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+        <h3 style="color:var(--accent);margin-bottom:8px;">1. Slump Cone Test (IS 1199)</h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">A hollow frustum mould (top dia 100mm, bottom dia 200mm, height 300mm) is filled with concrete in 4 equal layers, each tamped 25 times with a 16mm bullet-nosed rod. The mould is lifted vertically, and the subsidence is measured as the slump in millimeters.</p>
+      </div>
+      <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+        <h3 style="color:var(--accent);margin-bottom:8px;">2. Compacting Factor Test</h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.5;">Measures the workability of low and very low workability concrete through standardized free fall from an upper hopper to a lower hopper, then into a receiving cylinder: CF = (Weight of Partially Compacted Concrete) / (Weight of Fully Compacted Concrete).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRACTICE MODE ═══════════════════════════════════════════ -->
+  <div id="practice-wrapper" style="display:none">
+    <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+      <h3 style="color:var(--accent);margin-bottom:8px;">Laboratory Procedure: Compacting Factor Calculation</h3>
+      <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.6;">
+        1. Clean and weigh the empty cylinder ($W_1$).<br>
+        2. Place concrete in the upper hopper and open the trap door to let it fall into the lower hopper.<br>
+        3. Release the lower trap door to let the concrete fall into the cylinder.<br>
+        4. Weigh the partially compacted cylinder ($W_2$).<br>
+        5. Refill the cylinder in layers and fully compact on a vibrating table, weighing fully compacted cylinder ($W_3$).<br>
+        6. Compute: $$CF = \frac{W_2 - W_1}{W_3 - W_1}$$
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════ -->
+  <div id="quiz-wrapper" style="display:none">
+    <div class="info-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
+      <h3 style="color:var(--accent);margin-bottom:8px;">Question: What is the height of a standard IS 1199 Slump Cone mould?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';">
+          &#10003; 300 mm (30 cm)
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- User Guide Section -->
+  <section id="user-guide" style="margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;">
+    <h2 style="color:var(--accent);margin-bottom:8px;">&#128214; IS 1199 User Guide &amp; Test Standards</h2>
+    <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.6;">Workability is the property of freshly mixed concrete that determines the ease and homogeneity with which it can be mixed, placed, compacted, and finished. Use this simulator to experiment with mix water content, aggregate sizing, and admixtures.</p>
+  </section>
+
+  <!-- Footer -->
+  <footer style="margin-top:30px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-size:0.8rem;">
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</main>
+
+<script src="/js/concrete_workability_3d.js"></script>
+<script src="/js/concrete_workability_simulator.js"></script>
+<script>
+  // Tab Switching logic
+  document.querySelectorAll('#mode-tabs .pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#mode-tabs .pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const mode = pill.dataset.mode;
+      
+      document.getElementById('model3d-wrapper').style.display = mode === '3d-model' ? 'block' : 'none';
+      document.getElementById('simulate-wrapper').style.display = mode === 'simulate' ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = mode === 'explore' ? 'block' : 'none';
+      document.getElementById('practice-wrapper').style.display = mode === 'practice' ? 'block' : 'none';
+      document.getElementById('quiz-wrapper').style.display = mode === 'quiz' ? 'block' : 'none';
+    });
+  });
+</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+</body>
+</html>

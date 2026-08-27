@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+  <title>Automotive Friction Clutch Simulator — V2 Python &amp; WebGL | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Single-Plate, Multi-Plate, and Diaphragm Automotive Friction Clutch simulator powered by Python FastAPI physics engine and Three.js WebGL graphics." />
+  
+  <link rel="stylesheet" href="/css/simulator.css" />
+
+  <!-- Three.js r128, OrbitControls, & GLTFLoader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- KaTeX CSS & JS for rendering LaTeX math formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Top Navigation & Live Telemetry Status -->
+  <div class="top-nav">
+    <div class="breadcrumb">
+      <a href="/nhitvisuallab/index.html">← All Simulators</a>
+      <span>/</span>
+      <span>Automobile Engineering</span>
+      <span>/</span>
+      <span style="color:var(--text);font-weight:600;">Friction Clutch V2</span>
+    </div>
+    
+    <div id="ws-badge" class="ws-status-badge">
+      <span class="ws-dot"></span>
+      <span id="ws-text">Connecting to Python Engine...</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <h1>Automotive Friction Clutch Simulator</h1>
+    <p class="subtitle">Python Physics Engine (FastAPI / NumPy) &bull; Real-Time WebGL 3D Visualization &bull; Single/Multi-Plate &bull; Diaphragm Spring Clamp &bull; Slip &amp; Wear</p>
+  </header>
+
+  <!-- Controls Bar with Mode Tabs & Presets -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="simulate">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill" data-mode="explore">Explore</button>
+        <button class="pill" data-mode="practice">Practice</button>
+        <button class="pill" data-mode="quiz">Quiz</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scenario Preset</span>
+      <select id="preset-select" class="btn-secondary" style="background:var(--bg-input);padding:6px 12px;outline:none;cursor:pointer;">
+        <option value="">-- Load Scenario Preset --</option>
+        <option value="passenger_car_engaged">Standard Passenger Car (Engaged)</option>
+        <option value="partial_engagement_slip">Biting Point (Slipping Engagement)</option>
+        <option value="motorcycle_multi_plate">High-Torque Multi-Plate (Motorcycle)</option>
+      </select>
+    </div>
+
+    <div class="head-actions">
+      <a class="btn-secondary" href="index.html" title="Open Differential Simulator">Differential V2</a>
+      <a class="btn-secondary" href="/nhitvisuallab/tools/steering-geometry/index.html" title="Open Steering Simulator">Steering Geometry</a>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 1. SIMULATE & 3D MODEL VIEWPORT                                  -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-simulate" class="mode-section active">
+    <div class="sim-grid">
+      
+      <!-- Left: Viewport (2D Schematic / 3D WebGL Canvas) -->
+      <div class="canvas-card">
+        <div class="canvas-mode-toggle">
+          <button id="btn-toggle-explode" title="Explode components outwards to inspect clutch plates">💥 Exploded View</button>
+          <button id="btn-reset-cam" title="Reset 3D Camera view">🎥 Reset View</button>
+        </div>
+
+        <div class="viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-overlay-hint">Left Drag: Orbit &bull; Right Drag: Pan &bull; Scroll: Zoom</div>
+        </div>
+
+        <!-- 2D Working Schematic Canvas -->
+        <div style="margin-top:14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:6px;">Working 2D Clutch Engagement Schematic</div>
+          <canvas id="clutch-2d-canvas" style="width:100%;height:220px;display:block;border-radius:6px;"></canvas>
+        </div>
+      </div>
+
+      <!-- Right: Real-time Controls & Telemetry -->
+      <div class="controls-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#9881; Clutch Design &amp; Controls</span>
+          <span id="st-status" style="font-size:0.78rem;font-weight:700;color:var(--green);">LOCKED UP</span>
+        </div>
+
+        <!-- Clutch Type Selection -->
+        <div class="control-block">
+          <div class="control-label-row"><span>Clutch Design Type</span></div>
+          <div class="btn-grid">
+            <button class="btn-choice active" data-clutch-type="single_plate">Single-Plate</button>
+            <button class="btn-choice" data-clutch-type="multi_plate">Multi-Plate (4x)</button>
+            <button class="btn-choice" data-clutch-type="diaphragm">Diaphragm Spring</button>
+          </div>
+        </div>
+
+        <!-- Calculation Theory -->
+        <div class="control-block">
+          <div class="control-label-row"><span>Design Assumption</span></div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-choice active" data-theory="uniform_wear" style="flex:1;">Uniform Wear (Used)</button>
+            <button class="btn-choice" data-theory="uniform_pressure" style="flex:1;">Uniform Pressure (New)</button>
+          </div>
+        </div>
+
+        <!-- Pedal Travel Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Clutch Pedal Travel</span>
+            <span class="control-value" id="val-pedal">0%</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-pedal" min="0" max="100" step="1" value="0" />
+        </div>
+
+        <!-- Clamp Force Slider -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Spring Clamp Force (W)</span>
+            <span class="control-value" id="val-clamp">4200 N</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-clamp" min="1000" max="12000" step="200" value="4200" />
+        </div>
+
+        <!-- Engine Input RPM -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Engine Flywheel RPM</span>
+            <span class="control-value" id="val-rpm">2400 RPM</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-rpm" min="500" max="6000" step="100" value="2400" />
+        </div>
+
+        <!-- Engine Input Torque -->
+        <div class="control-block">
+          <div class="control-label-row">
+            <span>Engine Torque</span>
+            <span class="control-value" id="val-torque">220 N·m</span>
+          </div>
+          <input type="range" class="slider-custom" id="slider-torque" min="50" max="600" step="10" value="220" />
+        </div>
+
+        <!-- Live Server Telemetry Readout -->
+        <div class="telemetry-box">
+          <div class="telemetry-row">
+            <span class="telemetry-key">Max Torque Capacity:</span>
+            <span class="telemetry-val" id="st-capacity">352.8 N·m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Transmitted Torque:</span>
+            <span class="telemetry-val" id="st-transmitted" style="color:var(--accent);">220.0 N·m</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Gearbox Output RPM:</span>
+            <span class="telemetry-val" id="st-gb-rpm" style="color:var(--green);">2400 RPM</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Transmitted Power:</span>
+            <span class="telemetry-val" id="st-power">55.29 kW</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-key">Friction Wear Index:</span>
+            <span class="telemetry-val" id="st-wear" style="color:var(--yellow);">0.00</span>
+          </div>
+
+          <div class="telemetry-equation" id="st-formula">
+            T_cap = 2 × 0.35 × 4200 N × 100.0 mm = 352.8 N·m
+          </div>
+          <div class="telemetry-equation" id="st-note" style="color:var(--text-muted);">
+            Fully engaged (Locked up): Transmitting full engine torque to gearbox.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 2. EXPLORE MODE                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-explore" class="mode-section">
+    <div class="cards-grid">
+      <div class="info-card">
+        <h3>1. Engine Flywheel</h3>
+        <p>Heavy cast-iron disc bolted to the engine crankshaft. Serves as the primary drive friction surface and stores rotational inertia.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Friction Disc (Clutch Plate)</h3>
+        <p>Splined to the gearbox input shaft. Uses high-friction organic or ceramic linings with internal torsional damping springs to smooth engagement shock.</p>
+      </div>
+      <div class="info-card">
+        <h3>3. Pressure Plate &amp; Cover</h3>
+        <p>Spring-loaded iron plate that clamps the friction disc against the flywheel face with several thousand Newtons of axial force.</p>
+      </div>
+      <div class="info-card">
+        <h3>4. Diaphragm Spring</h3>
+        <p>Conical Belleville spring that acts as both clamping spring and release lever. Depressing the pedal pushes the release bearing against the inner fingers, relieving clamp force.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 3. PRACTICE MODE                                                  -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-practice" class="mode-section">
+    <div class="info-card">
+      <h3>Guided Calculation Experiment: Torque Capacity vs Clamp Force</h3>
+      <p>1. Set Clutch Type to <strong>Single-Plate</strong> (2 contact surfaces, $\mu = 0.35$, $R_m = 100\text{ mm}$).<br>
+         2. Adjust Spring Clamp Force ($W$) to <strong>4000 N</strong>.<br>
+         3. Verify Torque Capacity: $T = 2 \times 0.35 \times 4000\text{ N} \times 0.10\text{ m} = \mathbf{280.0\text{ N·m}}$.<br>
+         4. Now switch to <strong>Multi-Plate</strong> ($n=8$ active surfaces). Observe capacity quadruples to <strong>1120.0 N·m</strong>!</p>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 4. QUIZ MODE                                                      -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section id="section-quiz" class="mode-section">
+    <div class="info-card">
+      <h3>Question: Why are multi-plate friction clutches used in motorcycles?</h3>
+      <ul style="list-style:none;padding-left:0;display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--green)';this.style.color='var(--green)';">
+          &#10003; They provide high torque capacity in a small diameter by increasing the number of friction surfaces ($n$).
+        </li>
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--red)';this.style.color='var(--red)';">
+          &#10007; They eliminate the need for friction linings.
+        </li>
+        <li style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="this.style.borderColor='var(--red)';this.style.color='var(--red)';">
+          &#10007; They only work with automatic transmissions.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 5. USER GUIDE (Expandable)                                       -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span aria-hidden="true">&#128214;</span>
+      User Guide — Automotive Friction Clutch Simulator V2
+    </div>
+    <details open>
+      <summary><span class="guide-num">1</span> Overview &amp; Architecture</summary>
+      <div class="guide-body">
+        The V2 Automotive Friction Clutch Simulator combines Python numerical physics (Uniform Pressure &amp; Uniform Wear theories) with a 2D working schematic in <em>Simulate</em> mode and a photorealistic 3D GLB model in <em>3D Model</em> mode.
+      </div>
+    </details>
+    <details>
+      <summary><span class="guide-num">2</span> Design Theories: Uniform Pressure vs. Uniform Wear</summary>
+      <div class="guide-body">
+        <strong>Uniform Pressure Theory</strong> assumes constant contact pressure across the disc face (applies to brand-new clutches). <strong>Uniform Wear Theory</strong> assumes wear is uniform over time (applies to used/worn clutches) and yields a slightly conservative mean radius $R_m = (R_o + R_i) / 2$.
+      </div>
+    </details>
+    <details>
+      <summary><span class="guide-num">3</span> Exploded View Inspection</summary>
+      <div class="guide-body">
+        Click the <strong>💥 Exploded View</strong> button overlay inside the 3D viewport to separate the flywheel, friction disc, pressure plate, diaphragm spring, and release bearing along the main axis.
+      </div>
+    </details>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 6. SEO ARTICLE                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <section class="seo-article">
+    <h2>How Automotive Friction Clutches Work</h2>
+    <p>An <strong>Automotive Friction Clutch</strong> is the mechanical interface between the engine flywheel and gearbox input shaft. It enables smooth starting from rest and disengagement for gear changing.</p>
+    
+    <h3>Friction Torque Capacity Formula</h3>
+    <p style="font-family:var(--font-mono);font-size:1.05rem;color:var(--accent);padding:8px 0;">
+      T<sub>cap</sub> = n &times; &mu; &times; W &times; R<sub>m</sub>
+    </p>
+    <p>Where <em>n</em> is the number of active friction contact surfaces, <em>&mu;</em> is the coefficient of friction, <em>W</em> is the spring clamp force (N), and <em>R<sub>m</sub></em> is the effective mean friction radius.</p>
+
+    <h3>Explore Related Simulators</h3>
+    <p>Deepen your engineering studies with the <a href="index.html">Automotive Differential V2 Simulator</a>, <a href="/nhitvisuallab/tools/steering-geometry/index.html">Steering Geometry &amp; Alignment Simulator</a>, and <a href="/nhitvisuallab/tools/gear-trains/index.html">Gear Trains Simulator</a>.</p>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!-- 7. SITE FOOTER                                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <div class="footer-nav">
+      <a href="/nhitvisuallab/index.html">Home</a>
+      <a href="/nhitvisuallab/about/index.html">About</a>
+      <a href="/nhitvisuallab/privacy-policy/index.html">Privacy Policy</a>
+      <a href="/nhitvisuallab/terms/index.html">Terms of Use</a>
+      <a href="/nhitvisuallab/contact/index.html">Contact</a>
+    </div>
+    <p>&copy; 2026 NHIT VisualLab &bull; Simulators Platform V2</p>
+  </footer>
+
+</div>
+
+<!-- Application Controller Scripts -->
+<script src="/js/clutch3d.js"></script>
+<script src="/js/clutch_simulator.js"></script>
+<script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+</body>
+</html>

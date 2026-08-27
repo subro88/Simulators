@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Computer Organization &amp; CPU Architecture Simulator | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Computer Organization and Architecture (COA) Virtual Lab for WBSCTE 3rd Sem CST. Simulate CPU Instruction Cycle, Cache Mapping, Booth's Multiplication, and Instruction Pipelining with 3D Motherboard/CPU model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 3rd Semester (CST/3/305)</span>
+  </nav>
+
+  <header>
+    <h1>Computer Organization &amp; Architecture Simulator</h1>
+    <p class="subtitle">CPU Instruction Cycle, Cache Memory Mapping, Booth's Algorithm &amp; 5-Stage Pipeline</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Theory &amp; Architecture</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; COA Manual</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Architecture — <span id="sim3d-title">Microprocessor &amp; Motherboard Core</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of CPU Socket, ALU Core, Control Unit, L1/L2 Cache blocks, General Purpose Register bank, and High-Speed System Bus traces.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="coa-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">COA Sub-Module:</label>
+        <select id="coa-mode-select" class="coa-select">
+          <option value="instruction_cycle">1. CPU Instruction Cycle (Fetch-Decode-Execute)</option>
+          <option value="cache_mapping">2. Cache Memory Mapping (Direct / Associative)</option>
+          <option value="booth_multiplication">3. Booth's Multiplication Algorithm</option>
+          <option value="pipeline_execution">4. 5-Stage Instruction Pipelining</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group" id="instr-group">
+        <label class="ctrl-label">Opcode:</label>
+        <select id="opcode-select" class="coa-select">
+          <option value="ADD R1, R2">ADD R1, R2 (ALU Addition)</option>
+          <option value="SUB R1, R2">SUB R1, R2 (ALU Subtraction)</option>
+          <option value="LOAD R1, [0x3A4F]">LOAD R1, [0x3A4F] (Memory Read)</option>
+          <option value="STORE R1, [0x3A4F]">STORE R1, [0x3A4F] (Memory Write)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-step">Step Clock &#9654;</button>
+        <button class="btn-action success" id="btn-run">Auto Run &#9193;</button>
+        <button class="btn-action warning" id="btn-reset">Reset</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Register Status -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">CPU Datapath &amp; Bus Architecture Diagram</span>
+          <span class="badge" id="cycle-badge">Fetch Stage</span>
+        </div>
+        <canvas id="coa-canvas" width="700" height="440"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Register File &amp; Bus Telemetry</span>
+        </div>
+        <div class="reg-grid">
+          <div class="reg-box"><span class="reg-lbl">Program Counter (PC)</span><span class="reg-val" id="reg-pc">0x0064 (100)</span></div>
+          <div class="reg-box"><span class="reg-lbl">Memory Address (MAR)</span><span class="reg-val" id="reg-mar">0x0064</span></div>
+          <div class="reg-box"><span class="reg-lbl">Memory Data (MDR)</span><span class="reg-val" id="reg-mdr">0x2B01 (ADD)</span></div>
+          <div class="reg-box"><span class="reg-lbl">Instruction Reg (IR)</span><span class="reg-val" id="reg-ir">ADD R1, R2</span></div>
+          <div class="reg-box"><span class="reg-lbl">General Reg R1</span><span class="reg-val" id="reg-r1">0x0014 (20)</span></div>
+          <div class="reg-box"><span class="reg-lbl">General Reg R2</span><span class="reg-val" id="reg-r2">0x000F (15)</span></div>
+          <div class="reg-box"><span class="reg-lbl">Accumulator (ACC)</span><span class="reg-val" id="reg-acc">0x0023 (35)</span></div>
+          <div class="reg-box"><span class="reg-lbl">Status Flags (Z, S, C, V)</span><span class="reg-val" id="reg-flags">0, 0, 0, 0</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Micro-Operation Trace Log:</div>
+          <div class="console-log" id="coa-log">
+            &gt; CPU initialized. Clock Cycle 1: MAR &lt;- PC (0x0064).<br>
+            &gt; Read control signal active. Memory data 0x2B01 placed on Data Bus.<br>
+            &gt; MDR &lt;- Memory[MAR], IR &lt;- MDR. Instruction decoded: ADD R1, R2.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/3/305 Computer Organization &amp; Architecture</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Instruction Cycle (Von Neumann Architecture)</h3>
+          <p>Divided into 3 major phases: <strong>Fetch</strong> ($PC \to MAR \to MDR \to IR$, $PC \gets PC + 1$), <strong>Decode</strong> (Control Unit generates control signals), and <strong>Execute</strong> (ALU operation and register writeback).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Cache Memory Mapping</h3>
+          <p><strong>Direct Mapping:</strong> $\text{Block} = \text{Address} \pmod{\text{Cache Lines}}$. Fast but subject to conflict misses.<br><strong>Set-Associative:</strong> Divides cache into sets of $k$ lines (2-way, 4-way), reducing conflict misses significantly.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Booth's Multiplication Algorithm</h3>
+          <p>Optimized signed 2's complement integer multiplication by encoding sequences of consecutive 1s. Inspects bits $(Q_0, Q_{-1})$: $10 \to A = A - M$, $01 \to A = A + M$, followed by Arithmetic Right Shift (ARS).</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. 5-Stage Instruction Pipelining</h3>
+          <p>Overlaps instruction execution through <strong>IF</strong> (Instruction Fetch), <strong>ID</strong> (Instruction Decode / Register Read), <strong>EX</strong> (Execute / ALU), <strong>MEM</strong> (Memory Access), and <strong>WB</strong> (Write Back). Ideal speedup equals the number of stages $k = 5$.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+// Canvas Drawing
+const canvas = document.getElementById('coa-canvas');
+const ctx = canvas.getContext('2d');
+let stage = 0; // 0=Fetch, 1=Decode, 2=Execute, 3=Writeback
+const stages = ['Fetch Stage', 'Decode Stage', 'Execute Stage', 'Writeback Stage'];
+
+function drawCOA() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Control Unit Box
+  ctx.fillStyle = '#003366';
+  ctx.strokeStyle = '#29b6f6';
+  ctx.lineWidth = 2;
+  ctx.fillRect(60, 60, 160, 110);
+  ctx.strokeRect(60, 60, 160, 110);
+  ctx.fillStyle = '#80d8ff';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('Control Unit (CU)', 140, 95);
+  ctx.fillStyle = '#b0bec5';
+  ctx.font = '12px Segoe UI';
+  ctx.fillText('Microcode Sequencer', 140, 120);
+
+  // ALU Box
+  ctx.fillStyle = '#3e2723';
+  ctx.strokeStyle = '#ff7043';
+  ctx.fillRect(280, 60, 160, 110);
+  ctx.strokeRect(280, 60, 160, 110);
+  ctx.fillStyle = '#ffab91';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.fillText('ALU Unit', 360, 95);
+  ctx.fillStyle = '#b0bec5';
+  ctx.font = '12px Segoe UI';
+  ctx.fillText('32-bit Adder / Logic', 360, 120);
+
+  // Cache & Memory Box
+  ctx.fillStyle = '#1b5e20';
+  ctx.strokeStyle = '#69f0ae';
+  ctx.fillRect(500, 60, 160, 110);
+  ctx.strokeRect(500, 60, 160, 110);
+  ctx.fillStyle = '#b9f6ca';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.fillText('L1/L2 Cache', 580, 95);
+  ctx.fillStyle = '#b0bec5';
+  ctx.font = '12px Segoe UI';
+  ctx.fillText('SRAM 32KB Direct', 580, 120);
+
+  // Main System Bus
+  ctx.fillStyle = '#37474f';
+  ctx.fillRect(40, 220, 620, 30);
+  ctx.strokeStyle = (stage % 2 === 0) ? '#00e676' : '#29b6f6';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(40, 220, 620, 30);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.fillText('SYSTEM BUS (Address / Data / Control Lines)', 350, 240);
+
+  // Registers Row
+  const regs = ['PC', 'MAR', 'MDR', 'IR', 'ACC'];
+  regs.forEach((r, i) => {
+    const x = 70 + i * 120;
+    const isAct = (stage === 0 && (r==='PC'||r==='MAR')) || (stage === 1 && r==='IR') || (stage === 2 && r==='ACC');
+    ctx.fillStyle = isAct ? '#ff5252' : '#263238';
+    ctx.strokeStyle = isAct ? '#ff8a80' : '#455a64';
+    ctx.fillRect(x, 300, 95, 75);
+    ctx.strokeRect(x, 300, 95, 75);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 13px Segoe UI';
+    ctx.fillText(r, x + 47, 330);
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#cfd8dc';
+    ctx.fillText(r === 'PC' ? '0x0064' : (r === 'ACC' ? '0x0023' : '0x2B01'), x + 47, 355);
+  });
+}
+
+const logEl = document.getElementById('coa-log');
+const badge = document.getElementById('cycle-badge');
+
+document.getElementById('btn-step').addEventListener('click', () => {
+  stage = (stage + 1) % 4;
+  badge.textContent = stages[stage];
+  if (stage === 0) {
+    logEl.innerHTML += '<br>&gt; [Fetch] Program Counter (0x0064) sent to MAR. Instruction read initiated.';
+  } else if (stage === 1) {
+    logEl.innerHTML += '<br>&gt; [Decode] Opcode ADD decoded. Read operands R1=20 and R2=15.';
+  } else if (stage === 2) {
+    logEl.innerHTML += '<br>&gt; [Execute] ALU computed 20 + 15 = 35. Result placed in Accumulator.';
+  } else {
+    logEl.innerHTML += '<br>&gt; [Writeback] Written 35 back to Destination Register. PC incremented.';
+  }
+  drawCOA();
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  stage = 0;
+  badge.textContent = stages[0];
+  logEl.innerHTML = '&gt; Reset CPU Datapath state to Cycle 0.';
+  drawCOA();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/computer_architecture.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawCOA();
+</script>
+</body>
+</html>

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow" />
+
+  <title>Online Interactive Psychrometric Chart — Free, SI &amp; IP | NHIT VisualLab</title>
+  <meta name="description" content="Free online interactive psychrometric chart with ASHRAE-grade math — click any point for dry bulb, wet bulb, dew point, RH, humidity ratio, enthalpy & specific volume. SI/IP, altitude-corrected." />
+  <meta name="keywords" content="psychrometric chart, psychrometric calculator, ASHRAE psychrometric, dew point calculator, wet bulb temperature, humidity ratio, enthalpy moist air, HVAC cooling coil, comfort zone, ASHRAE TC 9.9, evaporative cooling, altitude psychrometric" />
+
+  <link rel="canonical" href="index.html" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Online Interactive Psychrometric Chart — Free SI/IP" />
+  <meta property="og:description" content="Click anywhere on an ASHRAE-grade chart to read all 7 moist-air properties. Process simulator, coil sizing, comfort & data-center overlays. SI/IP, altitude-corrected." />
+  <meta property="og:url" content="https://nhitvisuallab.org/tools/psychrometric-chart/" />
+  <meta property="og:image" content="https://nhitvisuallab.org/brand/Modern_logo.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Online Interactive Psychrometric Chart — Free SI/IP" />
+  <meta name="twitter:description" content="Click-to-pick state points, live process lines, coil sizing, altitude correction, SI/IP. Defect-free moist-air math." />
+  <meta name="twitter:image" content="https://nhitvisuallab.org/brand/Modern_logo.png" />
+
+  <meta name="theme-color" content="#0d1117" />
+
+  <link rel="manifest" href="../../manifest.json" />
+  <link rel="icon" type="image/png" href="../../favicon.png">
+  <link rel="apple-touch-icon" href="../../favicon.png" />
+
+  <link rel="stylesheet" href="../../shared/site.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+  <script src="../../shared/latex-auto.js" defer></script>
+
+  <!-- JSON-LD: LearningResource + SoftwareApplication -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "LearningResource",
+        "name": "Psychrometric Chart Calculator",
+        "description": "Interactive ASHRAE-grade psychrometric chart for HVAC engineers and students. Click-to-pick state points, full property readout, HVAC process simulator, coil sizing, comfort and data center overlays.",
+        "url": "https://nhitvisuallab.org/tools/psychrometric-chart/",
+        "learningResourceType": "Simulation",
+        "educationalLevel": "Undergraduate, Professional",
+        "teaches": ["Psychrometrics", "Moist air properties", "HVAC processes", "Cooling coil sizing", "ASHRAE comfort zones"],
+        "publisher": {"@type": "Organization", "name": "NHIT VisualLab", "url": "https://nhitvisuallab.org"}
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "Psychrometric Chart Calculator",
+        "applicationCategory": "EngineeringApplication",
+        "operatingSystem": "Web",
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        "url": "https://nhitvisuallab.org/tools/psychrometric-chart/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- JSON-LD: BreadcrumbList -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://nhitvisuallab.org/"},
+      {"@type": "ListItem", "position": 2, "name": "Thermal & Fluid Engineering", "item": "https://nhitvisuallab.org/thermal/"},
+      {"@type": "ListItem", "position": 3, "name": "Psychrometric Chart Calculator", "item": "https://nhitvisuallab.org/tools/psychrometric-chart/"}
+    ]
+  }
+  </script>
+
+  <!-- JSON-LD: FAQPage -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How do I find dew point from dry-bulb temperature and relative humidity?",
+        "acceptedAnswer": {"@type": "Answer", "text": "Enter dry-bulb and RH in the Property Calculator. The tool solves humidity ratio W = 0.621945·pw/(p − pw) where pw = RH·pws(t), then inverts the ASHRAE Hyland-Wexler saturation curve to give the dew point. The state is plotted on the chart with all seven properties shown live."}
+      },
+      {
+        "@type": "Question",
+        "name": "What is the difference between wet-bulb temperature and dew point?",
+        "acceptedAnswer": {"@type": "Answer", "text": "Wet-bulb is what a wetted-wick thermometer reads in moving air — it depends on both the air's moisture and its dry-bulb temperature. Dew point is purely the temperature at which condensation begins; it depends only on absolute moisture content. Twb = Tdp only at saturation (RH = 100%). On the chart, dew point is found by moving horizontally to the saturation curve, wet-bulb by moving along the constant wet-bulb line."}
+      },
+      {
+        "@type": "Question",
+        "name": "Why does altitude affect psychrometric chart readings?",
+        "acceptedAnswer": {"@type": "Answer", "text": "Humidity ratio W = 0.621945·pw/(p − pw) is explicitly pressure-dependent. A standard sea-level chart (101.325 kPa) misreads moisture content at altitude — at Denver (~1610 m, 83 kPa) the error in W is roughly 20%. This tool accepts altitude or barometric pressure and redraws the chart accordingly, and warns when sea-level pressure is used above 750 m."}
+      }
+    ]
+  }
+  </script>
+
+</head>
+<body>
+  <a href="index.html#app" class="skip-link">Skip to content</a>
+
+  <a class="logo-fixed" href="../../index.html">
+    <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+  </a>
+
+  <main id="app">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a class="site-nav-back" href="../../index.html">&larr; All&nbsp;Tools</a>
+    </nav>
+
+    <header>
+      <h1>Interactive Psychrometric Chart Calculator</h1>
+
+      <p class="subtitle">Interactive ASHRAE-grade moist-air properties &bull; Click any point &bull; HVAC processes &bull; Coil sizing &bull; Comfort &amp; data-center overlays &mdash; Simulate &bull; Explore &bull; Practice &bull; Quiz</p>
+    </header>
+
+    <!-- Mode pill tabs -->
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist" aria-label="Tool modes">
+        <button class="pill-tab active" data-mode="simulate" role="tab" aria-selected="true">Simulate</button>
+        <button class="pill" data-mode="3d-model">3D Model</button>
+        <button class="pill-tab" data-mode="explore" role="tab" aria-selected="false">Explore</button>
+        <button class="pill-tab" data-mode="practice" role="tab" aria-selected="false">Practice</button>
+        <button class="pill-tab" data-mode="quiz" role="tab" aria-selected="false">Quiz</button>
+      </div>
+      <div class="unit-toggle" role="group" aria-label="Unit system">
+        <button class="unit-btn active" data-unit="si">SI</button>
+        <button class="unit-btn" data-unit="ip">IP</button>
+      </div>
+      <div class="head-actions">
+        <a class="btn-link" href="../refrigeration-cycle/index.html" title="Open Refrigeration" aria-label="Open Refrigeration"><img src="../../Icons/refrigeration-cycle.svg" width="20" height="20" alt=""><span class="lbl">Refrigeration</span></a>
+        <a class="btn-link" href="../heat-exchanger/index.html" title="Open Heat Exchanger" aria-label="Open Heat Exchanger"><img src="../../Icons/heat-exchanger.svg" width="20" height="20" alt=""><span class="lbl">Heat Exchanger</span></a>
+      </div>
+    </div>
+
+    
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" style="display:none">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">Interactive Psychrometric Chart Calculator</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Free online interactive psychrometric chart with ASHRAE-grade math — click any point for dry bulb, wet bulb, dew point, RH, humidity ratio, enthalpy &amp; specific volume. SI/IP, altitude-corrected.</p>
+      <div class="sim3d-wrap">
+        <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+        <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+      </div>
+      <style>
+        .sim3d-section{margin:24px 0;padding:16px 18px;background:#0e1726;border:1px solid #1e2c44;border-radius:10px;color:#dce6f5;}
+        .sim3d-section h2{margin:0 0 6px;font-size:1.15rem;color:#7fd1ff;}
+        .sim3d-blurb{margin:0 0 12px;line-height:1.5;color:#aebfd4;}
+        .sim3d-wrap{position:relative;width:100%;max-width:640px;}
+        .sim3d-canvas{width:100%;height:380px;display:block;background:#0e1726;border-radius:8px;touch-action:none;cursor:grab;}
+        .sim3d-canvas:active{cursor:grabbing;}
+        .sim3d-hint{position:absolute;right:10px;bottom:8px;font-size:12px;color:#6b7f9c;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:6px;}
+      </style>
+    </section>
+  </div>
+<!-- ═══════════════════ SIMULATE MODE ═══════════════════ -->
+    <section class="mode-section" id="sec-simulate">
+        <div class="psy-layout">
+
+        <!-- LEFT: Chart canvas -->
+<div class="canvas-card" id="chart-card">
+          <!-- Presets bar -->
+          <div class="preset-bar">
+            <label class="preset-label" for="sel-preset">Preset:</label>
+            <select id="sel-preset" class="preset-select" aria-label="Load a preset scenario">
+              <option value="">— Choose scenario —</option>
+              <optgroup label="Common conditions">
+                <option value="comfort">Indoor comfort (24 °C, 50% RH)</option>
+                <option value="server-rec">Server room — ASHRAE recommended</option>
+                <option value="museum">Museum / archive (21 °C, 45% RH)</option>
+                <option value="cleanroom">Pharma cleanroom (20 °C, 45% RH)</option>
+              </optgroup>
+              <optgroup label="Climate extremes">
+                <option value="hot-humid">Hot humid (Singapore — 32 °C, 80% RH)</option>
+                <option value="hot-dry">Hot dry (Phoenix — 40 °C, 15% RH)</option>
+                <option value="cold-dry">Cold dry (Toronto winter — −10 °C, 60% RH)</option>
+                <option value="tropical">Tropical monsoon (Mumbai — 30 °C, 90% RH)</option>
+              </optgroup>
+              <optgroup label="Altitude — city presets">
+                <option value="city-denver">Denver (1610 m) — summer design</option>
+                <option value="city-mexico">Mexico City (2240 m) — summer design</option>
+                <option value="city-johannesburg">Johannesburg (1750 m) — summer design</option>
+                <option value="city-lhasa">Lhasa (3650 m) — summer design</option>
+              </optgroup>
+            </select>
+            <button class="chart-tool-btn" id="btn-custom-point" title="Add a custom labeled state point">+ Custom Point</button>
+          </div>
+
+          <div class="chart-toolbar">
+            <div class="chart-tool-group" role="group" aria-label="Chart overlays">
+              <button class="chart-tool-btn" data-overlay="comfort" title="ASHRAE 55 comfort zone">Comfort</button>
+              <button class="chart-tool-btn" data-overlay="datacenter" title="ASHRAE TC 9.9 data center A1-A4">Data Center</button>
+              <button class="chart-tool-btn" data-overlay="wb" title="Constant wet-bulb lines">WB lines</button>
+              <button class="chart-tool-btn" data-overlay="enth" title="Constant enthalpy lines">h lines</button>
+              <button class="chart-tool-btn" data-overlay="vol" title="Constant specific volume lines">v lines</button>
+            </div>
+            <div class="chart-tool-group" role="group" aria-label="Point actions">
+              <button class="chart-tool-btn" id="btn-undo" title="Undo last action (Ctrl+Z)" disabled>&#8630; Undo</button>
+              <button class="chart-tool-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)" disabled>&#8631; Redo</button>
+              <button class="chart-tool-btn primary" id="btn-add-point" title="Add a state point">+ Add</button>
+              <button class="chart-tool-btn" id="btn-clear-points" title="Remove all points">Clear</button>
+              <button class="chart-tool-btn" id="btn-export-csv" title="Export point data as CSV">&#8595; CSV</button>
+              <button class="chart-tool-btn" id="btn-export-png" title="Export chart as PNG image">&#8595; PNG</button>
+              <button class="chart-tool-btn" id="btn-share" title="Copy shareable URL">&#128279; Share</button>
+            </div>
+          </div>
+
+          <canvas id="chart-canvas" width="900" height="600" role="img" aria-label="Interactive psychrometric chart"></canvas>
+
+          <!-- Chart legend -->
+          <div class="chart-legend" aria-label="Chart legend">
+            <span class="lg-item"><span class="lg-swatch" style="background:#22d3ee"></span> Saturation / RH</span>
+            <span class="lg-item" id="lg-wb"><span class="lg-swatch" style="background:#a3e635"></span> Wet-bulb</span>
+            <span class="lg-item" id="lg-h"><span class="lg-swatch" style="background:#fbbf24"></span> Enthalpy</span>
+            <span class="lg-item" id="lg-v"><span class="lg-swatch" style="background:#a78bfa"></span> Spec. volume</span>
+          </div>
+
+          <!-- First-time hint overlay -->
+          <div class="chart-hint" id="chart-hint">
+            <strong>Tip:</strong> Click anywhere on the chart to set the active state point, or drag an existing point to move it. Use the Preset dropdown to load common scenarios.
+            <button class="hint-close" id="hint-close" aria-label="Dismiss hint">&times;</button>
+          </div>
+
+          <div class="readout-badges" id="readout-badges">
+            <div class="readout-badge"><span class="rb-dot" style="background:var(--accent)"></span> T<sub>db</sub> <strong id="rb-tdb">25.0</strong> <span id="rb-u-t">&deg;C</span></div>
+            <div class="readout-badge"><span class="rb-dot" style="background:var(--green)"></span> RH <strong id="rb-rh">50.0</strong> %</div>
+            <div class="readout-badge"><span class="rb-dot" style="background:var(--gold)"></span> W <strong id="rb-w">9.92</strong> <span id="rb-u-w">g/kg</span></div>
+            <div class="readout-badge"><span class="rb-dot" style="background:#9c8cff"></span> h <strong id="rb-h">50.4</strong> <span id="rb-u-h">kJ/kg</span></div>
+            <div class="readout-badge"><span class="rb-dot" style="background:#ff8b6b"></span> T<sub>wb</sub> <strong id="rb-twb">17.9</strong> <span id="rb-u-t2">&deg;C</span></div>
+            <div class="readout-badge" title="Dew-point depression — gap to condensation"><span class="rb-dot" style="background:#19c4d4"></span> &Delta;T<sub>dp</sub> <strong id="rb-dpdep">11.1</strong> <span id="rb-u-t3">&deg;C</span></div>
+          </div>
+
+          <!-- Ice phase notice -->
+          <div class="ice-notice" id="ice-notice" style="display:none">
+            &#10052; Below freezing &mdash; chart auto-switched to the ice-phase saturation curve (ASHRAE Eq. 5, sublimation latent heat 2830 kJ/kg).
+          </div>
+
+          <div class="ctx-menu" id="ctx-menu" style="display:none">
+            <button class="ctx-item" data-action="save-img">Save as Image</button>
+            <button class="ctx-item" data-action="copy-data">Copy State Data</button>
+            <button class="ctx-item" data-action="reset">Reset Points</button>
+          </div>
+        </div><!-- RIGHT: Properties + processes -->
+        <aside class="info-panel">
+          <!-- Pressure / altitude -->
+          <div class="info-card">
+            <div class="info-card-title">Atmospheric Pressure</div>
+            <div class="slider-row">
+              <span class="sim-slider-label">Altitude</span>
+              <input class="sim-slider" id="sl-alt" type="range" min="0" max="4000" step="50" value="0" />
+              <div class="stepper">
+                <button class="stepper-btn" data-step="-50" data-target="sl-alt">&minus;</button>
+                <span class="stepper-val" id="val-alt">0</span>
+                <button class="stepper-btn" data-step="50" data-target="sl-alt">+</button>
+                <span class="stepper-unit" id="u-alt">m</span>
+              </div>
+            </div>
+            <div class="slider-row">
+              <span class="sim-slider-label">Pressure</span>
+              <input class="sim-slider" id="sl-p" type="range" min="60" max="110" step="0.1" value="101.325" />
+              <div class="stepper">
+                <button class="stepper-btn" data-step="-0.1" data-target="sl-p">&minus;</button>
+                <span class="stepper-val" id="val-p">101.3</span>
+                <button class="stepper-btn" data-step="0.1" data-target="sl-p">+</button>
+                <span class="stepper-unit" id="u-p">kPa</span>
+              </div>
+            </div>
+            <div class="warn-line" id="alt-warn" style="display:none">&#9888; Altitude &gt; 750 m &mdash; sea-level chart values would be significantly off. Tool is using corrected pressure.</div>
+          </div>
+
+          <!-- Active point properties -->
+          <div class="info-card">
+            <div class="info-card-title">
+              <span>State Point</span>
+              <select id="active-point" class="point-select"></select>
+            </div>
+
+            <div class="prop-grid">
+              <label class="prop-row">
+                <span class="prop-label">Dry-bulb T<sub>db</sub></span>
+                <input class="prop-input" id="in-tdb" type="number" step="0.1" />
+                <span class="prop-unit" id="u-tdb">&deg;C</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Wet-bulb T<sub>wb</sub></span>
+                <input class="prop-input" id="in-twb" type="number" step="0.1" />
+                <span class="prop-unit" id="u-twb">&deg;C</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Dew point T<sub>dp</sub></span>
+                <input class="prop-input" id="in-tdp" type="number" step="0.1" />
+                <span class="prop-unit" id="u-tdp">&deg;C</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Rel. humidity &phi;</span>
+                <input class="prop-input" id="in-rh" type="number" step="0.1" min="0" max="100" />
+                <span class="prop-unit">%</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Humidity ratio W</span>
+                <input class="prop-input" id="in-w" type="number" step="0.0001" />
+                <span class="prop-unit" id="u-w">kg/kg</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Enthalpy h</span>
+                <input class="prop-input" id="in-h" type="number" step="0.1" />
+                <span class="prop-unit" id="u-h">kJ/kg</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Specific vol. &upsilon;</span>
+                <input class="prop-input" id="in-v" type="number" step="0.001" readonly />
+                <span class="prop-unit" id="u-v">m&sup3;/kg</span>
+              </label>
+              <label class="prop-row">
+                <span class="prop-label">Density &rho;</span>
+                <input class="prop-input" id="in-rho" type="number" step="0.001" readonly />
+                <span class="prop-unit" id="u-rho">kg/m&sup3;</span>
+              </label>
+            </div>
+
+            <div class="solver-hint" id="solver-hint">Edit any two of T<sub>db</sub>, T<sub>wb</sub>, T<sub>dp</sub>, &phi;, W, h &mdash; the rest update automatically.</div>
+          </div>
+
+          <!-- Processes -->
+          <div class="info-card">
+            <div class="info-card-title">HVAC Process</div>
+            <div class="proc-tabs" role="tablist">
+              <button class="proc-tab active" data-proc="none">None</button>
+              <button class="proc-tab" data-proc="sens-heat">Heat</button>
+              <button class="proc-tab" data-proc="sens-cool">Cool</button>
+              <button class="proc-tab" data-proc="humid-steam">+H<sub>2</sub>O Steam</button>
+              <button class="proc-tab" data-proc="humid-evap">+H<sub>2</sub>O Evap</button>
+              <button class="proc-tab" data-proc="dehum">Dehumidify</button>
+              <button class="proc-tab" data-proc="mix">Mix</button>
+            </div>
+            <div class="proc-panel" id="proc-panel"></div>
+          </div>
+
+          <!-- Mass flow (load calc) -->
+          <div class="info-card" id="flow-card">
+            <div class="info-card-title">Air Mass Flow (for loads)</div>
+            <div class="slider-row">
+              <span class="sim-slider-label" id="flow-label">&mdot;<sub>a</sub></span>
+              <input class="sim-slider" id="sl-mflow" type="range" min="0.1" max="20" step="0.05" value="1.0" />
+              <div class="stepper">
+                <button class="stepper-btn" data-step="-0.05" data-target="sl-mflow">&minus;</button>
+                <span class="stepper-val" id="val-mflow">1.00</span>
+                <button class="stepper-btn" data-step="0.05" data-target="sl-mflow">+</button>
+                <span class="stepper-unit" id="u-mflow">kg/s</span>
+              </div>
+            </div>
+            <div class="load-readout" id="load-readout"></div>
+          </div>
+
+        </aside>
+      </div>
+
+      <!-- Live equations panel -->
+      <details class="learn-panel" open>
+        <summary><span class="learn-panel-num">i</span> Live Equations &mdash; ASHRAE Ch. 1 (Hyland-Wexler)</summary>
+        <div class="learn-panel-body" id="lp-eq-body"></div>
+      </details>
+
+      <!-- ═══ Industrial Modules ═══ -->
+      <section class="indust-modules">
+        <h2 class="indust-title">Industrial Modules</h2>
+        <div class="indust-tabs" role="tablist">
+          <button class="indust-tab active" data-mod="coil" role="tab">Cooling Coil Sizing</button>
+          <button class="indust-tab" data-mod="tower" role="tab">Cooling Tower</button>
+          <button class="indust-tab" data-mod="evap" role="tab">Evap Cooling Designer</button>
+          <button class="indust-tab" data-mod="timeline" role="tab">24-h Timeline</button>
+        </div>
+
+        <!-- M1 Cooling Coil Sizing Wizard -->
+        <div class="indust-panel" id="mod-coil">
+          <p class="indust-desc">Sizes a cooling coil using the canonical Outdoor &rarr; Mix &rarr; Coil &rarr; Supply path. Computes RSHF, GSHF, apparatus dew point (ADP) by extending the coil line to saturation, bypass factor &amp; total tonnage.</p>
+          <div class="coil-grid">
+            <div class="coil-block">
+              <h4>Outdoor Air (OA)</h4>
+              <label>T<sub>db</sub> <input type="number" id="coil-oa-t" step="0.1" value="35"><span class="u">&deg;C</span></label>
+              <label>RH <input type="number" id="coil-oa-rh" step="1" min="0" max="100" value="60"><span class="u">%</span></label>
+              <label>Flow <input type="number" id="coil-oa-mf" step="0.05" min="0" value="0.3"><span class="u">kg/s</span></label>
+            </div>
+            <div class="coil-block">
+              <h4>Return Air (RA)</h4>
+              <label>T<sub>db</sub> <input type="number" id="coil-ra-t" step="0.1" value="24"><span class="u">&deg;C</span></label>
+              <label>RH <input type="number" id="coil-ra-rh" step="1" min="0" max="100" value="50"><span class="u">%</span></label>
+              <label>Flow <input type="number" id="coil-ra-mf" step="0.05" min="0" value="1.2"><span class="u">kg/s</span></label>
+            </div>
+            <div class="coil-block">
+              <h4>Room Loads</h4>
+              <label>Sensible <input type="number" id="coil-qs" step="0.1" min="0" value="20"><span class="u">kW</span></label>
+              <label>Latent <input type="number" id="coil-ql" step="0.1" min="0" value="5"><span class="u">kW</span></label>
+              <label>Coil BF <input type="number" id="coil-bf" step="0.05" min="0" max="0.4" value="0.15"><span class="u">—</span></label>
+            </div>
+            <div class="coil-block">
+              <h4>Targets</h4>
+              <label>Room T<sub>db</sub> <input type="number" id="coil-rm-t" step="0.1" value="24"><span class="u">&deg;C</span></label>
+              <label>Room RH <input type="number" id="coil-rm-rh" step="1" min="0" max="100" value="50"><span class="u">%</span></label>
+              <button class="btn btn-primary" id="btn-coil-calc" type="button" style="margin-top:6px;">Calculate &amp; Plot</button>
+            </div>
+          </div>
+          <div class="coil-results" id="coil-results"></div>
+        </div>
+
+        <!-- M2 Cooling Tower -->
+        <div class="indust-panel" id="mod-tower" style="display:none">
+          <p class="indust-desc">Industrial cooling-tower analysis &mdash; compute range, approach, evaporation rate, drift &amp; blowdown for a counter-flow tower.</p>
+          <div class="tower-grid">
+            <label>Water in T <input type="number" id="tw-tin" step="0.1" value="35"><span class="u">&deg;C</span></label>
+            <label>Water out T <input type="number" id="tw-tout" step="0.1" value="29"><span class="u">&deg;C</span></label>
+            <label>Air WB in <input type="number" id="tw-wb" step="0.1" value="25"><span class="u">&deg;C</span></label>
+            <label>Water flow <input type="number" id="tw-mw" step="0.1" min="0" value="20"><span class="u">L/s</span></label>
+            <label>Cycles of conc. <input type="number" id="tw-coc" step="0.1" min="1" value="4"><span class="u">—</span></label>
+            <button class="btn btn-primary" id="btn-tower-calc" type="button">Calculate</button>
+          </div>
+          <div class="tower-results" id="tower-results"></div>
+        </div>
+
+        <!-- M3 Evaporative Cooling Designer -->
+        <div class="indust-panel" id="mod-evap" style="display:none">
+          <p class="indust-desc">Direct, indirect or two-stage evaporative cooling. Effectiveness &epsilon; sets how close the supply approaches the entering wet-bulb. Useful for hot-dry climates where the wet-bulb depression is large.</p>
+          <div class="evap-grid">
+            <label>Type
+              <select id="ev-type">
+                <option value="direct">Direct (DEC)</option>
+                <option value="indirect">Indirect (IEC)</option>
+                <option value="twostage">Two-stage (IEC + DEC)</option>
+              </select>
+            </label>
+            <label>OA T<sub>db</sub> <input type="number" id="ev-t" step="0.1" value="38"><span class="u">&deg;C</span></label>
+            <label>OA RH <input type="number" id="ev-rh" step="1" min="0" max="100" value="20"><span class="u">%</span></label>
+            <label>&epsilon;<sub>DEC</sub> <input type="number" id="ev-eps-d" step="0.01" min="0" max="1" value="0.85"><span class="u">—</span></label>
+            <label>&epsilon;<sub>IEC</sub> <input type="number" id="ev-eps-i" step="0.01" min="0" max="1" value="0.70"><span class="u">—</span></label>
+            <label>Air flow <input type="number" id="ev-mf" step="0.05" min="0" value="1.0"><span class="u">kg/s</span></label>
+            <button class="btn btn-primary" id="btn-evap-calc" type="button">Calculate</button>
+          </div>
+          <div class="evap-results" id="evap-results"></div>
+        </div>
+
+        <!-- M6 24-h Timeline -->
+        <div class="indust-panel" id="mod-timeline" style="display:none">
+          <p class="indust-desc">Sketch outdoor conditions over a 24-h cycle and see when they fall inside ASHRAE 55 comfort or TC 9.9 data-center envelopes &mdash; useful for economizer / free-cooling hour estimates.</p>
+          <div class="tl-controls">
+            <label>Daily T<sub>db</sub> min <input type="number" id="tl-tmin" step="0.5" value="20"><span class="u">&deg;C</span></label>
+            <label>Daily T<sub>db</sub> max <input type="number" id="tl-tmax" step="0.5" value="35"><span class="u">&deg;C</span></label>
+            <label>Mean RH <input type="number" id="tl-rh" step="1" min="0" max="100" value="55"><span class="u">%</span></label>
+            <label>RH swing &pm; <input type="number" id="tl-rh-sw" step="1" min="0" max="50" value="15"><span class="u">%</span></label>
+            <button class="btn btn-primary" id="btn-tl-calc" type="button">Plot 24-h</button>
+          </div>
+          <canvas id="timeline-canvas" width="900" height="240" role="img" aria-label="24-hour temperature, RH and humidity-ratio timeline"></canvas>
+          <div class="tl-results" id="tl-results"></div>
+        </div>
+      </section>
+
+      <!-- Show calculations modal trigger -->
+      <button class="btn btn-ghost" id="btn-show-calc" type="button">Show full calculation &raquo;</button>
+      <div class="calc-modal" id="calc-modal" style="display:none">
+        <div class="calc-modal-inner">
+          <div class="calc-modal-header">
+            <h3>Step-by-Step Calculation</h3>
+            <button class="calc-close" id="calc-close" type="button">&times;</button>
+          </div>
+          <div class="calc-modal-body" id="calc-modal-body"></div>
+        </div>
+      </div>
+
+      <!-- Custom Point Modal -->
+      <div class="calc-modal" id="cp-modal" style="display:none">
+        <div class="calc-modal-inner" style="max-width:520px">
+          <div class="calc-modal-header">
+            <h3>Add Custom State Point</h3>
+            <button class="calc-close" id="cp-close" type="button">&times;</button>
+          </div>
+          <div class="calc-modal-body">
+            <label class="cp-row"><span>Label</span><input type="text" id="cp-label" maxlength="6" placeholder="Custom" /></label>
+            <label class="cp-row"><span>Input pair</span>
+              <select id="cp-pair">
+                <option value="tdb_rh">T_db + RH</option>
+                <option value="tdb_twb">T_db + T_wb</option>
+                <option value="tdb_tdp">T_db + T_dp</option>
+                <option value="tdb_w">T_db + W</option>
+                <option value="tdb_h">T_db + h</option>
+              </select>
+            </label>
+            <label class="cp-row"><span>Value 1</span><input type="number" id="cp-v1" step="0.1" value="25"><span class="cp-u" id="cp-u1">&deg;C</span></label>
+            <label class="cp-row"><span>Value 2</span><input type="number" id="cp-v2" step="0.1" value="50"><span class="cp-u" id="cp-u2">%</span></label>
+            <div class="cp-error" id="cp-error" style="display:none"></div>
+            <button class="btn btn-primary" id="cp-create" type="button" style="margin-top:10px;width:100%;">Create Point</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ EXPLORE MODE ═══════════════════ -->
+    <section class="mode-section" id="sec-explore" style="display:none">
+      <div class="explore-panel">
+        <div class="explore-tabs">
+          <button class="explore-tab active" data-cat="basics">Basics</button>
+          <button class="explore-tab" data-cat="formulas">Formulas</button>
+          <button class="explore-tab" data-cat="applications">Applications</button>
+          <button class="explore-tab" data-cat="standards">Standards</button>
+        </div>
+        <div class="explore-cards" id="explore-cards"></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ PRACTICE MODE ═══════════════════ -->
+    <section class="mode-section" id="sec-practice" style="display:none">
+      <div class="practice-panel">
+        <div class="practice-header">
+          <span class="practice-score">Score: <strong id="prac-score">0 / 0</strong></span>
+          <button class="btn btn-ghost" id="prac-new" type="button">New Question</button>
+        </div>
+        <div class="practice-question" id="prac-question"></div>
+        <div class="practice-input">
+          <input type="number" id="prac-answer" step="0.01" placeholder="Your answer" />
+          <span id="prac-unit"></span>
+          <button class="btn btn-primary" id="prac-check" type="button">Check</button>
+        </div>
+        <div class="practice-feedback" id="prac-feedback"></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ QUIZ MODE ═══════════════════ -->
+    <section class="mode-section" id="sec-quiz" style="display:none">
+      <div class="quiz-panel">
+        <div class="quiz-header">
+          <span class="quiz-progress">Question <strong id="qz-num">1</strong> of 5</span>
+          <span class="quiz-score">Correct: <strong id="qz-score">0</strong></span>
+        </div>
+        <div class="quiz-question" id="qz-question"></div>
+        <div class="quiz-options" id="qz-options"></div>
+        <button class="btn btn-primary" id="qz-next" type="button" style="display:none">Next</button>
+        <div class="quiz-result" id="qz-result" style="display:none"></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ USER GUIDE ═══════════════════ -->
+    <section class="user-guide" id="user-guide">
+      <h2>User Guide &amp; Documentation</h2>
+
+      <details>
+        <summary><span class="guide-section-num">1</span> Overview</summary>
+        <img src="ug-hero.webp" alt="Psychrometric Chart simulator interface preview" width="300" height="92" loading="lazy"
+             style="float:right;max-width:150px;height:auto;margin:0 0 8px 12px;border-radius:6px;border:1px solid var(--border,#2a3050);">
+        <p>The Psychrometric Chart Calculator is a professional-grade tool for engineers, technicians, and students who need accurate moist-air properties for HVAC, industrial drying, evaporative cooling, cooling-tower work, data centers, museum/archive conservation and building science. Math is implemented per ASHRAE Handbook of Fundamentals Chapter 1 (Hyland-Wexler saturation pressure with the correct ice/water split at 0 &deg;C).</p>
+        <p>Four modes &mdash; <strong>Simulate</strong> for free-form chart exploration and property lookup; <strong>Explore</strong> for theory; <strong>Practice</strong> for unlimited drill; <strong>Quiz</strong> for a graded 5-question assessment with star rating.</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">2</span> Configuring the System</summary>
+        <p>The chart loads with one state point at 25 &deg;C / 50% RH (sea-level pressure, SI units). Click anywhere on the chart to drop or move the active point; or type any two of T<sub>db</sub>, T<sub>wb</sub>, T<sub>dp</sub>, RH, W, h directly into the Properties panel and the rest update automatically. Use the SI/IP toggle (top-right) at any time &mdash; internal math stays in SI; only the display changes.</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">3</span> Running the Cycle</summary>
+        <p><strong>Chart Explorer.</strong> Click to drop a point. Drag to move. Use the &ldquo;+ Add Point&rdquo; button for up to 5 labelled points (A &ndash; E). Select the active point from the dropdown to edit its properties.</p>
+        <p><strong>Overlays.</strong> Toggle constant wet-bulb, enthalpy and specific-volume lines. The Comfort overlay shades the ASHRAE 55 summer/winter zones; the Data Center overlay shows the ASHRAE TC 9.9 A1 &ndash; A4 envelopes used to assess server-room conditioning.</p>
+        <p><strong>HVAC processes.</strong> Pick a process tab. Sensible heat/cool draws a horizontal line. Steam humidification climbs vertically (constant T<sub>db</sub>). Evaporative humidification follows the constant wet-bulb line. Dehumidification follows the room sensible-heat ratio to the coil ADP. Mixing computes the mass-weighted state of two airstreams.</p>
+        <p><strong>Loads.</strong> Set the air mass flow ṁ<sub>a</sub> in the bottom card. The tool then reports sensible, latent and total load for the current process &mdash; preventing the common per-unit-mass error where users multiply by total CFM but forget to divide by the dry-air specific mass.</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">4</span> The Underlying Theory</summary>
+        <p>Four tabs: <strong>Basics</strong> (what the seven properties mean and why), <strong>Formulas</strong> (saturation pressure with ice/water split, humidity ratio, enthalpy, wet-bulb iterative solver), <strong>Applications</strong> (HVAC coil sizing, cooling towers, drying, data centers, museums), <strong>Standards</strong> (ASHRAE 55, TC 9.9, ISO 7730, altitude correction).</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">5</span> Try a Problem</summary>
+        <p><strong>Practice</strong> draws a random state and asks you to compute a missing property. Tolerance is &plusmn;0.3 &deg;C for temperatures and &plusmn;2% for moisture ratios &mdash; matching engineering practice. Score tracks running correct/total.</p>
+        <p><strong>Quiz</strong> is 5 multiple-choice questions covering property identification, process direction on the chart, comfort zone reading and altitude effects. Final result shows a star rating (1 &ndash; 5 stars).</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">6</span> Altitude &amp; Pressure</summary>
+        <p>The humidity ratio relation <em>W = 0.621945&middot;p<sub>w</sub>/(p &minus; p<sub>w</sub>)</em> is explicitly pressure-dependent. A standard sea-level chart misreads moisture at altitude &mdash; the error at Denver (~1610 m, ~83 kPa) is roughly 20%. Use the Altitude slider to set the station elevation; the Pressure slider follows the ASHRAE altitude relation. A warning appears above 750 m. Internal math always uses your selected pressure, so all properties remain correct.</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">7</span> SI vs IP Units</summary>
+        <p>Toggle at top-right. SI: &deg;C, kJ/kg dry air, kPa, kg/kg, m&sup3;/kg, m. IP: &deg;F, Btu/lb dry air, inHg, gr/lb (grains per pound), ft&sup3;/lb, ft. All conversions are exact; internal state remains in SI base units so re-toggling never drifts.</p>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">8</span> Engineering Notes &amp; Pitfalls</summary>
+        <ul class="guide-list">
+          <li><strong>(T<sub>wb</sub>, T<sub>dp</sub>) pair.</strong> Mathematically valid but ill-conditioned near saturation &mdash; the solver shows a warning. Prefer pairs that include T<sub>db</sub>.</li>
+          <li><strong>Below 0 &deg;C.</strong> The tool automatically switches to the ASHRAE 7-constant form over ice and uses the sublimation latent heat (2830 kJ/kg) in the wet-bulb formula. Defrost and refrigeration calculations are accurate.</li>
+          <li><strong>Wet-bulb vs adiabatic saturation.</strong> These match within 0.1 &deg;C in normal HVAC range; the tool returns the thermodynamic (adiabatic saturation) wet-bulb &mdash; the canonical ASHRAE definition.</li>
+          <li><strong>Supersaturation / fog.</strong> RH &gt; 100% is clipped to saturation; the tool does not render a fog region.</li>
+          <li><strong>Mass flow.</strong> All load equations are per unit mass of <em>dry air</em>. Set ṁ<sub>a</sub> in the dedicated card to get total loads.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="guide-section-num">9</span> Validation</summary>
+        <p>Saturation pressure, humidity ratio, enthalpy and wet-bulb match the CoolProp reference implementation (which traces to ASHRAE RP-1485 / Hyland-Wexler) to within display precision over the entire chart range (&minus;10 to 50 &deg;C, 0 &ndash; 100% RH, sea level to 3000 m).</p>
+      </details>
+    </section>
+
+    <!-- ═══════════════════ SEO ARTICLE ═══════════════════ -->
+    <section class="seo-article">
+      <h2>Psychrometric Chart Calculator &mdash; Theory, Use Cases &amp; Worked Examples</h2>
+
+      <figure style="float:right;max-width:320px;margin:0 0 14px 18px;text-align:center;">
+        <img src="screenshot.webp" alt="Full psychrometric chart with dry-bulb, wet-bulb, RH, humidity ratio and enthalpy lines" width="680" height="453" loading="lazy"
+             style="max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border,#2a3050);">
+        <figcaption style="font-size:0.78rem;color:var(--text-dim,#8b95b3);margin-top:6px;line-height:1.4;">The base chart at sea-level pressure. Five curve families on one canvas &mdash; this is what HVAC engineers carry in their heads.</figcaption>
+      </figure>
+
+      <p style="background:rgba(2,119,189,0.08);border-left:3px solid #0277bd;padding:10px 14px;border-radius:6px;font-size:0.95rem;clear:both;">First time I taught psychrometrics, I covered five property lines on the same chart and watched the class fog over. What worked: spend the whole first lesson on just dry-bulb and humidity ratio &mdash; locate state points, nothing else. Add wet-bulb the next day. Enthalpy later. By the end of the week the chart is no longer a mess of curves; it's a map. Tools that show all five at once make this harder, not easier, for beginners. Use the layer toggles deliberately.</p>
+
+      <h3>What a psychrometric chart actually shows</h3>
+      <p>A psychrometric chart is a two-dimensional map of moist air. Pick any two independent properties &mdash; usually dry-bulb temperature and either relative humidity or wet-bulb temperature &mdash; and every other property (dew point, humidity ratio, enthalpy, specific volume, density) is fixed. For a fixed barometric pressure, two intensive properties determine the state of moist air completely; this is the Gibbs phase rule applied to a single-phase binary mixture of dry air and water vapor.</p>
+
+      <p>The chart's seven everyday properties are: <strong>dry-bulb temperature</strong> (the ordinary thermometer reading), <strong>wet-bulb temperature</strong> (a wetted-wick thermometer in moving air, simulated thermodynamically by adiabatic saturation), <strong>dew point</strong> (the temperature at which condensation starts), <strong>relative humidity</strong> (ratio of water-vapor partial pressure to saturation pressure), <strong>humidity ratio W</strong> (kilograms of water vapor per kilogram of dry air), <strong>enthalpy h</strong> (kJ per kilogram of dry air), and <strong>specific volume v</strong> (cubic metres per kilogram of dry air).</p>
+
+      <h3>How the math actually works</h3>
+      <p>This tool implements ASHRAE Handbook of Fundamentals Chapter 1 verbatim. Saturation pressure of water vapor is computed by the Hyland-Wexler equations &mdash; a seven-constant logarithmic form for ice (&minus;100 to 0 &deg;C) and a six-constant form for liquid water (0 to 200 &deg;C). The split at 0 &deg;C is not cosmetic: the latent heat used in the thermodynamic wet-bulb equation jumps from 2501 kJ/kg (vaporization) to 2830 kJ/kg (sublimation = vaporization + 334 kJ/kg fusion) and the condensate specific heat changes from 4.186 kJ/kg&middot;K (liquid water) to 2.1 kJ/kg&middot;K (ice). Tools that omit this split misread refrigeration and frost-protection problems by several percent.</p>
+
+      <p>Humidity ratio is <em>W = 0.621945&middot;p<sub>w</sub>/(p &minus; p<sub>w</sub>)</em>, where 0.621945 is the molecular-mass ratio M<sub>water</sub>/M<sub>dry air</sub>. Older textbooks round to 0.622 or 0.62198 &mdash; same physics, lower precision. Specific enthalpy is <em>h = 1.006&middot;t + W&middot;(2501 + 1.86&middot;t)</em> in SI (kJ per kg dry air), or <em>h = 0.240&middot;t + W&middot;(1061 + 0.444&middot;t)</em> in IP (Btu/lb dry air).</p>
+
+      <figure style="float:left;max-width:280px;margin:0 18px 14px 0;text-align:center;">
+        <img src="screenshot-2.webp" alt="Psychrometric chart with ASHRAE thermal comfort envelope overlay" width="520" height="346" loading="lazy"
+             style="max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border,#2a3050);">
+        <figcaption style="font-size:0.78rem;color:var(--text-dim,#8b95b3);margin-top:6px;line-height:1.4;">ASHRAE thermal-comfort envelope (Standard 55) overlaid &mdash; the dotted polygon every office HVAC has to stay inside year-round.</figcaption>
+      </figure>
+
+      <h3>Industrial use cases this tool is built for</h3>
+      <p><strong>HVAC cooling-coil sizing</strong> is the classic application. Outdoor air mixes with return air at a mass-weighted state; the mixed stream enters the coil and exits along the room sensible-heat ratio (RSHF) line, with the coil&rsquo;s effective surface temperature (apparatus dew point, ADP) found by extending the process line to the saturation curve. The bypass factor BF = (T<sub>coil,out</sub> &minus; T<sub>ADP</sub>) / (T<sub>coil,in</sub> &minus; T<sub>ADP</sub>) tells you how close the coil approaches ideal. <strong>Evaporative cooling</strong> follows the constant wet-bulb line &mdash; the air&rsquo;s dry-bulb drops and humidity ratio climbs along a line of constant adiabatic saturation. <strong>Cooling tower</strong> analysis uses approach (T<sub>water,out</sub> &minus; T<sub>wb,in</sub>) and range to size makeup-water systems. <strong>Industrial drying</strong> (food, lumber, textile) lives on the chart because the rate of moisture removal depends on the vapor-pressure difference between product and conditioned air.</p>
+
+      <p>In <strong>data centers</strong>, the ASHRAE TC 9.9 envelopes (Class A1 through A4) prescribe allowable temperature/humidity windows for server hardware. Overlay these and verify that economizer and humidification strategies keep operation inside the envelope year-round. In <strong>pharma cleanrooms</strong> and <strong>museum archives</strong> the chart provides the design point for narrow humidity windows (35 &ndash; 55% RH typical for paper conservation; ISO 14644 humidity bands for cleanrooms).</p>
+
+      <figure style="float:right;max-width:280px;margin:0 0 14px 18px;text-align:center;">
+        <img src="screenshot-3.webp" alt="Psychrometric chart with ASHRAE TC 9.9 data-center class envelopes A1 through A4" width="520" height="346" loading="lazy"
+             style="max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border,#2a3050);">
+        <figcaption style="font-size:0.78rem;color:var(--text-dim,#8b95b3);margin-top:6px;line-height:1.4;">ASHRAE TC 9.9 data-centre envelopes (Class A1&ndash;A4). Free-cooling economiser strategies live or die by whether outside air falls inside this polygon.</figcaption>
+      </figure>
+
+      <h3>Why altitude correction is non-negotiable</h3>
+      <p>Because <em>W</em> depends explicitly on barometric pressure, a sea-level chart cannot be used unmodified at altitude. ASHRAE publishes separate charts for 750, 1500 and 2250 m for exactly this reason. This calculator accepts altitude or barometric pressure as a first-class input, redraws the chart accordingly, and warns the user when sea-level pressure would be misapplied. Engineers in Denver, Mexico City, Johannesburg or any plateau city should always set the correct altitude before sizing equipment.</p>
+
+      <h3>Who Uses This Simulator?</h3>
+      <p><strong>HVAC design engineers</strong> sizing cooling and heating coils, cooling towers, evaporative coolers and dehumidification systems. <strong>Mechanical engineering students</strong> learning refrigeration &amp; air-conditioning, often working through Stoecker, Cengel or ASHRAE textbook problems. <strong>Building energy modellers</strong> setting up EnergyPlus / IES VE simulations who need ground-truth state points. <strong>Industrial process engineers</strong> in food, pharma, paper and lumber drying. <strong>Data center operators</strong> verifying ASHRAE TC 9.9 envelope compliance. <strong>Architects and building scientists</strong> evaluating natural ventilation and passive cooling. <strong>FE/PE and GATE candidates</strong> drilling psychrometric problems.</p>
+
+      <aside class="further-reading" aria-label="Companion article">
+      <p>For a deeper walkthrough see the companion article: <a href="../../blog/articles/learn-thermal-engineering-with-simulators/index.html"><strong>Learn Thermal Engineering With Simulators — Free Student Guide</strong></a>.</p>
+    </aside>
+
+    <h3>Explore Related Simulators</h3>
+      <p>Pair the psychrometric chart with our <a href="../refrigeration-cycle/index.html">Refrigeration Cycle Simulator</a> for full vapor-compression COP analysis; the <a href="../heat-exchanger/index.html">Heat Exchanger Simulator</a> for LMTD/NTU coil sizing; the <a href="../ideal-gas-law/index.html">Ideal Gas Law</a> for the underlying state equation of dry air; and the <a href="../specific-heat-capacity/index.html">Specific Heat Capacity Simulator</a> to understand the sensible-heat term in the enthalpy equation.</p>
+    </section>
+
+  </main>
+
+  <script src="../../shared/related.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="../../shared/unit-memory.js" defer></script>
+<script src="../../shared/cookie-notice.js" defer></script>
+  <script src="../../shared/ads-collapse.js" defer></script>
+
+<script src="../../shared/three3d/three.min.js"></script>
+<script src="../../shared/three3d/viewer.js"></script>
+<script src="../../shared/three3d/models.js"></script>
+<script>Sim3D.mount('psychrometric-chart', document.getElementById('sim3d-canvas'));</script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+
+<script>
+/* 3D-Model tab visibility — injected by fix_3d_tabs.py */
+(function () {
+  var modeTabs = document.getElementById('mode-tabs');
+  if (!modeTabs) return;
+  var pills = modeTabs.querySelectorAll('.pill');
+  var model3dWrapper = document.getElementById('model3d-wrapper');
+  if (!model3dWrapper) return;
+
+  // Collect every mode wrapper so we can hide them when 3D Model is active
+  var WRAPPERS = [
+    'sim-wrapper', 'sim-panel', 'sim-section',
+    'explore-wrapper', 'explore-panel', 'explore-section',
+    'practice-wrapper', 'practice-panel', 'practice-section',
+    'quiz-wrapper', 'quiz-panel', 'quiz-section',
+    'model3d-wrapper'
+  ];
+
+  function getVal(pill) {
+    return pill.dataset.mode || pill.dataset.value || '';
+  }
+
+  pills.forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var val = getVal(pill);
+      if (val !== '3d-model') {
+        // Clicking any NON-3D tab → hide 3D wrapper, let existing JS handle the rest
+        model3dWrapper.style.display = 'none';
+      } else {
+        // Clicking 3D Model tab → hide all other wrappers, show 3D wrapper
+        WRAPPERS.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = (id === 'model3d-wrapper') ? '' : 'none';
+        });
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

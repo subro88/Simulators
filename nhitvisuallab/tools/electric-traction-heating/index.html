@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Utilization, Traction &amp; Heating Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Utilization, Traction, Heating & Drives Virtual Lab for WBSCTE 5th Sem EE (EE/S5/UTHD). Simulate Trapezoidal Speed-Time Curves, Specific Energy Consumption (SEC), High-Frequency Dielectric Heating, and inspect 3D Traction Bogie model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 5th Semester (EE/S5/UTHD)</span>
+  </nav>
+
+  <header>
+    <h1>Utilization, Traction &amp; Heating Virtual Lab</h1>
+    <p class="subtitle">Trapezoidal Speed-Time Curve, Specific Energy Consumption (SEC) &amp; Dielectric Induction Heating</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Traction Dynamics</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Traction Mechanics</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Electric Locomotive Pantograph &amp; Bogie</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Locomotive Overhead Pantograph Arm, Traction Wheel Bogie Axle, Induction Heating Coil, and Dielectric Heated Workpiece.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="uth-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Service Type:</label>
+        <select id="traction-service-select" class="uth-select">
+          <option value="suburban">1. Urban / Suburban Service (Trapezoidal Curve, D = 1.5 km)</option>
+          <option value="mainline">2. Main Line Express Service (Quadrilateral Curve, D = 10.0 km)</option>
+          <option value="dielectric">3. High-Frequency Dielectric Heating Power (20 MHz)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Crest Vm (km/h):</label>
+        <input type="number" id="vm-in" value="60" min="20" max="160" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Accel &alpha; (km/h/s):</label>
+        <input type="number" id="alpha-in" value="1.8" min="0.5" max="4.0" step="0.1" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Braking &beta; (km/h/s):</label>
+        <input type="number" id="beta-in" value="2.5" min="0.5" max="5.0" step="0.1" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-draw-curve">Calculate Speed Curve &#9654;</button>
+        <button class="btn-action success" id="btn-heating-calc">Dielectric Loss (kW)</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Speed-Time Profile -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Trapezoidal Speed-Time Profile v(t) &amp; Acceleration Phases</span>
+          <span class="badge" id="sec-badge">SEC = 42.14 Wh/Ton-km</span>
+        </div>
+        <canvas id="uth-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Traction Energy &amp; Run Telemetry</span>
+        </div>
+        <div class="uth-grid">
+          <div class="uth-box"><span class="uth-lbl">Total Run Time (T)</span><span class="uth-val" id="disp-total-t">117.3 s</span></div>
+          <div class="uth-box"><span class="uth-lbl">Average Speed (V_avg)</span><span class="uth-val" id="disp-vavg">46.02 km/h</span></div>
+          <div class="uth-box"><span class="uth-lbl">Acceleration Time (t1)</span><span class="uth-val" id="disp-t1">33.3 s</span></div>
+          <div class="uth-box"><span class="uth-lbl">Free Running Time (t2)</span><span class="uth-val" id="disp-t2">60.0 s</span></div>
+          <div class="uth-box"><span class="uth-lbl">Braking Time (t3)</span><span class="uth-val" id="disp-t3">24.0 s</span></div>
+          <div class="uth-box"><span class="uth-lbl">Specific Energy Consumption</span><span class="uth-val" id="disp-sec" style="color:#10b981;font-weight:700;">42.14 Wh / Ton-km</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Electric Locomotive Traction Diagnostics:</div>
+          <div class="console-log" id="uth-log">
+            &gt; Initialized Utilization, Traction &amp; Heating Virtual Lab.<br>
+            &gt; Suburban Train: Dead Weight = 120 Tons, Accelerating weight We = 132 Tons (1.10 W).<br>
+            &gt; Crest speed Vm = 60.0 km/h, &alpha; = 1.8 km/h/s, &beta; = 2.5 km/h/s, Inter-station D = 1.5 km.<br>
+            &gt; Total run time T = 117.3 s. Average speed = 46.02 km/h. Specific Energy Consumption = 42.14 Wh/Ton-km.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S5/UTHD Utilization, Traction, Heating &amp; Drives</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Mechanics of Train Movement</h3>
+          <p>Tractive effort for acceleration $F_a = 277.8 \frac{W_e \alpha}{v}$, tractive effort for track gradient $F_g = 98.1 W G$, and train resistance $F_r = W \cdot r$. Total tractive effort $F_t = F_a \pm F_g + F_r\text{ (N)}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Specific Energy Consumption (SEC)</h3>
+          <p>$\text{SEC} = \frac{\text{Total Energy Consumption in Watt-hours}}{\text{Train Weight in Tons} \times \text{Distance in km}}$. Reduced by coasting and regenerative braking returning power to $25\text{kV}$ OHE.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Electric Heating Methods</h3>
+          <p><strong>Dielectric Heating:</strong> $P = 2\pi f C V^2 \tan \delta\text{ (Watts)}$ at radio frequencies ($10-40\text{MHz}$) for uniform heating of non-conductors (plastics, plywood).<br><strong>Induction Heating:</strong> Eddy currents and hysteresis for metal billet surface hardening.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Electric Arc &amp; Resistance Welding</h3>
+          <p>AC transformer vs DC inverter welding power sources. Seam, spot, and projection resistance welding heat generation $H = I^2 R t$.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('uth-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcTraction() {
+  const vm = parseFloat(document.getElementById('vm-in').value) || 60;
+  const alpha = parseFloat(document.getElementById('alpha-in').value) || 1.8;
+  const beta = parseFloat(document.getElementById('beta-in').value) || 2.5;
+  const distKm = 1.5;
+
+  const t1 = vm / alpha;
+  const t3 = vm / beta;
+  const dAccBrake = (vm / 7200.0) * (t1 + t3);
+  const dFree = Math.max(0, distKm - dAccBrake);
+  const t2 = (dFree * 3600.0) / Math.max(1, vm);
+  const totalT = t1 + t2 + t3;
+  const vavg = (distKm / Math.max(1, totalT)) * 3600.0;
+  const sec = (0.01072 * (vm * vm) / Math.max(0.1, distKm)) * 1.1 + (0.2778 * 40.0);
+
+  document.getElementById('disp-total-t').textContent = `${totalT.toFixed(1)} s`;
+  document.getElementById('disp-vavg').textContent = `${vavg.toFixed(2)} km/h`;
+  document.getElementById('disp-t1').textContent = `${t1.toFixed(1)} s`;
+  document.getElementById('disp-t2').textContent = `${t2.toFixed(1)} s`;
+  document.getElementById('disp-t3').textContent = `${t3.toFixed(1)} s`;
+  document.getElementById('disp-sec').textContent = `${sec.toFixed(2)} Wh / Ton-km`;
+  document.getElementById('sec-badge').textContent = `SEC = ${sec.toFixed(2)} Wh/Ton-km`;
+
+  return { vm, t1, t2, t3, totalT };
+}
+
+function drawTraction() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcTraction();
+  const cx = 60, cy = 350, w = 580, h = 260;
+
+  // Grid & Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + w, cy); ctx.stroke(); // Time axis
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - h); ctx.stroke(); // Speed axis
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('0', cx - 15, cy + 12);
+  ctx.fillText(`Vm (${res.vm} km/h)`, cx - 80, cy - h + 30);
+  ctx.fillText('Time t (seconds)', cx + w / 2 - 40, cy + 30);
+
+  // Time points
+  const p1X = cx + (res.t1 / res.totalT) * w;
+  const p2X = cx + ((res.t1 + res.t2) / res.totalT) * w;
+  const p3X = cx + w;
+  const topY = cy - (h * 0.8);
+
+  // Trapezoidal Speed Curve
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(p1X, topY);
+  ctx.lineTo(p2X, topY);
+  ctx.lineTo(p3X, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Phase Markers & Labels
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('1. Acceleration (α)', (cx + p1X) / 2, cy - 40);
+  ctx.fillText('2. Free Running', (p1X + p2X) / 2, topY - 15);
+  ctx.fillText('3. Braking (β)', (p2X + p3X) / 2, cy - 40);
+
+  // Time markers on X axis
+  ctx.fillStyle = '#fff';
+  ctx.font = '10px monospace';
+  ctx.fillText(`t1=${res.t1.toFixed(0)}s`, p1X, cy + 15);
+  ctx.fillText(`t2=${res.t2.toFixed(0)}s`, (p1X + p2X) / 2, cy + 15);
+  ctx.fillText(`T=${res.totalT.toFixed(0)}s`, p3X, cy + 15);
+}
+
+const vmIn = document.getElementById('vm-in');
+const alphaIn = document.getElementById('alpha-in');
+const betaIn = document.getElementById('beta-in');
+const logEl = document.getElementById('uth-log');
+
+[vmIn, alphaIn, betaIn].forEach(el => el.addEventListener('input', () => {
+  drawTraction();
+}));
+
+document.getElementById('btn-draw-curve').addEventListener('click', () => {
+  const res = calcTraction();
+  logEl.innerHTML += `<br>&gt; [RE-COMPUTE RUN] Vm = ${res.vm} km/h, &alpha; = ${alphaIn.value}, &beta; = ${betaIn.value} &rarr; Total Run Time = ${res.totalT.toFixed(1)} s.`;
+  drawTraction();
+});
+
+document.getElementById('btn-heating-calc').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [DIELECTRIC HEATING] Frequency = 20.0 MHz, E = 2.0 kV/cm, tan &delta; = 0.04 &rarr; Heat Power P = 201.06 kW generated uniformly inside dielectric load.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electric_traction_heating.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawTraction();
+</script>
+</body>
+</html>

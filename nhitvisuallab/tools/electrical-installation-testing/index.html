@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Installation, Maintenance &amp; Testing | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Installation & Testing Virtual Lab for WBSCTE 6th Sem EE (EE/S6/EIMT). Simulate Transformer Heat Run Sumpner Test, Earth Resistance Fall of Potential, Motor Commissioning, and inspect 3D Transformer model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 6th Semester (EE/S6/EIMT)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Installation, Maintenance &amp; Testing Virtual Lab</h1>
+    <p class="subtitle">Transformer Sumpner Heat Run Test, Earth Resistance Fall of Potential &amp; Motor Commissioning</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Commissioning Tests</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IS 2026 Standards</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Distribution Transformer &amp; Earth Tester</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Distribution Transformer Tank, High-Voltage Bushings, Megger Insulation Tester, and Earth Resistance Electrode.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="eimt-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Procedure:</label>
+        <select id="eimt-proc-select" class="eimt-select">
+          <option value="heat_run">1. Transformer Sumpner Back-to-Back Heat Run Test</option>
+          <option value="earth_pot">2. Earth Resistance Fall of Potential (3-Point Test)</option>
+          <option value="insulation">3. Motor Polarization Index &amp; Dielectric Absorption Ratio</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Core Loss Wi (W):</label>
+        <input type="number" id="wi-in" value="450" min="100" max="2500" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Cu Loss Wc (W):</label>
+        <input type="number" id="wc-in" value="850" min="200" max="5000" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-run-heat">Run Heat Rise Test &#9654;</button>
+        <button class="btn-action success" id="btn-earth-test">Fall of Potential Calc</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Thermal Rise Curve -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Transformer Temperature Rise Curve &theta;(t) vs Time (Hours)</span>
+          <span class="badge" id="temp-badge">Steady Temp Rise &theta;m = 32.5 &deg;C</span>
+        </div>
+        <canvas id="eimt-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Testing Telemetry &amp; Acceptance Limits</span>
+        </div>
+        <div class="eimt-grid">
+          <div class="eimt-box"><span class="eimt-lbl">Total Losses (Wi + Wc)</span><span class="eimt-val" id="disp-wtotal">1300.0 W</span></div>
+          <div class="eimt-box"><span class="eimt-lbl">Max Steady Temp Rise (&theta;m)</span><span class="eimt-val" id="disp-thetam" style="color:#10b981;font-weight:700;">32.5 &deg;C (&le; 50&deg;C Limit)</span></div>
+          <div class="eimt-box"><span class="eimt-lbl">Thermal Time Constant (&tau;)</span><span class="eimt-val">2.80 Hours</span></div>
+          <div class="eimt-box"><span class="eimt-lbl">Earth Grid Resistance (Re)</span><span class="eimt-val" id="disp-re">0.692 &Omega; (&le; 1.0&Omega; Pass)</span></div>
+          <div class="eimt-box"><span class="eimt-lbl">Commissioning Status</span><span class="eimt-val" style="color:#10b981;">APPROVED FOR ENERGIZATION</span></div>
+          <div class="eimt-box"><span class="eimt-lbl">Polarization Index (PI)</span><span class="eimt-val" style="color:#38bdf8;">2.45 (Class F Good)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Substation Commissioning Diagnostics:</div>
+          <div class="console-log" id="eimt-log">
+            &gt; Initialized Electrical Installation &amp; Testing Virtual Lab.<br>
+            &gt; Sumpner Back-to-Back Heat Run Test initialized on two identical 10 kVA transformers.<br>
+            &gt; Total full-load losses dissipated = 450W (Core) + 850W (Copper) = 1300.0 W.<br>
+            &gt; Steady-state temperature rise &theta;m = 32.5&deg;C. Within IS 2026 50&deg;C limit. Test passed.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S6/EIMT Electrical Installation, Maintenance &amp; Testing</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Transformer Sumpner (Back-to-Back) Test</h3>
+          <p>Two identical transformers are connected with primaries in parallel and secondaries in phase opposition. Full load copper and iron losses are measured simultaneously with minimal energy drawn from the supply grid.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Earth Resistance (Fall of Potential Method)</h3>
+          <p>Three-terminal earth tester ($E, P, C$). Current injected into auxiliary current electrode $C$; potential measured at auxiliary electrode $P$ placed at $61.8\%$ of distance $E-C$. Measured $R_e = \frac{V_{EP}}{I}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Dielectric Absorption &amp; Polarization Index (PI)</h3>
+          <p>$\text{PI} = \frac{R_{10\text{min}}}{R_{1\text{min}}}$. $\text{PI} > 2.0$ indicates dry, uncontaminated insulation free of moisture tracking.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Statutory Inspection &amp; IE Rules</h3>
+          <p>Mandatory clearances for transformers, switchgear, busbars, and safety permit-to-work (PTW) procedures.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('eimt-canvas');
+const ctx = canvas.getContext('2d');
+
+function calcHeat() {
+  const wi = parseFloat(document.getElementById('wi-in').value) || 450;
+  const wc = parseFloat(document.getElementById('wc-in').value) || 850;
+  const wTotal = wi + wc;
+  const sArea = 12.5, lambda = 11.5;
+  const thetam = wTotal / (sArea * lambda);
+
+  document.getElementById('disp-wtotal').textContent = `${wTotal.toFixed(1)} W`;
+  document.getElementById('disp-thetam').textContent = `${thetam.toFixed(1)} °C (≤ 50°C Limit)`;
+  document.getElementById('temp-badge').textContent = `Steady Temp Rise θm = ${thetam.toFixed(1)} °C`;
+
+  return { wTotal, thetam };
+}
+
+function drawHeatCurve() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcHeat();
+  const cx = 60, cy = 350, w = 580, h = 260;
+
+  // Grid & Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + w, cy); ctx.stroke(); // Time axis (Hours)
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - h); ctx.stroke(); // Temp rise axis (°C)
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('0', cx - 15, cy + 12);
+  ctx.fillText('12 Hours', cx + w - 30, cy + 15);
+  ctx.fillText('Time t (Hours)', cx + w / 2 - 40, cy + 30);
+  ctx.fillText('Temp Rise θ (°C)', cx - 55, cy - h + 10);
+  ctx.fillText('50°C (Limit)', cx - 35, cy - h * 0.9);
+
+  // 50°C Permissible Max Limit Line (Red dashed)
+  const limitY = cy - (50.0 / 60.0) * h;
+  ctx.strokeStyle = '#ef4444';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(cx, limitY); ctx.lineTo(cx + w, limitY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ef4444'; ctx.fillText('Max Permissible Rise 50°C (IS 2026)', cx + 180, limitY - 8);
+
+  // Exponential Heating Curve: theta(t) = thetam * (1 - exp(-t/tau))
+  const tau = 2.8;
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let t = 0; t <= 12.0; t += 0.2) {
+    const theta = res.thetam * (1.0 - Math.exp(-t / tau));
+    const px = cx + (t / 12.0) * w;
+    const py = cy - (theta / 60.0) * h;
+    if (t === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Asymptotic Steady State Line (Amber)
+  const ssY = cy - (res.thetam / 60.0) * h;
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, ssY); ctx.lineTo(cx + w, ssY); ctx.stroke();
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText(`Steady-State θm = ${res.thetam.toFixed(1)}°C`, cx + 20, ssY - 8);
+}
+
+const wiIn = document.getElementById('wi-in');
+const wcIn = document.getElementById('wc-in');
+const logEl = document.getElementById('eimt-log');
+
+[wiIn, wcIn].forEach(el => el.addEventListener('input', () => {
+  drawHeatCurve();
+}));
+
+document.getElementById('btn-run-heat').addEventListener('click', () => {
+  const res = calcHeat();
+  logEl.innerHTML += `<br>&gt; [HEAT RUN RE-COMPUTED] Wi = ${wiIn.value} W, Wc = ${wcIn.value} W &rarr; Steady Temperature Rise &theta;m = ${res.thetam.toFixed(1)} &deg;C.`;
+  drawHeatCurve();
+});
+
+document.getElementById('btn-earth-test').addEventListener('click', () => {
+  logEl.innerHTML += '<br>&gt; [EARTH TESTER] Fall of potential curve measured: Resistance at 61.8% plateau = 0.692 &Omega;. Grid earthing certified safe for 33kV substation.';
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_installation_testing.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawHeatCurve();
+</script>
+</body>
+</html>

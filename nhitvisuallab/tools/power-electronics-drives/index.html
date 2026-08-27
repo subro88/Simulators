@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power Electronics &amp; Drives Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Power Electronics & Drives Virtual Lab for WBSCTE 5th Sem EE (EE/S5/PED). Simulate SCR Controlled Rectifiers with Firing Angle α, DC-DC Buck/Boost Choppers, SPWM Inverters, and inspect 3D Power Electronics model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 5th Semester (EE/S5/PED)</span>
+  </nav>
+
+  <header>
+    <h1>Power Electronics &amp; Drives Virtual Lab</h1>
+    <p class="subtitle">SCR Bridge Phase Controlled Rectification, Buck/Boost DC Choppers &amp; Real-Time Firing Waveform</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Converter Circuits</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; SCR Firing Tables</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">SCR Thyristor Stud &amp; IGBT Inverter</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of SCR Stud Package Anode/Cathode, Aluminum Heatsink Fins, Gate Pulse Trigger Transformer, and IGBT Inverter Bridge Module.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ped-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Converter:</label>
+        <select id="conv-select" class="ped-select">
+          <option value="scr">1. 1-Phase Fully Controlled SCR Bridge (Vdc = 2Vm/π·cos α)</option>
+          <option value="buck">2. DC-DC Step-Down Buck Chopper (Vo = D·Vs)</option>
+          <option value="boost">3. DC-DC Step-Up Boost Chopper (Vo = Vs / (1-D))</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Firing Angle &alpha; (&deg;):</label>
+        <input type="range" id="alpha-range" min="0" max="180" step="5" value="45" class="slider-ctrl">
+        <span id="alpha-val" style="font-weight:700;color:#38bdf8;width:35px;display:inline-block;">45&deg;</span>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">AC Supply (V RMS):</label>
+        <input type="number" id="vrms-in" value="230" min="50" max="440" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-toggle-ped">Animate Waveform ⏵</button>
+        <button class="btn-action success" id="btn-invert-mode">Set Inverter Mode (α = 120°)</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Real-time Waveform -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">AC Input Waveform vs SCR Output Voltage Waveform vo(t)</span>
+          <span class="badge" id="vdc-badge">Average Vdc = 146.42 V</span>
+        </div>
+        <canvas id="ped-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Converter Performance &amp; Harmonics</span>
+        </div>
+        <div class="ped-grid">
+          <div class="ped-box"><span class="ped-lbl">Average DC Voltage (Vdc)</span><span class="ped-val" id="disp-vdc">146.42 V</span></div>
+          <div class="ped-box"><span class="ped-lbl">RMS Output Voltage (Vrms)</span><span class="ped-val" id="disp-vrms">219.23 V</span></div>
+          <div class="ped-box"><span class="ped-lbl">Load Current (Io, R=10&Omega;)</span><span class="ped-val" id="disp-io">14.64 A</span></div>
+          <div class="ped-box"><span class="ped-lbl">Form Factor (FF)</span><span class="ped-val" id="disp-ff">1.497</span></div>
+          <div class="ped-box"><span class="ped-lbl">Ripple Factor (RF)</span><span class="ped-val" id="disp-rf">1.114</span></div>
+          <div class="ped-box"><span class="ped-lbl">Operating Quadrant</span><span class="ped-val" id="disp-quad" style="color:#10b981;">1st Quadrant (Rectification)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Power Electronics Telemetry Log:</div>
+          <div class="console-log" id="ped-log">
+            &gt; Initialized Power Electronics &amp; Drives Virtual Lab.<br>
+            &gt; 1-Phase Fully Controlled SCR Bridge: AC Supply = 230V RMS, Vm = 325.27V.<br>
+            &gt; Gate trigger pulses dispatched at firing angle &alpha; = 45.0&deg;.<br>
+            &gt; Average output voltage Vdc = (2*Vm/&pi;)*cos(45&deg;) = 146.42 V. Rectification active.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S5/PED Power Electronics &amp; Drives</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. SCR Phase-Controlled Rectifiers</h3>
+          <p>Single-phase fully controlled bridge converter average DC voltage: $V_{dc} = \frac{2 V_m}{\pi} \cos \alpha$. For $\alpha < 90^\circ$, it operates as a rectifier (power flow AC $\to$ DC); for $\alpha > 90^\circ$ with inductive R-L load, it operates as a line-commutated inverter (DC $\to$ AC).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. DC-DC Chopper Drives</h3>
+          <p><strong>Buck Converter:</strong> $V_o = D V_s$ ($D < 1$, step-down).<br><strong>Boost Converter:</strong> $V_o = \frac{V_s}{1 - D}$ ($D < 1$, step-up). Used in variable DC traction motor speed control.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Sinusoidal PWM Inverters</h3>
+          <p>Comparing high-frequency triangular carrier with reference sine wave generates variable-frequency, variable-voltage (V/f) AC drives for 3-phase induction motors.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Power Semiconductor Devices</h3>
+          <p>SCR, TRIAC, GTO, Power MOSFET (high frequency), and IGBT (high voltage &amp; current with low conduction losses).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ped-canvas');
+const ctx = canvas.getContext('2d');
+let isPedRunning = false;
+let pedPhase = 0;
+let currentAlpha = 45;
+
+function calcPed() {
+  const vrmsIn = parseFloat(document.getElementById('vrms-in').value) || 230;
+  const vm = vrmsIn * Math.sqrt(2);
+  const alphaRad = (currentAlpha * Math.PI) / 180.0;
+  const vdc = (2.0 * vm / Math.PI) * Math.cos(alphaRad);
+  const vrmsSq = (vm * vm) * (0.5 - (alphaRad / (2.0 * Math.PI)) + (Math.sin(2.0 * alphaRad) / (4.0 * Math.PI)));
+  const vrmsOut = Math.sqrt(Math.max(0, vrmsSq));
+  const io = vdc / 10.0;
+  const ff = vrmsOut / Math.max(1, Math.abs(vdc));
+  const rf = Math.sqrt(Math.max(0, (ff * ff) - 1.0));
+
+  document.getElementById('disp-vdc').textContent = `${vdc.toFixed(2)} V`;
+  document.getElementById('disp-vrms').textContent = `${vrmsOut.toFixed(2)} V`;
+  document.getElementById('disp-io').textContent = `${io.toFixed(2)} A`;
+  document.getElementById('disp-ff').textContent = `${ff.toFixed(3)}`;
+  document.getElementById('disp-rf').textContent = `${rf.toFixed(3)}`;
+  document.getElementById('vdc-badge').textContent = `Average Vdc = ${vdc.toFixed(2)} V`;
+
+  const isRect = currentAlpha < 90;
+  document.getElementById('disp-quad').textContent = isRect ? '1st Quadrant (Rectification)' : '4th Quadrant (Inversion / Regeneration)';
+  document.getElementById('disp-quad').style.color = isRect ? '#10b981' : '#f59e0b';
+}
+
+function drawPed() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cx = 50, cy = 210, width = 600;
+
+  // Grid & Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + width, cy); ctx.stroke(); // Zero axis
+  ctx.beginPath(); ctx.moveTo(cx, 40); ctx.lineTo(cx, 380); ctx.stroke(); // Y axis
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('0', cx - 15, cy + 4);
+  ctx.fillText('+Vm (325V)', cx - 65, 90);
+  ctx.fillText('-Vm', cx - 35, 330);
+  ctx.fillText('wt (rad)', cx + width - 40, cy + 20);
+
+  // AC Input Voltage Waveform (Dashed gray)
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  for (let px = 0; px <= width; px += 2) {
+    const angle = ((px + pedPhase) / 100.0) * Math.PI;
+    const vy = cy - Math.sin(angle) * 130;
+    if (px === 0) ctx.moveTo(cx + px, vy);
+    else ctx.lineTo(cx + px, vy);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // SCR Controlled Output Voltage Waveform (Solid Cyan/Amber)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let px = 0; px <= width; px += 2) {
+    const totalAngle = ((px + pedPhase) / 100.0) * Math.PI;
+    const halfCycleAngle = totalAngle % Math.PI;
+    const alphaRad = (currentAlpha * Math.PI) / 180.0;
+
+    let vy = cy;
+    if (halfCycleAngle >= alphaRad) {
+      vy = cy - Math.abs(Math.sin(totalAngle)) * 130;
+    }
+    if (px === 0) ctx.moveTo(cx + px, vy);
+    else ctx.lineTo(cx + px, vy);
+  }
+  ctx.stroke();
+
+  // Firing Pulse Markers
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText(`SCR Firing Angle α = ${currentAlpha}°`, cx + 20, 60);
+
+  if (isPedRunning) {
+    pedPhase += 2;
+    requestAnimationFrame(drawPed);
+  }
+}
+
+const alphaRange = document.getElementById('alpha-range');
+const alphaVal = document.getElementById('alpha-val');
+const btnPed = document.getElementById('btn-toggle-ped');
+const logEl = document.getElementById('ped-log');
+
+alphaRange.addEventListener('input', () => {
+  currentAlpha = parseInt(alphaRange.value, 10);
+  alphaVal.textContent = `${currentAlpha}°`;
+  calcPed();
+  if (!isPedRunning) drawPed();
+});
+
+btnPed.addEventListener('click', () => {
+  isPedRunning = !isPedRunning;
+  btnPed.textContent = isPedRunning ? 'Pause Waveform ⏸' : 'Animate Waveform ⏵';
+  btnPed.style.background = isPedRunning ? '#f59e0b' : '#00b0ff';
+  if (isPedRunning) drawPed();
+});
+
+document.getElementById('btn-invert-mode').addEventListener('click', () => {
+  currentAlpha = 120;
+  alphaRange.value = 120;
+  alphaVal.textContent = '120°';
+  calcPed();
+  logEl.innerHTML += '<br>&gt; [INVERTER REGION] Firing angle shifted to &alpha; = 120&deg; (>90&deg;): Average Vdc = -103.5 V. Power regenerating back to AC grid.';
+  if (!isPedRunning) drawPed();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/power_electronics_drives.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+calcPed();
+drawPed();
+</script>
+</body>
+</html>
