@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# NHIT Visual Lab — aaPanel Automated CLI Integration & Setup Script
+# NHIT Visual Lab — aaPanel Automated HTTPS & Docker Integration Script
 # ==============================================================================
 set -euo pipefail
 
@@ -16,8 +16,8 @@ NC='\033[0m'
 clear
 echo -e "${CYAN}${BOLD}"
 echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-echo "║          ⚡ aaPanel SETUP WIZARD — NHIT VISUAL LAB (vlab.nhit.in)            ║"
-echo "║                     Automated Reverse Proxy & Docker                         ║"
+echo "║       ⚡ aaPanel HTTPS WIZARD — NHIT VISUAL LAB (vlab.nhit.in)              ║"
+echo "║                  Automated HTTPS Reverse Proxy & Docker                      ║"
 echo "╚══════════════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -27,8 +27,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo -e "📁 Application Directory:   ${BOLD}${APP_DIR}${NC}"
-echo -e "🌐 Target aaPanel Domain:   ${BOLD}${DOMAIN}${NC}"
-echo -e "🔌 Internal Docker Port:    ${BOLD}127.0.0.1:${PORT}${NC}\n"
+echo -e "🌐 Target Domain:           ${BOLD}https://${DOMAIN}${NC}"
+echo -e "🔌 Internal Backend Port:   ${BOLD}127.0.0.1:${PORT}${NC}\n"
 
 # ── 1. Verify aaPanel Environment ─────────────────────────────────────────────
 echo -e "${BLUE}${BOLD}[Step 1/5] Checking aaPanel Environment...${NC}"
@@ -52,14 +52,27 @@ else
     echo -e "${GREEN}✓ Docker is already installed ($(docker --version)).${NC}"
 fi
 
-# ── 3. Configure aaPanel Nginx Virtual Host ───────────────────────────────────
-echo -e "\n${BLUE}${BOLD}[Step 3/5] Setting up Nginx Reverse Proxy for ${DOMAIN}...${NC}"
+# ── 3. Configure aaPanel HTTPS Nginx Virtual Host ─────────────────────────────
+echo -e "\n${BLUE}${BOLD}[Step 3/5] Setting up HTTPS Nginx Reverse Proxy for ${DOMAIN}...${NC}"
 
 AAPANEL_NGINX_DIR="/www/server/panel/vhost/nginx"
+CERT_DIR="/www/server/panel/vhost/cert/${DOMAIN}"
+
 if [ -d "${AAPANEL_NGINX_DIR}" ]; then
-    sudo cp "${SCRIPT_DIR}/nginx/aapanel_nginx.conf" "${AAPANEL_NGINX_DIR}/${DOMAIN}.conf"
+    mkdir -p "${CERT_DIR}" 2>/dev/null || true
     mkdir -p "/www/wwwroot/${DOMAIN}" 2>/dev/null || true
     mkdir -p "/www/wwwlogs" 2>/dev/null || true
+
+    # Create initial placeholder certificate if not yet present to satisfy Nginx config check
+    if [ ! -f "${CERT_DIR}/fullchain.pem" ]; then
+        echo -e "Generating initial SSL certificates for ${DOMAIN}..."
+        sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout "${CERT_DIR}/privkey.pem" \
+            -out "${CERT_DIR}/fullchain.pem" \
+            -subj "/CN=${DOMAIN}/O=NHIT Visual Lab" 2>/dev/null || true
+    fi
+
+    sudo cp "${SCRIPT_DIR}/nginx/aapanel_nginx.conf" "${AAPANEL_NGINX_DIR}/${DOMAIN}.conf"
     
     # Reload aaPanel Nginx if service is running
     if [ -f "/etc/init.d/nginx" ]; then
@@ -68,7 +81,7 @@ if [ -d "${AAPANEL_NGINX_DIR}" ]; then
     elif command -v nginx &>/dev/null; then
         sudo nginx -t && sudo nginx -s reload || true
     fi
-    echo -e "${GREEN}✓ aaPanel Nginx vhost active for ${DOMAIN}.${NC}"
+    echo -e "${GREEN}✓ aaPanel HTTPS Nginx vhost active for ${DOMAIN}.${NC}"
 else
     echo -e "${YELLOW}Notice: ${AAPANEL_NGINX_DIR} not present. Use aaPanel GUI (Website -> Add Site -> Reverse Proxy).${NC}"
 fi
@@ -93,17 +106,19 @@ fi
 
 # ── aaPanel Summary & SSL Guide ───────────────────────────────────────────────
 echo -e "\n${GREEN}${BOLD}══════════════════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}${BOLD}  🎉 aaPanel SETUP COMPLETE FOR NHIT VISUAL LAB!                             ${NC}"
+echo -e "${GREEN}${BOLD}  🎉 aaPanel HTTPS SETUP COMPLETE FOR NHIT VISUAL LAB!                        ${NC}"
 echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════════════════════════════════${NC}"
-echo -e "🌐 Site URL:            ${CYAN}${BOLD}http://${DOMAIN}${NC} (or https://${DOMAIN})"
+echo -e "🔒 Secure HTTPS Portal: ${CYAN}${BOLD}https://${DOMAIN}${NC}"
+echo -e "🔐 Secure Login URL:    ${CYAN}https://${DOMAIN}/login${NC}"
+echo -e "📦 3D Admin Dashboard:  ${CYAN}https://${DOMAIN}/admin${NC}"
+echo -e "🔑 Default Auth:        Username: ${BOLD}nhit${NC} | Password: ${BOLD}nhit${NC}"
 echo -e "📊 Backend Health API:   ${CYAN}http://127.0.0.1:${PORT}/api/health${NC}"
 echo -e "📁 Repo Directory:      ${CYAN}${APP_DIR}${NC}"
 echo ""
-echo -e "${BOLD}🔒 To Enable Free 1-Click Let's Encrypt SSL in aaPanel Dashboard:${NC}"
-echo -e "  1. Log into your aaPanel Dashboard (${CYAN}http://your-server-ip:8888${NC})"
-echo -e "  2. Go to ${BOLD}Website${NC} menu"
-echo -e "  3. If not listed, click ${BOLD}Add Site${NC} -> Domain: ${CYAN}${DOMAIN}${NC} -> Type: ${BOLD}Reverse Proxy${NC} -> Target: ${CYAN}http://127.0.0.1:8080${NC}"
-echo -e "  4. Click on ${BOLD}${DOMAIN}${NC} in the list -> click ${BOLD}SSL${NC} tab"
-echo -e "  5. Select ${CYAN}Let's Encrypt${NC} -> Check domain name -> Click ${BOLD}Apply${NC}"
-echo -e "  6. Turn on ${CYAN}Force HTTPS${NC} toggle button."
+echo -e "${BOLD}🔒 To Apply Free Trusted 1-Click Let's Encrypt SSL in aaPanel UI:${NC}"
+echo -e "  1. Open your aaPanel Web Dashboard (${CYAN}http://your-server-ip:8888${NC})"
+echo -e "  2. Navigate to ${BOLD}Website${NC} menu"
+echo -e "  3. Click on ${BOLD}${DOMAIN}${NC} -> click the ${BOLD}SSL${NC} tab"
+echo -e "  4. Select ${CYAN}Let's Encrypt${NC} -> Check domain name -> Click ${BOLD}Apply${NC}"
+echo -e "  5. Ensure ${CYAN}Force HTTPS${NC} toggle button is enabled."
 echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════════════════════════════════${NC}\n"

@@ -272,16 +272,313 @@ logger = logging.getLogger("simulators-server")
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 NHITVISUALLAB_DIR = BASE_DIR / "nhitvisuallab"
+STATIC_DIR = BASE_DIR / "static"
 MODELS_DIR = FRONTEND_DIR / "models"
+STATIC_MODELS_DIR = STATIC_DIR / "models"
+DATA_DIR = BASE_DIR / "data"
+CONTENT_DIR = BASE_DIR / "content"
 
 FRONTEND_DIR.mkdir(exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+STATIC_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+CONTENT_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="Simulators Platform API",
     description="Decoupled Python Physics & WebGL Engineering Simulation Engine",
     version="2.0.0",
 )
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Session & Authentication Setup
+# ---------------------------------------------------------------------------
+import os
+from fastapi import Request, Form, Depends, status
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.exceptions import HTTPException
+
+# Hard-coded / configurable credentials for beta preview
+AUTH_USERNAME = os.getenv("AUTH_USERNAME", "nhit")
+AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "nhit")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "super-secret-key-simulators-nhit-2026")
+
+def require_auth(request: Request):
+    user = request.session.get("user")
+    if user != AUTH_USERNAME:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    return user
+
+# ---------------------------------------------------------------------------
+# Mount static assets
+# ---------------------------------------------------------------------------
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+if (NHITVISUALLAB_DIR / "brand").exists():
+    app.mount("/brand", StaticFiles(directory=str(NHITVISUALLAB_DIR / "brand")), name="brand")
+
+if (NHITVISUALLAB_DIR / "Icons").exists():
+    app.mount("/Icons", StaticFiles(directory=str(NHITVISUALLAB_DIR / "Icons")), name="icons")
+
+# ---------------------------------------------------------------------------
+# Authentication Middleware (Protects Simulations, Allows Assets & Login)
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    
+    # Public endpoints and assets that do not require authentication
+    public_prefixes = (
+        "/login",
+        "/logout",
+        "/static",
+        "/css",
+        "/js",
+        "/models",
+        "/brand",
+        "/Icons",
+        "/nhitvisuallab/brand",
+        "/nhitvisuallab/Icons",
+        "/nhitvisuallab/cdn.jsdelivr.net",
+        "/nhitvisuallab/shared",
+        "/nhitvisuallab/login.html",
+        "/api/health",
+        "/openapi.json",
+        "/docs",
+        "/redoc",
+    )
+    public_exact = {
+        "/favicon.ico",
+        "/favicon.png",
+        "/favicon.svg",
+        "/apple-touch-icon.png",
+        "/manifest.json",
+        "/nhit-logo.png-updated.png",
+    }
+    
+    if path.startswith(public_prefixes) or path in public_exact:
+        return await call_next(request)
+        
+    user = request.session.get("user")
+    if user != AUTH_USERNAME:
+        # Browser navigation -> smoothly redirect to login page
+        accept = request.headers.get("accept", "")
+        if request.method == "GET" and ("text/html" in accept or accept == "*/*" or not path.startswith("/api/")):
+            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+        # API requests -> return JSON 401
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Unauthorized"})
+
+    return await call_next(request)
+
+# Add SessionMiddleware AFTER auth_middleware so SessionMiddleware wraps around it
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+
+# ---------------------------------------------------------------------------
+# Public Login & Logout Routes
+# ---------------------------------------------------------------------------
+@app.get("/login", response_class=HTMLResponse)
+@app.get("/nhitvisuallab/login.html", response_class=HTMLResponse)
+async def get_login(request: Request):
+    if request.session.get("user") == AUTH_USERNAME:
+        return RedirectResponse(url="/nhitvisuallab/index.html", status_code=status.HTTP_303_SEE_OTHER)
+    login_path = NHITVISUALLAB_DIR / "login.html"
+    if login_path.exists():
+        return HTMLResponse(content=login_path.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>Simulators Login</h1><form method='post' action='/login'><input name='username' placeholder='Username'/><input name='password' type='password' placeholder='Password'/><button type='submit'>Login</button></form>")
+
+@app.post("/login")
+async def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    if username.strip() == AUTH_USERNAME and password.strip() == AUTH_PASSWORD:
+        request.session["user"] = AUTH_USERNAME
+        return RedirectResponse(url="/nhitvisuallab/index.html", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/login?error=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+# ---------------------------------------------------------------------------
+# Root static brand assets
+# ---------------------------------------------------------------------------
+@app.get("/favicon.ico")
+async def favicon_ico():
+    for candidate in [BASE_DIR / "favicon.ico", NHITVISUALLAB_DIR / "favicon.ico", FRONTEND_DIR / "favicon.ico"]:
+        if candidate.exists():
+            return FileResponse(str(candidate))
+    raise HTTPException(status_code=404)
+
+@app.get("/nhit-logo.png-updated.png")
+async def brand_logo_img():
+    p = BASE_DIR / "nhit-logo.png-updated.png"
+    if p.exists():
+        return FileResponse(str(p))
+    p2 = NHITVISUALLAB_DIR / "brand" / "Modern_logo.png"
+    if p2.exists():
+        return FileResponse(str(p2))
+    raise HTTPException(status_code=404)
+
+# ---------------------------------------------------------------------------
+# Admin Panel & GLB Model APIs
+# ---------------------------------------------------------------------------
+from fastapi import UploadFile, File
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, user: str = Depends(require_auth)):
+    admin_path = NHITVISUALLAB_DIR / "admin.html"
+    if admin_path.exists():
+        return HTMLResponse(content=admin_path.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>Admin Dashboard</h1>")
+
+@app.get("/api/admin/models")
+async def list_admin_models(request: Request, user: str = Depends(require_auth)):
+    import json, datetime
+    models = []
+    seen_filenames = set()
+
+    # 1. Custom / uploaded models manifest
+    manifest_path = DATA_DIR / "models.json"
+    if manifest_path.exists():
+        try:
+            custom_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for item in custom_data:
+                fname = item.get("filename", "")
+                fpath = STATIC_MODELS_DIR / fname
+                if fpath.exists():
+                    seen_filenames.add(fname)
+                    size_bytes = fpath.stat().st_size
+                    models.append({
+                        "name": item.get("name", fname),
+                        "filename": fname,
+                        "size_bytes": size_bytes,
+                        "size_formatted": f"{size_bytes / 1024:.1f} KB" if size_bytes < 1024 * 1024 else f"{size_bytes / (1024*1024):.2f} MB",
+                        "uploaded_at": item.get("uploaded_at", datetime.datetime.fromtimestamp(fpath.stat().st_mtime).strftime("%Y-%m-%d %H:%M")),
+                        "url": f"/static/models/{fname}",
+                        "is_builtin": False,
+                    })
+        except Exception as e:
+            logger.warning(f"Error loading models manifest: {e}")
+
+    # 2. Any additional loose .glb files in static/models
+    if STATIC_MODELS_DIR.exists():
+        for f in STATIC_MODELS_DIR.glob("*.glb"):
+            if f.name not in seen_filenames:
+                seen_filenames.add(f.name)
+                size_bytes = f.stat().st_size
+                models.append({
+                    "name": f.stem.replace("_", " ").title(),
+                    "filename": f.name,
+                    "size_bytes": size_bytes,
+                    "size_formatted": f"{size_bytes / 1024:.1f} KB" if size_bytes < 1024 * 1024 else f"{size_bytes / (1024*1024):.2f} MB",
+                    "uploaded_at": datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    "url": f"/static/models/{f.name}",
+                    "is_builtin": False,
+                })
+
+    # 3. Built-in models in frontend/models
+    if MODELS_DIR.exists():
+        for f in MODELS_DIR.glob("*.glb"):
+            if f.name not in seen_filenames:
+                seen_filenames.add(f.name)
+                size_bytes = f.stat().st_size
+                models.append({
+                    "name": f.stem.replace("_", " ").title() + " (Built-in)",
+                    "filename": f.name,
+                    "size_bytes": size_bytes,
+                    "size_formatted": f"{size_bytes / 1024:.1f} KB" if size_bytes < 1024 * 1024 else f"{size_bytes / (1024*1024):.2f} MB",
+                    "uploaded_at": datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    "url": f"/models/{f.name}",
+                    "is_builtin": True,
+                })
+
+    return {"models": models, "count": len(models)}
+
+@app.post("/admin/upload_model")
+async def upload_model(
+    request: Request,
+    model_name: str = Form(...),
+    file: UploadFile = File(...),
+    user: str = Depends(require_auth),
+):
+    import uuid, json, datetime
+    original_name = file.filename or "model.glb"
+    ext = Path(original_name).suffix.lower()
+    if ext != ".glb":
+        raise HTTPException(status_code=400, detail="Only .glb files are accepted")
+
+    clean_stem = Path(original_name).stem.replace(" ", "_")[:30]
+    filename = f"{clean_stem}_{uuid.uuid4().hex[:8]}.glb"
+    file_path = STATIC_MODELS_DIR / filename
+    
+    content = await file.read()
+    file_path.write_bytes(content)
+
+    manifest_path = DATA_DIR / "models.json"
+    if manifest_path.exists():
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            data = []
+    else:
+        data = []
+
+    upload_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    data.append({
+        "name": model_name.strip() or clean_stem.replace("_", " ").title(),
+        "filename": filename,
+        "uploaded_at": upload_time,
+    })
+    manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return {
+        "status": "success",
+        "filename": filename,
+        "name": model_name,
+        "url": f"/static/models/{filename}",
+        "size_bytes": len(content),
+    }
+
+@app.post("/admin/delete_model")
+async def delete_model(
+    request: Request,
+    filename: str = Form(...),
+    user: str = Depends(require_auth),
+):
+    import json
+    target = (STATIC_MODELS_DIR / filename).resolve()
+    if not str(target).startswith(str(STATIC_MODELS_DIR)):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    if target.exists():
+        target.unlink()
+
+    manifest_path = DATA_DIR / "models.json"
+    if manifest_path.exists():
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            data = [m for m in data if m.get("filename") != filename]
+            manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Error updating manifest on delete: {e}")
+
+    return {"status": "success", "deleted": filename}
+
+@app.post("/admin/save_content")
+async def save_content(request: Request, file_path: str = Form(...), content: str = Form(...), user: str = Depends(require_auth)):
+    target = (CONTENT_DIR / file_path).resolve()
+    if not str(target).startswith(str(CONTENT_DIR)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    return {"status": "saved"}
+
+# ---------------------------------------------------------------------------
+# Existing health check (remains unchanged)
+# ---------------------------------------------------------------------------
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -1211,8 +1508,11 @@ async def serve_concrete_workability():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
 
 @app.get("/")
-async def root():
-    return FileResponse(str(FRONTEND_DIR / "index.html"))
+async def root(request: Request):
+    user = request.session.get("user")
+    if user == AUTH_USERNAME:
+        return RedirectResponse(url="/nhitvisuallab/index.html", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 # Generic root-level simulation pages: serve frontend/<page>.html at /<page>.html.
 # Explicit routes (e.g. /differential.html) above take precedence; this catches the rest
