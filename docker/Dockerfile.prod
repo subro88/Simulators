@@ -1,0 +1,60 @@
+# Multi-Stage Production Dockerfile for NHIT Visual Lab (vlab.nhit.in)
+# ==============================================================================
+
+# ── Stage 1: Build Dependencies & 3D Assets ──────────────────────────────────
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Copy source and generator scripts
+COPY app/ ./app/
+COPY blender/ ./blender/
+COPY frontend/ ./frontend/
+COPY nhitvisuallab/ ./nhitvisuallab/
+
+# Run 3D GLB model generators (fallback if any missing)
+RUN python -c "import os; [os.system(f'python {os.path.join(\"blender\", f)}') for f in os.listdir('blender') if f.startswith('generate_') and f.endswith('.py')]" || true
+
+# ── Stage 2: Final Lightweight Production Runtime ─────────────────────────────
+FROM python:3.11-slim as runner
+
+WORKDIR /workspace
+
+# Install minimal runtime dependencies & curl for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -u 1001 -m -s /bin/bash appuser
+
+# Copy installed wheels from builder
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Copy project files with ownership
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser frontend/ ./frontend/
+COPY --chown=appuser:appuser nhitvisuallab/ ./nhitvisuallab/
+COPY --chown=appuser:appuser gunicorn_conf.py ./gunicorn_conf.py
+
+# Switch to non-root user
+USER appuser
+
+# Expose production port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8080/api/health || curl -f http://localhost:8080/nhitvisuallab/index.html || exit 1
+
+# Start Gunicorn with Uvicorn worker class for production
+CMD ["gunicorn", "app.main:app", "-c", "gunicorn_conf.py"]

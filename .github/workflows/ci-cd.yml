@@ -1,0 +1,98 @@
+name: CI/CD Pipeline — NHIT Visual Lab (vlab.nhit.in)
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  # ── Stage 1: Quality Assurance & Automated Testing ──────────────────────────
+  test:
+    name: 🧪 Run Pytest & Linting Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: 📥 Check out repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔍 Compile Python syntax check
+        run: |
+          python -m py_compile app/main.py
+          python -c "import app.simulation"
+
+      - name: 🧪 Execute unit tests suite (232 tests)
+        run: |
+          python -m pytest --maxfail=1 --disable-warnings -v
+
+  # ── Stage 2: Container Build Verification ───────────────────────────────────
+  build-check:
+    name: 🐳 Docker Build Verification
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Set up Docker Buildx
+        uses: actions/setup-docker-buildx-action@v3
+
+      - name: 🏗️ Build production Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.prod
+          push: false
+          tags: vlab-simulators:test
+
+  # ── Stage 3: Automated Zero-Downtime Deployment ──────────────────────────────
+  deploy:
+    name: 🚀 Deploy to Production (vlab.nhit.in)
+    needs: [test, build-check]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository
+        uses: actions/checkout@v4
+
+      - name: 🔐 Execute Remote SSH Deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            echo "=== [1/4] Navigating to project directory ==="
+            cd /var/www/vlab || cd ~/Simulators || cd /opt/vlab
+
+            echo "=== [2/4] Pulling latest updates from GitHub ==="
+            git fetch origin master
+            git reset --hard origin/master
+
+            echo "=== [3/4] Rebuilding and launching production container ==="
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            echo "=== [4/4] Verifying health check ==="
+            sleep 5
+            curl -f http://127.0.0.1:8080/api/health || exit 1
+            docker image prune -f
+
+            echo "✅ Deployment completed successfully for vlab.nhit.in!"

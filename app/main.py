@@ -291,6 +291,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "vlab.nhit.in",
+        "version": "2.0.0",
+        "active_routes": len(app.routes)
+    }
+
+
 # Registry of simulation engines
 differential_engine = DifferentialEngine()
 clutch_engine = ClutchEngine()
