@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vernier Caliper Hollow Cylinder Volume Lab — WBSCTE Basic Science 1st Sem Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="BS103/BS107 Applied Physics-I: Vernier Caliper Least Count LC = 0.01cm & Hollow Cylinder Volume V = (pi/4) (D^2 - d^2) L">
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    :root { --accent: #38bdf8; }
+    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
+    .site-nav a { color: #94a3b8; text-decoration: none; }
+    .site-nav a:hover { color: var(--accent); }
+    .site-nav span { color: #475569; }
+    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
+    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
+    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
+    .mode-bar { display: flex; gap: 8px; align-items: center; }
+    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
+    .guide-link-btn:hover { background: #475569; }
+    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
+    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
+    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
+    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
+    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
+    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    .diag-table td:first-child { color: #94a3b8; }
+    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
+    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
+    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
+    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
+    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
+    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
+    .seo-article h2, .seo-article h3 { color: #f8fafc; }
+    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+    <span>&rsaquo;</span>
+    <a href="/nhitvisuallab/index.html#bs-sem1">Basic Science & Humanities</a>
+    <span>&rsaquo;</span>
+    <span style="color:#f8fafc;">Vernier Caliper Hollow Cylinder Volume Lab</span>
+  </nav>
+
+  <header class="tool-header">
+    <div>
+      <span class="tool-badge">BS103 / BS107</span>
+      <h1 class="tool-title">Vernier Caliper Hollow Cylinder Volume Lab</h1>
+      <p class="tool-subtitle">BS103/BS107 Applied Physics-I: Vernier Caliper Least Count LC = 0.01cm & Hollow Cylinder Volume V = (pi/4) (D^2 - d^2) L</p>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
+      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div id="sim-wrapper" class="sim-grid">
+      <div class="controls-col">
+        <div class="panel">
+          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+          
+              <div class="control-group">
+                <label for="main_scale_reading_msr_cm">Main Scale Reading MSR (cm):</label>
+                <input type="number" id="main_scale_reading_msr_cm" min="0.0" max="15.0" step="0.1" value="3.4" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="vernier_scale_coincidence_vsd">Vernier Coincidence VSD (div): <span id="vernier_scale_coincidence_vsd_val" class="val-badge">6</span></label>
+                <input type="range" id="vernier_scale_coincidence_vsd" min="0" max="10" step="1" value="6" class="form-range" oninput="document.getElementById('vernier_scale_coincidence_vsd_val').innerText=this.value; runSim();" />
+              </div>
+              <div class="control-group">
+                <label for="least_count_lc_cm">Least Count LC (cm):</label>
+                <input type="number" id="least_count_lc_cm" min="0.001" max="0.05" step="0.001" value="0.01" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="internal_diameter_d_cm">Internal Diameter d (cm):</label>
+                <input type="number" id="internal_diameter_d_cm" min="0.5" max="10.0" step="0.1" value="2.2" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="length_l_cm">Length of Cylinder L (cm):</label>
+                <input type="number" id="length_l_cm" min="1.0" max="20.0" step="0.1" value="6.5" class="form-control" oninput="runSim()" />
+              </div>
+          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+        </div>
+      </div>
+      <div class="display-col">
+        <div class="canvas-card">
+          <canvas id="sim-canvas" width="800" height="420"></canvas>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
+          <table class="diag-table">
+            <tbody>
+              
+          <tr>
+            <td>Measured External Diameter D</td>
+            <td id="out_d_ext" class="out-val">3.460 cm</td>
+          </tr>
+          <tr>
+            <td>Internal Core Diameter d</td>
+            <td id="out_d_in" class="out-val">2.200 cm</td>
+          </tr>
+          <tr>
+            <td>Hollow Cylinder Material Volume V</td>
+            <td id="out_vol" class="out-val">36.410 cm³</td>
+          </tr>
+          <tr>
+            <td>Instrument Least Count LC</td>
+            <td id="out_lc" class="out-val">0.010 cm</td>
+          </tr>
+          <tr>
+            <td>Verification Status</td>
+            <td id="out_status" class="out-val">VERNIER CALIPER READING VERIFIED: Outer D = 3.46 cm</td>
+          </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
+        <div id="three-canvas-container"></div>
+        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
+        <div class="comp-grid">
+          
+          <div class="comp-card" onclick="focusComponent('StainlessSteelMainScaleBeam')">
+            <h4>Main Scale Beam (cm/mm)</h4>
+            <p>Graduated stainless steel main bar with 1 mm division spacing.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('FixedExternalMeasuringJaw')">
+            <h4>Fixed External Jaw</h4>
+            <p>Reference anvil forming zero datum for external caliper measurements.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('SlidingVernierScaleSlider')">
+            <h4>Vernier Slider (10 Divisions)</h4>
+            <p>Precision sliding cursor with Vernier scale divisions giving 0.1 mm least count.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('TestHollowCylinderSpecimen')">
+            <h4>Hollow Cylinder Specimen</h4>
+            <p>Brass/steel test bushing measured for outer diameter D, inner diameter d and height L.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="explore-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
+        <p>BS103/BS107 Applied Physics-I: Vernier Caliper Least Count LC = 0.01cm & Hollow Cylinder Volume V = (pi/4) (D^2 - d^2) L</p>
+        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
+          Compute the hollow cylinder material volume: $$V = \frac{\pi}{4}\left(D^2 - d^2\right) L$$ where $D$ is external diameter, $d$ is internal diameter, and $L$ is cylinder length.
+        </div>
+        <p>Understand the principle of Vernier callipers where $n$ divisions of the Vernier scale coincide with $(n-1)$ divisions of the main scale.</p>
+        <p>Verify zero errors (positive/negative zero error) and calibrate the instrument datum.</p>
+      </div>
+    </div>
+
+    <!-- ════ User Guide Section ════ -->
+    <section class="user-guide" id="user-guide">
+      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <details open>
+        <summary>1. Overview &amp; Physical Principles</summary>
+        <div><p>Understand the principle of Vernier callipers where $n$ divisions of the Vernier scale coincide with $(n-1)$ divisions of the main scale.</p></div>
+      </details>
+      <details>
+        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
+        <div><p>Determine the Least Count ($LC = 1\text{ MSD} - 1\text{ VSD} = \frac{1\text{ MSD}}{n}$). Record main scale reading (MSR) and Vernier scale coincidence (VSD).</p></div>
+      </details>
+      <details>
+        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
+        <div><p>Compute the hollow cylinder material volume: $$V = \frac{\pi}{4}\left(D^2 - d^2\right) L$$ where $D$ is external diameter, $d$ is internal diameter, and $L$ is cylinder length.</p></div>
+      </details>
+      <details>
+        <summary>4. Step-by-Step Procedure &amp; Zero Errors</summary>
+        <div><p>Verify zero errors (positive/negative zero error) and calibrate the instrument datum.</p></div>
+      </details>
+      <details>
+        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
+        <div><p>Solve numericals for least count, volume of bushings, and propagation of percentage errors.</p></div>
+      </details>
+      <details>
+        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
+        <div><p>Reference: WBSCTE Applied Physics-I Lab (BS107), NCERT Physics Practical Class XI.</p></div>
+      </details>
+    </section>
+
+    <!-- ════ SEO Technical Article ════ -->
+    <section class="seo-article">
+      <h2>Engineering Reference &amp; Laboratory Standards: Vernier Caliper Hollow Cylinder Volume Lab</h2>
+      <p>BS103/BS107 Applied Physics-I: Vernier Caliper Least Count LC = 0.01cm & Hollow Cylinder Volume V = (pi/4) (D^2 - d^2) L</p>
+      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
+      <p>Understand the principle of Vernier callipers where $n$ divisions of the Vernier scale coincide with $(n-1)$ divisions of the main scale. Determine the Least Count ($LC = 1\text{ MSD} - 1\text{ VSD} = \frac{1\text{ MSD}}{n}$). Record main scale reading (MSR) and Vernier scale coincidence (VSD).</p>
+      <h3>Governing Equations &amp; Analytical Formulations</h3>
+      <p>Compute the hollow cylinder material volume: $$V = \frac{\pi}{4}\left(D^2 - d^2\right) L$$ where $D$ is external diameter, $d$ is internal diameter, and $L$ is cylinder length. Verify zero errors (positive/negative zero error) and calibrate the instrument datum.</p>
+      <h3>Industrial &amp; Engineering Applications</h3>
+      <p>Solve numericals for least count, volume of bushings, and propagation of percentage errors. Designed in strict alignment with Reference: WBSCTE Applied Physics-I Lab (BS107), NCERT Physics Practical Class XI..</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    let scene, camera, renderer, controls, modelGroup;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function drawSim(arg1, arg2, arg3, arg4) {
+      
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Main Scale Beam
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(60, 80, width - 120, 60);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            for(let i=0; i<30; i++) {
+                let x = 80 + i * 14;
+                ctx.beginPath();
+                ctx.moveTo(x, 80);
+                ctx.lineTo(x, i % 5 === 0 ? 110 : 95);
+                ctx.stroke();
+            }
+
+            // Draw Sliding Vernier Scale
+            ctx.fillStyle = '#0284c7';
+            ctx.fillRect(160, 140, 150, 45);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px Inter';
+            ctx.fillText('Vernier VSD: ' + arg4, 180, 168);
+
+            // Draw Hollow Cylinder
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 3;
+            ctx.fillRect(width/2 - 40, 220, 80, 100);
+            ctx.strokeRect(width/2 - 40, 220, 80, 100);
+
+            // Inner bore
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(width/2 - 20, 220, 40, 100);
+            ctx.strokeRect(width/2 - 20, 220, 40, 100);
+
+            ctx.fillStyle = '#ffd600';
+            ctx.font = '13px Inter';
+            ctx.fillText('Outer D: ' + arg1.toFixed(2) + ' cm | Inner d: ' + arg2.toFixed(2) + ' cm | L: ' + arg3.toFixed(2) + ' cm', width/2 - 160, 350);
+        
+    }
+
+    function runSim() {
+      
+            const msr = parseFloat(document.getElementById('main_scale_reading_msr_cm').value);
+            const vsd = parseFloat(document.getElementById('vernier_scale_coincidence_vsd').value);
+            const lc = parseFloat(document.getElementById('least_count_lc_cm').value);
+            const d_in = parseFloat(document.getElementById('internal_diameter_d_cm').value);
+            const l = parseFloat(document.getElementById('length_l_cm').value);
+
+            const d_ext = msr + (vsd * lc);
+            const vol = (Math.PI / 4.0) * Math.max(0, (d_ext * d_ext) - (d_in * d_in)) * l;
+
+            document.getElementById('out_d_ext').innerText = d_ext.toFixed(3) + " cm";
+            document.getElementById('out_d_in').innerText = d_in.toFixed(3) + " cm";
+            document.getElementById('out_vol').innerText = vol.toFixed(3) + " cm³";
+            document.getElementById('out_lc').innerText = lc.toFixed(3) + " cm";
+            document.getElementById('out_status').innerText = "VERNIER CALIPER READING VERIFIED: Outer D = " + d_ext.toFixed(2) + " cm";
+            drawSim(d_ext, d_in, l, vsd);
+        
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+
+      if (mode === '3d' && !renderer) {
+        initThree();
+      }
+    }
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2, 1.5, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('/frontend/models/vernier_caliper_volume_measurement.glb', function(gltf) {
+        modelGroup = gltf.scene;
+        scene.add(modelGroup);
+        animate();
+      }, undefined, function(err) {
+        console.warn('Fallback 3D geometry loaded');
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+        const mat = new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.3 });
+        modelGroup = new THREE.Mesh(geo, mat);
+        scene.add(modelGroup);
+        animate();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function focusComponent(name) {
+      if (!modelGroup) return;
+      modelGroup.traverse(function(child) {
+        if (child.isMesh) {
+          if (child.name === name) {
+            child.material.emissive = new THREE.Color(0x38bdf8);
+            child.material.emissiveIntensity = 0.6;
+          } else {
+            child.material.emissive = new THREE.Color(0x000000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      runSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radar Range Equation, Doppler & Antenna Lab — NHIT VisualLab</title>
+  <meta name="description" content="Radar principles: Radar Range Equation R_max, Doppler frequency shift speed detection fd = 2vr f0 / c & parabolic dish beamwidth.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Digital & Microwave Comm. Engg. (ETCE/DMCE/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Radar Range Equation, Doppler & Antenna Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ParabolicDishReflectorAntenna" onclick="selectComp('ParabolicDishReflectorAntenna')">
+                <strong>ParabolicDishReflectorAntenna</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Parabolic Reflector Dish: High-gain microwave dish collimating spherical waves into a narrow pencil beam.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-WaveguideFeedHornSubreflector" onclick="selectComp('WaveguideFeedHornSubreflector')">
+                <strong>WaveguideFeedHornSubreflector</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Feed Horn Sub-Reflector: Waveguide pyramidal horn illuminating the parabolic dish at its focal point.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-RadarPedestalAzimuthRotator" onclick="selectComp('RadarPedestalAzimuthRotator')">
+                <strong>RadarPedestalAzimuthRotator</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Azimuth Pedestal Rotator: High-precision servo rotary pedestal providing 360° mechanical surveillance scanning.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DopplerTransceiverFrontEnd" onclick="selectComp('DopplerTransceiverFrontEnd')">
+                <strong>DopplerTransceiverFrontEnd</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Doppler Radar Transceiver: Solid-state RF front end mixing echo returns with local oscillator to extract beat frequency fd.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="pt-radar-input">Peak Transmitter Power Pt (kW):</label>
+            <input type="number" id="pt-radar-input" class="ctrl-input" value="25" min="1" max="500" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="gain-ant-input">Antenna Gain G (dB):</label>
+            <input type="number" id="gain-ant-input" class="ctrl-input" value="32" min="15" max="50" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="rcs-input">Target Radar Cross Section σ (m²):</label>
+            <input type="number" id="rcs-input" class="ctrl-input" value="5" min="0.1" max="50" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="vtarget-input">Target Radial Velocity (km/h):</label>
+            <input type="number" id="vtarget-input" class="ctrl-input" value="180" min="-600" max="600" step="10" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Maximum Detection Range (Rmax):</td><td id="val-rmax">33.56 km</td></tr>
+          <tr><td>Doppler Beat Frequency (fd):</td><td id="val-fd">3133.3 Hz</td></tr>
+          <tr><td>Antenna 3dB Beamwidth (θ):</td><td id="val-beam">1.76° Pencil Beam</td></tr>
+          <tr><td>Target Tracking State:</td><td id="val-motion">TARGET CLOSING (Inbound)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Radar Range Equation, Doppler & Antenna Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Radar (Radio Detection and Ranging) calculates target range by pulse echo time delay ($R = \frac{c t}{2}$) and radial velocity via the Doppler frequency shift ($f_d = \frac{2 v_r f_0}{c}$). The fundamental Radar Range Equation establishes $R_{max} = \left[\frac{P_t G^2 \lambda^2 \sigma}{(4\pi)^3 P_{min}}\right]^{1/4}$, scaling with the 4th-root of peak transmitter power.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Radar Range Equation, Doppler & Antenna Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Digital & Microwave Comm. Engg..</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Radar (Radio Detection and Ranging) calculates target range by pulse echo time delay ($R = \frac{c t}{2}$) and radial velocity via the Doppler frequency shift ($f_d = \frac{2 v_r f_0}{c}$). The fundamental Radar Range Equation establishes $R_{max} = \left[\frac{P_t G^2 \lambda^2 \sigma}{(4\pi)^3 P_{min}}\right]^{1/4}$, scaling with the 4th-root of peak transmitter power.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Radar Range Equation, Doppler & Antenna Lab (Digital & Microwave Comm. Engg.)</h2>
+      <p>Radar principles: Radar Range Equation R_max, Doppler frequency shift speed detection fd = 2vr f0 / c & parabolic dish beamwidth.</p>
+      <p>Radar (Radio Detection and Ranging) calculates target range by pulse echo time delay ($R = \frac{c t}{2}$) and radial velocity via the Doppler frequency shift ($f_d = \frac{2 v_r f_0}{c}$). The fundamental Radar Range Equation establishes $R_{max} = \left[\frac{P_t G^2 \lambda^2 \sigma}{(4\pi)^3 P_{min}}\right]^{1/4}$, scaling with the 4th-root of peak transmitter power.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const pt_kw = parseFloat(document.getElementById('pt-radar-input').value);
+            const g_db = parseFloat(document.getElementById('gain-ant-input').value);
+            const rcs = parseFloat(document.getElementById('rcs-input').value);
+            const vel = parseFloat(document.getElementById('vtarget-input').value);
+
+            const c = 3.0e8, f0 = 9.4e9, lam = c / f0;
+            const pt_w = pt_kw * 1000.0;
+            const g_lin = Math.pow(10.0, g_db / 10.0);
+            const pmin = 1.0e-13; // -100 dBm
+
+            const num = pt_w * Math.pow(g_lin, 2) * Math.pow(lam, 2) * rcs;
+            const den = Math.pow(4.0 * Math.PI, 3) * pmin;
+            const rmax_km = (Math.pow(num / den, 0.25)) / 1000.0;
+
+            const vr_ms = Math.abs(vel) / 3.6;
+            const fd_hz = (2.0 * vr_ms * f0) / c;
+            const beam_deg = 70.0 / Math.sqrt(g_lin);
+
+            document.getElementById('val-rmax').innerText = rmax_km.toFixed(2) + ' km (' + (rmax_km * 0.539957).toFixed(1) + ' Nautical Miles)';
+            document.getElementById('val-fd').innerText = fd_hz.toFixed(1) + ' Hz';
+            document.getElementById('val-beam').innerText = beam_deg.toFixed(2) + '° Pencil Beam';
+            document.getElementById('val-motion').innerText = vel > 0 ? "TARGET CLOSING (Inbound)" : "TARGET OPENING (Outbound)";
+
+            drawRadarPPI(rmax_km, vel);
+          }
+
+          function drawRadarPPI(rmax, vel) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Radar PPI Scope (Concentric circles)
+            ctx.strokeStyle = 'rgba(0, 230, 118, 0.4)'; ctx.lineWidth = 1;
+            for(let r=30; r<=120; r+=30) {
+              ctx.beginPath(); ctx.arc(w/2, h/2, r, 0, 2*Math.PI); ctx.stroke();
+            }
+
+            // Radar Sweep line
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(w/2, h/2); ctx.lineTo(w/2 + 85, h/2 - 85); ctx.stroke();
+
+            // Target Blip
+            ctx.fillStyle = '#ffd600';
+            ctx.beginPath(); ctx.arc(w/2 + 60, h/2 - 60, 6, 0, 2*Math.PI); ctx.fill();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Radar PPI Scope | Target Range R = ${(rmax*0.65).toFixed(1)} km | Speed = ${vel} km/h`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/radar_range_doppler_antenna.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/radar_range_doppler_antenna.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

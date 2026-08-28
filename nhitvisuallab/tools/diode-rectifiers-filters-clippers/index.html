@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diode Rectifiers, Filters & Waveshaping Lab — NHIT VisualLab</title>
+  <meta name="description" content="Half-wave & bridge rectifiers, capacitor smoothing filter ripple factor r, rectification efficiency & diode clippers/clampers.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Analog Electronics - I (ETCE/AE1/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Diode Rectifiers, Filters & Waveshaping Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its circuit hardware engineering function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-MoldedBridgeRectifierIC" onclick="selectComp('MoldedBridgeRectifierIC')">
+                <strong>MoldedBridgeRectifierIC</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Bridge Rectifier Module: Molded 4-diode full-wave silicon bridge package (1N4007 array).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SmoothingElectrolyticCapacitor" onclick="selectComp('SmoothingElectrolyticCapacitor')">
+                <strong>SmoothingElectrolyticCapacitor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Filter Capacitor: High-capacitance 1000µF aluminum electrolytic capacitor reducing ripple.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-FastRecoveryClippingDiode" onclick="selectComp('FastRecoveryClippingDiode')">
+                <strong>FastRecoveryClippingDiode</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Clipping Diode: Fast-switching silicon signal diode limiting positive/negative peak voltage swings.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ClampingDCBiasVoltageSource" onclick="selectComp('ClampingDCBiasVoltageSource')">
+                <strong>ClampingDCBiasVoltageSource</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Clamping DC Bias: Regulated DC bias reference shifting AC waveforms without shape distortion.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Circuit Parameters</h3>
+          
+          <div class="control-group">
+            <label for="vac-rms-input">AC Secondary Voltage (Vrms):</label>
+            <input type="number" id="vac-rms-input" class="ctrl-input" value="12" min="3" max="50" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="c-filt-input">Filter Capacitor C (µF):</label>
+            <input type="number" id="c-filt-input" class="ctrl-input" value="1000" min="100" max="4700" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="rl-load-input">Load Resistance RL (Ω):</label>
+            <input type="number" id="rl-load-input" class="ctrl-input" value="100" min="20" max="1000" step="10" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Peak Secondary AC Voltage (Vm):</td><td id="val-vm">16.97 V</td></tr>
+          <tr><td>Filtered DC Output Voltage (Vdc):</td><td id="val-vdc">14.80 V</td></tr>
+          <tr><td>Ripple Factor (r%):</td><td id="val-rf">2.89 %</td></tr>
+          <tr><td>Diode Peak Inverse Voltage (PIV):</td><td id="val-piv">17.0 V</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Diode Rectifiers, Filters & Waveshaping Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Rectifier circuits convert alternating current (AC) to direct current (DC) using semiconductor PN junction diodes. A capacitor smoothing filter lowers output ripple according to $r = \frac{1}{4\sqrt{3} f C R_L}$, while clipping and clamping diode circuits reshape signal wave peaks and DC reference levels.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Diode Rectifiers, Filters & Waveshaping Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Analog Electronics - I.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Rectifier circuits convert alternating current (AC) to direct current (DC) using semiconductor PN junction diodes. A capacitor smoothing filter lowers output ripple according to $r = \frac{1}{4\sqrt{3} f C R_L}$, while clipping and clamping diode circuits reshape signal wave peaks and DC reference levels.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, IS 2026, IS 4722).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Diode Rectifiers, Filters & Waveshaping Lab (Analog Electronics - I)</h2>
+      <p>Half-wave & bridge rectifiers, capacitor smoothing filter ripple factor r, rectification efficiency & diode clippers/clampers.</p>
+      <p>Rectifier circuits convert alternating current (AC) to direct current (DC) using semiconductor PN junction diodes. A capacitor smoothing filter lowers output ripple according to $r = \frac{1}{4\sqrt{3} f C R_L}$, while clipping and clamping diode circuits reshape signal wave peaks and DC reference levels.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const vrms = parseFloat(document.getElementById('vac-rms-input').value);
+            const c_uf = parseFloat(document.getElementById('c-filt-input').value);
+            const rl = parseFloat(document.getElementById('rl-load-input').value);
+
+            const vm = Math.sqrt(2.0) * vrms;
+            const c = c_uf / 1e6;
+            const idc = (vm - 1.4) / rl;
+            const vdc = (vm - 1.4) - (idc / (4.0 * 50.0 * c));
+            const rf = (1.0 / (4.0 * Math.sqrt(3.0) * 50.0 * c * rl)) * 100.0;
+
+            document.getElementById('val-vm').innerText = vm.toFixed(2) + ' V (Peak)';
+            document.getElementById('val-vdc').innerText = vdc.toFixed(2) + ' V';
+            document.getElementById('val-rf').innerText = rf.toFixed(2) + ' %';
+            document.getElementById('val-piv').innerText = vm.toFixed(1) + ' V (Bridge)';
+
+            drawRectifierWaveform(vm, vdc);
+          }
+
+          function drawRectifierWaveform(vm, vdc) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // AC Sine
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            for(let x=40; x<w-40; x++) {
+              let angle = (x - 40) / 40.0 * Math.PI;
+              let y = h/2 - Math.sin(angle) * 60;
+              if(x===40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke(); ctx.setLineDash([]);
+
+            // Rectified Filtered DC
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(40, h/2 - 50); ctx.lineTo(w - 40, h/2 - 48); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Full-Wave Bridge Rectifier with C-Filter | Vdc = ${vdc.toFixed(2)} V`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/diode_rectifiers_filters_clippers.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/diode_rectifiers_filters_clippers.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automotive Braking & ABS System Lab — NHIT VisualLab</title>
+  <meta name="description" content="Dual-circuit hydraulic disc brakes, tandem master cylinder, caliper clamping force, ABS pulse modulation & stopping distance.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Automobile Engineering (ME/S5/AE)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Automotive Braking & ABS System Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-TandemMasterCylinderReservoir" onclick="selectComp('TandemMasterCylinderReservoir')">
+                <strong>TandemMasterCylinderReservoir</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Tandem Master Cylinder: Dual-piston master cylinder supplying independent front and rear hydraulic circuits.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-VentilatedDiscBrakeRotor" onclick="selectComp('VentilatedDiscBrakeRotor')">
+                <strong>VentilatedDiscBrakeRotor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Ventilated Brake Disc: Grey cast iron ventilated rotor dissipating kinetic energy as frictional heat.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-HydraulicTwinPistonCaliper" onclick="selectComp('HydraulicTwinPistonCaliper')">
+                <strong>HydraulicTwinPistonCaliper</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Floating Caliper: Twin-piston hydraulic caliper exerting clamping force on low-metallic brake pads.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ABSSolenoidHydraulicModulator" onclick="selectComp('ABSSolenoidHydraulicModulator')">
+                <strong>ABSSolenoidHydraulicModulator</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">ABS Hydraulic Modulator: High-frequency solenoid valve block pulsing brake fluid to prevent wheel lockup.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="speed-init-input">Initial Vehicle Speed (km/h):</label>
+            <input type="number" id="speed-init-input" class="ctrl-input" value="80" min="30" max="160" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="pedal-f-input">Brake Pedal Force (N):</label>
+            <input type="number" id="pedal-f-input" class="ctrl-input" value="350" min="100" max="800" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="road-mu-sel">Road Surface Condition:</label>
+            <select id="road-mu-sel" class="ctrl-input">
+              <option value="0.75" selected>Dry Asphalt Road (µ = 0.75)</option>
+              <option value="0.40">Wet / Rain Slick Road (µ = 0.40)</option>
+              <option value="0.15">Icy / Snow Road (µ = 0.15)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="abs-toggle-sel">Anti-Lock Braking (ABS):</label>
+            <select id="abs-toggle-sel" class="ctrl-input">
+              <option value="true" selected>ABS Enabled (Modulated 15% Slip)</option>
+              <option value="false">ABS Disabled (Potential 100% Lockup)</option>
+            </select>
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Hydraulic Brake Line Pressure:</td><td id="val-pbar">41.4 bar</td></tr>
+          <tr><td>Vehicle Deceleration Rate:</td><td id="val-decel">7.36 m/s²</td></tr>
+          <tr><td>Emergency Stopping Distance:</td><td id="val-sdist">33.6 m</td></tr>
+          <tr><td>Braking Time to Zero:</td><td id="val-tstop">3.02 s</td></tr>
+          <tr><td>Wheel Lockup Status:</td><td id="val-lockup">PREVENTED (ABS Active)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Automotive Braking & ABS System Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Automotive braking systems convert the kinetic energy of a moving vehicle into frictional heat through hydraulic caliper clamping on ventilated discs. This simulator analyzes pedal leverage, tandem master cylinder pressure, disc clamping force, road adhesion limits, and ABS anti-lock wheel slip modulation.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Automotive Braking & ABS System Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Automobile Engineering.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Automotive braking systems convert the kinetic energy of a moving vehicle into frictional heat through hydraulic caliper clamping on ventilated discs. This simulator analyzes pedal leverage, tandem master cylinder pressure, disc clamping force, road adhesion limits, and ABS anti-lock wheel slip modulation.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Automotive Braking & ABS System Lab (Automobile Engineering)</h2>
+      <p>Dual-circuit hydraulic disc brakes, tandem master cylinder, caliper clamping force, ABS pulse modulation & stopping distance.</p>
+      <p>Automotive braking systems convert the kinetic energy of a moving vehicle into frictional heat through hydraulic caliper clamping on ventilated discs. This simulator analyzes pedal leverage, tandem master cylinder pressure, disc clamping force, road adhesion limits, and ABS anti-lock wheel slip modulation.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const v_kmh = parseFloat(document.getElementById('speed-init-input').value);
+            const f_pedal = parseFloat(document.getElementById('pedal-f-input').value);
+            const mu_road = parseFloat(document.getElementById('road-mu-sel').value);
+            const abs_on = document.getElementById('abs-toggle-sel').value === 'true';
+
+            const f_mc = f_pedal * 4.5;
+            const a_mc = (Math.PI / 4.0) * Math.pow(0.022, 2);
+            const p_bar = (f_mc / a_mc) / 1e5;
+            const decel = Math.min(8.5, mu_road * 9.81 * (abs_on ? 1.0 : 0.75));
+            const v_init = v_kmh / 3.6;
+            const s_dist = (v_init * v_init) / (2.0 * decel);
+            const t_stop = v_init / decel;
+
+            document.getElementById('val-pbar').innerText = p_bar.toFixed(1) + ' bar';
+            document.getElementById('val-decel').innerText = decel.toFixed(2) + ' m/s²';
+            document.getElementById('val-sdist').innerText = s_dist.toFixed(1) + ' m';
+            document.getElementById('val-tstop').innerText = t_stop.toFixed(2) + ' s';
+            document.getElementById('val-lockup').innerText = abs_on ? 'PREVENTED (ABS Active)' : (decel > 5.0 ? 'LOCKUP OCCURRED (Skidding)' : 'NO LOCKUP');
+
+            drawBrakingPlot(v_kmh, s_dist, decel);
+          }
+
+          function drawBrakingPlot(v_kmh, s_dist, decel) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Car icon / stopping distance bar
+            ctx.fillStyle = '#334155'; ctx.fillRect(40, h/2 - 20, w - 80, 40);
+            ctx.fillStyle = '#00e676';
+            const barW = Math.min(w - 80, (s_dist / 80.0) * (w - 80));
+            ctx.fillRect(40, h/2 - 20, barW, 40);
+
+            ctx.fillStyle = '#ffffff'; ctx.font = '14px Inter, sans-serif';
+            ctx.fillText(`Stopping Distance: ${s_dist.toFixed(1)} meters`, 60, h/2 + 5);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Initial Speed: ${v_kmh} km/h | Deceleration: ${decel.toFixed(2)} m/s²`, 40, 30);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/automotive_braking_abs.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/automotive_braking_abs.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

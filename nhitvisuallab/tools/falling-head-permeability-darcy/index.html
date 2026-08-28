@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soil Permeability Lab (Falling Head & Darcy) — NHIT VisualLab</title>
+  <meta name="description" content="Soil hydraulics: Darcy's Law v = ki, Constant Head permeameter for sands & Falling Head permeameter k = (2.303 aL / At) log10(h1/h2) for fine clays/silts.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Geo-Technical Engineering (CE/GTE/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Soil Permeability Lab (Falling Head & Darcy)</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-GlassStandpipeGraduatedColumn" onclick="selectComp('GlassStandpipeGraduatedColumn')">
+                <strong>GlassStandpipeGraduatedColumn</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Graduated Glass Standpipe: Precision vertical standpipe with internal cross-sectional area a measuring falling water heads h1, h2.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SoilPermeameterCellCylinder" onclick="selectComp('SoilPermeameterCellCylinder')">
+                <strong>SoilPermeameterCellCylinder</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Brass Permeameter Cylinder: Sealed cell with top and bottom water reservoirs containing undisturbed soil core.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PorousStonesDrainageFilterDiscs" onclick="selectComp('PorousStonesDrainageFilterDiscs')">
+                <strong>PorousStonesDrainageFilterDiscs</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Porous Stone Discs: High-permeability saturated discs preventing soil washout while allowing uniform laminar flow.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ConnectingFlexibleHydraulicTube" onclick="selectComp('ConnectingFlexibleHydraulicTube')">
+                <strong>ConnectingFlexibleHydraulicTube</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">De-Aired Water Supply Tubing: Hydraulic lines supplying constant head or falling head headwater.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="h1-head-input">Initial Standpipe Head h1 (cm):</label>
+            <input type="number" id="h1-head-input" class="ctrl-input" value="80.0" min="20" max="150" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="h2-head-input">Final Standpipe Head h2 (cm):</label>
+            <input type="number" id="h2-head-input" class="ctrl-input" value="40.0" min="10" max="140" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="t-time-perm-input">Elapsed Falling Time t (s):</label>
+            <input type="number" id="t-time-perm-input" class="ctrl-input" value="180.0" min="30" max="600" step="10" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Permeability Coefficient k (cm/s):</td><td id="val-k-cm">4.620e-4 cm/s</td></tr>
+          <tr><td>Permeability Coefficient k (m/s):</td><td id="val-k-m">4.620e-6 m/s</td></tr>
+          <tr><td>Soil Drainage Property:</td><td id="val-drain-class">POOR DRAINAGE (Silty Clay)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Soil Permeability Lab (Falling Head & Darcy) &mdash; Theory &amp; Governing Equations</h2>
+        <p>Soil hydraulic permeability governs seepage rates under dams, rate of settlement, and drainage capacity. Constant Head permeameters test coarse pervious sands, while Falling Head permeameters measure fine-grained silts and clays governed by Darcy's Law ($k = \frac{2.303 a L}{A t}\log_{10}\frac{h_1}{h_2}$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Soil Permeability Lab (Falling Head & Darcy)</h2>
+        <p class="text-dim">Test your conceptual understanding of Geo-Technical Engineering.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, geotechnical properties, highway parameters, and irrigation hydraulics.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Soil hydraulic permeability governs seepage rates under dams, rate of settlement, and drainage capacity. Constant Head permeameters test coarse pervious sands, while Falling Head permeameters measure fine-grained silts and clays governed by Darcy's Law ($k = \frac{2.303 a L}{A t}\log_{10}\frac{h_1}{h_2}$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey angles, soil phase values, pavement loads, or canal discharges. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey vectors, 3-phase soil diagrams, retaining wall pressures, or canal sections corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IRC:73, IRC:37, IS 2720, IS 73, IS 1205, IS 1208, IS 2386).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Soil Permeability Lab (Falling Head & Darcy) (Geo-Technical Engineering)</h2>
+      <p>Soil hydraulics: Darcy's Law v = ki, Constant Head permeameter for sands & Falling Head permeameter k = (2.303 aL / At) log10(h1/h2) for fine clays/silts.</p>
+      <p>Soil hydraulic permeability governs seepage rates under dams, rate of settlement, and drainage capacity. Constant Head permeameters test coarse pervious sands, while Falling Head permeameters measure fine-grained silts and clays governed by Darcy's Law ($k = \frac{2.303 a L}{A t}\log_{10}\frac{h_1}{h_2}$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const h1 = parseFloat(document.getElementById('h1-head-input').value);
+            const h2 = parseFloat(document.getElementById('h2-head-input').value);
+            const t = parseFloat(document.getElementById('t-time-perm-input').value);
+            const a = 0.5, l = 12.0, big_a = 50.0;
+
+            const k_cm_s = ((2.303 * a * l) / (big_a * t)) * Math.log10(h1 / Math.max(1.0, h2));
+            const k_m_s = k_cm_s * 1e-2;
+
+            document.getElementById('val-k-cm').innerText = k_cm_s.toExponential(3) + ' cm/s';
+            document.getElementById('val-k-m').innerText = k_m_s.toExponential(3) + ' m/s';
+            document.getElementById('val-drain-class').innerText = k_cm_s < 1e-4 ? "POOR DRAINAGE (Inorganic Silt / Clay)" : "MODERATE DRAINAGE (Fine Sand)";
+
+            drawPermeameterTube(h1, h2);
+          }
+
+          function drawPermeameterTube(h1, h2) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Standpipe Tube (Left)
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3;
+            ctx.strokeRect(100, 50, 20, 180);
+            ctx.fillStyle = '#0284c7'; ctx.fillRect(102, 230 - (h1 * 1.1), 16, h1 * 1.1);
+
+            // Soil Permeameter Cell (Right)
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 3;
+            ctx.strokeRect(w - 180, 120, 80, 110);
+            ctx.fillStyle = '#b45309'; ctx.fillRect(w - 178, 140, 76, 70); // Soil sample
+            ctx.fillStyle = '#94a3b8'; ctx.fillRect(w - 178, 122, 76, 16); // Top porous stone
+            ctx.fillRect(w - 178, 212, 76, 16); // Bottom porous stone
+
+            // Connecting Tube
+            ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(110, 230); ctx.lineTo(110, h - 30); ctx.lineTo(w - 140, h - 30); ctx.lineTo(w - 140, 230); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Falling Head Soil Permeameter (k = 2.303 aL / At · log10(h1/h2))', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/falling_head_permeability_darcy.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/falling_head_permeability_darcy.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

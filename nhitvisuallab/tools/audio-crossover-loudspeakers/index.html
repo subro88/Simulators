@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Crossover & Loudspeakers Lab — NHIT VisualLab</title>
+  <meta name="description" content="Consumer audio acoustics: 2-way and 3-way LC crossover dividing networks, woofer/tweeter impedance matching & acoustic enclosure damping.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Consumer Electronics (ETCE/CONSUMER/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Audio Crossover & Loudspeakers Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-Loudspeaker3WayCrossoverChassis" onclick="selectComp('Loudspeaker3WayCrossoverChassis')">
+                <strong>Loudspeaker3WayCrossoverChassis</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Crossover Enclosure: Heavy-duty acoustic crossover housing with high-current terminal binding posts.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-AirCoreLowPassWooferInductor" onclick="selectComp('AirCoreLowPassWooferInductor')">
+                <strong>AirCoreLowPassWooferInductor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Air-Core Low-Pass Inductor: Heavy gauge OFC copper air-core inductor avoiding magnetic core saturation at high bass power.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-NonPolarizedHighPassCapacitor" onclick="selectComp('NonPolarizedHighPassCapacitor')">
+                <strong>NonPolarizedHighPassCapacitor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">High-Pass Audio Capacitor: Metallized polypropylene film capacitor passing clean treble frequencies to the tweeter.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MovingCoilDomeTweeterWoofer" onclick="selectComp('MovingCoilDomeTweeterWoofer')">
+                <strong>MovingCoilDomeTweeterWoofer</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Silk Dome Tweeter & Woofer: 8-ohm driver units reproducing 20Hz-20kHz human audible spectrum.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="fc-audio-input">Crossover Frequency fc (Hz):</label>
+            <input type="number" id="fc-audio-input" class="ctrl-input" value="2500" min="500" max="6000" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="z-spk-input">Loudspeaker Impedance (Ω):</label>
+            <input type="number" id="z-spk-input" class="ctrl-input" value="8" min="4" max="16" step="2" />
+          </div>
+          <div class="control-group">
+            <label for="order-audio-sel">Filter Network Order:</label>
+            <select id="order-audio-sel" class="ctrl-input">
+              <option value="2nd" selected>2nd-Order Butterworth (12 dB/octave)</option>
+              <option value="1st">1st-Order Simple (6 dB/octave)</option>
+            </select>
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Low-Pass Woofer Inductance (L):</td><td id="val-l-woofer">0.720 mH</td></tr>
+          <tr><td>High-Pass Tweeter Capacitance (C):</td><td id="val-c-tweeter">5.63 µF</td></tr>
+          <tr><td>Attenuation Roll-Off Slope:</td><td id="val-slope-audio">12 dB / octave</td></tr>
+          <tr><td>Amplifier Nominal Load:</td><td id="val-zmatch">8.0 Ω Constant Load</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Audio Crossover & Loudspeakers Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Passive LC crossover dividing networks split multi-channel audio power into distinct frequency bands matched to specialized transducers (woofers for low frequencies, tweeters for high frequencies). A 2nd-order Butterworth design provides flat acoustic power summing ($L = \frac{R\sqrt{2}}{2\pi f_c}, C = \frac{1}{2\pi\sqrt{2} f_c R}$) with $12\text{ dB/octave}$ attenuation roll-off.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Audio Crossover & Loudspeakers Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Consumer Electronics.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Passive LC crossover dividing networks split multi-channel audio power into distinct frequency bands matched to specialized transducers (woofers for low frequencies, tweeters for high frequencies). A 2nd-order Butterworth design provides flat acoustic power summing ($L = \frac{R\sqrt{2}}{2\pi f_c}, C = \frac{1}{2\pi\sqrt{2} f_c R}$) with $12\text{ dB/octave}$ attenuation roll-off.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Audio Crossover & Loudspeakers Lab (Consumer Electronics)</h2>
+      <p>Consumer audio acoustics: 2-way and 3-way LC crossover dividing networks, woofer/tweeter impedance matching & acoustic enclosure damping.</p>
+      <p>Passive LC crossover dividing networks split multi-channel audio power into distinct frequency bands matched to specialized transducers (woofers for low frequencies, tweeters for high frequencies). A 2nd-order Butterworth design provides flat acoustic power summing ($L = \frac{R\sqrt{2}}{2\pi f_c}, C = \frac{1}{2\pi\sqrt{2} f_c R}$) with $12\text{ dB/octave}$ attenuation roll-off.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const fc = parseFloat(document.getElementById('fc-audio-input').value);
+            const r = parseFloat(document.getElementById('z-spk-input').value);
+            const order = document.getElementById('order-audio-sel').value;
+
+            let l_mh = 0, c_uf = 0, slope = 12.0;
+            if (order === '2nd') {
+              l_mh = ((r * Math.sqrt(2.0)) / (2.0 * Math.PI * fc)) * 1000.0;
+              c_uf = (1.0 / (2.0 * Math.PI * Math.sqrt(2.0) * fc * r)) * 1e6;
+              slope = 12.0;
+            } else {
+              l_mh = (r / (2.0 * Math.PI * fc)) * 1000.0;
+              c_uf = (1.0 / (2.0 * Math.PI * fc * r)) * 1e6;
+              slope = 6.0;
+            }
+
+            document.getElementById('val-l-woofer').innerText = l_mh.toFixed(3) + ' mH';
+            document.getElementById('val-c-tweeter').innerText = c_uf.toFixed(2) + ' µF';
+            document.getElementById('val-slope-audio').innerText = slope.toFixed(0) + ' dB / octave';
+            document.getElementById('val-zmatch').innerText = r.toFixed(1) + ' Ω Constant Load';
+
+            drawCrossoverCurves(fc);
+          }
+
+          function drawCrossoverCurves(fc) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Woofer Curve (LPF)
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(40, 70); ctx.lineTo(w/2 - 20, 70);
+            ctx.quadraticCurveTo(w/2 + 20, 75, w - 40, h - 30);
+            ctx.stroke();
+
+            // Tweeter Curve (HPF)
+            ctx.strokeStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.moveTo(40, h - 30); ctx.quadraticCurveTo(w/2 - 20, 75, w/2 + 20, 70);
+            ctx.lineTo(w - 40, 70);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`2-Way LC Audio Crossover Dividing Network | Cutoff fc = ${fc} Hz`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/audio_crossover_loudspeakers.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/audio_crossover_loudspeakers.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

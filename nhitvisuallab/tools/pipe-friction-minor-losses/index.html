@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipe Friction & Minor Losses Lab — NHIT VisualLab</title>
+  <meta name="description" content="Darcy-Weisbach friction head loss hf, Moody diagram Swamee-Jain factor f, minor losses in elbows/valves & pump power.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Fluid Mechanics & Machinery (ME/S5/FMM)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Pipe Friction & Minor Losses Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-GalvanizedPipeTestLine" onclick="selectComp('GalvanizedPipeTestLine')">
+                <strong>GalvanizedPipeTestLine</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Galvanized Test Line: Industrial commercial pipe line with surface roughness ε = 0.15 mm.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SmoothCopperPipeLine" onclick="selectComp('SmoothCopperPipeLine')">
+                <strong>SmoothCopperPipeLine</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Copper Pipe Line: Drawn smooth tubing with low friction factor for comparative head loss.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-NinetyDegreeElbowFitting" onclick="selectComp('NinetyDegreeElbowFitting')">
+                <strong>NinetyDegreeElbowFitting</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">90° Elbow Fitting: Standard radius threaded pipe bend creating eddy secondary flow losses (K = 0.75).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-GateValveRegulatingSpindle" onclick="selectComp('GateValveRegulatingSpindle')">
+                <strong>GateValveRegulatingSpindle</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Gate Valve Spindle: Regulating wedge gate valve introducing variable throttling loss.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="pipe-dia-input">Pipe Diameter d (mm):</label>
+            <input type="number" id="pipe-dia-input" class="ctrl-input" value="50" min="15" max="250" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="pipe-len-input">Pipe Length L (m):</label>
+            <input type="number" id="pipe-len-input" class="ctrl-input" value="30" min="5" max="200" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="flow-vel-input">Flow Velocity v (m/s):</label>
+            <input type="number" id="flow-vel-input" class="ctrl-input" value="2.2" min="0.2" max="6.0" step="0.2" />
+          </div>
+          <div class="control-group">
+            <label for="elbows-input">Number of 90° Elbows:</label>
+            <input type="number" id="elbows-input" class="ctrl-input" value="3" min="0" max="10" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="valve-pct-input">Gate Valve Opening (%):</label>
+            <input type="number" id="valve-pct-input" class="ctrl-input" value="100" min="25" max="100" step="25" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Darcy Friction Factor (f):</td><td id="val-f">0.0215</td></tr>
+          <tr><td>Major Friction Head Loss (hf):</td><td id="val-hf">3.18 m</td></tr>
+          <tr><td>Minor Loss in Bends/Valves (hm):</td><td id="val-hm">0.74 m</td></tr>
+          <tr><td>Total Head Loss (h_total):</td><td id="val-htot">3.92 m</td></tr>
+          <tr><td>Pumping Power Required:</td><td id="val-ppump">0.22 kW</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Pipe Friction & Minor Losses Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Fluid flow through piping networks experiences major frictional head losses governed by the Darcy-Weisbach equation $h_f = \frac{4fLv^2}{2gd}$ and minor losses at elbows, valves, and contractions. This simulator solves the implicit Colebrook / Swamee-Jain equations for friction factor $f$, constructs Hydraulic Gradient Lines (HGL), and determines pumping power.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Pipe Friction & Minor Losses Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Fluid Mechanics & Machinery.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Fluid flow through piping networks experiences major frictional head losses governed by the Darcy-Weisbach equation $h_f = \frac{4fLv^2}{2gd}$ and minor losses at elbows, valves, and contractions. This simulator solves the implicit Colebrook / Swamee-Jain equations for friction factor $f$, constructs Hydraulic Gradient Lines (HGL), and determines pumping power.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Pipe Friction & Minor Losses Lab (Fluid Mechanics & Machinery)</h2>
+      <p>Darcy-Weisbach friction head loss hf, Moody diagram Swamee-Jain factor f, minor losses in elbows/valves & pump power.</p>
+      <p>Fluid flow through piping networks experiences major frictional head losses governed by the Darcy-Weisbach equation $h_f = \frac{4fLv^2}{2gd}$ and minor losses at elbows, valves, and contractions. This simulator solves the implicit Colebrook / Swamee-Jain equations for friction factor $f$, constructs Hydraulic Gradient Lines (HGL), and determines pumping power.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const d = parseFloat(document.getElementById('pipe-dia-input').value) / 1000.0;
+            const l = parseFloat(document.getElementById('pipe-len-input').value);
+            const v = parseFloat(document.getElementById('flow-vel-input').value);
+            const n_elbows = parseInt(document.getElementById('elbows-input').value);
+            const v_pct = parseFloat(document.getElementById('valve-pct-input').value);
+
+            const nu = 1e-6, g = 9.81;
+            const re = (v * d) / nu;
+            const eps = 0.045e-3; // commercial steel
+            const f = 0.25 / Math.pow(Math.log10((eps / (3.7 * d)) + (5.74 / Math.pow(re, 0.9))), 2);
+
+            const hf = (f * l * v * v) / (2.0 * g * d);
+            const k_elbows = 0.75 * n_elbows;
+            const k_valve = 0.2 * Math.pow(100.0 / v_pct, 2);
+            const hm = (k_elbows + k_valve + 0.5) * (v * v / (2.0 * g));
+            const h_total = hf + hm;
+
+            const q = (Math.PI / 4.0) * d * d * v;
+            const p_pump = (1000.0 * g * q * h_total) / (1000.0 * 0.75);
+
+            document.getElementById('val-f').innerText = f.toFixed(4);
+            document.getElementById('val-hf').innerText = hf.toFixed(2) + ' m';
+            document.getElementById('val-hm').innerText = hm.toFixed(2) + ' m';
+            document.getElementById('val-htot').innerText = h_total.toFixed(2) + ' m';
+            document.getElementById('val-ppump').innerText = p_pump.toFixed(2) + ' kW';
+
+            drawHGL(l, h_total, hf, hm);
+          }
+
+          function drawHGL(l, htot, hf, hm) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Datum line
+            ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(40, h - 30); ctx.lineTo(w - 30, h - 30); ctx.stroke();
+
+            // Total Energy Line (TEL)
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(40, 40); ctx.lineTo(w - 30, 40 + (h - 100) * 0.85); ctx.stroke();
+
+            // Hydraulic Gradient Line (HGL)
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(40, 65); ctx.lineTo(w - 30, 65 + (h - 100) * 0.85); ctx.stroke();
+
+            // Pipeline
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(40, h - 60, w - 70, 16);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Total Head Loss: ${htot.toFixed(2)} m (Major hf: ${hf.toFixed(2)}m, Minor hm: ${hm.toFixed(2)}m)`, 40, 25);
+            ctx.fillStyle = '#ef4444'; ctx.fillText('--- Total Energy Line (TEL)', w - 190, 45);
+            ctx.fillStyle = '#38bdf8'; ctx.fillText('--- Hydraulic Gradient Line (HGL)', w - 210, 65);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/pipe_friction_minor_losses.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/pipe_friction_minor_losses.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

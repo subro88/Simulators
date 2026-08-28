@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="index, follow" />
+  <title>Casting Process &amp; Pattern Sizing Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Casting Process Virtual Lab for WBSCTE 3rd Sem ME (ME/S3/MP1). Calculate pattern shrinkage allowance, gating choke area, Chvorinov's solidification time & analyze 3D mold model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Mechanical Engineering &mdash; 3rd Semester (ME/S3/MP1)</span>
+  </nav>
+
+  <header>
+    <h1>Casting Process &amp; Pattern Sizing Virtual Lab</h1>
+    <p class="subtitle">Pattern Allowances, Gating System Sizing &amp; Chvorinov Solidification Dynamics</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Casting Theory</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; User Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Sand Casting Flask &amp; Cupola Shell</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Cope and Drag Molding Flasks, Gating System Sprue/Riser, Wooden Pattern, and Cupola Furnace Shell.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="cast-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Metal / Alloy:</label>
+        <select id="metal-select" class="cast-select">
+          <option value="cast_iron" selected>Grey Cast Iron (1.0% Shrinkage)</option>
+          <option value="aluminum">Aluminium Alloy (1.5% Shrinkage)</option>
+          <option value="steel">Cast Carbon Steel (2.0% Shrinkage)</option>
+          <option value="brass">Brass / Bronze (1.4% Shrinkage)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Length (mm):</label>
+        <input type="number" id="len-in" value="200" min="20" max="1000" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Volume (cm&sup3;):</label>
+        <input type="number" id="vol-in" value="850" min="50" max="10000" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Area (cm&sup2;):</label>
+        <input type="number" id="area-in" value="520" min="50" max="8000" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc-cast">Compute Gating &#9654;</button>
+        <button class="btn-action success" id="btn-pour-sim">Simulate Molten Pour</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Mold Cross-Section -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Sand Mold Cross Section &amp; Liquid Metal Flow</span>
+          <span class="badge" id="solid-badge">Solidification Time: 5.87 s</span>
+        </div>
+        <canvas id="cast-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Gating Sizing &amp; Solidification Telemetry</span>
+        </div>
+        <div class="cast-grid">
+          <div class="cast-box"><span class="cast-lbl">Pattern Dimension</span><span class="cast-val" id="disp-patlen" style="color:#f59e0b;font-weight:700;">202.00 mm (+1.0%)</span></div>
+          <div class="cast-box"><span class="cast-lbl">Modulus (V / A)</span><span class="cast-val" id="disp-modulus">1.635 cm</span></div>
+          <div class="cast-box"><span class="cast-lbl">Chvorinov Time (ts)</span><span class="cast-val" id="disp-ts">5.87 seconds</span></div>
+          <div class="cast-box"><span class="cast-lbl">Choke Area (Ac)</span><span class="cast-val" id="disp-ac" style="color:#38bdf8;font-weight:700;">324.5 mm&sup2;</span></div>
+          <div class="cast-box"><span class="cast-lbl">Pouring Velocity</span><span class="cast-val" id="disp-vpour">1.72 m/s (Torricelli)</span></div>
+          <div class="cast-box"><span class="cast-lbl">Riser Sizing (Modulus)</span><span class="cast-val" style="color:#10b981;">Mr &ge; 1.2 Mc (Satisfied)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Foundry Quality Diagnostics Log:</div>
+          <div class="console-log" id="cast-log">
+            &gt; Initialized Casting Process &amp; Pattern Sizing Virtual Lab.<br>
+            &gt; Selected Grey Cast Iron: Linear shrinkage allowance = 10 mm/m (1.0%).<br>
+            &gt; Casting Modulus Mc = V / A = 850 cm&sup3; / 520 cm&sup2; = 1.635 cm.<br>
+            &gt; Chvorinov Solidification Time ts = 2.2 &times; (1.635)&sup2; = 5.87 s.<br>
+            &gt; Gating system ratio 1:2:2 (Unpressurized) calculated for zero sand erosion.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE ME/S3/MP1 Casting Processes</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Pattern Allowances</h3>
+          <p><strong>Shrinkage Allowance:</strong> Compensates for volumetric contraction during cooling ($10-20\text{ mm/m}$).<br><strong>Draft Allowance:</strong> Taper angle ($1^\circ-3^\circ$) for easy withdrawal without damaging mold cavity.<br><strong>Machining &amp; Distortion:</strong> Extra $2-5\text{ mm}$ for surface finish.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Chvorinov's Rule for Solidification</h3>
+          <p>Total solidification time $t_s = B \left(\frac{V}{A}\right)^2$, where $V$ is casting volume, $A$ is cooling surface area, and $B$ is the mold thermal constant. Riser modulus must exceed casting modulus by at least $20\%$ ($M_r \ge 1.2 M_c$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Gating System &amp; Choke Area</h3>
+          <p>Choke Area $A_c = \frac{M}{\rho \cdot t_p \cdot C_d \sqrt{2 g H}}$ regulates molten metal flow rate. Pressurized gating ($1:2:1$) vs Unpressurized gating ($1:2:2$) avoids aspiration of atmospheric gases.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Casting Defects &amp; Cupola Operation</h3>
+          <p>Diagnosis of blowholes, pinholes, cold shuts, misruns, and hot tears. Cupola charge ratio ($8:1$ Iron-to-Coke) and flux addition ($40\text{ kg}$ limestone per ton).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ QUIZ MODE ═══════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Interactive Quiz &mdash; Casting &amp; Pattern Design</h2>
+      <p style="color:#aebfd4;margin-bottom:14px;">Test your knowledge of pattern allowances, gating ratios, and Chvorinov's solidification equation.</p>
+      <div class="quiz-grid">
+        <div class="quiz-item">
+          <p><strong>Q1:</strong> Which pattern allowance is provided to enable easy withdrawal from the sand mold?</p>
+          <button class="quiz-btn" onclick="alert('Correct! Draft allowance provides 1-3 degrees taper.')">A) Draft Allowance</button>
+          <button class="quiz-btn" onclick="alert('Incorrect. Shrinkage accounts for contraction.')">B) Shrinkage Allowance</button>
+          <button class="quiz-btn" onclick="alert('Incorrect. Camber compensates for warpage.')">C) Camber Allowance</button>
+        </div>
+        <div class="quiz-item">
+          <p><strong>Q2:</strong> According to Chvorinov's rule, solidification time is proportional to:</p>
+          <button class="quiz-btn" onclick="alert('Correct! ts ∝ (V/A)^2.')">A) (Volume / Area)&sup2;</button>
+          <button class="quiz-btn" onclick="alert('Incorrect. It depends on (V/A)^2.')">B) (Area / Volume)</button>
+          <button class="quiz-btn" onclick="alert('Incorrect. It is not linearly proportional to mass.')">C) Casting Mass</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ USER GUIDE — Inline expandable ══════════════════════════ -->
+  <section class="user-guide" id="user-guide">
+    <div class="user-guide-title">
+      <span class="guide-icon-badge" aria-hidden="true">&#128214;</span>
+      User Guide &mdash; Casting Process &amp; Pattern Sizing Virtual Lab
+    </div>
+    <details open><summary><span class="guide-section-num">1</span> Overview</summary>
+      <div class="guide-content">
+        <p>The Casting Process Virtual Lab simulates sand casting mold preparation, pattern dimensioning with thermal shrinkage allowances, gating sprue velocity, and Chvorinov's solidification cooling dynamics in compliance with WBSCTE Manufacturing Process - I (ME/S3/MP1).</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">2</span> Setting Up the Load Case</summary>
+      <div class="guide-content">
+        <p>Select your casting alloy from the dropdown (Grey Cast Iron, Aluminium, Cast Steel, Brass). Enter the desired casting nominal dimensions, part volume $V$, and cooling surface area $A$. The simulator automatically calculates the oversized pattern dimensions required.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">3</span> Building the Diagrams</summary>
+      <div class="guide-content">
+        <p>The left canvas visualizes the mold cross-section with Cope (top) and Drag (bottom) flasks, gating sprue, runner, and casting cavity. Click 'Simulate Molten Pour' to animate liquid metal filling the mold at Torricelli velocity.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">4</span> Reading the Theory</summary>
+      <div class="guide-content">
+        <p>Switch to the 'Casting Theory' tab to review pattern allowances (shrinkage, draft, shake), gating choke equations, unpressurized gating ratios, and common foundry casting defects.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">5</span> Try a Problem</summary>
+      <div class="guide-content">
+        <p>Practice calculating the solidification time for a cube vs sphere of equal volume, and verify that the sphere solidifies slowest due to its minimal surface area-to-volume ratio.</p>
+      </div></details>
+    <details><summary><span class="guide-section-num">6</span> Design Notes</summary>
+      <div class="guide-content">
+        <ul>
+          <li>Cast steel requires the highest shrinkage allowance ($20\text{ mm/m}$ or $2.0\%$).</li>
+          <li>Ensure the riser modulus is at least $1.2\times$ the casting modulus so directional solidification prevents shrinkage cavities in the main part.</li>
+        </ul>
+      </div></details>
+  </section>
+
+  <!-- ═══ SEO Article ═════════════════════════════════════════════ -->
+  <section class="seo-article">
+    <h2>Foundry Technology: Sand Casting, Pattern Allowances &amp; Solidification Mechanics</h2>
+    <p>Metal casting is one of the oldest and most versatile manufacturing processes where molten metal is poured into a refractory mold cavity containing the negative shape of the desired component. Upon cooling and solidification, the metal part is broken out of the mold and fettled.</p>
+    <h3>Key Equations in Casting Design</h3>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:720px;margin:1em 0;color:#cdd7ee;">
+      <tr style="background:#0c1320;color:#7fd1ff;"><th>Parameter</th><th>Formula</th><th>Significance</th></tr>
+      <tr><td>Pattern Length</td><td>$L_p = L_0 (1 + \alpha_{shrink})$</td><td>Compensates for solid metal thermal contraction</td></tr>
+      <tr><td>Chvorinov Solidification Time</td><td>$t_s = B (V / A)^2$</td><td>Determines freezing rate and prevents shrinkage voids</td></tr>
+      <tr><td>Torricelli Pouring Velocity</td><td>$v = \sqrt{2 g H}$</td><td>Fluid velocity at base of pouring sprue</td></tr>
+      <tr><td>Choke Area Sizing</td><td>$A_c = \frac{M}{\rho t_p C_d \sqrt{2 g H}}$</td><td>Regulates volumetric flow rate into gating runner</td></tr>
+    </table>
+    <h3>Standards &amp; Testing References</h3>
+    <ul>
+      <li><strong>IS 1987:</strong> Specification for High Silica Sand for Use in Foundries.</li>
+      <li><strong>IS 1433:</strong> Beam and Plate Gating Terminology for Iron Castings.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    document.getElementById('quiz-wrapper').classList.toggle('hidden', val !== 'quiz');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('cast-canvas');
+const ctx = canvas.getContext('2d');
+let fillProgress = 1.0;
+
+function calcCasting() {
+  const metal = document.getElementById('metal-select').value;
+  const lenMm = parseFloat(document.getElementById('len-in').value) || 200;
+  const volCc = parseFloat(document.getElementById('vol-in').value) || 850;
+  const areaSqcm = parseFloat(document.getElementById('area-in').value) || 520;
+
+  const shrinkRates = { cast_iron: 1.0, aluminum: 1.5, steel: 2.0, brass: 1.4 };
+  const shrinkPct = shrinkRates[metal] || 1.0;
+  const patLen = lenMm * (1.0 + shrinkPct / 100.0);
+
+  const vOverA = volCc / areaSqcm;
+  const tSolid = 2.2 * (vOverA ** 2);
+  const vPour = Math.sqrt(2.0 * 9.81 * 0.15);
+  const chokeAc = (volCc * 7.2 / 1000.0 * 1e6) / (7200.0 * 6.0 * 0.85 * (vPour * 1000.0));
+
+  document.getElementById('disp-patlen').textContent = `${patLen.toFixed(2)} mm (+${shrinkPct}%)`;
+  document.getElementById('disp-modulus').textContent = `${vOverA.toFixed(3)} cm`;
+  document.getElementById('disp-ts').textContent = `${tSolid.toFixed(2)} seconds`;
+  document.getElementById('disp-ac').textContent = `${chokeAc.toFixed(1)} mm²`;
+  document.getElementById('disp-vpour').textContent = `${vPour.toFixed(2)} m/s (Torricelli)`;
+  document.getElementById('solid-badge').textContent = `Solidification Time: ${tSolid.toFixed(2)} s`;
+
+  return { patLen, vOverA, tSolid, chokeAc, vPour };
+}
+
+function drawMold() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const res = calcCasting();
+
+  // Draw Flask Split: Drag (Bottom) & Cope (Top)
+  // Drag
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(50, 200, 600, 180);
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+  ctx.strokeRect(50, 200, 600, 180);
+  ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText('DRAG (LOWER FLASK)', 60, 365);
+
+  // Cope
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(50, 40, 600, 160);
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+  ctx.strokeRect(50, 40, 600, 160);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('COPE (UPPER FLASK)', 60, 65);
+
+  // Parting Line (Green dashed)
+  ctx.strokeStyle = '#10b981'; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(40, 200); ctx.lineTo(660, 200); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#10b981'; ctx.font = '10px monospace';
+  ctx.fillText('PARTING LINE', 570, 195);
+
+  // Pouring Basin & Sprue (Left)
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.moveTo(140, 40); ctx.lineTo(200, 40); ctx.lineTo(180, 80); ctx.lineTo(160, 80); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Vertical Tapered Sprue
+  ctx.beginPath();
+  ctx.moveTo(165, 80); ctx.lineTo(175, 80); ctx.lineTo(172, 230); ctx.lineTo(168, 230); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Runner & Ingate to Cavity
+  ctx.beginPath();
+  ctx.moveTo(168, 230); ctx.lineTo(260, 230); ctx.lineTo(260, 210); ctx.lineTo(168, 210); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Main Casting Cavity (Center)
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(260, 140, 200, 120);
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+  ctx.strokeRect(260, 140, 200, 120);
+
+  // Feeder Riser (Right)
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(460, 90, 70, 110);
+  ctx.strokeRect(460, 90, 70, 110);
+
+  // Animated Molten Metal Flow (Liquid Gold / Fiery Red)
+  if (fillProgress > 0) {
+    const liquidH = 120 * fillProgress;
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(260, 260 - liquidH, 200, liquidH);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(460, 200 - (70 * fillProgress), 70, 70 * fillProgress);
+  }
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText(`CASTING CAVITY (L = ${document.getElementById('len-in').value} mm)`, 360, 205);
+  ctx.font = '10px monospace';
+  ctx.fillStyle = '#f5c842';
+  ctx.fillText(`PATTERN: ${res.patLen.toFixed(1)} mm | ts: ${res.tSolid.toFixed(1)}s`, 360, 225);
+}
+
+const metalSel = document.getElementById('metal-select');
+const lenIn = document.getElementById('len-in');
+const volIn = document.getElementById('vol-in');
+const areaIn = document.getElementById('area-in');
+const logEl = document.getElementById('cast-log');
+
+[metalSel, lenIn, volIn, areaIn].forEach(el => el.addEventListener('input', () => {
+  drawMold();
+}));
+
+document.getElementById('btn-calc-cast').addEventListener('click', () => {
+  const res = calcCasting();
+  logEl.innerHTML += `<br>&gt; [RE-SIZED] Material = ${metalSel.value} &rarr; Pattern length = ${res.patLen.toFixed(2)} mm. Solidification time ts = ${res.tSolid.toFixed(2)} s.`;
+  drawMold();
+});
+
+document.getElementById('btn-pour-sim').addEventListener('click', () => {
+  fillProgress = 0.0;
+  logEl.innerHTML += '<br>&gt; [MOLTEN POUR SIMULATION] Liquid metal filling gating basin and cavity at 1.72 m/s.';
+  const anim = () => {
+    fillProgress += 0.04;
+    drawMold();
+    if (fillProgress < 1.0) requestAnimationFrame(anim);
+  };
+  requestAnimationFrame(anim);
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/casting_process.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawMold();
+</script>
+</body>
+</html>

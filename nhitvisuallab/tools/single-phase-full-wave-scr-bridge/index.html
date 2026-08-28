@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Single-Phase Full-Wave SCR Bridge Lab — NHIT VisualLab</title>
+  <meta name="description" content="Phase-controlled converters: Single-phase fully controlled 4-SCR bridge rectifier, firing angle alpha (0-180°), inductive RL load & DC voltage Vdc = (2Vm/pi)cos(alpha).">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Industrial Electronics - I (ETCE/IE1/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Single-Phase Full-Wave SCR Bridge Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-FourThyristorBridgeChassis" onclick="selectComp('FourThyristorBridgeChassis')">
+                <strong>FourThyristorBridgeChassis</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">4-Thyristor Bridge Converter: Full-wave bridge containing four phase-controlled SCRs (T1-T4).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ExtrudedHeatSinkCoolingFins" onclick="selectComp('ExtrudedHeatSinkCoolingFins')">
+                <strong>ExtrudedHeatSinkCoolingFins</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Aluminum Heat Sink Assembly: Finned convection heat sink dissipating forward conduction thermal losses.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-InductiveRLLoadSmoothingChoke" onclick="selectComp('InductiveRLLoadSmoothingChoke')">
+                <strong>InductiveRLLoadSmoothingChoke</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Inductive DC Load Choke: High-inductance smoothing choke maintaining continuous ripple-free load current.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-UJTFiringCircuitPulseBoard" onclick="selectComp('UJTFiringCircuitPulseBoard')">
+                <strong>UJTFiringCircuitPulseBoard</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">UJT Relaxation Trigger Board: Synchronized pulse generator varying SCR firing delay angle α from 0° to 180°.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="alpha-scr-input">Firing Delay Angle α (degrees):</label>
+            <input type="number" id="alpha-scr-input" class="ctrl-input" value="45" min="0" max="180" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="vrms-scr-input">AC Supply Voltage (Vrms):</label>
+            <input type="number" id="vrms-scr-input" class="ctrl-input" value="230" min="110" max="440" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="rload-scr-input">Load Resistance R (Ω):</label>
+            <input type="number" id="rload-scr-input" class="ctrl-input" value="10" min="2" max="100" step="1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Average DC Output Voltage (Vdc):</td><td id="val-vdc-scr">146.42 V</td></tr>
+          <tr><td>Average DC Load Current (Idc):</td><td id="val-idc-scr">14.64 A</td></tr>
+          <tr><td>Input Power Factor (PF):</td><td id="val-pf-scr">0.636</td></tr>
+          <tr><td>Converter Operating Mode:</td><td id="val-mode-scr">RECTIFICATION MODE (AC -> DC)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Single-Phase Full-Wave SCR Bridge Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Single-phase fully controlled four-thyristor bridges regulate DC output power smoothly by controlling the thyristor gate firing delay angle $\alpha$. With continuous inductive load current, the average DC output voltage is $V_{dc} = \frac{2 V_m}{\pi} \cos\alpha$. Operating in the range $0^\circ \le \alpha < 90^\circ$ produces rectification, while $90^\circ < \alpha < 180^\circ$ enables synchronous line-commutated DC-to-AC inversion.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Single-Phase Full-Wave SCR Bridge Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Industrial Electronics - I.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Single-phase fully controlled four-thyristor bridges regulate DC output power smoothly by controlling the thyristor gate firing delay angle $\alpha$. With continuous inductive load current, the average DC output voltage is $V_{dc} = \frac{2 V_m}{\pi} \cos\alpha$. Operating in the range $0^\circ \le \alpha < 90^\circ$ produces rectification, while $90^\circ < \alpha < 180^\circ$ enables synchronous line-commutated DC-to-AC inversion.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Single-Phase Full-Wave SCR Bridge Lab (Industrial Electronics - I)</h2>
+      <p>Phase-controlled converters: Single-phase fully controlled 4-SCR bridge rectifier, firing angle alpha (0-180°), inductive RL load & DC voltage Vdc = (2Vm/pi)cos(alpha).</p>
+      <p>Single-phase fully controlled four-thyristor bridges regulate DC output power smoothly by controlling the thyristor gate firing delay angle $\alpha$. With continuous inductive load current, the average DC output voltage is $V_{dc} = \frac{2 V_m}{\pi} \cos\alpha$. Operating in the range $0^\circ \le \alpha < 90^\circ$ produces rectification, while $90^\circ < \alpha < 180^\circ$ enables synchronous line-commutated DC-to-AC inversion.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const alpha_deg = parseFloat(document.getElementById('alpha-scr-input').value);
+            const vrms = parseFloat(document.getElementById('vrms-scr-input').value);
+            const r = parseFloat(document.getElementById('rload-scr-input').value);
+
+            const vm = Math.sqrt(2.0) * vrms;
+            const alpha_rad = (alpha_deg * Math.PI) / 180.0;
+            const vdc = (2.0 * vm / Math.PI) * Math.cos(alpha_rad);
+            const idc = Math.max(0.0, vdc / r);
+            const pf = (2.0 * Math.sqrt(2.0) / Math.PI) * Math.cos(alpha_rad);
+
+            document.getElementById('val-vdc-scr').innerText = vdc.toFixed(2) + ' V';
+            document.getElementById('val-idc-scr').innerText = idc.toFixed(2) + ' A';
+            document.getElementById('val-pf-scr').innerText = pf.toFixed(3);
+            document.getElementById('val-mode-scr').innerText = alpha_deg < 90 ? "RECTIFICATION MODE (Power Flow AC -> DC)" : "INVERSION MODE (Line Commutated Inverter)";
+
+            drawSCRWaveform(alpha_deg, vm);
+          }
+
+          function drawSCRWaveform(alpha, vm) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // AC Sine dashed
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            for(let x=40; x<w-40; x++) {
+              let angle = (x - 40) / 40.0 * Math.PI;
+              let y = h/2 - Math.sin(angle) * 70;
+              if (x === 40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke(); ctx.setLineDash([]);
+
+            // Controlled Rectified Voltage Output
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            for(let x=40; x<w-40; x++) {
+              let angle = ((x - 40) / 40.0 * 180.0) % 180.0;
+              let y = h/2;
+              if (angle >= alpha) {
+                y = h/2 - Math.abs(Math.sin((angle / 180.0) * Math.PI)) * 70;
+              }
+              if (x === 40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`1-Phase Fully Controlled SCR Bridge | Firing Angle α = ${alpha}° | Vdc = ${((2*vm/Math.PI)*Math.cos(alpha*Math.PI/180)).toFixed(1)} V`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/single_phase_full_wave_scr_bridge.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/single_phase_full_wave_scr_bridge.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

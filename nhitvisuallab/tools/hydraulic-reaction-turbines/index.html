@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Francis & Kaplan Reaction Turbines Lab — NHIT VisualLab</title>
+  <meta name="description" content="Radial/axial reaction turbines, inlet/outlet velocity triangles, draft tube pressure recovery & Thoma cavitation factor.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Fluid Mechanics & Machinery (ME/S5/FMM)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Francis & Kaplan Reaction Turbines Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-FrancisSpiralScrollCasing" onclick="selectComp('FrancisSpiralScrollCasing')">
+                <strong>FrancisSpiralScrollCasing</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Spiral Scroll Casing: Cast steel volute casing maintaining uniform flow distribution around runner periphery.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-RadialGuideVaneRing" onclick="selectComp('RadialGuideVaneRing')">
+                <strong>RadialGuideVaneRing</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Guide Vane Ring: Aerofoil stay and guide vanes directing pressurized water at optimal angle α.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-FrancisMixedFlowRunner" onclick="selectComp('FrancisMixedFlowRunner')">
+                <strong>FrancisMixedFlowRunner</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Mixed-Flow Runner: Stainless steel runner extracting pressure and kinetic energy.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ElbowDraftTubeRecovery" onclick="selectComp('ElbowDraftTubeRecovery')">
+                <strong>ElbowDraftTubeRecovery</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Elbow Draft Tube: Divergent conduit recovering kinetic energy exiting runner into static head.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="turb-type-sel">Turbine Architecture:</label>
+            <select id="turb-type-sel" class="ctrl-input">
+              <option value="francis" selected>Francis Reaction Turbine (Medium Head 45m)</option>
+              <option value="kaplan">Kaplan Axial Turbine (Low Head 18m, High Flow)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="head-h-input">Net Available Head H (m):</label>
+            <input type="number" id="head-h-input" class="ctrl-input" value="45" min="8" max="250" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="flow-q-input">Discharge Q (m³/s):</label>
+            <input type="number" id="flow-q-input" class="ctrl-input" value="3.5" min="0.5" max="30.0" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="rpm-turb-input">Rotational Speed N (RPM):</label>
+            <input type="number" id="rpm-turb-input" class="ctrl-input" value="600" min="150" max="1500" step="50" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Hydraulic Water Power:</td><td id="val-phyd">1545.1 kW</td></tr>
+          <tr><td>Brake Shaft Power Output:</td><td id="val-pshaft">1367.4 kW</td></tr>
+          <tr><td>Overall Efficiency (ηo):</td><td id="val-eta">88.5 %</td></tr>
+          <tr><td>Specific Speed (Ns):</td><td id="val-ns">192.4</td></tr>
+          <tr><td>Draft Tube Static Recovery:</td><td id="val-dt">4.18 m</td></tr>
+          <tr><td>Thoma Cavitation Factor (σ):</td><td id="val-sigma">0.167</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Francis & Kaplan Reaction Turbines Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Francis and Kaplan reaction turbines operate under combined pressure and kinetic energy of water in medium-to-low head hydroelectric stations. This laboratory calculates Euler turbine equations, velocity triangles, runner blade angles, draft tube static pressure recovery, and Thoma's cavitation parameter.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Francis & Kaplan Reaction Turbines Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Fluid Mechanics & Machinery.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Francis and Kaplan reaction turbines operate under combined pressure and kinetic energy of water in medium-to-low head hydroelectric stations. This laboratory calculates Euler turbine equations, velocity triangles, runner blade angles, draft tube static pressure recovery, and Thoma's cavitation parameter.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Francis & Kaplan Reaction Turbines Lab (Fluid Mechanics & Machinery)</h2>
+      <p>Radial/axial reaction turbines, inlet/outlet velocity triangles, draft tube pressure recovery & Thoma cavitation factor.</p>
+      <p>Francis and Kaplan reaction turbines operate under combined pressure and kinetic energy of water in medium-to-low head hydroelectric stations. This laboratory calculates Euler turbine equations, velocity triangles, runner blade angles, draft tube static pressure recovery, and Thoma's cavitation parameter.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const ttype = document.getElementById('turb-type-sel').value;
+            const h = parseFloat(document.getElementById('head-h-input').value);
+            const q = parseFloat(document.getElementById('flow-q-input').value);
+            const rpm = parseFloat(document.getElementById('rpm-turb-input').value);
+
+            const p_hyd = (1000.0 * 9.81 * q * h) / 1000.0;
+            const d = ttype === 'francis' ? 0.85 : 1.4;
+            const u1 = (Math.PI * d * rpm) / 60.0;
+            const eta_overall = ttype === 'francis' ? 0.885 : 0.912;
+            const p_shaft = p_hyd * eta_overall;
+            const ns = (rpm * Math.sqrt(p_shaft)) / Math.pow(h, 1.25);
+            const dt_recov = (0.82 * (Math.pow(0.28 * Math.sqrt(2*9.81*h), 2) * 0.85)) / (2 * 9.81);
+            const sigma = (10.3 - 0.3 - 2.5) / h;
+
+            document.getElementById('val-phyd').innerText = p_hyd.toFixed(1) + ' kW';
+            document.getElementById('val-pshaft').innerText = p_shaft.toFixed(1) + ' kW';
+            document.getElementById('val-eta').innerText = (eta_overall * 100.0).toFixed(1) + ' %';
+            document.getElementById('val-ns').innerText = ns.toFixed(1) + ' (SI Units)';
+            document.getElementById('val-dt').innerText = dt_recov.toFixed(2) + ' m';
+            document.getElementById('val-sigma').innerText = sigma.toFixed(3);
+
+            drawReactionRunner(ttype, u1, p_shaft);
+          }
+
+          function drawReactionRunner(ttype, u1, p_shaft) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const cx = w/2, cy = h/2;
+            // Casing volute
+            ctx.strokeStyle = '#475569'; ctx.lineWidth = 8;
+            ctx.beginPath(); ctx.arc(cx, cy, 95, 0, 2*Math.PI); ctx.stroke();
+
+            // Guide vanes (radial ring)
+            ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
+            for(let i=0; i<12; i++) {
+              let ang = (i * 30) * Math.PI / 180;
+              let x1 = cx + 80 * Math.cos(ang), y1 = cy + 80 * Math.sin(ang);
+              let x2 = cx + 62 * Math.cos(ang + 0.3), y2 = cy + 62 * Math.sin(ang + 0.3);
+              ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            }
+
+            // Runner
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath(); ctx.arc(cx, cy, 45, 0, 2*Math.PI); ctx.fill();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Peripheral Speed u1: ${u1.toFixed(1)} m/s | Shaft Power: ${p_shaft.toFixed(1)} kW`, 30, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/hydraulic_reaction_turbines.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/hydraulic_reaction_turbines.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

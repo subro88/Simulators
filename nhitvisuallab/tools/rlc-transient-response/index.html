@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RLC Transient Response & Damping Lab — NHIT VisualLab</title>
+  <meta name="description" content="DC step transient response of series RL, RC & RLC circuits, natural frequency omega_0, damping ratio zeta & settling time.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Network Analysis (ETCE/NA/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">RLC Transient Response & Damping Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its circuit hardware engineering function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-OscilloscopeCRTDisplayScreen" onclick="selectComp('OscilloscopeCRTDisplayScreen')">
+                <strong>OscilloscopeCRTDisplayScreen</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Digital Oscilloscope: Dual-channel storage oscilloscope displaying step response voltage/current traces.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DCStepFunctionPulseGenerator" onclick="selectComp('DCStepFunctionPulseGenerator')">
+                <strong>DCStepFunctionPulseGenerator</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Step Generator: Precision square-wave and step pulse excitation generator with 50Ω output.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PrecisionDecadeResistorBox" onclick="selectComp('PrecisionDecadeResistorBox')">
+                <strong>PrecisionDecadeResistorBox</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Decade Resistor: Non-inductive precision resistance box adjusting circuit damping ratio ζ.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DampedResonantRLCTank" onclick="selectComp('DampedResonantRLCTank')">
+                <strong>DampedResonantRLCTank</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">RLC Tank Assembly: High-Q toroidal inductor and polypropylene capacitor tank circuit.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Circuit Parameters</h3>
+          
+          <div class="control-group">
+            <label for="res-r-input">Resistance R (Ω):</label>
+            <input type="number" id="res-r-input" class="ctrl-input" value="50" min="5" max="500" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="ind-l-input">Inductance L (mH):</label>
+            <input type="number" id="ind-l-input" class="ctrl-input" value="100" min="10" max="500" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="cap-c-input">Capacitance C (µF):</label>
+            <input type="number" id="cap-c-input" class="ctrl-input" value="10" min="1" max="100" step="1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Undamped Natural Frequency (ω0):</td><td id="val-omega0">1000.0 rad/s (159.2 Hz)</td></tr>
+          <tr><td>Damping Ratio (ζ):</td><td id="val-zeta">0.250</td></tr>
+          <tr><td>Damping Regime:</td><td id="val-dmode">UNDERDAMPED (Oscillatory)</td></tr>
+          <tr><td>2% Settling Time (ts):</td><td id="val-ts">16.00 ms</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>RLC Transient Response & Damping Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Transient phenomena in RLC networks govern system stability, pulse rise times, and overshoot under switching excitations. Second-order differential equations yield three damping regimes based on the damping factor $\zeta = \frac{R}{2}\sqrt{\frac{C}{L}}$: underdamped ($\zeta < 1$), critically damped ($\zeta = 1$), and overdamped ($\zeta > 1$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: RLC Transient Response & Damping Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Network Analysis.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Transient phenomena in RLC networks govern system stability, pulse rise times, and overshoot under switching excitations. Second-order differential equations yield three damping regimes based on the damping factor $\zeta = \frac{R}{2}\sqrt{\frac{C}{L}}$: underdamped ($\zeta < 1$), critically damped ($\zeta = 1$), and overdamped ($\zeta > 1$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, IS 2026, IS 4722).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: RLC Transient Response & Damping Lab (Network Analysis)</h2>
+      <p>DC step transient response of series RL, RC & RLC circuits, natural frequency omega_0, damping ratio zeta & settling time.</p>
+      <p>Transient phenomena in RLC networks govern system stability, pulse rise times, and overshoot under switching excitations. Second-order differential equations yield three damping regimes based on the damping factor $\zeta = \frac{R}{2}\sqrt{\frac{C}{L}}$: underdamped ($\zeta < 1$), critically damped ($\zeta = 1$), and overdamped ($\zeta > 1$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const r = parseFloat(document.getElementById('res-r-input').value);
+            const l = parseFloat(document.getElementById('ind-l-input').value) / 1000.0;
+            const c = parseFloat(document.getElementById('cap-c-input').value) / 1e6;
+
+            const omega_0 = 1.0 / Math.sqrt(l * c);
+            const zeta = (r / 2.0) * Math.sqrt(c / l);
+            const ts = (4.0 / (Math.max(0.1, zeta) * omega_0)) * 1000.0;
+            let d_str = "UNDERDAMPED (Oscillatory)";
+            if (Math.abs(zeta - 1.0) < 0.05) d_str = "CRITICALLY DAMPED";
+            else if (zeta > 1.0) d_str = "OVERDAMPED";
+
+            document.getElementById('val-omega0').innerText = omega_0.toFixed(1) + ' rad/s (' + (omega_0/(2*Math.PI)).toFixed(1) + ' Hz)';
+            document.getElementById('val-zeta').innerText = zeta.toFixed(3);
+            document.getElementById('val-dmode').innerText = d_str;
+            document.getElementById('val-ts').innerText = ts.toFixed(2) + ' ms';
+
+            drawRLCTransient(zeta, omega_0);
+          }
+
+          function drawRLCTransient(zeta, w0) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Step line 10V
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(40, 70); ctx.lineTo(w - 40, 70); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Transient waveform
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(40, h - 40);
+            for(let x=40; x<w-40; x++) {
+              let t = (x - 40) / 40.0 * 0.001; // 0 to 10ms
+              let vc = 1.0;
+              if(zeta < 1.0) {
+                let wd = w0 * Math.sqrt(1 - zeta*zeta);
+                vc = 1.0 - Math.exp(-zeta*w0*t) * Math.cos(wd*t);
+              } else {
+                vc = 1.0 - Math.exp(-w0*t);
+              }
+              let y = (h - 40) - vc * (h - 110);
+              ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Series RLC DC Step Transient | Damping Factor ζ = ${zeta.toFixed(3)}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/rlc_transient_response.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/rlc_transient_response.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

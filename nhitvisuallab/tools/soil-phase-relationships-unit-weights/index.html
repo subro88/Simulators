@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soil Phase Relationships & Unit Weights Lab — NHIT VisualLab</title>
+  <meta name="description" content="Soil mechanics: 3-phase soil diagram (Solids, Water, Air), Void Ratio e, Porosity n, Saturation Sr, Bulk unit weight gamma, Dry gamma_d & e Sr = w Gs relationship.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Geo-Technical Engineering (CE/GTE/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Soil Phase Relationships & Unit Weights Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-SolidSoilMineralGrainsLayer" onclick="selectComp('SolidSoilMineralGrainsLayer')">
+                <strong>SolidSoilMineralGrainsLayer</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Soil Solid Skeleton (Vs): Incompressible soil mineral mineral grains with specific gravity Gs = 2.68.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PoreWaterCapillaryLiquidLayer" onclick="selectComp('PoreWaterCapillaryLiquidLayer')">
+                <strong>PoreWaterCapillaryLiquidLayer</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Pore Water Phase (Vw): Water filling pore voids, exerting pore water pressure u.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PoreAirVapourTopLayer" onclick="selectComp('PoreAirVapourTopLayer')">
+                <strong>PoreAirVapourTopLayer</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Pore Air Voids (Va): Air spaces within unsaturated soil volume.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ThreePhaseVolumetricGaugeFrame" onclick="selectComp('ThreePhaseVolumetricGaugeFrame')">
+                <strong>ThreePhaseVolumetricGaugeFrame</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Three-Phase Volumetric Prism: Analytical gauge model illustrating total soil volume V = Vs + Vw + Va.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="w-water-soil-input">Water Content w (%):</label>
+            <input type="number" id="w-water-soil-input" class="ctrl-input" value="18.0" min="2" max="60" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="gamma-bulk-input">Bulk Unit Weight γ (kN/m³):</label>
+            <input type="number" id="gamma-bulk-input" class="ctrl-input" value="19.5" min="12" max="24" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="gs-soil-input">Specific Gravity (Gs):</label>
+            <input type="number" id="gs-soil-input" class="ctrl-input" value="2.68" min="2.5" max="2.85" step="0.01" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Dry Unit Weight (γd = γ / (1+w)):</td><td id="val-gamma-d">16.53 kN/m³</td></tr>
+          <tr><td>Void Ratio (e):</td><td id="val-void-e">0.591</td></tr>
+          <tr><td>Soil Porosity (n = e / (1+e)):</td><td id="val-porosity-n">37.1 %</td></tr>
+          <tr><td>Degree of Saturation (Sr = w Gs / e):</td><td id="val-sat-sr">81.6 %</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Soil Phase Relationships & Unit Weights Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Soil is a three-phase particulate system comprising mineral solids, pore water, and pore air. Fundamental phase relationships quantify the soil state: Void Ratio ($e = V_v / V_s$), Porosity ($n = V_v / V$), Degree of Saturation ($S_r = V_w / V_v$), and Dry Unit Weight ($\gamma_d = \frac{\gamma}{1+w} = \frac{G_s \gamma_w}{1+e}$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Soil Phase Relationships & Unit Weights Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Geo-Technical Engineering.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, geotechnical properties, highway parameters, and irrigation hydraulics.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Soil is a three-phase particulate system comprising mineral solids, pore water, and pore air. Fundamental phase relationships quantify the soil state: Void Ratio ($e = V_v / V_s$), Porosity ($n = V_v / V$), Degree of Saturation ($S_r = V_w / V_v$), and Dry Unit Weight ($\gamma_d = \frac{\gamma}{1+w} = \frac{G_s \gamma_w}{1+e}$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey angles, soil phase values, pavement loads, or canal discharges. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey vectors, 3-phase soil diagrams, retaining wall pressures, or canal sections corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IRC:73, IRC:37, IS 2720, IS 73, IS 1205, IS 1208, IS 2386).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Soil Phase Relationships & Unit Weights Lab (Geo-Technical Engineering)</h2>
+      <p>Soil mechanics: 3-phase soil diagram (Solids, Water, Air), Void Ratio e, Porosity n, Saturation Sr, Bulk unit weight gamma, Dry gamma_d & e Sr = w Gs relationship.</p>
+      <p>Soil is a three-phase particulate system comprising mineral solids, pore water, and pore air. Fundamental phase relationships quantify the soil state: Void Ratio ($e = V_v / V_s$), Porosity ($n = V_v / V$), Degree of Saturation ($S_r = V_w / V_v$), and Dry Unit Weight ($\gamma_d = \frac{\gamma}{1+w} = \frac{G_s \gamma_w}{1+e}$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const w = parseFloat(document.getElementById('w-water-soil-input').value) / 100.0;
+            const gamma = parseFloat(document.getElementById('gamma-bulk-input').value);
+            const gs = parseFloat(document.getElementById('gs-soil-input').value);
+            const gamma_w = 9.81;
+
+            const gamma_d = gamma / (1.0 + w);
+            const e = (gs * gamma_w / gamma_d) - 1.0;
+            const n_pct = (e / (1.0 + e)) * 100.0;
+            const sr_pct = Math.min(100.0, (w * gs / Math.max(0.01, e)) * 100.0);
+
+            document.getElementById('val-gamma-d').innerText = gamma_d.toFixed(2) + ' kN/m³';
+            document.getElementById('val-void-e').innerText = e.toFixed(3);
+            document.getElementById('val-porosity-n').innerText = n_pct.toFixed(1) + ' %';
+            document.getElementById('val-sat-sr').innerText = sr_pct.toFixed(1) + ' % (' + (sr_pct >= 95 ? 'Fully Saturated' : 'Partially Saturated') + ')';
+
+            drawThreePhaseDiagram(e, sr_pct);
+          }
+
+          function drawThreePhaseDiagram(e, sr) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const bx = w/2 - 70, bw = 140;
+            // Solids (Bottom 55%)
+            ctx.fillStyle = '#b45309'; ctx.fillRect(bx, 150, bw, 100);
+            // Water (Middle)
+            const waterH = (sr / 100.0) * 80;
+            ctx.fillStyle = '#0284c7'; ctx.fillRect(bx, 150 - waterH, bw, waterH);
+            // Air (Top)
+            const airH = 80 - waterH;
+            ctx.fillStyle = '#cbd5e1'; ctx.fillRect(bx, 70, bw, airH);
+
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+            ctx.strokeRect(bx, 70, bw, 180);
+
+            ctx.fillStyle = '#ffffff'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Air (Va)', bx + bw + 15, 70 + airH/2);
+            ctx.fillText('Water (Vw)', bx + bw + 15, 150 - waterH/2);
+            ctx.fillText('Solids (Vs)', bx + bw + 15, 200);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Three-Phase Soil Diagram: Air + Water + Solid Grains', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/soil_phase_relationships_unit_weights.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/soil_phase_relationships_unit_weights.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

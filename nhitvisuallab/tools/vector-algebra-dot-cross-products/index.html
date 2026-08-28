@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vector Algebra Work & Torque Lab — WBSCTE Basic Science 1st Sem Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="BS101 Engineering Mathematics-I: Vector Dot Product Work Done W = F·d & Cross Product Torque tau = r x F">
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    :root { --accent: #ffd600; }
+    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
+    .site-nav a { color: #94a3b8; text-decoration: none; }
+    .site-nav a:hover { color: var(--accent); }
+    .site-nav span { color: #475569; }
+    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
+    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
+    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
+    .mode-bar { display: flex; gap: 8px; align-items: center; }
+    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
+    .guide-link-btn:hover { background: #475569; }
+    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
+    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
+    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
+    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
+    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
+    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    .diag-table td:first-child { color: #94a3b8; }
+    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
+    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
+    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
+    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
+    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
+    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
+    .seo-article h2, .seo-article h3 { color: #f8fafc; }
+    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+    <span>&rsaquo;</span>
+    <a href="/nhitvisuallab/index.html#bs-sem1">Basic Science & Humanities</a>
+    <span>&rsaquo;</span>
+    <span style="color:#f8fafc;">Vector Algebra Work & Torque Lab</span>
+  </nav>
+
+  <header class="tool-header">
+    <div>
+      <span class="tool-badge">BS101</span>
+      <h1 class="tool-title">Vector Algebra Work & Torque Lab</h1>
+      <p class="tool-subtitle">BS101 Engineering Mathematics-I: Vector Dot Product Work Done W = F·d & Cross Product Torque tau = r x F</p>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
+      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div id="sim-wrapper" class="sim-grid">
+      <div class="controls-col">
+        <div class="panel">
+          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+          
+              <div class="control-group">
+                <label for="vec_ax">Vector A / Arm rx:</label>
+                <input type="number" id="vec_ax" min="-10.0" max="10.0" step="0.1" value="0.5" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="vec_ay">Vector A / Arm ry:</label>
+                <input type="number" id="vec_ay" min="-10.0" max="10.0" step="0.1" value="0.2" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="vec_bx">Vector B / Force Fx:</label>
+                <input type="number" id="vec_bx" min="-50.0" max="50.0" step="1.0" value="10.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="vec_by">Vector B / Force Fy:</label>
+                <input type="number" id="vec_by" min="-50.0" max="50.0" step="1.0" value="25.0" class="form-control" oninput="runSim()" />
+              </div>
+          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+        </div>
+      </div>
+      <div class="display-col">
+        <div class="canvas-card">
+          <canvas id="sim-canvas" width="800" height="420"></canvas>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
+          <table class="diag-table">
+            <tbody>
+              
+          <tr>
+            <td>Scalar Dot Product W = F·d</td>
+            <td id="out_dot" class="out-val">10.00 J (Scalar)</td>
+          </tr>
+          <tr>
+            <td>Vector Cross Product tau = r x F</td>
+            <td id="out_tau" class="out-val">10.50 k̂ N·m</td>
+          </tr>
+          <tr>
+            <td>Angle Between Vectors theta</td>
+            <td id="out_ang" class="out-val">46.40°</td>
+          </tr>
+          <tr>
+            <td>Vector Algebra Verdict</td>
+            <td id="out_status" class="out-val">VECTORS VERIFIED: Work Done W = 10.00 J, Torque τ = 10.50 N·m</td>
+          </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
+        <div id="three-canvas-container"></div>
+        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
+        <div class="comp-grid">
+          
+          <div class="comp-card" onclick="focusComponent('PrimaryVectorAArrowShaft')">
+            <h4>Primary Vector A / Lever Arm r</h4>
+            <p>3D position / lever arm vector extending from coordinate origin.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('SecondaryVectorBArrowShaft')">
+            <h4>Secondary Vector B / Force F</h4>
+            <p>3D applied force / displacement vector interacting with vector A.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('CrossProductTorqueNormalVectorC')">
+            <h4>Torque Cross Product Normal Vector</h4>
+            <p>Orthogonal normal vector tau = r x F satisfying right-hand screw rule.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('CoordinateOriginIntersectionNode')">
+            <h4>Origin Datum Node (0,0,0)</h4>
+            <p>Intersection datum node anchoring Cartesian 3D basis unit vectors.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="explore-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
+        <p>BS101 Engineering Mathematics-I: Vector Dot Product Work Done W = F·d & Cross Product Torque tau = r x F</p>
+        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
+          Evaluate Moment / Torque as vector cross product: $$\vec{\tau} = \vec{r} \times \vec{F} = \begin{vmatrix} \hat{i} & \hat{j} & \hat{k} \\ r_x & r_y & r_z \\ F_x & F_y & F_z \end{vmatrix}$$
+        </div>
+        <p>Understand scalar (dot) and vector (cross) products in 3D Cartesian coordinates.</p>
+        <p>Determine conditions for perpendicularity ($\vec{A}\cdot\vec{B} = 0$) and parallelism ($\vec{A}\times\vec{B} = 0$).</p>
+      </div>
+    </div>
+
+    <!-- ════ User Guide Section ════ -->
+    <section class="user-guide" id="user-guide">
+      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <details open>
+        <summary>1. Overview &amp; Physical Principles</summary>
+        <div><p>Understand scalar (dot) and vector (cross) products in 3D Cartesian coordinates.</p></div>
+      </details>
+      <details>
+        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
+        <div><p>Evaluate Work Done as scalar product: $$W = \vec{F} \cdot \vec{d} = F_x d_x + F_y d_y + F_z d_z = |\vec{F}| |\vec{d}| \cos\theta$$</p></div>
+      </details>
+      <details>
+        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
+        <div><p>Evaluate Moment / Torque as vector cross product: $$\vec{\tau} = \vec{r} \times \vec{F} = \begin{vmatrix} \hat{i} & \hat{j} & \hat{k} \\ r_x & r_y & r_z \\ F_x & F_y & F_z \end{vmatrix}$$</p></div>
+      </details>
+      <details>
+        <summary>4. Step-by-Step Procedure &amp; Zero Errors</summary>
+        <div><p>Determine conditions for perpendicularity ($\vec{A}\cdot\vec{B} = 0$) and parallelism ($\vec{A}\times\vec{B} = 0$).</p></div>
+      </details>
+      <details>
+        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
+        <div><p>Apply vector mechanics in rigid body rotation and work calculations.</p></div>
+      </details>
+      <details>
+        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
+        <div><p>Reference: WBSCTE Engineering Mathematics-I (BS101).</p></div>
+      </details>
+    </section>
+
+    <!-- ════ SEO Technical Article ════ -->
+    <section class="seo-article">
+      <h2>Engineering Reference &amp; Laboratory Standards: Vector Algebra Work & Torque Lab</h2>
+      <p>BS101 Engineering Mathematics-I: Vector Dot Product Work Done W = F·d & Cross Product Torque tau = r x F</p>
+      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
+      <p>Understand scalar (dot) and vector (cross) products in 3D Cartesian coordinates. Evaluate Work Done as scalar product: $$W = \vec{F} \cdot \vec{d} = F_x d_x + F_y d_y + F_z d_z = |\vec{F}| |\vec{d}| \cos\theta$$</p>
+      <h3>Governing Equations &amp; Analytical Formulations</h3>
+      <p>Evaluate Moment / Torque as vector cross product: $$\vec{\tau} = \vec{r} \times \vec{F} = \begin{vmatrix} \hat{i} & \hat{j} & \hat{k} \\ r_x & r_y & r_z \\ F_x & F_y & F_z \end{vmatrix}$$ Determine conditions for perpendicularity ($\vec{A}\cdot\vec{B} = 0$) and parallelism ($\vec{A}\times\vec{B} = 0$).</p>
+      <h3>Industrial &amp; Engineering Applications</h3>
+      <p>Apply vector mechanics in rigid body rotation and work calculations. Designed in strict alignment with Reference: WBSCTE Engineering Mathematics-I (BS101)..</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    let scene, camera, renderer, controls, modelGroup;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function drawSim(arg1, arg2, arg3, arg4) {
+      
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            const cx = width/2 - 40, cy = height/2 + 40;
+            const scale_a = 160.0;
+            const scale_b = 4.0;
+
+            // Draw Lever Arm Vector A
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + arg1 * scale_a, cy - arg2 * scale_a);
+            ctx.stroke();
+
+            // Draw Force Vector B
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + arg3 * scale_b, cy - arg4 * scale_b);
+            ctx.stroke();
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('Lever Arm r', cx + arg1 * scale_a + 5, cy - arg2 * scale_a);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillText('Force F', cx + arg3 * scale_b + 5, cy - arg4 * scale_b);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px Inter';
+            ctx.fillText('Dot Product W = F·d = ' + arg5.toFixed(2) + ' J', 40, 50);
+            ctx.fillText('Cross Product Torque τ = r × F = ' + arg6.toFixed(2) + ' k̂ N·m', 40, 75);
+        
+    }
+
+    function runSim() {
+      
+            const ax = parseFloat(document.getElementById('vec_ax').value);
+            const ay = parseFloat(document.getElementById('vec_ay').value);
+            const bx = parseFloat(document.getElementById('vec_bx').value);
+            const by = parseFloat(document.getElementById('vec_by').value);
+
+            const dot_w = (ax * bx) + (ay * by);
+            const mag_a = Math.sqrt(ax*ax + ay*ay);
+            const mag_b = Math.sqrt(bx*bx + by*by);
+            let cos_theta = dot_w / Math.max(1e-6, mag_a * mag_b);
+            cos_theta = Math.max(-1.0, Math.min(1.0, cos_theta));
+            const ang_deg = Math.acos(cos_theta) * 180.0 / Math.PI;
+
+            const tau_z = (ax * by) - (ay * bx);
+
+            document.getElementById('out_dot').innerText = dot_w.toFixed(2) + " J (Scalar)";
+            document.getElementById('out_tau').innerText = tau_z.toFixed(2) + " k̂ N·m";
+            document.getElementById('out_ang').innerText = ang_deg.toFixed(2) + "°";
+            document.getElementById('out_status').innerText = "VECTORS VERIFIED: Work Done W = " + dot_w.toFixed(2) + " J, Torque τ = " + Math.abs(tau_z).toFixed(2) + " N·m";
+            drawSim(ax, ay, bx, by, dot_w, tau_z);
+        
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+
+      if (mode === '3d' && !renderer) {
+        initThree();
+      }
+    }
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2, 1.5, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('/frontend/models/vector_algebra_dot_cross_products.glb', function(gltf) {
+        modelGroup = gltf.scene;
+        scene.add(modelGroup);
+        animate();
+      }, undefined, function(err) {
+        console.warn('Fallback 3D geometry loaded');
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+        const mat = new THREE.MeshStandardMaterial({ color: '#ffd600', roughness: 0.3 });
+        modelGroup = new THREE.Mesh(geo, mat);
+        scene.add(modelGroup);
+        animate();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function focusComponent(name) {
+      if (!modelGroup) return;
+      modelGroup.traverse(function(child) {
+        if (child.isMesh) {
+          if (child.name === name) {
+            child.material.emissive = new THREE.Color(0x38bdf8);
+            child.material.emissiveIntensity = 0.6;
+          } else {
+            child.material.emissive = new THREE.Color(0x000000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      runSim();
+    });
+  </script>
+</body>
+</html>

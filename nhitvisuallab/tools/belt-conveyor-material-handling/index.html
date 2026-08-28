@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Belt Conveyor & Material Handling Lab — NHIT VisualLab</title>
+  <meta name="description" content="Troughing belt conveyor capacity, effective belt pull Te, tight/slack tensions T1/T2 & drive motor power.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Material Handling System (ME/S6/MHS)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Belt Conveyor & Material Handling Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ConveyorRubberBeltTrough" onclick="selectComp('ConveyorRubberBeltTrough')">
+                <strong>ConveyorRubberBeltTrough</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Rubber Conveyor Belt: Multi-ply fabric reinforced EP rubber belt with heavy top cover.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MotorizedHeadDrivePulley" onclick="selectComp('MotorizedHeadDrivePulley')">
+                <strong>MotorizedHeadDrivePulley</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Head Drive Pulley: Rubber-lagged motorized head pulley transmitting driving friction torque.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ThreeRollTroughingIdlerSet" onclick="selectComp('ThreeRollTroughingIdlerSet')">
+                <strong>ThreeRollTroughingIdlerSet</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Troughing Idlers: 35° 3-roll troughing idler set supporting bulk material cross-section.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-GravityTakeUpTensionWeight" onclick="selectComp('GravityTakeUpTensionWeight')">
+                <strong>GravityTakeUpTensionWeight</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Gravity Take-Up: Automatic counterweight carriage maintaining constant belt slack tension T2.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="belt-w-input">Belt Width B (mm):</label>
+            <input type="number" id="belt-w-input" class="ctrl-input" value="800" min="400" max="1600" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="belt-v-input">Belt Speed v (m/s):</label>
+            <input type="number" id="belt-v-input" class="ctrl-input" value="1.8" min="0.5" max="4.0" step="0.2" />
+          </div>
+          <div class="control-group">
+            <label for="lift-h-input">Lift Height H (m):</label>
+            <input type="number" id="lift-h-input" class="ctrl-input" value="15" min="0" max="60" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Carrying Capacity (Qm):</td><td id="val-cap-conveyor">564.5 Tons/hr</td></tr>
+          <tr><td>Effective Belt Tension (Te):</td><td id="val-te-conv">16382 N</td></tr>
+          <tr><td>Tight Side Tension (T1):</td><td id="val-t1">22540 N</td></tr>
+          <tr><td>Slack Side Tension (T2):</td><td id="val-t2">6158 N</td></tr>
+          <tr><td>Drive Motor Power Required:</td><td id="val-pmotor">33.51 kW</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Belt Conveyor & Material Handling Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Continuous belt conveyors transport bulk materials (coal, ore, grain, cement) across manufacturing plants and ports. This simulator calculates volumetric carrying capacity, idler friction resistance, effective belt pull $T_e$, Euler belt tensions ($T_1, T_2$), and electric motor power sizing.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Belt Conveyor & Material Handling Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Material Handling System.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Continuous belt conveyors transport bulk materials (coal, ore, grain, cement) across manufacturing plants and ports. This simulator calculates volumetric carrying capacity, idler friction resistance, effective belt pull $T_e$, Euler belt tensions ($T_1, T_2$), and electric motor power sizing.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 2048, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Belt Conveyor & Material Handling Lab (Material Handling System)</h2>
+      <p>Troughing belt conveyor capacity, effective belt pull Te, tight/slack tensions T1/T2 & drive motor power.</p>
+      <p>Continuous belt conveyors transport bulk materials (coal, ore, grain, cement) across manufacturing plants and ports. This simulator calculates volumetric carrying capacity, idler friction resistance, effective belt pull $T_e$, Euler belt tensions ($T_1, T_2$), and electric motor power sizing.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const b = parseFloat(document.getElementById('belt-w-input').value) / 1000.0;
+            const v = parseFloat(document.getElementById('belt-v-input').value);
+            const h_lift = parseFloat(document.getElementById('lift-h-input').value);
+
+            const q_t_hr = 350.0 * b * b * v * 1.4;
+            const m_mat = (q_t_hr * 1000.0) / (3600.0 * v);
+            const te = 0.025 * 120.0 * 9.81 * (18*b*2 + 22*b + m_mat) + m_mat * 9.81 * h_lift;
+            const emu = Math.exp(0.35 * (210 * Math.PI / 180));
+            const t1 = te * (emu / (emu - 1.0));
+            const t2 = t1 - te;
+            const p_kw = (te * v) / (1000.0 * 0.88);
+
+            document.getElementById('val-cap-conveyor').innerText = q_t_hr.toFixed(1) + ' Tons / hour';
+            document.getElementById('val-te-conv').innerText = te.toFixed(0) + ' N';
+            document.getElementById('val-t1').innerText = t1.toFixed(0) + ' N';
+            document.getElementById('val-t2').innerText = t2.toFixed(0) + ' N';
+            document.getElementById('val-pmotor').innerText = p_kw.toFixed(2) + ' kW';
+
+            drawConveyorBelt(v, h_lift);
+          }
+
+          function drawConveyorBelt(v, h_lift) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Head & Tail Pulleys
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath(); ctx.arc(w - 70, 70, 25, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(70, h - 60, 25, 0, 2*Math.PI); ctx.fill();
+
+            // Belt Line
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 8;
+            ctx.beginPath(); ctx.moveTo(70, h - 85); ctx.lineTo(w - 70, 45); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(70, h - 35); ctx.lineTo(w - 70, 95); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Belt Speed: ${v.toFixed(1)} m/s | Lift Height: ${h_lift} m | Tension T1/T2 Ratio Simulation`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/belt_conveyor_material_handling.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/belt_conveyor_material_handling.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

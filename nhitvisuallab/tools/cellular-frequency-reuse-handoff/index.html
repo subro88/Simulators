@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cellular Frequency Reuse & SIR Lab — NHIT VisualLab</title>
+  <meta name="description" content="Mobile communications: Hexagonal cellular cluster geometry K = i^2 + ij + j^2, co-channel reuse ratio Q = sqrt(3K) & Signal-to-Interference Ratio S/I.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Advance Communication Engg. (ETCE/ACE/S6)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Cellular Frequency Reuse & SIR Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-BaseTransceiverStationMast" onclick="selectComp('BaseTransceiverStationMast')">
+                <strong>BaseTransceiverStationMast</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Cellular BTS Tower: 30-meter steel lattice mast hosting multi-band RF transceivers and combiners.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TriSectorPanelAntennaArray" onclick="selectComp('TriSectorPanelAntennaArray')">
+                <strong>TriSectorPanelAntennaArray</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">120° Tri-Sector Antennas: Directional cross-polarized panel antennas providing 360° cellular cell coverage.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MobileSwitchingCenterRack" onclick="selectComp('MobileSwitchingCenterRack')">
+                <strong>MobileSwitchingCenterRack</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Mobile Switching Center (MSC): Core telecommunications switch executing handovers and call routing.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CellularMobileHandsetUnit" onclick="selectComp('CellularMobileHandsetUnit')">
+                <strong>CellularMobileHandsetUnit</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">User Equipment (UE): Mobile station measuring Received Signal Strength (RSS) during cell boundary handoff.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="cluster-k-sel">Cluster Size (K):</label>
+            <select id="cluster-k-sel" class="ctrl-input">
+              <option value="3">K = 3 (i=1, j=1)</option>
+              <option value="4">K = 4 (i=2, j=0)</option>
+              <option value="7" selected>K = 7 (i=2, j=1 — Standard Cellular)</option>
+              <option value="12">K = 12 (i=2, j=2)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="radius-cell-input">Cell Radius R (km):</label>
+            <input type="number" id="radius-cell-input" class="ctrl-input" value="2.0" min="0.5" max="10" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="gamma-cell-input">Path Loss Exponent (γ):</label>
+            <input type="number" id="gamma-cell-input" class="ctrl-input" value="4.0" min="2.5" max="5.0" step="0.1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Co-Channel Reuse Ratio (Q = D/R):</td><td id="val-qratio">4.58</td></tr>
+          <tr><td>Co-Channel Separation Distance (D):</td><td id="val-reuse-dist">9.16 km</td></tr>
+          <tr><td>Worst-Case Signal-to-Interference (S/I):</td><td id="val-sir">18.66 dB (Compliant)</td></tr>
+          <tr><td>Allocated Channels per Cell:</td><td id="val-chcell">50 Channels / Cell</td></tr>
+          <tr><td>Handoff Protocol Mechanism:</td><td id="val-handoff">Hard Handoff (-95 dBm)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Cellular Frequency Reuse & SIR Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Cellular networks partition service coverage areas into hexagonal cells, reusing allocated frequencies across clusters of size $K = i^2 + ij + j^2$ ($K=7$). The co-channel reuse ratio ($Q = D/R = \sqrt{3K}$) guarantees adequate Signal-to-Interference Ratio ($S/I = \frac{(\sqrt{3K})^\gamma}{6} \ge 18\text{ dB}$) against the 6 first-tier interfering base stations.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Cellular Frequency Reuse & SIR Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Advance Communication Engg..</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Cellular networks partition service coverage areas into hexagonal cells, reusing allocated frequencies across clusters of size $K = i^2 + ij + j^2$ ($K=7$). The co-channel reuse ratio ($Q = D/R = \sqrt{3K}$) guarantees adequate Signal-to-Interference Ratio ($S/I = \frac{(\sqrt{3K})^\gamma}{6} \ge 18\text{ dB}$) against the 6 first-tier interfering base stations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Cellular Frequency Reuse & SIR Lab (Advance Communication Engg.)</h2>
+      <p>Mobile communications: Hexagonal cellular cluster geometry K = i^2 + ij + j^2, co-channel reuse ratio Q = sqrt(3K) & Signal-to-Interference Ratio S/I.</p>
+      <p>Cellular networks partition service coverage areas into hexagonal cells, reusing allocated frequencies across clusters of size $K = i^2 + ij + j^2$ ($K=7$). The co-channel reuse ratio ($Q = D/R = \sqrt{3K}$) guarantees adequate Signal-to-Interference Ratio ($S/I = \frac{(\sqrt{3K})^\gamma}{6} \ge 18\text{ dB}$) against the 6 first-tier interfering base stations.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const k = parseInt(document.getElementById('cluster-k-sel').value) || 7;
+            const r = parseFloat(document.getElementById('radius-cell-input').value);
+            const gamma = parseFloat(document.getElementById('gamma-cell-input').value);
+
+            const q = Math.sqrt(3.0 * k);
+            const d = q * r;
+            const sir_lin = Math.pow(q, gamma) / 6.0;
+            const sir_db = 10.0 * Math.log10(Math.max(1.0, sir_lin));
+            const ch = Math.floor(350 / k);
+
+            document.getElementById('val-qratio').innerText = q.toFixed(2);
+            document.getElementById('val-reuse-dist').innerText = d.toFixed(2) + ' km';
+            document.getElementById('val-sir').innerText = sir_db.toFixed(2) + ' dB ' + (sir_db >= 18 ? '(>= 18 dB Standard Met)' : '(Violates 18 dB Standard!)');
+            document.getElementById('val-chcell').innerText = ch + ' Channels / Cell';
+            document.getElementById('val-handoff').innerText = 'Break-Before-Make (Hard Handoff Threshold = -95 dBm)';
+
+            drawHexagonalCells(k);
+          }
+
+          function drawHexagonalCells(k) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Center Cell
+            drawHex(ctx, w/2, h/2, 45, '#00e676', 'A1 (Center)');
+            // Surrounding First Tier Co-Channel Cells
+            const offsets = [[-110, -65], [0, -130], [110, -65], [110, 65], [0, 130], [-110, 65]];
+            for(let i=0; i<offsets.length; i++) {
+              drawHex(ctx, w/2 + offsets[i][0], h/2 + offsets[i][1], 45, '#38bdf8', `Tier ${i+1}`);
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Hexagonal Frequency Reuse Cluster (K = ${k}) | Co-Channel Ratio Q = sqrt(3K)`, 40, 25);
+          }
+
+          function drawHex(ctx, x, y, r, color, label) {
+            ctx.strokeStyle = color; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              let a = (i * 60) * Math.PI / 180;
+              let hx = x + r * Math.cos(a), hy = y + r * Math.sin(a);
+              if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath(); ctx.stroke();
+            ctx.fillStyle = color; ctx.font = '10px Inter, sans-serif';
+            ctx.fillText(label, x - 25, y + 3);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/cellular_frequency_reuse_handoff.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/cellular_frequency_reuse_handoff.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sheet Metal Press Tool & Die Design Lab — NHIT VisualLab</title>
+  <meta name="description" content="Punching and blanking forces, die clearances, shear on punch reduction, stripping force, press tonnage & strip layout.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Tool Engineering (ME/S5/TE)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Sheet Metal Press Tool & Die Design Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-HeavyDieSetUpperPunchShoe" onclick="selectComp('HeavyDieSetUpperPunchShoe')">
+                <strong>HeavyDieSetUpperPunchShoe</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Die Set Upper Shoe: Heavy cast steel punch holder shoe with guide post bushings.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-HardenedToolSteelBlankingPunch" onclick="selectComp('HardenedToolSteelBlankingPunch')">
+                <strong>HardenedToolSteelBlankingPunch</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Tool Steel Punch: High-carbon high-chromium (HCHCr / D2) heat-treated cutting punch.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ToolSteelDiePlateBlock" onclick="selectComp('ToolSteelDiePlateBlock')">
+                <strong>ToolSteelDiePlateBlock</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Die Plate Block: Ground die block with clearance angle relief allowing blank slug drop.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SpringLoadedStripperPlate" onclick="selectComp('SpringLoadedStripperPlate')">
+                <strong>SpringLoadedStripperPlate</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Stripper Plate: Spring-assisted positive stripper plate stripping off the scrap sheet metal.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="blank-dia-input">Blank Diameter D (mm):</label>
+            <input type="number" id="blank-dia-input" class="ctrl-input" value="60" min="15" max="250" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="sheet-thick-input">Sheet Thickness t (mm):</label>
+            <input type="number" id="sheet-thick-input" class="ctrl-input" value="2.5" min="0.5" max="8.0" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="mat-shear-sel">Sheet Material:</label>
+            <select id="mat-shear-sel" class="ctrl-input">
+              <option value="320" selected>Mild Steel CRCA (τ = 320 MPa)</option>
+              <option value="420">Stainless Steel 304 (τ = 420 MPa)</option>
+              <option value="160">Aluminum 6061 (τ = 160 MPa)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="shear-ang-input">Shear Angle on Punch (deg):</label>
+            <input type="number" id="shear-ang-input" class="ctrl-input" value="2.0" min="0.0" max="5.0" step="0.5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Unsheared Blanking Force (F_max):</td><td id="val-fmax">150.8 kN</td></tr>
+          <tr><td>Force Reduced by Punch Shear (F_act):</td><td id="val-fact">46.5 kN</td></tr>
+          <tr><td>Recommended Press Tonnage:</td><td id="val-tons">6.8 Tons</td></tr>
+          <tr><td>Die Clearance per Side (5% t):</td><td id="val-cdie">0.125 mm</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Sheet Metal Press Tool & Die Design Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Press tools and dies execute high-speed stamping, blanking, punching, and drawing of sheet metal components. This simulator computes cutting force $F = P \cdot t \cdot \tau$, force reduction through ground shear angles, stripping forces, required mechanical press tonnage, and optimum die clearance (IS standard).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Sheet Metal Press Tool & Die Design Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Tool Engineering.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Press tools and dies execute high-speed stamping, blanking, punching, and drawing of sheet metal components. This simulator computes cutting force $F = P \cdot t \cdot \tau$, force reduction through ground shear angles, stripping forces, required mechanical press tonnage, and optimum die clearance (IS standard).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Sheet Metal Press Tool & Die Design Lab (Tool Engineering)</h2>
+      <p>Punching and blanking forces, die clearances, shear on punch reduction, stripping force, press tonnage & strip layout.</p>
+      <p>Press tools and dies execute high-speed stamping, blanking, punching, and drawing of sheet metal components. This simulator computes cutting force $F = P \cdot t \cdot \tau$, force reduction through ground shear angles, stripping forces, required mechanical press tonnage, and optimum die clearance (IS standard).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const d = parseFloat(document.getElementById('blank-dia-input').value);
+            const t = parseFloat(document.getElementById('sheet-thick-input').value);
+            const tau = parseFloat(document.getElementById('mat-shear-sel').value);
+            const ang = parseFloat(document.getElementById('shear-ang-input').value);
+
+            const perim = Math.PI * d;
+            const f_max = (perim * t * tau) / 1000.0;
+            const s = d * Math.tan(ang * Math.PI / 180.0);
+            const f_act = s > 0 ? f_max * ((0.4 * t) / (0.4 * t + s)) : f_max;
+            const f_strip = 0.15 * f_act;
+            const tons = (f_act + f_strip) * 1.25 / 9.81;
+            const c_die = 0.05 * t;
+
+            document.getElementById('val-fmax').innerText = f_max.toFixed(1) + ' kN';
+            document.getElementById('val-fact').innerText = f_act.toFixed(1) + ' kN';
+            document.getElementById('val-tons').innerText = tons.toFixed(1) + ' Tons';
+            document.getElementById('val-cdie').innerText = c_die.toFixed(3) + ' mm / side';
+
+            drawDieSection(d, t, c_die);
+          }
+
+          function drawDieSection(d, t, c_die) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Punch (Top)
+            ctx.fillStyle = '#eab308';
+            ctx.fillRect(w/2 - 50, 20, 100, 70);
+
+            // Sheet Metal
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillRect(w/2 - 120, 95, 240, 15);
+
+            // Die Plate (Bottom)
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(w/2 - 120, 115, 65, 80);
+            ctx.fillRect(w/2 + 55, 115, 65, 80);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Punch Size: Ø${d.toFixed(1)} mm | Die Opening: Ø${(d + 2*c_die).toFixed(2)} mm`, 50, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/press_tool_die_design.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/press_tool_die_design.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

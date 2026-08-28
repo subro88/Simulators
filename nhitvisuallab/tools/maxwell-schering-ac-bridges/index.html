@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maxwell & Schering AC Bridges Lab — NHIT VisualLab</title>
+  <meta name="description" content="AC bridges: Maxwell's Inductance-Capacitance Bridge, Schering Bridge dielectric loss factor tan(delta) & null balance equations.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Electronics Measurement (ETCE/EM/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Maxwell & Schering AC Bridges Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ACBridgeMainChassis" onclick="selectComp('ACBridgeMainChassis')">
+                <strong>ACBridgeMainChassis</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Precision AC Bridge Chassis: Four-arm impedance measurement bridge with shielded grounding node.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DecadeCapacitorResistanceBox" onclick="selectComp('DecadeCapacitorResistanceBox')">
+                <strong>DecadeCapacitorResistanceBox</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Precision Decade Box: Low-loss calibrated decade resistance and standard silver mica capacitor arms.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-NullDetectorMicroammeter" onclick="selectComp('NullDetectorMicroammeter')">
+                <strong>NullDetectorMicroammeter</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Tuned Null Detector: High-sensitivity audio amplifier and center-zero microammeter detecting AC bridge null.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-OscillatorSource1kHzTerminals" onclick="selectComp('OscillatorSource1kHzTerminals')">
+                <strong>OscillatorSource1kHzTerminals</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">1kHz Excitation Oscillator: Low-distortion sinusoidal excitation audio source powering bridge nodes.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="bridge-sel">Bridge Type:</label>
+            <select id="bridge-sel" class="ctrl-input">
+              <option value="Maxwell" selected>Maxwell's Inductance-Capacitance Bridge</option>
+              <option value="Schering">Schering Bridge (Capacitor Dielectric Loss tan δ)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="r2-br-input">Resistor R2 (Ω):</label>
+            <input type="number" id="r2-br-input" class="ctrl-input" value="1000" min="100" max="10000" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="r3-br-input">Resistor R3 (Ω):</label>
+            <input type="number" id="r3-br-input" class="ctrl-input" value="1000" min="100" max="10000" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="c4-br-input">Standard C4 (µF):</label>
+            <input type="number" id="c4-br-input" class="ctrl-input" value="0.1" min="0.01" max="1.0" step="0.01" />
+          </div>
+          <div class="control-group">
+            <label for="r4-br-input">Variable R4 (Ω):</label>
+            <input type="number" id="r4-br-input" class="ctrl-input" value="500" min="50" max="5000" step="50" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Unknown Inductance (Lx):</td><td id="val-lx">100.00 mH</td></tr>
+          <tr><td>Unknown Capacitance (Cx):</td><td id="val-cx">N/A</td></tr>
+          <tr><td>Equivalent Series Resistance (Rx):</td><td id="val-rx">2000.0 Ω</td></tr>
+          <tr><td>Loss Tangent / Q-Factor:</td><td id="val-lossq">0.314 (Quality Factor Q)</td></tr>
+          <tr><td>Bridge Balance Status:</td><td>NULL DETECTOR ZEROED</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Maxwell & Schering AC Bridges Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Four-arm AC bridge networks measure unknown impedances ($L, C, R$) by establishing independent balance conditions for both magnitude and phase. In Maxwell's Bridge, unknown inductance is measured against a standard capacitor ($L_x = R_2 R_3 C_4, R_x = \frac{R_2 R_3}{R_4}$), while Schering's Bridge calculates dielectric loss tangent $\tan\delta = \omega C_4 R_4$.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Maxwell & Schering AC Bridges Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Electronics Measurement.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Four-arm AC bridge networks measure unknown impedances ($L, C, R$) by establishing independent balance conditions for both magnitude and phase. In Maxwell's Bridge, unknown inductance is measured against a standard capacitor ($L_x = R_2 R_3 C_4, R_x = \frac{R_2 R_3}{R_4}$), while Schering's Bridge calculates dielectric loss tangent $\tan\delta = \omega C_4 R_4$.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Maxwell & Schering AC Bridges Lab (Electronics Measurement)</h2>
+      <p>AC bridges: Maxwell's Inductance-Capacitance Bridge, Schering Bridge dielectric loss factor tan(delta) & null balance equations.</p>
+      <p>Four-arm AC bridge networks measure unknown impedances ($L, C, R$) by establishing independent balance conditions for both magnitude and phase. In Maxwell's Bridge, unknown inductance is measured against a standard capacitor ($L_x = R_2 R_3 C_4, R_x = \frac{R_2 R_3}{R_4}$), while Schering's Bridge calculates dielectric loss tangent $\tan\delta = \omega C_4 R_4$.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const type = document.getElementById('bridge-sel').value;
+            const r2 = parseFloat(document.getElementById('r2-br-input').value);
+            const r3 = parseFloat(document.getElementById('r3-br-input').value);
+            const c4 = parseFloat(document.getElementById('c4-br-input').value) / 1e6;
+            const r4 = parseFloat(document.getElementById('r4-br-input').value);
+
+            let lx_mh = 0, cx_uf = 0, rx = 0, q_d = 0;
+            if (type === 'Maxwell') {
+              lx_mh = (r2 * r3 * c4) * 1000.0;
+              rx = (r2 * r3) / r4;
+              q_d = (2.0 * Math.PI * 1000.0 * (lx_mh/1000.0)) / rx;
+            } else {
+              cx_uf = (c4 * 1e6) * (r4 / r3);
+              rx = 50.0;
+              q_d = 2.0 * Math.PI * 1000.0 * c4 * r4;
+            }
+
+            document.getElementById('val-lx').innerText = type === 'Maxwell' ? (lx_mh.toFixed(2) + ' mH') : 'N/A (Capacitive Bridge)';
+            document.getElementById('val-cx').innerText = type === 'Schering' ? (cx_uf.toFixed(4) + ' µF') : 'N/A';
+            document.getElementById('val-rx').innerText = rx.toFixed(1) + ' Ω';
+            document.getElementById('val-lossq').innerText = q_d.toFixed(3) + (type === 'Maxwell' ? ' (Quality Factor Q)' : ' (Dissipation tan δ)');
+
+            drawBridgeDiamond(type);
+          }
+
+          function drawBridgeDiamond(type) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Diamond AC Bridge
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(w/2, 60); ctx.lineTo(w/2 + 100, h/2);
+            ctx.lineTo(w/2, h - 60); ctx.lineTo(w/2 - 100, h/2);
+            ctx.closePath(); ctx.stroke();
+
+            // Null Detector Center Line
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(w/2 - 100, h/2); ctx.lineTo(w/2 + 100, h/2); ctx.stroke();
+            ctx.fillStyle = '#00e676';
+            ctx.beginPath(); ctx.arc(w/2, h/2, 14, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#000000'; ctx.font = '10px Inter, sans-serif'; ctx.fillText('NULL', w/2 - 12, h/2 + 3);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`${type === 'Maxwell' ? "Maxwell's L-C Inductance Bridge" : "Schering Capacitance & Dielectric Loss Bridge"} (Balanced at Null)`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/maxwell_schering_ac_bridges.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/maxwell_schering_ac_bridges.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

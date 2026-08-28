@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sensors & Transducers Instrumentation Lab — NHIT VisualLab</title>
+  <meta name="description" content="Strain gauge Wheatstone bridge, LVDT displacement, piezoelectric force, RTD temperature & sensor calibration curves.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Electrical Technology (ME/S4/ET)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Sensors & Transducers Instrumentation Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-CantileverStrainGaugeBeam" onclick="selectComp('CantileverStrainGaugeBeam')">
+                <strong>CantileverStrainGaugeBeam</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Strain Gauge Beam: Spring steel cantilever beam with bonded foil resistance strain gauges.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LVDTDisplacementCoreTube" onclick="selectComp('LVDTDisplacementCoreTube')">
+                <strong>LVDTDisplacementCoreTube</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">LVDT Sensor: Linear Variable Differential Transformer with movable ferromagnetic core tube.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SBeamPrecisionLoadCell" onclick="selectComp('SBeamPrecisionLoadCell')">
+                <strong>SBeamPrecisionLoadCell</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">S-Beam Load Cell: Sealed industrial force transducer for tension/compression load measurements.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DigitalSensorIndicatorScope" onclick="selectComp('DigitalSensorIndicatorScope')">
+                <strong>DigitalSensorIndicatorScope</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Digital Signal Conditioner: High-gain instrumentation amplifier and digital readout scope.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="sensor-type-sel">Sensor Architecture:</label>
+            <select id="sensor-type-sel" class="ctrl-input">
+              <option value="strain" selected>Strain Gauge Cantilever Beam (0-50 N)</option>
+              <option value="lvdt">LVDT Displacement Core (±25 mm)</option>
+              <option value="piezo">Piezoelectric Quartz Force (0-500 N)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="measurand-input">Applied Measurand (Load N / Disp mm):</label>
+            <input type="number" id="measurand-input" class="ctrl-input" value="15.0" min="0" max="100" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="v-ex-input">Bridge Excitation Voltage (V):</label>
+            <input type="number" id="v-ex-input" class="ctrl-input" value="10.0" min="1.0" max="24.0" step="1.0" />
+          </div>
+          <div class="control-group">
+            <label for="gf-input">Gauge Factor (GF):</label>
+            <input type="number" id="gf-input" class="ctrl-input" value="2.12" min="1.5" max="4.0" step="0.05" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Sensor Output Voltage:</td><td id="val-vout">4.382 mV</td></tr>
+          <tr><td>Transducer Sensitivity:</td><td id="val-sens">0.292 mV/N</td></tr>
+          <tr><td>Surface Bending Stress:</td><td id="val-stress">44.63 MPa</td></tr>
+          <tr><td>Calculated Strain:</td><td id="val-strain">217.7 µε</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Sensors & Transducers Instrumentation Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Electrical sensors and measurement transducers form the backbone of modern industrial automation, mechanical test rigs, and SCADA monitoring. This laboratory models Wheatstone bridge strain gauges, Linear Variable Differential Transformers (LVDT), piezoelectric quartz load cells, and calibration linearity.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Sensors & Transducers Instrumentation Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Electrical Technology.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Electrical sensors and measurement transducers form the backbone of modern industrial automation, mechanical test rigs, and SCADA monitoring. This laboratory models Wheatstone bridge strain gauges, Linear Variable Differential Transformers (LVDT), piezoelectric quartz load cells, and calibration linearity.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Sensors & Transducers Instrumentation Lab (Electrical Technology)</h2>
+      <p>Strain gauge Wheatstone bridge, LVDT displacement, piezoelectric force, RTD temperature & sensor calibration curves.</p>
+      <p>Electrical sensors and measurement transducers form the backbone of modern industrial automation, mechanical test rigs, and SCADA monitoring. This laboratory models Wheatstone bridge strain gauges, Linear Variable Differential Transformers (LVDT), piezoelectric quartz load cells, and calibration linearity.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const stype = document.getElementById('sensor-type-sel').value;
+            const meas = parseFloat(document.getElementById('measurand-input').value);
+            const vex = parseFloat(document.getElementById('v-ex-input').value);
+            const gf = parseFloat(document.getElementById('gf-input').value);
+
+            let vout_mv = 0, stress_mpa = 0, strain_ue = 0, sens_txt = '';
+            if (stype === 'strain') {
+              const l_m = 0.18, b_m = 0.022, t_m = 0.004, E = 205e9;
+              const sigma = (6.0 * meas * l_m) / (b_m * t_m * t_m);
+              const eps = sigma / E;
+              strain_ue = eps * 1e6;
+              stress_mpa = sigma / 1e6;
+              vout_mv = 0.25 * vex * gf * eps * 1000.0;
+              sens_txt = (vout_mv / (meas || 1)).toFixed(3) + ' mV/N';
+            } else if (stype === 'lvdt') {
+              vout_mv = 2.4 * vex * meas;
+              sens_txt = (2.4 * vex).toFixed(2) + ' mV/mm';
+            } else {
+              vout_mv = 12.5 * meas;
+              sens_txt = '12.50 mV/N';
+            }
+
+            document.getElementById('val-vout').innerText = vout_mv.toFixed(3) + ' mV';
+            document.getElementById('val-sens').innerText = sens_txt;
+            document.getElementById('val-stress').innerText = stress_mpa.toFixed(2) + ' MPa';
+            document.getElementById('val-strain').innerText = strain_ue.toFixed(1) + ' µε';
+
+            drawSensorBridge(stype, meas, vout_mv);
+          }
+
+          function drawSensorBridge(stype, meas, vout) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Wheatstone diamond
+            const cx = w/2, cy = h/2 - 10;
+            ctx.strokeStyle = '#29b6f6'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - 60); ctx.lineTo(cx + 70, cy); ctx.lineTo(cx, cy + 60); ctx.lineTo(cx - 70, cy); ctx.closePath();
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('R1 (Active)', cx - 85, cy - 35);
+            ctx.fillText('R2', cx + 45, cy - 35);
+            ctx.fillText('R3', cx - 80, cy + 40);
+            ctx.fillText('R4', cx + 45, cy + 40);
+
+            ctx.fillStyle = '#00e676';
+            ctx.fillText(`Bridge Output: ${vout.toFixed(3)} mV`, cx - 60, h - 20);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/transducers_instrumentation.glb', function(gltf) {{
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }}, undefined, function(err) {{
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/transducers_instrumentation.glb', function(gltf) {{
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        }});
+      }});
+
+      function animate() {{
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }}
+      animate();
+    }
+
+    function selectComp(name) {{
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }}
+
+    window.addEventListener('DOMContentLoaded', () => {{
+      updateSim();
+    }});
+  </script>
+</body>
+</html>

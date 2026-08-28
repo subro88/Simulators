@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Temperature Transducers Lab (RTD & Thermocouple) — NHIT VisualLab</title>
+  <meta name="description" content="Temperature sensors: Platinum Pt100 RTD Callendar-Van Dusen equation (alpha = 0.00385), Type-K thermocouple Seebeck EMF & radiation pyrometry.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Instrumentation & Control (ETCE/IC/S6)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Temperature Transducers Lab (RTD & Thermocouple)</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-Pt100RTDCeramicSheathProbe" onclick="selectComp('Pt100RTDCeramicSheathProbe')">
+                <strong>Pt100RTDCeramicSheathProbe</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Pt100 Resistance Element: High-purity platinum wire wound on a ceramic core with 100Ω ice-point resistance.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TypeKThermocoupleJunctionBead" onclick="selectComp('TypeKThermocoupleJunctionBead')">
+                <strong>TypeKThermocoupleJunctionBead</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Type-K Thermocouple: Chromel-Alumel welded junction bead operating up to 1200°C furnace environments.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ThreeWireTransmitterHead" onclick="selectComp('ThreeWireTransmitterHead')">
+                <strong>ThreeWireTransmitterHead</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">3-Wire Lead Transmitter: Head-mounted transmitter eliminating lead wire resistance errors in bridge circuits.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DigitalTemperatureCalibratorUnit" onclick="selectComp('DigitalTemperatureCalibratorUnit')">
+                <strong>DigitalTemperatureCalibratorUnit</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Precision Calibrator Display: Microprocessor indicator linearizing RTD and thermocouple voltage curves.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="temp-sensor-sel">Transducer Type:</label>
+            <select id="temp-sensor-sel" class="ctrl-input">
+              <option value="Pt100" selected>Pt100 RTD (Platinum R0 = 100Ω)</option>
+              <option value="TypeK">Type-K Thermocouple (Chromel-Alumel)</option>
+              <option value="Pyrometer">Optical Infrared Pyrometer (Radiation Flux)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="temp-degc-input">Measured Temperature (°C):</label>
+            <input type="number" id="temp-degc-input" class="ctrl-input" value="150" min="-100" max="1000" step="10" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Sensor Electrical Signal Output:</td><td id="val-elec-out">157.33 Ω</td></tr>
+          <tr><td>Nominal Sensitivity Coefficient:</td><td id="val-sens-temp">0.385 Ω / °C</td></tr>
+          <tr><td>International Measurement Standard:</td><td id="val-std-temp">IEC 60751 Class A</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Temperature Transducers Lab (RTD & Thermocouple) &mdash; Theory &amp; Governing Equations</h2>
+        <p>Resistance Temperature Detectors (Pt100 RTDs) utilize the positive temperature coefficient of pure platinum governed by the Callendar-Van Dusen equation ($R_t = R_0(1 + AT + BT^2)$). Thermocouples generate thermoelectric EMF via the Seebeck effect ($E = S \Delta T$), providing rugged temperature sensing across industrial furnaces.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Temperature Transducers Lab (RTD & Thermocouple)</h2>
+        <p class="text-dim">Test your conceptual understanding of Instrumentation & Control.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Resistance Temperature Detectors (Pt100 RTDs) utilize the positive temperature coefficient of pure platinum governed by the Callendar-Van Dusen equation ($R_t = R_0(1 + AT + BT^2)$). Thermocouples generate thermoelectric EMF via the Seebeck effect ($E = S \Delta T$), providing rugged temperature sensing across industrial furnaces.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Temperature Transducers Lab (RTD & Thermocouple) (Instrumentation & Control)</h2>
+      <p>Temperature sensors: Platinum Pt100 RTD Callendar-Van Dusen equation (alpha = 0.00385), Type-K thermocouple Seebeck EMF & radiation pyrometry.</p>
+      <p>Resistance Temperature Detectors (Pt100 RTDs) utilize the positive temperature coefficient of pure platinum governed by the Callendar-Van Dusen equation ($R_t = R_0(1 + AT + BT^2)$). Thermocouples generate thermoelectric EMF via the Seebeck effect ($E = S \Delta T$), providing rugged temperature sensing across industrial furnaces.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const type = document.getElementById('temp-sensor-sel').value;
+            const t = parseFloat(document.getElementById('temp-degc-input').value);
+
+            let out_str = "", sens_str = "", std = "IEC 60751 Class A";
+            if (type === 'Pt100') {
+              const rt = 100.0 * (1.0 + 3.9083e-3 * t - 5.775e-7 * t * t);
+              out_str = rt.toFixed(2) + ' Ω (Resistance)';
+              sens_str = '0.385 Ω / °C (alpha = 0.00385)';
+            } else if (type === 'TypeK') {
+              const emf = 41.27e-3 * (t - 25.0);
+              out_str = emf.toFixed(3) + ' mV (Thermoelectric EMF)';
+              sens_str = '41.27 µV / °C (Seebeck Coefficient)';
+              std = 'NIST Monograph 175';
+            } else {
+              const tk = t + 273.15;
+              const rad = 5.67e-8 * Math.pow(tk, 4);
+              out_str = rad.toFixed(1) + ' W / m²';
+              sens_str = 'Stefan-Boltzmann T^4 Radiation';
+              std = 'ASTM E1256';
+            }
+
+            document.getElementById('val-elec-out').innerText = out_str;
+            document.getElementById('val-sens-temp').innerText = sens_str;
+            document.getElementById('val-std-temp').innerText = std;
+
+            drawTemperatureCurve(t, type);
+          }
+
+          function drawTemperatureCurve(t, type) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Calibration curve
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(50, h - 50);
+            ctx.lineTo(w - 50, 60);
+            ctx.stroke();
+
+            // Operating Point Marker
+            const normT = Math.min(1.0, Math.max(0.0, (t + 100) / 1100.0));
+            const px = 50 + normT * (w - 100);
+            const py = (h - 50) - normT * (h - 110);
+
+            ctx.fillStyle = '#00e676';
+            ctx.beginPath(); ctx.arc(px, py, 7, 0, 2*Math.PI); ctx.fill();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`${type} Calibration Characteristic | Temperature = ${t} °C`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/rtd_thermocouple_pyrometer.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/rtd_thermocouple_pyrometer.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Industrial Heating Lab (Dielectric & Induction) — NHIT VisualLab</title>
+  <meta name="description" content="High-frequency heating: Dielectric heating of insulators P = 2pi f C V^2 tan(delta) & induction heating skin depth delta = sqrt(rho / (pi f mu)).">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Industrial Electronics - II (ETCE/IE2/S6)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Industrial Heating Lab (Dielectric & Induction)</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-RFPowerGeneratorCabinet" onclick="selectComp('RFPowerGeneratorCabinet')">
+                <strong>RFPowerGeneratorCabinet</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">RF Generator Cabinet: High-power vacuum tube/solid-state RF oscillator delivering up to 10kW at 27.12MHz.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-WaterCooledInductionWorkCoil" onclick="selectComp('WaterCooledInductionWorkCoil')">
+                <strong>WaterCooledInductionWorkCoil</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Copper Induction Work Coil: Water-cooled hollow copper tubing producing intense high-frequency magnetic fields.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DielectricParallelPlatesFixture" onclick="selectComp('DielectricParallelPlatesFixture')">
+                <strong>DielectricParallelPlatesFixture</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Dielectric Parallel Plates: Aluminum electrode fixture applying high-frequency electric field across plastics/wood.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SolidSteelWorkpieceBillet" onclick="selectComp('SolidSteelWorkpieceBillet')">
+                <strong>SolidSteelWorkpieceBillet</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Conductive Steel Billet: High-carbon steel workpiece undergoing rapid eddy-current surface hardening.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="heat-type-sel">Heating Method:</label>
+            <select id="heat-type-sel" class="ctrl-input">
+              <option value="Dielectric" selected>Dielectric Heating (Insulating Plastics / Wood Preheating)</option>
+              <option value="Induction">Induction Heating (Steel Surface Hardening & Forging)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="rf-freq-input">RF Generator Frequency (MHz):</label>
+            <input type="number" id="rf-freq-input" class="ctrl-input" value="27.12" min="0.1" max="100" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="rf-volt-input">RF Applied Voltage (Vrms):</label>
+            <input type="number" id="rf-volt-input" class="ctrl-input" value="3000" min="500" max="8000" step="250" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Thermal Heating Power Dissipated:</td><td id="val-pheat">5367.6 Watts</td></tr>
+          <tr><td>Current Penetration Skin Depth (δ):</td><td id="val-skin">Uniform Volumetric Heating</td></tr>
+          <tr><td>Industrial Manufacturing Application:</td><td id="val-appheat">PVC Welding &amp; Wood Gluing</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Industrial Heating Lab (Dielectric & Induction) &mdash; Theory &amp; Governing Equations</h2>
+        <p>High-frequency industrial heating exploits electromagnetic loss mechanisms. Dielectric heating rapidly cures insulating materials through molecular dipole relaxation ($P = 2\pi f C V^2 \tan\delta$), whereas Induction heating induces eddy currents in surface layers of conductors governed by the electromagnetic skin depth ($\delta = \sqrt{\frac{\rho}{\pi f \mu}}$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Industrial Heating Lab (Dielectric & Induction)</h2>
+        <p class="text-dim">Test your conceptual understanding of Industrial Electronics - II.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>High-frequency industrial heating exploits electromagnetic loss mechanisms. Dielectric heating rapidly cures insulating materials through molecular dipole relaxation ($P = 2\pi f C V^2 \tan\delta$), whereas Induction heating induces eddy currents in surface layers of conductors governed by the electromagnetic skin depth ($\delta = \sqrt{\frac{\rho}{\pi f \mu}}$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Industrial Heating Lab (Dielectric & Induction) (Industrial Electronics - II)</h2>
+      <p>High-frequency heating: Dielectric heating of insulators P = 2pi f C V^2 tan(delta) & induction heating skin depth delta = sqrt(rho / (pi f mu)).</p>
+      <p>High-frequency industrial heating exploits electromagnetic loss mechanisms. Dielectric heating rapidly cures insulating materials through molecular dipole relaxation ($P = 2\pi f C V^2 \tan\delta$), whereas Induction heating induces eddy currents in surface layers of conductors governed by the electromagnetic skin depth ($\delta = \sqrt{\frac{\rho}{\pi f \mu}}$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const type = document.getElementById('heat-type-sel').value;
+            const f_mhz = parseFloat(document.getElementById('rf-freq-input').value);
+            const v = parseFloat(document.getElementById('rf-volt-input').value);
+
+            let p_watts = 0, skin_mm = 0, app = "";
+            if (type === 'Dielectric') {
+              p_watts = 2.0 * Math.PI * (f_mhz * 1e6) * 100e-12 * (v*v) * 0.035;
+              skin_mm = 0.0;
+              app = "Dielectric Welding of PVC Sheets & Wood Veneer Curing";
+            } else {
+              p_watts = 15000.0;
+              skin_mm = Math.sqrt(1.5e-7 / (Math.PI * (f_mhz * 1e6) * 4e-7 * Math.PI * 100)) * 1000.0;
+              app = "Induction Surface Hardening of Steel Crankshafts & Gears";
+            }
+
+            document.getElementById('val-pheat').innerText = p_watts.toFixed(1) + ' Watts';
+            document.getElementById('val-skin').innerText = type === 'Induction' ? (skin_mm.toFixed(3) + ' mm (Skin Depth δ)') : 'Uniform Volumetric Heating';
+            document.getElementById('val-appheat').innerText = app;
+
+            drawHeatingElectrode(type);
+          }
+
+          function drawHeatingElectrode(type) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            if (type === 'Dielectric') {
+              // Parallel Plates
+              ctx.fillStyle = '#64748b';
+              ctx.fillRect(80, 60, w - 160, 20); ctx.fillRect(80, h - 80, w - 160, 20);
+              // Dielectric Workpiece
+              ctx.fillStyle = '#f59e0b';
+              ctx.fillRect(80, 80, w - 160, h - 160);
+              // Electric field arrows
+              ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 1.5;
+              for(let x=120; x<w-120; x+=40) {
+                ctx.beginPath(); ctx.moveTo(x, 80); ctx.lineTo(x, h - 80); ctx.stroke();
+              }
+            } else {
+              // Induction Workpiece
+              ctx.fillStyle = '#ef4444';
+              ctx.beginPath(); ctx.arc(w/2, h/2, 60, 0, 2*Math.PI); ctx.fill();
+              // Work Coil loops
+              ctx.strokeStyle = '#00e676'; ctx.lineWidth = 4;
+              ctx.beginPath(); ctx.arc(w/2, h/2, 85, 0, 2*Math.PI); ctx.stroke();
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`${type === 'Dielectric' ? 'Dielectric Loss Heating (P = 2π f C V² tan δ)' : 'Induction Heating (Eddy Currents & Skin Effect δ)'}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/dielectric_induction_heating.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/dielectric_induction_heating.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

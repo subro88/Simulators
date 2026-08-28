@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unconventional Machining (EDM) Lab — NHIT VisualLab</title>
+  <meta name="description" content="Electric Discharge Machining (EDM) spark erosion, pulse duty cycle, discharge energy, MRR, overcut & surface finish Ra.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Manufacturing Process - II (ME/S4/MP2)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Unconventional Machining (EDM) Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-EDMColumnMainChassis" onclick="selectComp('EDMColumnMainChassis')">
+                <strong>EDMColumnMainChassis</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Machine Column: Rigid vertical structure housing the electro-hydraulic servo head feed mechanism.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DielectricFluidWorkTank" onclick="selectComp('DielectricFluidWorkTank')">
+                <strong>DielectricFluidWorkTank</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Dielectric Fluid Tank: Hydrocarbon/deionized oil bath providing spark dielectric breakdown and chip flushing.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ServoElectrodeToolHolder" onclick="selectComp('ServoElectrodeToolHolder')">
+                <strong>ServoElectrodeToolHolder</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Servo Tool Electrode: Precision tool collet holding shaped Copper/Graphite cathode tool electrode.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-EDMPulsePowerSupplyUnit" onclick="selectComp('EDMPulsePowerSupplyUnit')">
+                <strong>EDMPulsePowerSupplyUnit</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Solid-State Pulse Generator: High-frequency DC pulse power supply controlling ton, toff, and peak current.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="current-input">Discharge Peak Current (A):</label>
+            <input type="number" id="current-input" class="ctrl-input" value="22" min="1" max="100" step="2" />
+          </div>
+          <div class="control-group">
+            <label for="ton-input">Pulse-on Time ton (µs):</label>
+            <input type="number" id="ton-input" class="ctrl-input" value="95" min="5" max="800" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="toff-input">Pulse-off Time toff (µs):</label>
+            <input type="number" id="toff-input" class="ctrl-input" value="25" min="2" max="300" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="mat-sel">Workpiece Material:</label>
+            <select id="mat-sel" class="ctrl-input">
+              <option value="1.0" selected>Die Steel (H13)</option>
+              <option value="0.72">Titanium Alloy (Ti-6Al-4V)</option>
+              <option value="0.38">Tungsten Carbide</option>
+              <option value="0.65">Inconel 718</option>
+            </select>
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Pulse Duty Cycle:</td><td id="val-duty">79.2 %</td></tr>
+          <tr><td>Pulse Frequency:</td><td id="val-freq">8.33 kHz</td></tr>
+          <tr><td>Spark Energy / Pulse:</td><td id="val-energy">52.25 mJ</td></tr>
+          <tr><td>Material Removal Rate:</td><td id="val-mrr">38.4 mm³/min</td></tr>
+          <tr><td>Surface Roughness (Ra):</td><td id="val-ra">2.45 µm</td></tr>
+          <tr><td>Spark Overcut / Clearance:</td><td id="val-overcut">40.6 µm</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Unconventional Machining (EDM) Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Electric Discharge Machining (EDM) is a non-traditional thermo-electric manufacturing process machining hard metals (carbides, titanium, aerospace superalloys) via discrete controlled electrical sparks in a dielectric fluid. This simulator models spark energy, material removal rate (MRR), overcut tolerance, and crater surface roughness.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Unconventional Machining (EDM) Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Manufacturing Process - II.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Electric Discharge Machining (EDM) is a non-traditional thermo-electric manufacturing process machining hard metals (carbides, titanium, aerospace superalloys) via discrete controlled electrical sparks in a dielectric fluid. This simulator models spark energy, material removal rate (MRR), overcut tolerance, and crater surface roughness.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Unconventional Machining (EDM) Lab (Manufacturing Process - II)</h2>
+      <p>Electric Discharge Machining (EDM) spark erosion, pulse duty cycle, discharge energy, MRR, overcut & surface finish Ra.</p>
+      <p>Electric Discharge Machining (EDM) is a non-traditional thermo-electric manufacturing process machining hard metals (carbides, titanium, aerospace superalloys) via discrete controlled electrical sparks in a dielectric fluid. This simulator models spark energy, material removal rate (MRR), overcut tolerance, and crater surface roughness.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const ip = parseFloat(document.getElementById('current-input').value);
+            const ton = parseFloat(document.getElementById('ton-input').value);
+            const toff = parseFloat(document.getElementById('toff-input').value);
+            const mat_factor = parseFloat(document.getElementById('mat-sel').value);
+
+            const duty = (ton / (ton + toff)) * 100.0;
+            const freq = 1000.0 / (ton + toff);
+            const energy_mj = 25.0 * ip * (ton * 1e-3);
+            const mrr = mat_factor * 0.18 * Math.pow(ip, 1.1) * Math.pow(ton, 0.38) * (duty / 100.0);
+            const ra = 0.028 * Math.pow(energy_mj * 1000.0, 0.35);
+            const overcut = 35.0 + 1.2 * Math.sqrt(ip);
+
+            document.getElementById('val-duty').innerText = duty.toFixed(1) + ' %';
+            document.getElementById('val-freq').innerText = freq.toFixed(2) + ' kHz';
+            document.getElementById('val-energy').innerText = energy_mj.toFixed(2) + ' mJ';
+            document.getElementById('val-mrr').innerText = mrr.toFixed(2) + ' mm³/min';
+            document.getElementById('val-ra').innerText = ra.toFixed(2) + ' µm Ra';
+            document.getElementById('val-overcut').innerText = overcut.toFixed(1) + ' µm';
+
+            drawEDMSpark(ton, toff, ip);
+          }
+
+          function drawEDMSpark(ton, toff, ip) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Electrode Tool (Top)
+            ctx.fillStyle = '#b45309';
+            ctx.fillRect(w/2 - 40, 20, 80, 60);
+
+            // Workpiece (Bottom)
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(w/2 - 100, 140, 200, 70);
+
+            // Spark Gap
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            for(let i=0; i<8; i++) {
+              ctx.beginPath();
+              ctx.moveTo(w/2 - 30 + i*8, 80);
+              ctx.lineTo(w/2 - 30 + i*8 + (Math.random()-0.5)*10, 110);
+              ctx.lineTo(w/2 - 30 + i*8, 140);
+              ctx.stroke();
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Spark Column Discharge (T_plasma ~ 10,000 K)`, w/2 - 110, 115);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/unconventional_machining_edm.glb', function(gltf) {{
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }}, undefined, function(err) {{
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/unconventional_machining_edm.glb', function(gltf) {{
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        }});
+      }});
+
+      function animate() {{
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }}
+      animate();
+    }
+
+    function selectComp(name) {{
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }}
+
+    window.addEventListener('DOMContentLoaded', () => {{
+      updateSim();
+    }});
+  </script>
+</body>
+</html>

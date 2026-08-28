@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Highway Superelevation & SSD Lab — NHIT VisualLab</title>
+  <meta name="description" content="Highway geometric design: IRC:73 Stopping Sight Distance SSD = 0.278 V t + V^2 / (254 f), Overtaking Sight Distance & Superelevation e = V^2 / (225 R).">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Transportation Engineering - I (CE/TE1/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Highway Superelevation & SSD Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-CamberedRoadwayPavementSection" onclick="selectComp('CamberedRoadwayPavementSection')">
+                <strong>CamberedRoadwayPavementSection</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Superelevated Roadway Section: Transverse banking of pavement raising outer edge to counteract centrifugal forces.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PassengerVehicleSimulationModel" onclick="selectComp('PassengerVehicleSimulationModel')">
+                <strong>PassengerVehicleSimulationModel</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Passenger Car Simulation: Dynamic vehicle model traversing curve radius R at design speed V.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-StoppingSightDistanceBrakingLine" onclick="selectComp('StoppingSightDistanceBrakingLine')">
+                <strong>StoppingSightDistanceBrakingLine</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">SSD Sight Line Marker: Minimum sight distance along road center-line permitting safe braking before hazards.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CentrifugalForceLateralVector" onclick="selectComp('CentrifugalForceLateralVector')">
+                <strong>CentrifugalForceLateralVector</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Centrifugal Lateral Force Vector: Outward lateral force vector P = W V^2 / (g R) counteracted by friction and banking.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="v-speed-input">Design Speed V (km/h):</label>
+            <input type="number" id="v-speed-input" class="ctrl-input" value="80.0" min="30" max="130" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="r-radius-input">Curve Radius R (m):</label>
+            <input type="number" id="r-radius-input" class="ctrl-input" value="250.0" min="50" max="1000" step="25" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>IRC Stopping Sight Distance (SSD):</td><td id="val-ssd-dist">127.6 m</td></tr>
+          <tr><td>Design Superelevation Rate (e):</td><td id="val-e-rate">7.00 % (Capped at IRC Max)</td></tr>
+          <tr><td>Maximum Safe Curvature Speed:</td><td id="val-vsafe">83.6 km/h</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Highway Superelevation & SSD Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Highway geometric design ensures safe, comfortable vehicular transit. Stopping Sight Distance ($SSD = 0.278 V t + \frac{V^2}{254 f}$) provides sufficient longitudinal braking visibility. On horizontal curves, superelevation ($e = \frac{V^2}{225 R}$) elevates the outer road edge to neutralize centrifugal forces at $75\%$ design speed.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Highway Superelevation & SSD Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Transportation Engineering - I.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, geotechnical properties, highway parameters, and irrigation hydraulics.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Highway geometric design ensures safe, comfortable vehicular transit. Stopping Sight Distance ($SSD = 0.278 V t + \frac{V^2}{254 f}$) provides sufficient longitudinal braking visibility. On horizontal curves, superelevation ($e = \frac{V^2}{225 R}$) elevates the outer road edge to neutralize centrifugal forces at $75\%$ design speed.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey angles, soil phase values, pavement loads, or canal discharges. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey vectors, 3-phase soil diagrams, retaining wall pressures, or canal sections corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IRC:73, IRC:37, IS 2720, IS 73, IS 1205, IS 1208, IS 2386).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Highway Superelevation & SSD Lab (Transportation Engineering - I)</h2>
+      <p>Highway geometric design: IRC:73 Stopping Sight Distance SSD = 0.278 V t + V^2 / (254 f), Overtaking Sight Distance & Superelevation e = V^2 / (225 R).</p>
+      <p>Highway geometric design ensures safe, comfortable vehicular transit. Stopping Sight Distance ($SSD = 0.278 V t + \frac{V^2}{254 f}$) provides sufficient longitudinal braking visibility. On horizontal curves, superelevation ($e = \frac{V^2}{225 R}$) elevates the outer road edge to neutralize centrifugal forces at $75\%$ design speed.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const v = parseFloat(document.getElementById('v-speed-input').value);
+            const r = parseFloat(document.getElementById('r-radius-input').value);
+
+            const ssd = 0.278 * v * 2.5 + (v*v) / (254.0 * 0.35);
+            const e_calc = (v*v) / (225.0 * r);
+            const e_design = Math.min(0.07, e_calc);
+            const v_safe = e_calc > 0.07 ? Math.sqrt(127.0 * r * (0.07 + 0.15)) : v;
+
+            document.getElementById('val-ssd-dist').innerText = ssd.toFixed(1) + ' m';
+            document.getElementById('val-e-rate').innerText = (e_design * 100.0).toFixed(2) + ' % (1 in ' + (1.0 / e_design).toFixed(1) + ')';
+            document.getElementById('val-vsafe').innerText = v_safe.toFixed(1) + ' km/h';
+
+            drawSuperelevationBank(e_design);
+          }
+
+          function drawSuperelevationBank(e) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Banked Roadway Pavement
+            const yOffset = e * 200;
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.moveTo(80, h - 80);
+            ctx.lineTo(w - 80, (h - 80) - yOffset);
+            ctx.lineTo(w - 80, (h - 60) - yOffset);
+            ctx.lineTo(80, h - 60);
+            ctx.closePath();
+            ctx.fill();
+
+            // Vehicle on banked road
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(w/2 - 30, (h - 120) - yOffset/2, 60, 40);
+
+            ctx.fillStyle = '#00e676'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Superelevation Rate e = ${(e*100).toFixed(1)}% | IRC:73 Plain Terrain Standard <= 7.0%`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/highway_superelevation_stopping_sight_distance.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/highway_superelevation_stopping_sight_distance.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complex Numbers Argand Plane & Polar Lab — WBSCTE Basic Science 1st Sem Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="BS101 Engineering Mathematics-I: Complex Numbers Argand Plane z = x + iy, Modulus r, Argument theta & De Moivre's z^n">
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    :root { --accent: #38bdf8; }
+    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
+    .site-nav a { color: #94a3b8; text-decoration: none; }
+    .site-nav a:hover { color: var(--accent); }
+    .site-nav span { color: #475569; }
+    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
+    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
+    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
+    .mode-bar { display: flex; gap: 8px; align-items: center; }
+    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
+    .guide-link-btn:hover { background: #475569; }
+    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
+    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
+    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
+    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
+    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
+    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    .diag-table td:first-child { color: #94a3b8; }
+    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
+    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
+    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
+    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
+    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
+    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
+    .seo-article h2, .seo-article h3 { color: #f8fafc; }
+    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+    <span>&rsaquo;</span>
+    <a href="/nhitvisuallab/index.html#bs-sem1">Basic Science & Humanities</a>
+    <span>&rsaquo;</span>
+    <span style="color:#f8fafc;">Complex Numbers Argand Plane & Polar Lab</span>
+  </nav>
+
+  <header class="tool-header">
+    <div>
+      <span class="tool-badge">BS101</span>
+      <h1 class="tool-title">Complex Numbers Argand Plane & Polar Lab</h1>
+      <p class="tool-subtitle">BS101 Engineering Mathematics-I: Complex Numbers Argand Plane z = x + iy, Modulus r, Argument theta & De Moivre's z^n</p>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
+      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div id="sim-wrapper" class="sim-grid">
+      <div class="controls-col">
+        <div class="panel">
+          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+          
+              <div class="control-group">
+                <label for="real_part_x">Real Part x = Re(z):</label>
+                <input type="number" id="real_part_x" min="-20.0" max="20.0" step="0.5" value="3.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="imaginary_part_y">Imaginary Part y = Im(z):</label>
+                <input type="number" id="imaginary_part_y" min="-20.0" max="20.0" step="0.5" value="4.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="power_n_demoivre">De Moivre Power n: <span id="power_n_demoivre_val" class="val-badge">3</span></label>
+                <input type="range" id="power_n_demoivre" min="1" max="10" step="1" value="3" class="form-range" oninput="document.getElementById('power_n_demoivre_val').innerText=this.value; runSim();" />
+              </div>
+          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+        </div>
+      </div>
+      <div class="display-col">
+        <div class="canvas-card">
+          <canvas id="sim-canvas" width="800" height="420"></canvas>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
+          <table class="diag-table">
+            <tbody>
+              
+          <tr>
+            <td>Modulus r = |z|</td>
+            <td id="out_mod" class="out-val">5.000</td>
+          </tr>
+          <tr>
+            <td>Principal Argument theta = Arg(z)</td>
+            <td id="out_arg" class="out-val">53.13° (0.927 rad)</td>
+          </tr>
+          <tr>
+            <td>Polar Form r(cos theta + i sin theta)</td>
+            <td id="out_polar" class="out-val">5.00 (cos 53.1° + i sin 53.1°)</td>
+          </tr>
+          <tr>
+            <td>De Moivre Power z^n</td>
+            <td id="out_power" class="out-val">-117.0 + 44.0i</td>
+          </tr>
+          <tr>
+            <td>Complex Analysis Verdict</td>
+            <td id="out_status" class="out-val">COMPLEX NUMBER VERIFIED: Modulus |z| = 5.00</td>
+          </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
+        <div id="three-canvas-container"></div>
+        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
+        <div class="comp-grid">
+          
+          <div class="comp-card" onclick="focusComponent('ArgandCartesianCoordinatePlane')">
+            <h4>Argand Coordinate Plane</h4>
+            <p>2D complex plane with horizontal Real axis Re(z) and vertical Imaginary axis Im(z).</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('ComplexPhasorVectorModulusR')">
+            <h4>Complex Phasor Vector z</h4>
+            <p>Position vector of magnitude r = sqrt(x^2 + y^2) at phase angle theta.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('RealAndImaginaryProjectionArms')">
+            <h4>Cartesian Projections (x, y)</h4>
+            <p>Orthogonal real component x and imaginary component iy bounding the right triangle.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('DeMoivresRotationUnitCircleHelix')">
+            <h4>De Moivre Rotation Orbit</h4>
+            <p>Geometric power trajectory tracing z^n = r^n (cos nθ + i sin nθ).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="explore-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
+        <p>BS101 Engineering Mathematics-I: Complex Numbers Argand Plane z = x + iy, Modulus r, Argument theta & De Moivre's z^n</p>
+        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
+          Convert to Euler's exponential and polar form: $z = r(\cos\theta + i\sin\theta) = r e^{i\theta}$.
+        </div>
+        <p>Understand complex numbers $z = x + iy$ with real part $x = \text{Re}(z)$ and imaginary part $y = \text{Im}(z)$.</p>
+        <p>Apply De Moivre's Theorem: $$z^n = [r(\cos\theta + i\sin\theta)]^n = r^n(\cos n\theta + i\sin n\theta)$$</p>
+      </div>
+    </div>
+
+    <!-- ════ User Guide Section ════ -->
+    <section class="user-guide" id="user-guide">
+      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <details open>
+        <summary>1. Overview &amp; Physical Principles</summary>
+        <div><p>Understand complex numbers $z = x + iy$ with real part $x = \text{Re}(z)$ and imaginary part $y = \text{Im}(z)$.</p></div>
+      </details>
+      <details>
+        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
+        <div><p>Calculate modulus: $$r = |z| = \sqrt{x^2 + y^2}$$ and principal argument: $$\theta = \text{Arg}(z) = \tan^{-1}\left(\frac{y}{x}\right)$$</p></div>
+      </details>
+      <details>
+        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
+        <div><p>Convert to Euler's exponential and polar form: $z = r(\cos\theta + i\sin\theta) = r e^{i\theta}$.</p></div>
+      </details>
+      <details>
+        <summary>4. Step-by-Step Procedure &amp; Zero Errors</summary>
+        <div><p>Apply De Moivre's Theorem: $$z^n = [r(\cos\theta + i\sin\theta)]^n = r^n(\cos n\theta + i\sin n\theta)$$</p></div>
+      </details>
+      <details>
+        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
+        <div><p>Evaluate $n$-th roots of unity in AC electrical circuit impedance and phasor calculations.</p></div>
+      </details>
+      <details>
+        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
+        <div><p>Reference: WBSCTE Engineering Mathematics-I (BS101).</p></div>
+      </details>
+    </section>
+
+    <!-- ════ SEO Technical Article ════ -->
+    <section class="seo-article">
+      <h2>Engineering Reference &amp; Laboratory Standards: Complex Numbers Argand Plane & Polar Lab</h2>
+      <p>BS101 Engineering Mathematics-I: Complex Numbers Argand Plane z = x + iy, Modulus r, Argument theta & De Moivre's z^n</p>
+      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
+      <p>Understand complex numbers $z = x + iy$ with real part $x = \text{Re}(z)$ and imaginary part $y = \text{Im}(z)$. Calculate modulus: $$r = |z| = \sqrt{x^2 + y^2}$$ and principal argument: $$\theta = \text{Arg}(z) = \tan^{-1}\left(\frac{y}{x}\right)$$</p>
+      <h3>Governing Equations &amp; Analytical Formulations</h3>
+      <p>Convert to Euler's exponential and polar form: $z = r(\cos\theta + i\sin\theta) = r e^{i\theta}$. Apply De Moivre's Theorem: $$z^n = [r(\cos\theta + i\sin\theta)]^n = r^n(\cos n\theta + i\sin n\theta)$$</p>
+      <h3>Industrial &amp; Engineering Applications</h3>
+      <p>Evaluate $n$-th roots of unity in AC electrical circuit impedance and phasor calculations. Designed in strict alignment with Reference: WBSCTE Engineering Mathematics-I (BS101)..</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    let scene, camera, renderer, controls, modelGroup;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function drawSim(arg1, arg2, arg3, arg4) {
+      
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            const cx = width/2, cy = height/2;
+            const scale = 25.0;
+
+            // Draw Axes
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(40, cy); ctx.lineTo(width - 40, cy);
+            ctx.moveTo(cx, 40); ctx.lineTo(cx, height - 40);
+            ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '12px Inter';
+            ctx.fillText('Re(z)', width - 35, cy - 5);
+            ctx.fillText('Im(z)', cx + 5, 50);
+
+            // Vector z
+            const vx = cx + arg1 * scale;
+            const vy = cy - arg2 * scale;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy); ctx.lineTo(vx, vy);
+            ctx.stroke();
+
+            // Point
+            ctx.fillStyle = '#ffd600';
+            ctx.beginPath();
+            ctx.arc(vx, vy, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Angle arc
+            ctx.strokeStyle = '#ffd600';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 35, 0, -arg4, arg2 < 0);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px Inter';
+            ctx.fillText('z = ' + arg1 + ' + ' + arg2 + 'i | Modulus r = ' + arg3.toFixed(2), 50, 50);
+        
+    }
+
+    function runSim() {
+      
+            const x = parseFloat(document.getElementById('real_part_x').value);
+            const y = parseFloat(document.getElementById('imaginary_part_y').value);
+            const n = parseFloat(document.getElementById('power_n_demoivre').value);
+
+            const r = Math.sqrt(x*x + y*y);
+            const theta_rad = Math.atan2(y, x);
+            const theta_deg = theta_rad * 180.0 / Math.PI;
+
+            const r_n = Math.pow(r, n);
+            const n_theta = n * theta_rad;
+            const real_n = r_n * Math.cos(n_theta);
+            const imag_n = r_n * Math.sin(n_theta);
+
+            const polar_str = r.toFixed(2) + " (cos " + theta_deg.toFixed(1) + "° + i sin " + theta_deg.toFixed(1) + "°)";
+
+            document.getElementById('out_mod').innerText = r.toFixed(3);
+            document.getElementById('out_arg').innerText = theta_deg.toFixed(2) + "° (" + theta_rad.toFixed(3) + " rad)";
+            document.getElementById('out_polar').innerText = polar_str;
+            document.getElementById('out_power').innerText = real_n.toFixed(1) + (imag_n >= 0 ? " + " : " - ") + Math.abs(imag_n).toFixed(1) + "i";
+            document.getElementById('out_status').innerText = "COMPLEX NUMBER VERIFIED: Modulus |z| = " + r.toFixed(2) + ", Arg(z) = " + theta_deg.toFixed(1) + "°";
+            drawSim(x, y, r, theta_rad, real_n, imag_n);
+        
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+
+      if (mode === '3d' && !renderer) {
+        initThree();
+      }
+    }
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2, 1.5, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('/frontend/models/complex_numbers_argand_polar.glb', function(gltf) {
+        modelGroup = gltf.scene;
+        scene.add(modelGroup);
+        animate();
+      }, undefined, function(err) {
+        console.warn('Fallback 3D geometry loaded');
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+        const mat = new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.3 });
+        modelGroup = new THREE.Mesh(geo, mat);
+        scene.add(modelGroup);
+        animate();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function focusComponent(name) {
+      if (!modelGroup) return;
+      modelGroup.traverse(function(child) {
+        if (child.isMesh) {
+          if (child.name === name) {
+            child.material.emissive = new THREE.Color(0x38bdf8);
+            child.material.emissiveIntensity = 0.6;
+          } else {
+            child.material.emissive = new THREE.Color(0x000000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      runSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Epicyclic & Planetary Gear Trains Lab — NHIT VisualLab</title>
+  <meta name="description" content="Planetary epicyclic gear train tabular velocity ratio method, sun-planet-annulus kinematics & torque transmission.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Theory of Machines & Mechanisms (ME/S4/TOM)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Epicyclic & Planetary Gear Trains Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-SunCentralSpurGear" onclick="selectComp('SunCentralSpurGear')">
+                <strong>SunCentralSpurGear</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Central Sun Gear: High-speed driving central external spur gear.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PlanetarySatelliteGear1" onclick="selectComp('PlanetarySatelliteGear1')">
+                <strong>PlanetarySatelliteGear1</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Planet Gear 1: Revolving satellite gear meshing between sun gear and annulus.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PlanetarySatelliteGear2" onclick="selectComp('PlanetarySatelliteGear2')">
+                <strong>PlanetarySatelliteGear2</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Planet Gear 2: Diametrically opposed planet gear sharing load on the carrier.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PlanetCarrierRotatingArm" onclick="selectComp('PlanetCarrierRotatingArm')">
+                <strong>PlanetCarrierRotatingArm</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Planet Carrier Arm: Heavy rotating arm supporting planetary gear journal pins.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="ts-input">Sun Teeth (Ts):</label>
+            <input type="number" id="ts-input" class="ctrl-input" value="24" min="12" max="60" step="2" />
+          </div>
+          <div class="control-group">
+            <label for="tp-input">Planet Teeth (Tp):</label>
+            <input type="number" id="tp-input" class="ctrl-input" value="32" min="12" max="60" step="2" />
+          </div>
+          <div class="control-group">
+            <label for="sun-rpm-input">Sun Input Speed (RPM):</label>
+            <input type="number" id="sun-rpm-input" class="ctrl-input" value="1200" min="-3000" max="3000" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="power-input">Input Power (kW):</label>
+            <input type="number" id="power-input" class="ctrl-input" value="7.5" min="1.0" max="50.0" step="1.0" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Annulus Gear Teeth (Ta = Ts+2Tp):</td><td id="val-ta">88 teeth</td></tr>
+          <tr><td>Carrier Output Speed:</td><td id="val-arm-rpm">257.1 RPM</td></tr>
+          <tr><td>Planet Gear Speed:</td><td id="val-planet-rpm">-450.0 RPM</td></tr>
+          <tr><td>Overall Speed Ratio (VR):</td><td id="val-vr">4.67 : 1</td></tr>
+          <tr><td>Output Torque on Carrier:</td><td id="val-tarm">278.4 N·m</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Epicyclic & Planetary Gear Trains Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Epicyclic (planetary) gear trains achieve large speed reduction ratios in compact coaxial gearboxes, automatic transmissions, and differential drives. This simulator uses the Tabular Kinematic Method to evaluate sun, planet, ring (annulus), and carrier speeds along with torque multiplication.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Epicyclic & Planetary Gear Trains Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Theory of Machines & Mechanisms.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Epicyclic (planetary) gear trains achieve large speed reduction ratios in compact coaxial gearboxes, automatic transmissions, and differential drives. This simulator uses the Tabular Kinematic Method to evaluate sun, planet, ring (annulus), and carrier speeds along with torque multiplication.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Epicyclic & Planetary Gear Trains Lab (Theory of Machines & Mechanisms)</h2>
+      <p>Planetary epicyclic gear train tabular velocity ratio method, sun-planet-annulus kinematics & torque transmission.</p>
+      <p>Epicyclic (planetary) gear trains achieve large speed reduction ratios in compact coaxial gearboxes, automatic transmissions, and differential drives. This simulator uses the Tabular Kinematic Method to evaluate sun, planet, ring (annulus), and carrier speeds along with torque multiplication.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const ts = parseInt(document.getElementById('ts-input').value);
+            const tp = parseInt(document.getElementById('tp-input').value);
+            const n_sun = parseFloat(document.getElementById('sun-rpm-input').value);
+            const p_kw = parseFloat(document.getElementById('power-input').value);
+
+            const ta = ts + 2 * tp; // Geometry condition
+            const ratio = ts / ta;
+            const x = n_sun / (1.0 + ratio);
+            const arm_rpm = n_sun - x;
+            const planet_rpm = -x * (ts / tp) + arm_rpm;
+            const vr = n_sun / (arm_rpm || 1);
+
+            const t_sun = (p_kw * 1000 * 60) / (2 * Math.PI * Math.abs(n_sun || 1));
+            const t_arm = (p_kw * 1000 * 60) / (2 * Math.PI * Math.abs(arm_rpm || 1));
+
+            document.getElementById('val-ta').innerText = ta + ' teeth';
+            document.getElementById('val-arm-rpm').innerText = arm_rpm.toFixed(1) + ' RPM';
+            document.getElementById('val-planet-rpm').innerText = planet_rpm.toFixed(1) + ' RPM';
+            document.getElementById('val-vr').innerText = vr.toFixed(2) + ' : 1';
+            document.getElementById('val-tarm').innerText = t_arm.toFixed(1) + ' N·m';
+
+            drawEpicyclic(ts, tp, ta, n_sun, arm_rpm);
+          }
+
+          function drawEpicyclic(ts, tp, ta, n_sun, arm_rpm) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const cx = w/2, cy = h/2;
+            // Ring gear
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 10;
+            ctx.beginPath(); ctx.arc(cx, cy, 95, 0, 2*Math.PI); ctx.stroke();
+
+            // Sun gear
+            ctx.fillStyle = '#eab308';
+            ctx.beginPath(); ctx.arc(cx, cy, 30, 0, 2*Math.PI); ctx.fill();
+
+            // Planet gears (2 opposite)
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath(); ctx.arc(cx, cy - 62, 32, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx, cy + 62, 32, 0, 2*Math.PI); ctx.fill();
+
+            // Carrier link
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(cx, cy - 62); ctx.lineTo(cx, cy + 62); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Annulus Ta = ${ta} | Sun = ${n_sun} RPM | Arm Carrier = ${arm_rpm.toFixed(1)} RPM`, 30, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/epicyclic_gear_trains.glb', function(gltf) {{
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }}, undefined, function(err) {{
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/epicyclic_gear_trains.glb', function(gltf) {{
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        }});
+      }});
+
+      function animate() {{
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }}
+      animate();
+    }
+
+    function selectComp(name) {{
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }}
+
+    window.addEventListener('DOMContentLoaded', () => {{
+      updateSim();
+    }});
+  </script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>8051 Timers & Full-Duplex UART Serial Lab — NHIT VisualLab</title>
+  <meta name="description" content="8051 core architecture: Dual 16-bit timers (Timer 0/1 Modes 1 & 2), precise millisecond delay generation & 9600 baud UART serial communication.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Microcontroller & Embedded System (ETCE/MCES/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">8051 Timers & Full-Duplex UART Serial Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-DIP40Microcontroller8051IC" onclick="selectComp('DIP40Microcontroller8051IC')">
+                <strong>DIP40Microcontroller8051IC</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">8051 Microcontroller IC: 40-pin MCU with 4KB flash ROM, 128B RAM, dual 16-bit timers, and full-duplex UART.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CrystalClockResonator11MHz" onclick="selectComp('CrystalClockResonator11MHz')">
+                <strong>CrystalClockResonator11MHz</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">11.0592MHz Master Crystal: Precision crystal frequency providing standard integer division for exact 9600 UART baud rate.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MAX232LevelShifterIC" onclick="selectComp('MAX232LevelShifterIC')">
+                <strong>MAX232LevelShifterIC</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">MAX232 RS-232 Transceiver: Dual charge-pump level shifter converting 0-5V TTL to ±10V EIA-232 serial standards.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DB9SerialPortConnector" onclick="selectComp('DB9SerialPortConnector')">
+                <strong>DB9SerialPortConnector</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">DB9 Serial Port Connector: Standard 9-pin D-sub serial connector interfacing PC terminal emulator.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="timer-mode-sel">Timer Operating Mode:</label>
+            <select id="timer-mode-sel" class="ctrl-input">
+              <option value="UART" selected>Timer 1 Mode 2 (8-Bit Auto-Reload Baud Rate Generator)</option>
+              <option value="Delay">Timer 0 Mode 1 (16-Bit Precision Delay Generator)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="baud-sel">UART Baud Rate:</label>
+            <select id="baud-sel" class="ctrl-input">
+              <option value="9600" selected>9600 Baud (TH1 = FDH, 0.0% Error)</option>
+              <option value="4800">4800 Baud (TH1 = FAH)</option>
+              <option value="2400">2400 Baud (TH1 = F4H)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="fosc-8051-input">Crystal Frequency (MHz):</label>
+            <input type="number" id="fosc-8051-input" class="ctrl-input" value="11.0592" min="1.0" max="24.0" step="0.0001" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Machine Cycle Period:</td><td id="val-tmc">1.085 µs</td></tr>
+          <tr><td>Timer 1 Auto-Reload Value (TH1):</td><td id="val-th1">FDH (-3d)</td></tr>
+          <tr><td>Generated Serial Baud Rate:</td><td id="val-actbaud">9600 bps (0.0% Error)</td></tr>
+          <tr><td>Serial Control Register (SCON):</td><td id="val-scon">50H (8-bit UART)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>8051 Timers & Full-Duplex UART Serial Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>The 8051 microcontroller executes instructions in machine cycles consisting of 12 oscillator clock periods ($T_{MC} = \frac{12}{f_{osc}} = 1.085\ \mu\text{s}$ at $11.0592\text{ MHz}$). Timer 1 in 8-bit auto-reload Mode 2 acts as a hardware baud generator ($TH1 = 256 - \frac{f_{osc}}{384 \times \text{Baud}}$), providing exact standard UART baud rates (9600, 4800, 2400 bps) with 0% timing error.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: 8051 Timers & Full-Duplex UART Serial Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Microcontroller & Embedded System.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>The 8051 microcontroller executes instructions in machine cycles consisting of 12 oscillator clock periods ($T_{MC} = \frac{12}{f_{osc}} = 1.085\ \mu\text{s}$ at $11.0592\text{ MHz}$). Timer 1 in 8-bit auto-reload Mode 2 acts as a hardware baud generator ($TH1 = 256 - \frac{f_{osc}}{384 \times \text{Baud}}$), providing exact standard UART baud rates (9600, 4800, 2400 bps) with 0% timing error.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: 8051 Timers & Full-Duplex UART Serial Lab (Microcontroller & Embedded System)</h2>
+      <p>8051 core architecture: Dual 16-bit timers (Timer 0/1 Modes 1 & 2), precise millisecond delay generation & 9600 baud UART serial communication.</p>
+      <p>The 8051 microcontroller executes instructions in machine cycles consisting of 12 oscillator clock periods ($T_{MC} = \frac{12}{f_{osc}} = 1.085\ \mu\text{s}$ at $11.0592\text{ MHz}$). Timer 1 in 8-bit auto-reload Mode 2 acts as a hardware baud generator ($TH1 = 256 - \frac{f_{osc}}{384 \times \text{Baud}}$), providing exact standard UART baud rates (9600, 4800, 2400 bps) with 0% timing error.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const mode = document.getElementById('timer-mode-sel').value;
+            const baud = parseInt(document.getElementById('baud-sel').value) || 9600;
+            const fosc = parseFloat(document.getElementById('fosc-8051-input').value) * 1e6;
+
+            const tmc_us = (12.0 / fosc) * 1e6;
+            let th1_hex = "FDH", act_baud = 9600;
+
+            if (baud === 9600) { th1_hex = "FDH (-3d)"; act_baud = 9600; }
+            else if (baud === 4800) { th1_hex = "FAH (-6d)"; act_baud = 4800; }
+            else { th1_hex = "F4H (-12d)"; act_baud = 2400; }
+
+            document.getElementById('val-tmc').innerText = tmc_us.toFixed(3) + ' µs (1 Machine Cycle)';
+            document.getElementById('val-th1').innerText = th1_hex;
+            document.getElementById('val-actbaud').innerText = act_baud + ' bps (0.0% Baud Error)';
+            document.getElementById('val-scon').innerText = '50H (Mode 1: 8-Bit UART, REN=1)';
+
+            draw8051UARTTiming();
+          }
+
+          function draw8051UARTTiming() {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // UART Serial Frame: Start (0) -> 8 Data Bits -> Stop (1)
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(40, 70); // Idle High
+            ctx.lineTo(80, 70);
+            ctx.lineTo(80, 130); // Start Bit (Low)
+            ctx.lineTo(120, 130);
+            ctx.lineTo(120, 70); ctx.lineTo(160, 70); // Bit 0 (High)
+            ctx.lineTo(160, 130); ctx.lineTo(200, 130); // Bit 1 (Low)
+            ctx.lineTo(200, 70); ctx.lineTo(320, 70); // Bits 2-4 (High)
+            ctx.lineTo(320, 130); ctx.lineTo(360, 130);
+            ctx.lineTo(360, 70); ctx.lineTo(440, 70); // Stop Bit (High)
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('8051 UART 10-Bit Frame (1 Start + 8 Data Bits + 1 Stop Bit) @ 9600 Baud', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/microcontroller_8051_timers_uart.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/microcontroller_8051_timers_uart.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RCC Beam Shear Design & Stirrups Lab — NHIT VisualLab</title>
+  <meta name="description" content="IS 456:2000 Beam shear design: Nominal shear stress tau_v = Vu / (bd), design shear strength of concrete tau_c, shear reinforcement Vus & vertical stirrup spacing sv.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Design of RCC Structures (CE/DRCS/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">RCC Beam Shear Design & Stirrups Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ConcreteBeamShearSpan" onclick="selectComp('ConcreteBeamShearSpan')">
+                <strong>ConcreteBeamShearSpan</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Beam Shear Span: Support shear zone subjected to high diagonal tension shear stresses.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TwoLeggedVerticalShearStirrups" onclick="selectComp('TwoLeggedVerticalShearStirrups')">
+                <strong>TwoLeggedVerticalShearStirrups</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">2-Legged Vertical Stirrups: 8mm/10mm Fe 415 steel links anchored around hanger bars.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-Diagonal45DegreeShearCrackPlane" onclick="selectComp('Diagonal45DegreeShearCrackPlane')">
+                <strong>Diagonal45DegreeShearCrackPlane</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">45° Diagonal Tension Crack: Potential shear failure plane intercepted by vertical stirrup legs.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LongitudinalCornerHangerBars" onclick="selectComp('LongitudinalCornerHangerBars')">
+                <strong>LongitudinalCornerHangerBars</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Anchor Hanger Bars: 2-10mm top corner bars securing stirrups in position.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="vu-shear-input">Factored Shear Force Vu (kN):</label>
+            <input type="number" id="vu-shear-input" class="ctrl-input" value="140.0" min="20" max="500" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="pt-steel-input">Tension Steel Percentage pt (%):</label>
+            <input type="number" id="pt-steel-input" class="ctrl-input" value="1.2" min="0.2" max="3.0" step="0.1" />
+          </div>
+          <div class="control-group">
+            <label for="stirrup-dia-input">Stirrup Diameter (mm):</label>
+            <input type="number" id="stirrup-dia-input" class="ctrl-input" value="8.0" min="6" max="12" step="2" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Nominal Shear Stress (τv = Vu / bd):</td><td id="val-tau-v">1.244 N/mm²</td></tr>
+          <tr><td>Design Concrete Shear Strength (τc):</td><td id="val-tau-c">0.640 N/mm²</td></tr>
+          <tr><td>Shear Carried by Steel (Vus):</td><td id="val-v-us">68.0 kN</td></tr>
+          <tr><td>Recommended 2-Legged Stirrup Spacing (sv):</td><td id="val-sv-spacing">240 mm c/c</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>RCC Beam Shear Design & Stirrups Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Shear failures in reinforced concrete beams are sudden and catastrophic. Nominal shear stress ($\tau_v = \frac{V_u}{b d}$) is compared against concrete shear capacity ($\tau_c$, IS 456 Table 19). When $\tau_v > \tau_c$, vertical stirrups carrying excess shear ($V_{us} = \frac{0.87 f_y A_{sv} d}{s_v}$) prevent 45° diagonal tension cracking.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: RCC Beam Shear Design & Stirrups Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Design of RCC Structures.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute limit state structural capacities, railway cant geometry, runway corrections, and geotechnical deep foundation loads.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Shear failures in reinforced concrete beams are sudden and catastrophic. Nominal shear stress ($\tau_v = \frac{V_u}{b d}$) is compared against concrete shear capacity ($\tau_c$, IS 456 Table 19). When $\tau_v > \tau_c$, vertical stirrups carrying excess shear ($V_{us} = \frac{0.87 f_y A_{sv} d}{s_v}$) prevent 45° diagonal tension cracking.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Adjust the sliders and input fields on the left. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically visualizes stress blocks, shear failure planes, track banking profiles, runway lengths, or pile skin resistance based on live analytical equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456:2000, IRC:37, ICAO Annex 14, Indian Railway Permanent Way Manual, IS 2911, IS 2720).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: RCC Beam Shear Design & Stirrups Lab (Design of RCC Structures)</h2>
+      <p>IS 456:2000 Beam shear design: Nominal shear stress tau_v = Vu / (bd), design shear strength of concrete tau_c, shear reinforcement Vus & vertical stirrup spacing sv.</p>
+      <p>Shear failures in reinforced concrete beams are sudden and catastrophic. Nominal shear stress ($\tau_v = \frac{V_u}{b d}$) is compared against concrete shear capacity ($\tau_c$, IS 456 Table 19). When $\tau_v > \tau_c$, vertical stirrups carrying excess shear ($V_{us} = \frac{0.87 f_y A_{sv} d}{s_v}$) prevent 45° diagonal tension cracking.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const vu = parseFloat(document.getElementById('vu-shear-input').value);
+            const pt = parseFloat(document.getElementById('pt-steel-input').value);
+            const dia = parseFloat(document.getElementById('stirrup-dia-input').value);
+            const b = 250.0, d = 450.0, fck = 20.0;
+
+            const tau_v = (vu * 1000.0) / (b * d);
+            const tau_c = Math.min(0.85, 0.28 * Math.sqrt(fck) * Math.pow(pt, 0.33));
+            const v_c = tau_c * b * d * 1e-3;
+            const v_us = Math.max(0.0, vu - v_c);
+            const asv = 2.0 * (Math.PI / 4.0) * dia * dia;
+
+            let sv = 0;
+            if (v_us > 0) {
+              sv = (0.87 * 415.0 * asv * d) / (v_us * 1000.0);
+            } else {
+              sv = (0.87 * 415.0 * asv) / (0.4 * b);
+            }
+            const sv_max = Math.min(0.75 * d, 300.0, (0.87 * 415.0 * asv) / (0.4 * b));
+            const sv_rec = Math.min(sv, sv_max);
+
+            document.getElementById('val-tau-v').innerText = tau_v.toFixed(3) + ' N/mm²';
+            document.getElementById('val-tau-c').innerText = tau_c.toFixed(3) + ' N/mm²';
+            document.getElementById('val-v-us').innerText = v_us.toFixed(1) + ' kN';
+            document.getElementById('val-sv-spacing').innerText = Math.floor(sv_rec) + ' mm c/c';
+
+            drawShearCracks(tau_v, tau_c);
+          }
+
+          function drawShearCracks(tv, tc) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Beam Span
+            ctx.fillStyle = '#64748b'; ctx.fillRect(60, 80, w - 120, 140);
+
+            // Vertical Stirrups
+            ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 2.5;
+            for(let x = 90; x < w - 90; x += 40) {
+              ctx.strokeRect(x, 90, 10, 120);
+            }
+
+            // 45° Diagonal Tension Crack
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(80, 210); ctx.lineTo(190, 90); ctx.stroke();
+
+            ctx.fillStyle = '#00e676'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Nominal Shear Stress τv = ${tv.toFixed(2)} N/mm² | Concrete Shear Capacity τc = ${tc.toFixed(2)} N/mm²`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/rcc_beam_shear_design_stirrups.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/rcc_beam_shear_design_stirrups.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

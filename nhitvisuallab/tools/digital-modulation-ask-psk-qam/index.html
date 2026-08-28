@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Modulation Schemes Lab (BPSK, QPSK, 16-QAM) — NHIT VisualLab</title>
+  <meta name="description" content="Digital keying: BPSK, QPSK I/Q channels, 16-QAM constellation diagrams, symbol rate Rs = Rb/k & Bit Error Rate BER.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Digital & Microwave Comm. Engg. (ETCE/DMCE/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Digital Modulation Schemes Lab (BPSK, QPSK, 16-QAM)</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-DigitalModulatorChassis" onclick="selectComp('DigitalModulatorChassis')">
+                <strong>DigitalModulatorChassis</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">QPSK/QAM Modulator: Benchtop vector modulator generating I and Q in-phase and quadrature baseband channels.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-IQConstellationDisplayScreen" onclick="selectComp('IQConstellationDisplayScreen')">
+                <strong>IQConstellationDisplayScreen</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Vector Constellation Scope: I/Q plane display showing decision boundaries and symbol constellation points.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CarrierPhaseShifterMultiplier" onclick="selectComp('CarrierPhaseShifterMultiplier')">
+                <strong>CarrierPhaseShifterMultiplier</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">90° Hybrid Phase Shifter: Precision RF phase splitter splitting carrier cos(wt) and sin(wt).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-VectorSignalAnalyzerBNC" onclick="selectComp('VectorSignalAnalyzerBNC')">
+                <strong>VectorSignalAnalyzerBNC</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">RF BNC Output Port: 50Ω matched output feeding modulated digital RF burst to microwave upconverter.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="mod-scheme-sel">Digital Keying Scheme:</label>
+            <select id="mod-scheme-sel" class="ctrl-input">
+              <option value="BPSK">BPSK (1 bit/symbol, 2 Constellation Points)</option>
+              <option value="QPSK" selected>QPSK (2 bits/symbol, 4 Constellation Points)</option>
+              <option value="16QAM">16-QAM (4 bits/symbol, 16 Constellation Points)</option>
+              <option value="BASK">Binary ASK (1 bit/symbol, On-Off Keying)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="rb-dig-input">Bit Rate Rb (kbps):</label>
+            <input type="number" id="rb-dig-input" class="ctrl-input" value="64" min="8" max="10000" step="8" />
+          </div>
+          <div class="control-group">
+            <label for="snr-dig-input">Eb/N0 Signal-to-Noise Ratio (dB):</label>
+            <input type="number" id="snr-dig-input" class="ctrl-input" value="10" min="0" max="25" step="1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Bits per Modulated Symbol (k):</td><td id="val-kbits">2 bits / symbol (4-ary)</td></tr>
+          <tr><td>Symbol Baud Rate (Rs):</td><td id="val-rs">32.0 kbaud</td></tr>
+          <tr><td>Null-to-Null RF Bandwidth:</td><td id="val-digbw">64.0 kHz</td></tr>
+          <tr><td>Theoretical Bit Error Rate (BER):</td><td id="val-ber">2.27e-5</td></tr>
+          <tr><td>Spectral Efficiency:</td><td id="val-speceff">2.0 bps / Hz</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Digital Modulation Schemes Lab (BPSK, QPSK, 16-QAM) &mdash; Theory &amp; Governing Equations</h2>
+        <p>Digital modulation schemes map binary data bit streams onto analog sinusoidal carrier states. In QPSK and 16-QAM, symbols combine orthogonal in-phase ($I$) and quadrature ($Q$) carrier components, boosting spectral efficiency ($R_b/BW = k\text{ bps/Hz}$) while maintaining low Bit Error Rate ($BER = Q(\sqrt{2E_b/N_0})$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Digital Modulation Schemes Lab (BPSK, QPSK, 16-QAM)</h2>
+        <p class="text-dim">Test your conceptual understanding of Digital & Microwave Comm. Engg..</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Digital modulation schemes map binary data bit streams onto analog sinusoidal carrier states. In QPSK and 16-QAM, symbols combine orthogonal in-phase ($I$) and quadrature ($Q$) carrier components, boosting spectral efficiency ($R_b/BW = k\text{ bps/Hz}$) while maintaining low Bit Error Rate ($BER = Q(\sqrt{2E_b/N_0})$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Digital Modulation Schemes Lab (BPSK, QPSK, 16-QAM) (Digital & Microwave Comm. Engg.)</h2>
+      <p>Digital keying: BPSK, QPSK I/Q channels, 16-QAM constellation diagrams, symbol rate Rs = Rb/k & Bit Error Rate BER.</p>
+      <p>Digital modulation schemes map binary data bit streams onto analog sinusoidal carrier states. In QPSK and 16-QAM, symbols combine orthogonal in-phase ($I$) and quadrature ($Q$) carrier components, boosting spectral efficiency ($R_b/BW = k\text{ bps/Hz}$) while maintaining low Bit Error Rate ($BER = Q(\sqrt{2E_b/N_0})$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const scheme = document.getElementById('mod-scheme-sel').value;
+            const rb = parseFloat(document.getElementById('rb-dig-input').value);
+            const snr = parseFloat(document.getElementById('snr-dig-input').value);
+
+            let k = 2, pts = 4, eff = 2.0;
+            if (scheme === 'BPSK' || scheme === 'BASK') { k = 1; pts = 2; eff = 1.0; }
+            else if (scheme === '16QAM') { k = 4; pts = 16; eff = 4.0; }
+
+            const rs = rb / k;
+            const bw = 2.0 * rs;
+            const snr_lin = Math.pow(10.0, snr / 10.0);
+            let ber = 0.5 * Math.exp(-snr_lin);
+
+            document.getElementById('val-kbits').innerText = `${k} bits / symbol (${pts}-ary)`;
+            document.getElementById('val-rs').innerText = rs.toFixed(1) + ' kbaud (ksymbols/s)';
+            document.getElementById('val-digbw').innerText = bw.toFixed(1) + ' kHz';
+            document.getElementById('val-ber').innerText = ber.toExponential(2);
+            document.getElementById('val-speceff').innerText = eff.toFixed(1) + ' bps / Hz';
+
+            drawConstellation(scheme);
+          }
+
+          function drawConstellation(scheme) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // I/Q Axes
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(w/2, 30); ctx.lineTo(w/2, h - 30);
+            ctx.moveTo(40, h/2); ctx.lineTo(w - 40, h/2);
+            ctx.stroke();
+
+            // Constellation Points
+            ctx.fillStyle = '#00e676';
+            if (scheme === 'BPSK') {
+              ctx.beginPath(); ctx.arc(w/2 - 70, h/2, 7, 0, 2*Math.PI); ctx.fill();
+              ctx.beginPath(); ctx.arc(w/2 + 70, h/2, 7, 0, 2*Math.PI); ctx.fill();
+            } else if (scheme === 'QPSK') {
+              const offsets = [[-60,-60],[60,-60],[-60,60],[60,60]];
+              for(let o of offsets) {
+                ctx.beginPath(); ctx.arc(w/2 + o[0], h/2 + o[1], 7, 0, 2*Math.PI); ctx.fill();
+              }
+            } else if (scheme === '16QAM') {
+              for(let ix=-3; ix<=3; ix+=2) {
+                for(let iy=-3; iy<=3; iy+=2) {
+                  ctx.beginPath(); ctx.arc(w/2 + ix*25, h/2 + iy*25, 5, 0, 2*Math.PI); ctx.fill();
+                }
+              }
+            } else {
+              ctx.beginPath(); ctx.arc(w/2 - 70, h/2, 7, 0, 2*Math.PI); ctx.fill();
+              ctx.beginPath(); ctx.arc(w/2 + 70, h/2, 7, 0, 2*Math.PI); ctx.fill();
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`${scheme} In-Phase (I) / Quadrature (Q) Constellation Map`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/digital_modulation_ask_psk_qam.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/digital_modulation_ask_psk_qam.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

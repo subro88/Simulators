@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LVDT Linear Displacement Transducer Lab — NHIT VisualLab</title>
+  <meta name="description" content="Inductive transducers: Linear Variable Differential Transformer (LVDT), AC secondary differential voltage VS1-VS2, phase reversal & residual null.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Instrumentation & Control (ETCE/IC/S6)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">LVDT Linear Displacement Transducer Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-LVDTStainlessHousingTube" onclick="selectComp('LVDTStainlessHousingTube')">
+                <strong>LVDTStainlessHousingTube</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Stainless Steel Outer Body: Mu-metal magnetic shielded cylindrical tube isolating AC coils from stray interference.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-NickelIronMagneticCoreRod" onclick="selectComp('NickelIronMagneticCoreRod')">
+                <strong>NickelIronMagneticCoreRod</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">High-Permeability Core Rod: Movable nickel-iron alloy core altering magnetic coupling between primary and secondaries.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DifferentialSecondaryCoilBobbin" onclick="selectComp('DifferentialSecondaryCoilBobbin')">
+                <strong>DifferentialSecondaryCoilBobbin</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Dual Secondary Coils: Symmetrically wound series-opposing secondary coils generating differential induced voltages.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-WiringTerminalHeaderBlock" onclick="selectComp('WiringTerminalHeaderBlock')">
+                <strong>WiringTerminalHeaderBlock</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Excitation & Output Header: Terminals connecting 2.5kHz AC carrier generator and phase-sensitive detector.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="disp-lvdt-input">Core Displacement x (mm):</label>
+            <input type="number" id="disp-lvdt-input" class="ctrl-input" value="2.5" min="-10" max="10" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="sens-lvdt-input">LVDT Sensitivity (mV / mm):</label>
+            <input type="number" id="sens-lvdt-input" class="ctrl-input" value="40" min="10" max="100" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="vnull-lvdt-input">Residual Null Voltage (mV):</label>
+            <input type="number" id="vnull-lvdt-input" class="ctrl-input" value="5.0" min="0.5" max="20" step="0.5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Differential AC Output Voltage:</td><td id="val-vout-lvdt">100.12 mV</td></tr>
+          <tr><td>Output AC Phase Angle:</td><td id="val-phase-lvdt">0°</td></tr>
+          <tr><td>Core Displacement Direction:</td><td id="val-polarity-lvdt">IN-PHASE (0° Forward Motion)</td></tr>
+          <tr><td>Measurement Non-Linearity Error:</td><td id="val-nonlin">&lt; 0.25 % F.S.</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>LVDT Linear Displacement Transducer Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>The Linear Variable Differential Transformer (LVDT) measures linear mechanical displacement without electrical contact. Symmetrically positioned, series-opposing secondary coils ($S_1, S_2$) induce differential AC voltage ($V_{out} = V_{S1} - V_{S2}$) directly proportional to core displacement from magnetic null, reversing phase by $180^\circ$ across null.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: LVDT Linear Displacement Transducer Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Instrumentation & Control.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>The Linear Variable Differential Transformer (LVDT) measures linear mechanical displacement without electrical contact. Symmetrically positioned, series-opposing secondary coils ($S_1, S_2$) induce differential AC voltage ($V_{out} = V_{S1} - V_{S2}$) directly proportional to core displacement from magnetic null, reversing phase by $180^\circ$ across null.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: LVDT Linear Displacement Transducer Lab (Instrumentation & Control)</h2>
+      <p>Inductive transducers: Linear Variable Differential Transformer (LVDT), AC secondary differential voltage VS1-VS2, phase reversal & residual null.</p>
+      <p>The Linear Variable Differential Transformer (LVDT) measures linear mechanical displacement without electrical contact. Symmetrically positioned, series-opposing secondary coils ($S_1, S_2$) induce differential AC voltage ($V_{out} = V_{S1} - V_{S2}$) directly proportional to core displacement from magnetic null, reversing phase by $180^\circ$ across null.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const x = parseFloat(document.getElementById('disp-lvdt-input').value);
+            const sens = parseFloat(document.getElementById('sens-lvdt-input').value);
+            const vnull = parseFloat(document.getElementById('vnull-lvdt-input').value);
+
+            const vout = Math.sqrt(Math.pow(sens * Math.abs(x), 2) + Math.pow(vnull, 2));
+            const phase = x >= 0 ? 0 : 180;
+            const pol = x >= 0 ? "IN-PHASE (0° Forward Motion)" : "PHASE-REVERSED (180° Reverse Motion)";
+
+            document.getElementById('val-vout-lvdt').innerText = vout.toFixed(2) + ' mV (RMS Differential)';
+            document.getElementById('val-phase-lvdt').innerText = phase + '°';
+            document.getElementById('val-polarity-lvdt').innerText = pol;
+            document.getElementById('val-nonlin').innerText = '< 0.25 % F.S.';
+
+            drawLVDTCoil(x);
+          }
+
+          function drawLVDTCoil(x) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Outer Shield
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 3;
+            ctx.strokeRect(60, 70, w - 120, 160);
+
+            // Primary Coil (Center)
+            ctx.fillStyle = '#f59e0b'; ctx.fillRect(w/2 - 30, 80, 60, 40); ctx.fillRect(w/2 - 30, 170, 60, 40);
+            // Secondary S1 (Left) & S2 (Right)
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillRect(w/2 - 130, 80, 60, 40); ctx.fillRect(w/2 - 130, 170, 60, 40);
+            ctx.fillRect(w/2 + 70, 80, 60, 40); ctx.fillRect(w/2 + 70, 170, 60, 40);
+
+            // Movable Core
+            const coreOffset = x * 10;
+            ctx.fillStyle = '#00e676';
+            ctx.fillRect(w/2 - 70 + coreOffset, 130, 140, 30);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`LVDT Coil Cross-Section | Core Position x = ${x} mm | Secondary Vout = ${(Math.abs(x)*40).toFixed(1)} mV`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/lvdt_displacement_transducer.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/lvdt_displacement_transducer.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

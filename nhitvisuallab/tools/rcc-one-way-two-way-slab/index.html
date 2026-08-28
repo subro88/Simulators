@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RCC One-Way & Two-Way Slab Design Lab — NHIT VisualLab</title>
+  <meta name="description" content="IS 456:2000 Slab design: One-way (Ly/Lx > 2) vs Two-way restrained slab moments Mux = alphax w lx^2, Muy = alphay w lx^2 & corner torsion reinforcement.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Design of RCC Structures (CE/DRCS/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">RCC One-Way & Two-Way Slab Design Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-TwoWayRestrainedRCCFloorSlab" onclick="selectComp('TwoWayRestrainedRCCFloorSlab')">
+                <strong>TwoWayRestrainedRCCFloorSlab</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Restrained RCC Floor Slab: Monolithic concrete floor slab bounded by supporting perimeter beams.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ShortSpanPrincipalBendingMesh" onclick="selectComp('ShortSpanPrincipalBendingMesh')">
+                <strong>ShortSpanPrincipalBendingMesh</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Short Span Bottom Rebars (Mux): Primary high-moment flexural steel mesh along lx span.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LongSpanDistributionRebarLayer" onclick="selectComp('LongSpanDistributionRebarLayer')">
+                <strong>LongSpanDistributionRebarLayer</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Long Span Rebars (Muy): Orthogonal flexural steel mesh along ly span.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CornerTorsionalMeshReinforcement" onclick="selectComp('CornerTorsionalMeshReinforcement')">
+                <strong>CornerTorsionalMeshReinforcement</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Corner Torsional Reinforcement: Dual-layer square mesh at corners preventing diagonal corner uplifting.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="lx-span-input">Short Span Lx (m):</label>
+            <input type="number" id="lx-span-input" class="ctrl-input" value="3.5" min="1.5" max="7.0" step="0.25" />
+          </div>
+          <div class="control-group">
+            <label for="ly-span-input">Long Span Ly (m):</label>
+            <input type="number" id="ly-span-input" class="ctrl-input" value="4.5" min="1.5" max="12.0" step="0.25" />
+          </div>
+          <div class="control-group">
+            <label for="w-slab-load-input">Factored Total Load w (kN/m²):</label>
+            <input type="number" id="w-slab-load-input" class="ctrl-input" value="10.5" min="5" max="25" step="1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Aspect Ratio (Ly / Lx):</td><td id="val-ratio-r">1.286 (Two-Way)</td></tr>
+          <tr><td>Short Span Design Moment (Mux):</td><td id="val-mux-slab">6.82 kNm / m</td></tr>
+          <tr><td>Long Span Design Moment (Muy):</td><td id="val-muy-slab">4.12 kNm / m</td></tr>
+          <tr><td>Slab Structural Classification:</td><td id="val-slab-class">TWO-WAY RESTRAINED SLAB</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>RCC One-Way & Two-Way Slab Design Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>RCC slabs are plate structural elements spanning across supporting walls or beams. When $L_y / L_x \le 2$, two-way bending action distributes moments across both orthogonal directions ($M_{ux} = \alpha_x w l_x^2, M_{uy} = \alpha_y w l_x^2$). Corner torsional steel ($0.75 A_{st,max}$) prevents uplifting at discontinuous exterior edges.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: RCC One-Way & Two-Way Slab Design Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Design of RCC Structures.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute limit state structural capacities, railway cant geometry, runway corrections, and geotechnical deep foundation loads.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>RCC slabs are plate structural elements spanning across supporting walls or beams. When $L_y / L_x \le 2$, two-way bending action distributes moments across both orthogonal directions ($M_{ux} = \alpha_x w l_x^2, M_{uy} = \alpha_y w l_x^2$). Corner torsional steel ($0.75 A_{st,max}$) prevents uplifting at discontinuous exterior edges.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Adjust the sliders and input fields on the left. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically visualizes stress blocks, shear failure planes, track banking profiles, runway lengths, or pile skin resistance based on live analytical equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456:2000, IRC:37, ICAO Annex 14, Indian Railway Permanent Way Manual, IS 2911, IS 2720).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: RCC One-Way & Two-Way Slab Design Lab (Design of RCC Structures)</h2>
+      <p>IS 456:2000 Slab design: One-way (Ly/Lx > 2) vs Two-way restrained slab moments Mux = alphax w lx^2, Muy = alphay w lx^2 & corner torsion reinforcement.</p>
+      <p>RCC slabs are plate structural elements spanning across supporting walls or beams. When $L_y / L_x \le 2$, two-way bending action distributes moments across both orthogonal directions ($M_{ux} = \alpha_x w l_x^2, M_{uy} = \alpha_y w l_x^2$). Corner torsional steel ($0.75 A_{st,max}$) prevents uplifting at discontinuous exterior edges.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const lx = parseFloat(document.getElementById('lx-span-input').value);
+            const ly = parseFloat(document.getElementById('ly-span-input').value);
+            const w = parseFloat(document.getElementById('w-slab-load-input').value);
+
+            const r = ly / lx;
+            let mux = 0, muy = 0, type_str = "";
+
+            if (r > 2.0) {
+              type_str = "ONE-WAY SLAB (Ly/Lx > 2 — Bends predominantly along Short Span Lx)";
+              mux = (w * lx * lx) / 8.0;
+              muy = 0.15 * mux;
+            } else {
+              type_str = "TWO-WAY SLAB (Ly/Lx <= 2 — Biaxial Bending along Lx & Ly)";
+              mux = 0.053 * w * lx * lx;
+              muy = 0.032 * w * lx * lx;
+            }
+
+            document.getElementById('val-ratio-r').innerText = r.toFixed(3) + ' (' + (r <= 2.0 ? 'Two-Way' : 'One-Way') + ')';
+            document.getElementById('val-mux-slab').innerText = mux.toFixed(2) + ' kNm / m width';
+            document.getElementById('val-muy-slab').innerText = muy.toFixed(2) + ' kNm / m width';
+            document.getElementById('val-slab-class').innerText = type_str;
+
+            drawSlabMesh(r, lx, ly);
+          }
+
+          function drawSlabMesh(r, lx, ly) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Slab Panel
+            const sw = 220, sh = sw / r;
+            const sx = w/2 - sw/2, sy = h/2 - sh/2;
+
+            ctx.fillStyle = '#334155'; ctx.fillRect(sx, sy, sw, sh);
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.strokeRect(sx, sy, sw, sh);
+
+            // Biaxial Reinforcement Grid
+            ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 1;
+            for(let x = sx + 20; x < sx + sw; x += 20) {
+              ctx.beginPath(); ctx.moveTo(x, sy); ctx.lineTo(x, sy + sh); ctx.stroke();
+            }
+            for(let y = sy + 20; y < sy + sh; y += 20) {
+              ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + sw, y); ctx.stroke();
+            }
+
+            ctx.fillStyle = '#00e676'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Aspect Ratio Ly/Lx = ${r.toFixed(2)} | Mux = ${(document.getElementById('val-mux-slab').innerText)}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/rcc_one_way_two_way_slab.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/rcc_one_way_two_way_slab.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

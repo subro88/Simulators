@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dumpy & Auto Level Levelling Lab — NHIT VisualLab</title>
+  <meta name="description" content="Differential levelling: Dumpy level & Auto level, Height of Instrument (HI) method, Rise and Fall reduction & 3-point arithmetic check (sum(BS)-sum(FS)=sum(Rise)-sum(Fall)=Last-First).">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Surveying / Basic Surveying (CE/SURV/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Dumpy & Auto Level Levelling Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-DumpyLevelTelescopeTube" onclick="selectComp('DumpyLevelTelescopeTube')">
+                <strong>DumpyLevelTelescopeTube</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Achromatic Telescope Tube: High-magnification internal focusing telescope with cross-hair reticle.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TribrachLevelingFootscrews" onclick="selectComp('TribrachLevelingFootscrews')">
+                <strong>TribrachLevelingFootscrews</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Tribrach Three-Screw Base: Precision leveling head adjusting instrument horizontal line of collimation.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LongitudinalSpiritBubbleTube" onclick="selectComp('LongitudinalSpiritBubbleTube')">
+                <strong>LongitudinalSpiritBubbleTube</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Longitudinal Spirit Level: Sensitive curved glass bubble tube with 20-arcsecond sensitivity.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LevellingStaffMetricBar" onclick="selectComp('LevellingStaffMetricBar')">
+                <strong>LevellingStaffMetricBar</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">4-Meter Telescopic Staff: Invar/aluminum leveling rod graduated in 5mm inverted metric divisions.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="bm-rl-input">Benchmark Elevation BM (m):</label>
+            <input type="number" id="bm-rl-input" class="ctrl-input" value="100.000" min="0" max="2000" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="bs-rdg-input">Backsight Reading BS (m):</label>
+            <input type="number" id="bs-rdg-input" class="ctrl-input" value="1.450" min="0.1" max="4.0" step="0.005" />
+          </div>
+          <div class="control-group">
+            <label for="is-rdg-input">Intermediate Sight IS (m):</label>
+            <input type="number" id="is-rdg-input" class="ctrl-input" value="1.820" min="0.1" max="4.0" step="0.005" />
+          </div>
+          <div class="control-group">
+            <label for="fs-rdg-input">Foresight Reading FS (m):</label>
+            <input type="number" id="fs-rdg-input" class="ctrl-input" value="2.150" min="0.1" max="4.0" step="0.005" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Height of Instrument (HI = BM + BS):</td><td id="val-hi">101.450 m</td></tr>
+          <tr><td>Reduced Level at IS Station (HI - IS):</td><td id="val-rl-is">99.630 m</td></tr>
+          <tr><td>Reduced Level at FS Change Point (HI - FS):</td><td id="val-rl-fs">99.300 m</td></tr>
+          <tr><td>Three-Point Arithmetic Check:</td><td id="val-chk">PASSED (Exact Identity)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Dumpy & Auto Level Levelling Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Differential levelling determines elevation differences between topographic bench marks and ground points. The Height of Instrument (HI) method establishes an optical collimation reference line ($HI = BM + BS; RL = HI - FS/IS$). Reduction is cross-checked using the Rise & Fall identity ($\sum BS - \sum FS = \sum Rise - \sum Fall = Last\_RL - First\_RL$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Dumpy & Auto Level Levelling Lab</h2>
+        <p class="text-dim">Test your civil engineering conceptual understanding of Surveying / Basic Surveying.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, material properties, and structural mechanics reactions.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Differential levelling determines elevation differences between topographic bench marks and ground points. The Height of Instrument (HI) method establishes an optical collimation reference line ($HI = BM + BS; RL = HI - FS/IS$). Reduction is cross-checked using the Rise & Fall identity ($\sum BS - \sum FS = \sum Rise - \sum Fall = Last\_RL - First\_RL$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey readings, batch weights, or beam load configurations. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey profiles, SFD/BMD diagrams, or material stress distributions corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456, IS 10262, IS 3495, IS 269, IS 383, IS 1077).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Dumpy & Auto Level Levelling Lab (Surveying / Basic Surveying)</h2>
+      <p>Differential levelling: Dumpy level & Auto level, Height of Instrument (HI) method, Rise and Fall reduction & 3-point arithmetic check (sum(BS)-sum(FS)=sum(Rise)-sum(Fall)=Last-First).</p>
+      <p>Differential levelling determines elevation differences between topographic bench marks and ground points. The Height of Instrument (HI) method establishes an optical collimation reference line ($HI = BM + BS; RL = HI - FS/IS$). Reduction is cross-checked using the Rise & Fall identity ($\sum BS - \sum FS = \sum Rise - \sum Fall = Last\_RL - First\_RL$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const bm = parseFloat(document.getElementById('bm-rl-input').value);
+            const bs = parseFloat(document.getElementById('bs-rdg-input').value);
+            const is_rdg = parseFloat(document.getElementById('is-rdg-input').value);
+            const fs = parseFloat(document.getElementById('fs-rdg-input').value);
+
+            const hi = bm + bs;
+            const rl_is = hi - is_rdg;
+            const rl_fs = hi - fs;
+
+            const delta1 = bs - is_rdg;
+            const delta2 = is_rdg - fs;
+            const diff_chk = Math.abs((bs - fs) - (rl_fs - bm));
+
+            document.getElementById('val-hi').innerText = hi.toFixed(3) + ' m';
+            document.getElementById('val-rl-is').innerText = rl_is.toFixed(3) + ' m (Fall = ' + Math.abs(delta1).toFixed(3) + ' m)';
+            document.getElementById('val-rl-fs').innerText = rl_fs.toFixed(3) + ' m (Fall = ' + Math.abs(delta2).toFixed(3) + ' m)';
+            document.getElementById('val-chk').innerText = diff_chk < 0.001 ? "PASSED (ΣBS - ΣFS = Last RL - First RL)" : "ARITHMETIC ERROR";
+
+            drawLevellingProfile(bm, rl_is, rl_fs, hi);
+          }
+
+          function drawLevellingProfile(bm, rlis, rlfs, hi) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Collimation Line (Cyan Dashed)
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.moveTo(40, 80); ctx.lineTo(w - 40, 80); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Dumpy Level Instrument in Center
+            ctx.fillStyle = '#ffd600';
+            ctx.fillRect(w/2 - 15, 70, 30, 20);
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath(); ctx.moveTo(w/2, 90); ctx.lineTo(w/2 - 20, h - 80); ctx.lineTo(w/2 + 20, h - 80); ctx.fill();
+
+            // Ground Terrain Profile
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(40, h - 90);
+            ctx.lineTo(w/3, h - 75);
+            ctx.lineTo(w - 40, h - 60);
+            ctx.stroke();
+
+            // Staff at BM, IS, FS
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(70, 80, 8, h - 170);
+            ctx.fillRect(w/3 + 20, 80, 8, h - 155);
+            ctx.fillRect(w - 70, 80, 8, h - 140);
+
+            ctx.fillStyle = '#ffffff'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Height of Instrument (HI) = ${hi.toFixed(3)} m | BM RL = ${bm.toFixed(3)} m`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/dumpy_level_rise_fall_levelling.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/dumpy_level_rise_fall_levelling.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

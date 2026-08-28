@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brick Compressive Strength & Absorption Lab — NHIT VisualLab</title>
+  <meta name="description" content="Masonry testing: IS 3495 5-brick compressive strength, 24-hr cold water absorption (<20%) & IS 1077 brick class grading (Class 35, 20, 10, 7.5, 3.5).">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Building Material & Construction (CE/BMC/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Brick Compressive Strength & Absorption Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ModularClayBrickSpecimen" onclick="selectComp('ModularClayBrickSpecimen')">
+                <strong>ModularClayBrickSpecimen</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">190x90x90mm Modular Brick: Burnt clay modular brick with 10-20mm deep frog indentation.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MortarFrogIndentation" onclick="selectComp('MortarFrogIndentation')">
+                <strong>MortarFrogIndentation</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">1:3 Cement Mortar Frog Filling: Leveled mortar bed filling frog cavity 24 hours prior to compression test.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CompressionMachinePlatens" onclick="selectComp('CompressionMachinePlatens')">
+                <strong>CompressionMachinePlatens</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">UTM Self-Aligning Platens: 3-ply plywood packing sheets distributing compression load uniformly at 14 N/mm²/min.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DigitalElectronicScale" onclick="selectComp('DigitalElectronicScale')">
+                <strong>DigitalElectronicScale</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Digital Balance Scale: Precision electronic scale measuring dry and 24-hour saturated brick weights.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="crush-p-input">Crushing Load P (kN):</label>
+            <input type="number" id="crush-p-input" class="ctrl-input" value="220.0" min="20" max="600" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="brick-l-input">Brick Length L (mm):</label>
+            <input type="number" id="brick-l-input" class="ctrl-input" value="190.0" min="150" max="250" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="brick-w-input">Brick Width W (mm):</label>
+            <input type="number" id="brick-w-input" class="ctrl-input" value="90.0" min="70" max="130" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="dry-w-input">Dry Weight M1 (kg):</label>
+            <input type="number" id="dry-w-input" class="ctrl-input" value="3.10" min="1.5" max="5.0" step="0.05" />
+          </div>
+          <div class="control-group">
+            <label for="wet-w-input">24-hr Wet Weight M2 (kg):</label>
+            <input type="number" id="wet-w-input" class="ctrl-input" value="3.52" min="1.5" max="6.0" step="0.05" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Brick Compressive Strength (fb = P/A):</td><td id="val-fb-brick">12.87 N/mm²</td></tr>
+          <tr><td>24-hr Water Absorption:</td><td id="val-abs-brick">13.55 % (Compliant &lt; 20%)</td></tr>
+          <tr><td>IS 1077 Quality Classification:</td><td id="val-cls-brick">CLASS 10 (Standard Structural)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Brick Compressive Strength & Absorption Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Structural burnt clay bricks undergo compressive strength testing (IS 3495 Part 1) in Universal Testing Machines by loading mortar-filled specimens until crushing failure ($f_b = \frac{P}{A}$). 24-hour water absorption tests (IS 3495 Part 2) verify that porosity remains under $20\%$ by weight for Class 10 and above.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Brick Compressive Strength & Absorption Lab</h2>
+        <p class="text-dim">Test your civil engineering conceptual understanding of Building Material & Construction.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, material properties, and structural mechanics reactions.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Structural burnt clay bricks undergo compressive strength testing (IS 3495 Part 1) in Universal Testing Machines by loading mortar-filled specimens until crushing failure ($f_b = \frac{P}{A}$). 24-hour water absorption tests (IS 3495 Part 2) verify that porosity remains under $20\%$ by weight for Class 10 and above.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey readings, batch weights, or beam load configurations. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey profiles, SFD/BMD diagrams, or material stress distributions corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456, IS 10262, IS 3495, IS 269, IS 383, IS 1077).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Brick Compressive Strength & Absorption Lab (Building Material & Construction)</h2>
+      <p>Masonry testing: IS 3495 5-brick compressive strength, 24-hr cold water absorption (<20%) & IS 1077 brick class grading (Class 35, 20, 10, 7.5, 3.5).</p>
+      <p>Structural burnt clay bricks undergo compressive strength testing (IS 3495 Part 1) in Universal Testing Machines by loading mortar-filled specimens until crushing failure ($f_b = \frac{P}{A}$). 24-hour water absorption tests (IS 3495 Part 2) verify that porosity remains under $20\%$ by weight for Class 10 and above.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const p = parseFloat(document.getElementById('crush-p-input').value);
+            const l = parseFloat(document.getElementById('brick-l-input').value);
+            const w = parseFloat(document.getElementById('brick-w-input').value);
+            const m1 = parseFloat(document.getElementById('dry-w-input').value);
+            const m2 = parseFloat(document.getElementById('wet-w-input').value);
+
+            const area = l * w;
+            const fb = (p * 1000.0) / area;
+            const abs_pct = ((m2 - m1) / Math.max(0.1, m1)) * 100.0;
+
+            let cls = "CLASS 10 (Standard Structural)";
+            if (fb >= 35) cls = "CLASS 35 (Heavy Engineering)";
+            else if (fb >= 20) cls = "CLASS 20 (First Class)";
+            else if (fb >= 10) cls = "CLASS 10 (Standard Structural)";
+            else if (fb >= 7.5) cls = "CLASS 7.5 (Second Class)";
+            else cls = "CLASS 3.5 (Common Building)";
+
+            document.getElementById('val-fb-brick').innerText = fb.toFixed(2) + ' N/mm² (MPa)';
+            document.getElementById('val-abs-brick').innerText = abs_pct.toFixed(2) + ' % (IS 3495 < 20% Standard)';
+            document.getElementById('val-cls-brick').innerText = cls;
+
+            drawBrickCompression(fb);
+          }
+
+          function drawBrickCompression(fb) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // UTM Top Platen
+            ctx.fillStyle = '#64748b'; ctx.fillRect(w/2 - 120, 60, 240, 20);
+            // Brick Specimen
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(w/2 - 100, 80, 200, 100);
+            // Frog Mortar
+            ctx.fillStyle = '#94a3b8'; ctx.fillRect(w/2 - 60, 80, 120, 15);
+            // UTM Bottom Platen
+            ctx.fillStyle = '#64748b'; ctx.fillRect(w/2 - 120, 180, 240, 20);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Compressive Strength fb = ${fb.toFixed(2)} MPa | Bed Area = 17,100 mm²`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/brick_masonry_compressive_water_absorption.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/brick_masonry_compressive_water_absorption.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

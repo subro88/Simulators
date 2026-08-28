@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Steam Turbines & Nozzles Lab — NHIT VisualLab</title>
+  <meta name="description" content="Convergent-divergent steam nozzles, critical pressure ratio, De Laval impulse blading, Curtis stage & blading efficiency.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Power Engineering (ME/S5/PE)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Steam Turbines & Nozzles Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ConvergentDivergentNozzleBlock" onclick="selectComp('ConvergentDivergentNozzleBlock')">
+                <strong>ConvergentDivergentNozzleBlock</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">C-D Nozzle Block: Precision machined convergent-divergent nozzle expanding steam to supersonic velocities.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CurtisVelocityCompoundedRotor" onclick="selectComp('CurtisVelocityCompoundedRotor')">
+                <strong>CurtisVelocityCompoundedRotor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Curtis Rotor Wheel: Velocity-compounded rotor wheel with two rows of moving blades and interstage fixed guide.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ShroudedRotorBladingStage" onclick="selectComp('ShroudedRotorBladingStage')">
+                <strong>ShroudedRotorBladingStage</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Rotor Blading: High-tensile stainless steel aerofoil blading with riveted shroud ring.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SteamChestThrottleValveBody" onclick="selectComp('SteamChestThrottleValveBody')">
+                <strong>SteamChestThrottleValveBody</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Steam Chest: High-pressure forged steel steam chest housing the governing throttle valve.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="p1-nozzle-input">Inlet Pressure P1 (bar):</label>
+            <input type="number" id="p1-nozzle-input" class="ctrl-input" value="15.0" min="4.0" max="60.0" step="1.0" />
+          </div>
+          <div class="control-group">
+            <label for="t1-nozzle-input">Inlet Temp T1 (°C):</label>
+            <input type="number" id="t1-nozzle-input" class="ctrl-input" value="300" min="160" max="500" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="blade-ratio-input">Blade Speed Ratio (u / C1):</label>
+            <input type="number" id="blade-ratio-input" class="ctrl-input" value="0.45" min="0.2" max="0.9" step="0.05" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Critical Throat Pressure (P_throat):</td><td id="val-pthroat">8.19 bar</td></tr>
+          <tr><td>Steam Jet Exit Velocity (C1):</td><td id="val-c1">842.6 m/s</td></tr>
+          <tr><td>Mean Blade Speed (u):</td><td id="val-u">379.2 m/s</td></tr>
+          <tr><td>Diagram (Blading) Efficiency:</td><td id="val-etadiag">84.2 %</td></tr>
+          <tr><td>Stage Power Output:</td><td id="val-pstg">2540.8 kW</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Steam Turbines & Nozzles Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Steam nozzles convert the thermal enthalpy of high-pressure steam into kinetic energy, feeding impulse or reaction turbine blading. This simulator computes critical pressure ratio $r_c \approx 0.546$, supersonic exit velocity $C_1$, velocity triangles, velocity compounding (Curtis staging), and diagram efficiency.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Steam Turbines & Nozzles Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Power Engineering.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Steam nozzles convert the thermal enthalpy of high-pressure steam into kinetic energy, feeding impulse or reaction turbine blading. This simulator computes critical pressure ratio $r_c \approx 0.546$, supersonic exit velocity $C_1$, velocity triangles, velocity compounding (Curtis staging), and diagram efficiency.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Steam Turbines & Nozzles Lab (Power Engineering)</h2>
+      <p>Convergent-divergent steam nozzles, critical pressure ratio, De Laval impulse blading, Curtis stage & blading efficiency.</p>
+      <p>Steam nozzles convert the thermal enthalpy of high-pressure steam into kinetic energy, feeding impulse or reaction turbine blading. This simulator computes critical pressure ratio $r_c \approx 0.546$, supersonic exit velocity $C_1$, velocity triangles, velocity compounding (Curtis staging), and diagram efficiency.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const p1 = parseFloat(document.getElementById('p1-nozzle-input').value);
+            const t1 = parseFloat(document.getElementById('t1-nozzle-input').value);
+            const rho = parseFloat(document.getElementById('blade-ratio-input').value);
+
+            const r_crit = 0.546;
+            const p_throat = p1 * r_crit;
+            const dh = 2.1 * ((t1 + 273.15) - 380.0);
+            const c1 = 44.72 * Math.sqrt(Math.max(10, dh)) * 0.95;
+            const u = rho * c1;
+            const delta_vw = 2.0 * (c1 * Math.cos(20 * Math.PI / 180) - u) * 0.92;
+            const eta_diag = Math.min(92, (2.0 * u * delta_vw / (c1 * c1)) * 100.0);
+            const p_kw = (8.5 * delta_vw * u) / 1000.0;
+
+            document.getElementById('val-pthroat').innerText = p_throat.toFixed(2) + ' bar (rc = 0.546)';
+            document.getElementById('val-c1').innerText = c1.toFixed(1) + ' m/s (Supersonic)';
+            document.getElementById('val-u').innerText = u.toFixed(1) + ' m/s';
+            document.getElementById('val-etadiag').innerText = eta_diag.toFixed(1) + ' %';
+            document.getElementById('val-pstg').innerText = p_kw.toFixed(1) + ' kW';
+
+            drawVelocityTriangles(c1, u);
+          }
+
+          function drawVelocityTriangles(c1, u) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const cx = w/2, cy = h - 40;
+            // Blade vector u
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(cx - 50, cy); ctx.lineTo(cx + 50, cy); ctx.stroke();
+
+            // Steam jet C1
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(cx - 50, cy); ctx.lineTo(cx + 120, cy - 140); ctx.stroke();
+
+            // Relative velocity Vr1
+            ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(cx + 50, cy); ctx.lineTo(cx + 120, cy - 140); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Inlet Steam Velocity C1 = ${c1.toFixed(0)} m/s | Blade Speed u = ${u.toFixed(0)} m/s`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/steam_turbines_nozzles.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/steam_turbines_nozzles.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

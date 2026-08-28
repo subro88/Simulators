@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prismatic Compass Traverse Survey Lab — NHIT VisualLab</title>
+  <meta name="description" content="Compass surveying: Whole Circle Bearing (WCB), Quadrantal / Reduced Bearing (RB), Magnetic Declination correction & Local Attraction detection in closed traverse.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Surveying / Basic Surveying (CE/SURV/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Prismatic Compass Traverse Survey Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-PrismaticCompassCircularBox" onclick="selectComp('PrismaticCompassCircularBox')">
+                <strong>PrismaticCompassCircularBox</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Brass Compass Box: Heavy-gauge non-magnetic brass casing enclosing circular graduated ring with 30-minute divisions.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MagneticNeedleGraduatedRing" onclick="selectComp('MagneticNeedleGraduatedRing')">
+                <strong>MagneticNeedleGraduatedRing</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Magnetic Needle & Inverted Ring: High-coercivity magnetic needle balanced on a sapphire jewel pivot bearing.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SightingVaneWithHorsehair" onclick="selectComp('SightingVaneWithHorsehair')">
+                <strong>SightingVaneWithHorsehair</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Sighting Vane: Vertical brass slit frame with fine horsehair for precise targeting of ranging rods.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ReflectingPrismEyepiece" onclick="selectComp('ReflectingPrismEyepiece')">
+                <strong>ReflectingPrismEyepiece</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Reflecting Glass Prism: Triangular optical prism allowing simultaneous sight alignment and reading of inverted ring graduations.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="fb-wcb-input">Observed Fore Bearing (WCB °):</label>
+            <input type="number" id="fb-wcb-input" class="ctrl-input" value="45.5" min="0" max="360" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="bb-wcb-input">Observed Back Bearing (WCB °):</label>
+            <input type="number" id="bb-wcb-input" class="ctrl-input" value="225.5" min="0" max="360" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="dec-mag-input">Magnetic Declination (°):</label>
+            <input type="number" id="dec-mag-input" class="ctrl-input" value="2.5" min="0" max="25" step="0.1" />
+          </div>
+          <div class="control-group">
+            <label for="dec-dir-sel">Declination Direction:</label>
+            <select id="dec-dir-sel" class="ctrl-input">
+              <option value="East" selected>East (+) — True North West of Mag North</option>
+              <option value="West">West (-) — True North East of Mag North</option>
+            </select>
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Quadrantal / Reduced Bearing (RB):</td><td id="val-rb">N 45.50° E</td></tr>
+          <tr><td>Calculated True Bearing (TB):</td><td id="val-tb">48.00° (True Meridian)</td></tr>
+          <tr><td>|BB - FB| - 180° Deviation:</td><td id="val-bberr">0.00° Difference</td></tr>
+          <tr><td>Station Local Attraction Status:</td><td id="val-lastatus">FREE FROM LOCAL ATTRACTION</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Prismatic Compass Traverse Survey Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Prismatic compass surveying determines magnetic bearings of survey traverse lines relative to the Earth's magnetic meridian. The whole circle bearing (WCB, $0^\circ - 360^\circ$) is converted to reduced bearing (RB). Discrepancies between forward and back bearings ($|BB - FB| \ne 180^\circ$) indicate local magnetic attractions from buried steel or power lines, corrected via included angle computations.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Prismatic Compass Traverse Survey Lab</h2>
+        <p class="text-dim">Test your civil engineering conceptual understanding of Surveying / Basic Surveying.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, material properties, and structural mechanics reactions.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Prismatic compass surveying determines magnetic bearings of survey traverse lines relative to the Earth's magnetic meridian. The whole circle bearing (WCB, $0^\circ - 360^\circ$) is converted to reduced bearing (RB). Discrepancies between forward and back bearings ($|BB - FB| \ne 180^\circ$) indicate local magnetic attractions from buried steel or power lines, corrected via included angle computations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey readings, batch weights, or beam load configurations. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey profiles, SFD/BMD diagrams, or material stress distributions corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456, IS 10262, IS 3495, IS 269, IS 383, IS 1077).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Prismatic Compass Traverse Survey Lab (Surveying / Basic Surveying)</h2>
+      <p>Compass surveying: Whole Circle Bearing (WCB), Quadrantal / Reduced Bearing (RB), Magnetic Declination correction & Local Attraction detection in closed traverse.</p>
+      <p>Prismatic compass surveying determines magnetic bearings of survey traverse lines relative to the Earth's magnetic meridian. The whole circle bearing (WCB, $0^\circ - 360^\circ$) is converted to reduced bearing (RB). Discrepancies between forward and back bearings ($|BB - FB| \ne 180^\circ$) indicate local magnetic attractions from buried steel or power lines, corrected via included angle computations.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const fb = parseFloat(document.getElementById('fb-wcb-input').value);
+            const bb = parseFloat(document.getElementById('bb-wcb-input').value);
+            const dec = parseFloat(document.getElementById('dec-mag-input').value);
+            const dir = document.getElementById('dec-dir-sel').value;
+
+            let rb_str = "";
+            if (fb <= 90) rb_str = `N ${fb.toFixed(2)}° E`;
+            else if (fb <= 180) rb_str = `S ${(180 - fb).toFixed(2)}° E`;
+            else if (fb <= 270) rb_str = `S ${(fb - 180).toFixed(2)}° W`;
+            else rb_str = `N ${(360 - fb).toFixed(2)}° W`;
+
+            let tb = dir === 'East' ? (fb + dec) : (fb - dec);
+            tb = (tb + 360) % 360;
+
+            const err = Math.abs(Math.abs(bb - fb) - 180);
+            const la_status = err < 0.05 ? "FREE FROM LOCAL ATTRACTION (Diff = 180°)" : `AFFECTED BY LOCAL ATTRACTION (Error = ${err.toFixed(2)}°)`;
+
+            document.getElementById('val-rb').innerText = rb_str;
+            document.getElementById('val-tb').innerText = tb.toFixed(2) + '° (True Meridian)';
+            document.getElementById('val-bberr').innerText = err.toFixed(2) + '° Difference from 180°';
+            document.getElementById('val-lastatus').innerText = la_status;
+
+            drawCompassRose(fb, tb);
+          }
+
+          function drawCompassRose(fb, tb) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const cx = w / 2, cy = h / 2, r = 110;
+
+            // Compass Dial Ring
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI); ctx.stroke();
+
+            // Cardinal Axes
+            ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - r - 15); ctx.lineTo(cx, cy + r + 15);
+            ctx.moveTo(cx - r - 15, cy); ctx.lineTo(cx + r + 15, cy);
+            ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('N (0°)', cx - 15, cy - r - 20);
+            ctx.fillText('S (180°)', cx - 18, cy + r + 25);
+            ctx.fillText('E (90°)', cx + r + 20, cy + 4);
+            ctx.fillText('W (270°)', cx - r - 65, cy + 4);
+
+            // Magnetic Bearing Vector (Yellow)
+            const rad_fb = (fb - 90) * Math.PI / 180.0;
+            ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + r * Math.cos(rad_fb), cy + r * Math.sin(rad_fb));
+            ctx.stroke();
+
+            // True Bearing Vector (Green)
+            const rad_tb = (tb - 90) * Math.PI / 180.0;
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + r * Math.cos(rad_tb), cy + r * Math.sin(rad_tb));
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Prismatic Compass Rose | Mag FB = ${fb.toFixed(1)}° | True Bearing = ${tb.toFixed(1)}°`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/prismatic_compass_traverse_survey.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/prismatic_compass_traverse_survey.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

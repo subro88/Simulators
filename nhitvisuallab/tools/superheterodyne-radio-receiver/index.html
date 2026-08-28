@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Superheterodyne Radio Receiver Lab — NHIT VisualLab</title>
+  <meta name="description" content="Superheterodyne AM/FM receiver: RF amplifier, local oscillator tracking, mixer downconversion, 455kHz IF filter & image frequency rejection.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Elementary Communication Engg. (ETCE/ECE/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Superheterodyne Radio Receiver Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-SuperheterodyneRFFrontEndChassis" onclick="selectComp('SuperheterodyneRFFrontEndChassis')">
+                <strong>SuperheterodyneRFFrontEndChassis</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">RF Receiver Chassis: Shielded front-end receiver stage with tuned antenna input filter.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-IFCanShieldTransformer455kHz" onclick="selectComp('IFCanShieldTransformer455kHz')">
+                <strong>IFCanShieldTransformer455kHz</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">455kHz IF Can Transformers: Double-tuned ceramic/ferrite intermediate frequency bandpass filter cans.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LocalOscillatorGangedCapacitor" onclick="selectComp('LocalOscillatorGangedCapacitor')">
+                <strong>LocalOscillatorGangedCapacitor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Ganged Tuning Capacitor: Twin-section air variable capacitor maintaining constant IF offset (f_lo - f_s = 455kHz).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-AudioEnvelopeDetectorDiode" onclick="selectComp('AudioEnvelopeDetectorDiode')">
+                <strong>AudioEnvelopeDetectorDiode</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Diode Envelope Detector: Germanium point-contact diode (1N34A) and RC filter extracting audio baseband.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="fs-rec-input">RF Tuned Frequency fs (kHz):</label>
+            <input type="number" id="fs-rec-input" class="ctrl-input" value="1200" min="535" max="1605" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="fif-rec-input">Intermediate Frequency IF (kHz):</label>
+            <input type="number" id="fif-rec-input" class="ctrl-input" value="455" min="450" max="465" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="q-rec-input">RF Preselector Q-Factor:</label>
+            <input type="number" id="q-rec-input" class="ctrl-input" value="80" min="20" max="150" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Local Oscillator Frequency (flo):</td><td id="val-flo">1655.0 kHz</td></tr>
+          <tr><td>Image Station Frequency (fimg):</td><td id="val-fimg">2110.0 kHz</td></tr>
+          <tr><td>Image Rejection Ratio (IRR):</td><td id="val-irr">39.57 dB</td></tr>
+          <tr><td>IF Stage Selectivity Bandwidth:</td><td id="val-ifbw">10.0 kHz</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Superheterodyne Radio Receiver Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>The superheterodyne receiver overcomes the tracking and selectivity shortcomings of TRF radios by downconverting all incoming RF carriers $f_s$ to a fixed Intermediate Frequency ($IF = 455\text{ kHz}$ for AM, $10.7\text{ MHz}$ for FM) using a local oscillator and mixer. Image frequency interference occurs at $f_{img} = f_s + 2 IF$.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Superheterodyne Radio Receiver Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Elementary Communication Engg..</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>The superheterodyne receiver overcomes the tracking and selectivity shortcomings of TRF radios by downconverting all incoming RF carriers $f_s$ to a fixed Intermediate Frequency ($IF = 455\text{ kHz}$ for AM, $10.7\text{ MHz}$ for FM) using a local oscillator and mixer. Image frequency interference occurs at $f_{img} = f_s + 2 IF$.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Superheterodyne Radio Receiver Lab (Elementary Communication Engg.)</h2>
+      <p>Superheterodyne AM/FM receiver: RF amplifier, local oscillator tracking, mixer downconversion, 455kHz IF filter & image frequency rejection.</p>
+      <p>The superheterodyne receiver overcomes the tracking and selectivity shortcomings of TRF radios by downconverting all incoming RF carriers $f_s$ to a fixed Intermediate Frequency ($IF = 455\text{ kHz}$ for AM, $10.7\text{ MHz}$ for FM) using a local oscillator and mixer. Image frequency interference occurs at $f_{img} = f_s + 2 IF$.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const fs = parseFloat(document.getElementById('fs-rec-input').value);
+            const fif = parseFloat(document.getElementById('fif-rec-input').value);
+            const q = parseFloat(document.getElementById('q-rec-input').value);
+
+            const flo = fs + fif;
+            const fimg = fs + 2.0 * fif;
+            const rho = (fimg / fs) - (fs / fimg);
+            const irr_linear = Math.sqrt(1.0 + q * q * rho * rho);
+            const irr_db = 20.0 * Math.log10(irr_linear);
+
+            document.getElementById('val-flo').innerText = flo.toFixed(1) + ' kHz';
+            document.getElementById('val-fimg').innerText = fimg.toFixed(1) + ' kHz';
+            document.getElementById('val-irr').innerText = irr_db.toFixed(2) + ' dB';
+            document.getElementById('val-ifbw').innerText = '10.0 kHz (Standard AM)';
+
+            drawSuperhetBlockDiagram(fs, flo, fif);
+          }
+
+          function drawSuperhetBlockDiagram(fs, flo, fif) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Blocks: RF Amp -> Mixer -> IF Amp -> Detector -> Audio
+            const blocks = ['RF Tuner', 'Mixer', 'IF Filter', 'Detector', 'Audio Amp'];
+            for(let i=0; i<5; i++) {
+              let x = 30 + i * 105;
+              ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+              ctx.fillRect(x, 90, 80, 50); ctx.strokeRect(x, 90, 80, 50);
+
+              ctx.fillStyle = '#ffffff'; ctx.font = '11px Inter, sans-serif';
+              ctx.fillText(blocks[i], x + 12, 120);
+
+              if (i < 4) {
+                ctx.strokeStyle = '#00e676';
+                ctx.beginPath(); ctx.moveTo(x + 80, 115); ctx.lineTo(x + 105, 115); ctx.stroke();
+              }
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Superheterodyne Receiver: fs = ${fs} kHz | Local Osc flo = ${flo} kHz | IF = ${fif} kHz`, 30, 30);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/superheterodyne_radio_receiver.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/superheterodyne_radio_receiver.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

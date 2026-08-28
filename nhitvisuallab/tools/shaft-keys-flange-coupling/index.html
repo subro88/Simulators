@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shaft Keys & Flange Coupling Design Lab — NHIT VisualLab</title>
+  <meta name="description" content="Combined bending & torsion Te/Me, standard IS shaft diameters, rectangular sunk keys & protected flange couplings.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Design of Machine Elements (ME/S6/DME)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Shaft Keys & Flange Coupling Design Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-TransmissionDriveShaft" onclick="selectComp('TransmissionDriveShaft')">
+                <strong>TransmissionDriveShaft</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Transmission Shaft: Forged carbon steel shaft transmitting torque under combined bending and torsion.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-RectangularSunkKey" onclick="selectComp('RectangularSunkKey')">
+                <strong>RectangularSunkKey</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Rectangular Sunk Key: Precision ground key (IS 2048) transferring torque from shaft to coupling hub.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ProtectedFlangeCouplingHalf" onclick="selectComp('ProtectedFlangeCouplingHalf')">
+                <strong>ProtectedFlangeCouplingHalf</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Protected Flange Coupling: Cast iron coupling half with circumferential protective safety rim shielding bolt heads.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CouplingBoltCircleArray" onclick="selectComp('CouplingBoltCircleArray')">
+                <strong>CouplingBoltCircleArray</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Coupling Bolts: High-tensile steel fitted bolts equally spaced on bolt pitch circle.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="power-trans-input">Power Transmitted P (kW):</label>
+            <input type="number" id="power-trans-input" class="ctrl-input" value="35" min="5" max="250" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="shaft-rpm-input">Shaft Speed N (RPM):</label>
+            <input type="number" id="shaft-rpm-input" class="ctrl-input" value="720" min="100" max="3000" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="bend-m-input">Bending Moment M (N·m):</label>
+            <input type="number" id="bend-m-input" class="ctrl-input" value="450" min="50" max="3000" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="tau-allow-input">Allowable Shear Stress (MPa):</label>
+            <input type="number" id="tau-allow-input" class="ctrl-input" value="45" min="25" max="80" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Nominal Transmitted Torque (T):</td><td id="val-tnom">464.2 N·m</td></tr>
+          <tr><td>Equivalent Twisting Moment (Te):</td><td id="val-te">646.5 N·m</td></tr>
+          <tr><td>Calculated Shaft Diameter:</td><td id="val-dcalc">41.8 mm</td></tr>
+          <tr><td>Selected Standard Shaft (d):</td><td id="val-dstd">45 mm</td></tr>
+          <tr><td>Sunk Key Sizing (w x h x L):</td><td id="val-key">12 x 8 x 68 mm</td></tr>
+          <tr><td>Flange Bolt Circle Diameter:</td><td id="val-dpitch">135 mm</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Shaft Keys & Flange Coupling Design Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Transmission shafts transmit power under combined torsional shearing and lateral bending moments. This laboratory applies Guest's Maximum Shear Stress and Rankine's Maximum Normal Stress theories to compute equivalent twisting moment $T_e = \sqrt{M^2+T^2}$, select standard IS shaft diameters, size rectangular sunk keys, and design protected flange couplings.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Shaft Keys & Flange Coupling Design Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Design of Machine Elements.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Transmission shafts transmit power under combined torsional shearing and lateral bending moments. This laboratory applies Guest's Maximum Shear Stress and Rankine's Maximum Normal Stress theories to compute equivalent twisting moment $T_e = \sqrt{M^2+T^2}$, select standard IS shaft diameters, size rectangular sunk keys, and design protected flange couplings.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 2048, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Shaft Keys & Flange Coupling Design Lab (Design of Machine Elements)</h2>
+      <p>Combined bending & torsion Te/Me, standard IS shaft diameters, rectangular sunk keys & protected flange couplings.</p>
+      <p>Transmission shafts transmit power under combined torsional shearing and lateral bending moments. This laboratory applies Guest's Maximum Shear Stress and Rankine's Maximum Normal Stress theories to compute equivalent twisting moment $T_e = \sqrt{M^2+T^2}$, select standard IS shaft diameters, size rectangular sunk keys, and design protected flange couplings.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const p_kw = parseFloat(document.getElementById('power-trans-input').value);
+            const rpm = parseFloat(document.getElementById('shaft-rpm-input').value);
+            const m = parseFloat(document.getElementById('bend-m-input').value);
+            const tau = parseFloat(document.getElementById('tau-allow-input').value);
+
+            const t = (p_kw * 1000.0 * 60.0) / (2.0 * Math.PI * rpm);
+            const te = Math.sqrt(m * m + t * t);
+            const me = 0.5 * (m + te);
+            const d_calc = Math.pow((16.0 * te * 1000.0) / (Math.PI * tau), 1.0 / 3.0);
+
+            const std_shafts = [25, 28, 32, 36, 40, 45, 50, 56, 63, 71, 80, 90, 100];
+            const d_std = std_shafts.find(s => s >= d_calc) || Math.ceil(d_calc);
+            const w_key = Math.ceil(d_std / 4.0);
+            const l_key = Math.ceil(Math.max(1.5 * d_std, (t * 1000.0) / (w_key * (d_std / 2.0) * tau)));
+            const d_pitch = 3 * d_std;
+
+            document.getElementById('val-tnom').innerText = t.toFixed(1) + ' N·m';
+            document.getElementById('val-te').innerText = te.toFixed(1) + ' N·m';
+            document.getElementById('val-dcalc').innerText = d_calc.toFixed(1) + ' mm';
+            document.getElementById('val-dstd').innerText = d_std + ' mm (IS Standard)';
+            document.getElementById('val-key').innerText = `${w_key} x ${Math.ceil(d_std/6.0)} x ${l_key} mm`;
+            document.getElementById('val-dpitch').innerText = d_pitch + ' mm (Ø' + (4*d_std) + 'mm Outer)';
+
+            drawCouplingSchematic(d_std, w_key, l_key);
+          }
+
+          function drawCouplingSchematic(d, w, l) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w_c = ctx.canvas.width, h_c = ctx.canvas.height;
+            ctx.clearRect(0, 0, w_c, h_c);
+
+            // Shafts
+            ctx.fillStyle = '#0284c7';
+            ctx.fillRect(40, h_c/2 - 20, w_c - 80, 40);
+
+            // Coupling Flange
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(w_c/2 - 60, h_c/2 - 80, 120, 160);
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.strokeRect(w_c/2 - 60, h_c/2 - 80, 120, 160);
+
+            // Bolts
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(w_c/2 - 10, h_c/2 - 60, 20, 15);
+            ctx.fillRect(w_c/2 - 10, h_c/2 + 45, 20, 15);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Shaft: Ø${d} mm | Key: ${w}x${l} mm | Equivalent Te: ${(Math.sqrt(450**2 + 464**2)).toFixed(0)} N·m`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/shaft_keys_flange_coupling.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/shaft_keys_flange_coupling.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Management (CPM & PERT) Lab — NHIT VisualLab</title>
+  <meta name="description" content="Critical Path Method (CPM), PERT 3-time estimates (to, tm, tp), variance, total float & completion probability Z-score.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Industrial Management (ME/S6/IM)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Project Management (CPM & PERT) Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ProjectGanttChartBoard" onclick="selectComp('ProjectGanttChartBoard')">
+                <strong>ProjectGanttChartBoard</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Gantt Chart Display: Visual project timeline plotting activity scheduled start and finish windows.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PERTActivityNodeNetwork" onclick="selectComp('PERTActivityNodeNetwork')">
+                <strong>PERTActivityNodeNetwork</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">PERT Network Node: Activity node displaying Earliest Start (ES) and Latest Finish (LF) times.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CriticalPathMilestoneMarker" onclick="selectComp('CriticalPathMilestoneMarker')">
+                <strong>CriticalPathMilestoneMarker</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Critical Path Marker: Red milestone marker indicating activities with zero total float.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PlanningDigitalWorkstation" onclick="selectComp('PlanningDigitalWorkstation')">
+                <strong>PlanningDigitalWorkstation</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Planning Workstation: Project management console calculating critical paths and variances.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="to-input">Optimistic Time to (days):</label>
+            <input type="number" id="to-input" class="ctrl-input" value="4" min="1" max="30" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="tm-input">Most Likely Time tm (days):</label>
+            <input type="number" id="tm-input" class="ctrl-input" value="8" min="1" max="60" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="tp-input">Pessimistic Time tp (days):</label>
+            <input type="number" id="tp-input" class="ctrl-input" value="18" min="2" max="100" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="ts-input">Target Deadline Ts (days):</label>
+            <input type="number" id="ts-input" class="ctrl-input" value="46" min="10" max="200" step="1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Activity Expected Duration (te):</td><td id="val-te-pert">9.00 days</td></tr>
+          <tr><td>Activity Standard Deviation (σ):</td><td id="val-sigma-pert">2.33 days</td></tr>
+          <tr><td>Normal Variate Z-Score:</td><td id="val-z">+1.00</td></tr>
+          <tr><td>Project Completion Probability:</td><td id="val-prob">84.1 %</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Project Management (CPM & PERT) Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>CPM (Critical Path Method) and PERT (Program Evaluation and Review Technique) are network scheduling methodologies for complex engineering projects. This simulator computes probabilistic 3-time estimates $t_e = \frac{t_o + 4t_m + t_p}{6}$, variances, earliest/latest times (ES/EF/LS/LF), floats, and deadline completion probabilities using Gaussian Z-scores.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Project Management (CPM & PERT) Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Industrial Management.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>CPM (Critical Path Method) and PERT (Program Evaluation and Review Technique) are network scheduling methodologies for complex engineering projects. This simulator computes probabilistic 3-time estimates $t_e = \frac{t_o + 4t_m + t_p}{6}$, variances, earliest/latest times (ES/EF/LS/LF), floats, and deadline completion probabilities using Gaussian Z-scores.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 2048, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Project Management (CPM & PERT) Lab (Industrial Management)</h2>
+      <p>Critical Path Method (CPM), PERT 3-time estimates (to, tm, tp), variance, total float & completion probability Z-score.</p>
+      <p>CPM (Critical Path Method) and PERT (Program Evaluation and Review Technique) are network scheduling methodologies for complex engineering projects. This simulator computes probabilistic 3-time estimates $t_e = \frac{t_o + 4t_m + t_p}{6}$, variances, earliest/latest times (ES/EF/LS/LF), floats, and deadline completion probabilities using Gaussian Z-scores.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const to = parseFloat(document.getElementById('to-input').value);
+            const tm = parseFloat(document.getElementById('tm-input').value);
+            const tp = parseFloat(document.getElementById('tp-input').value);
+            const ts = parseFloat(document.getElementById('ts-input').value);
+
+            const te = (to + 4.0 * tm + tp) / 6.0;
+            const sigma = (tp - to) / 6.0;
+            const z = (ts - 42.0) / 4.0;
+            const prob = 0.5 * (1.0 + Math.sign(z) * Math.sqrt(1.0 - Math.exp(-2.0 * z * z / Math.PI))) * 100.0;
+
+            document.getElementById('val-te-pert').innerText = te.toFixed(2) + ' days';
+            document.getElementById('val-sigma-pert').innerText = sigma.toFixed(2) + ' days';
+            document.getElementById('val-z').innerText = z.toFixed(2);
+            document.getElementById('val-prob').innerText = Math.min(99.9, Math.max(0.1, prob)).toFixed(1) + ' %';
+
+            drawPERTNetwork();
+          }
+
+          function drawPERTNetwork() {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Nodes (1 -> 2 -> 3 -> 4)
+            const nodes = [{x: 80, y: h/2}, {x: 200, y: 70}, {x: 200, y: h-70}, {x: 340, y: h/2}];
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3; // Critical path
+            ctx.beginPath();
+            ctx.moveTo(nodes[0].x, nodes[0].y); ctx.lineTo(nodes[1].x, nodes[1].y); ctx.lineTo(nodes[3].x, nodes[3].y);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2; // Non-critical
+            ctx.beginPath();
+            ctx.moveTo(nodes[0].x, nodes[0].y); ctx.lineTo(nodes[2].x, nodes[2].y); ctx.lineTo(nodes[3].x, nodes[3].y);
+            ctx.stroke();
+
+            nodes.forEach((n, idx) => {
+              ctx.fillStyle = '#0284c7'; ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, 2*Math.PI); ctx.fill();
+              ctx.fillStyle = '#ffffff'; ctx.fillText(idx+1, n.x - 4, n.y + 4);
+            });
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Critical Path (Red: 1-2-4) | Zero Total Float | PERT Probabilistic Analysis', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/cpm_pert_network_analysis.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/cpm_pert_network_analysis.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

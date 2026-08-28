@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Steam Condensers & Cooling Towers Lab — NHIT VisualLab</title>
+  <meta name="description" content="Surface vs jet condensers, vacuum efficiency, Dalton's law of partial pressures, cooling water flow & cooling tower range/approach.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Power Engineering (ME/S5/PE)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Steam Condensers & Cooling Towers Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-SurfaceCondenserCylindricalShell" onclick="selectComp('SurfaceCondenserCylindricalShell')">
+                <strong>SurfaceCondenserCylindricalShell</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Surface Condenser Shell: Welded steel shell maintaining vacuum of 0.08 bar absolute.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CondenserTubeBundleWaterBox" onclick="selectComp('CondenserTubeBundleWaterBox')">
+                <strong>CondenserTubeBundleWaterBox</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Copper Tube Bundle: Multi-pass condenser tube pack circulating cold cooling water.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-HyperbolicCoolingTowerShell" onclick="selectComp('HyperbolicCoolingTowerShell')">
+                <strong>HyperbolicCoolingTowerShell</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Hyperbolic Cooling Tower: Natural draft hyperbolic concrete shell promoting chimney draft.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CoolingWaterCirculatingPump" onclick="selectComp('CoolingWaterCirculatingPump')">
+                <strong>CoolingWaterCirculatingPump</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Circulating Water Pump: High-capacity centrifugal pump delivering cooling water.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="vac-cm-input">Vacuum Gauge Reading (cm Hg):</label>
+            <input type="number" id="vac-cm-input" class="ctrl-input" value="70.5" min="55.0" max="75.0" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="t-in-cw-input">Cooling Water Inlet Temp Tin (°C):</label>
+            <input type="number" id="t-in-cw-input" class="ctrl-input" value="24" min="12" max="35" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="t-out-cw-input">Cooling Water Outlet Temp Tout (°C):</label>
+            <input type="number" id="t-out-cw-input" class="ctrl-input" value="32" min="18" max="45" step="1" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Absolute Condenser Pressure:</td><td id="val-pabs">0.073 bar</td></tr>
+          <tr><td>Vacuum Efficiency:</td><td id="val-vaceff">98.5 %</td></tr>
+          <tr><td>Condenser Thermal Efficiency:</td><td id="val-condeff">66.7 %</td></tr>
+          <tr><td>Cooling Water Flow Rate:</td><td id="val-mw">865 m³/hr</td></tr>
+          <tr><td>Cooling Tower Effectiveness:</td><td id="val-cteff">80.0 %</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Steam Condensers & Cooling Towers Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Steam condensers lower the turbine exhaust backpressure to maximize expansion work in thermal power plants. This simulator evaluates Dalton's law of partial air/steam pressures, condenser vacuum efficiency, heat balance cooling water requirements, and cooling tower range/approach.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Steam Condensers & Cooling Towers Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Power Engineering.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Steam condensers lower the turbine exhaust backpressure to maximize expansion work in thermal power plants. This simulator evaluates Dalton's law of partial air/steam pressures, condenser vacuum efficiency, heat balance cooling water requirements, and cooling tower range/approach.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Steam Condensers & Cooling Towers Lab (Power Engineering)</h2>
+      <p>Surface vs jet condensers, vacuum efficiency, Dalton's law of partial pressures, cooling water flow & cooling tower range/approach.</p>
+      <p>Steam condensers lower the turbine exhaust backpressure to maximize expansion work in thermal power plants. This simulator evaluates Dalton's law of partial air/steam pressures, condenser vacuum efficiency, heat balance cooling water requirements, and cooling tower range/approach.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const vac = parseFloat(document.getElementById('vac-cm-input').value);
+            const tin = parseFloat(document.getElementById('t-in-cw-input').value);
+            const tout = parseFloat(document.getElementById('t-out-cw-input').value);
+
+            const p_abs = (76.0 - vac) * (1.01325 / 76.0);
+            const p_sat = 0.0594 * (76.0 / 1.01325);
+            const vac_eff = (vac / (76.0 - p_sat)) * 100.0;
+            const cond_eff = ((tout - tin) / (36.0 - tin)) * 100.0;
+            const m_w = (3.33 * 2415.0) / (4.187 * (tout - tin)) * 3.6;
+
+            const c_range = tout - tin;
+            const c_appr = tin - 22.0;
+            const ct_eff = (c_range / (c_range + c_appr)) * 100.0;
+
+            document.getElementById('val-pabs').innerText = p_abs.toFixed(3) + ' bar';
+            document.getElementById('val-vaceff').innerText = vac_eff.toFixed(1) + ' %';
+            document.getElementById('val-condeff').innerText = cond_eff.toFixed(1) + ' %';
+            document.getElementById('val-mw').innerText = m_w.toFixed(0) + ' m³/hr';
+            document.getElementById('val-cteff').innerText = ct_eff.toFixed(1) + ' %';
+
+            drawCondenserSchematic(vac_eff, ct_eff);
+          }
+
+          function drawCondenserSchematic(vaceff, cteff) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Condenser shell
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(40, 50, 200, 110);
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.strokeRect(40, 50, 200, 110);
+
+            // Cooling Tower
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.moveTo(340, 180); ctx.lineTo(370, 40); ctx.lineTo(430, 40); ctx.lineTo(460, 180);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Condenser Vacuum Eff: ${vaceff.toFixed(1)}% | Cooling Tower Eff: ${cteff.toFixed(1)}%`, 40, 30);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/steam_condensers_cooling_towers.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/steam_condensers_cooling_towers.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

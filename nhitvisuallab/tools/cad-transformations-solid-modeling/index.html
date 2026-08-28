@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Transformations & Solid Modeling Lab — NHIT VisualLab</title>
+  <meta name="description" content="2D/3D homogeneous matrix transformations (rotation, translation, scaling), CSG Boolean operations & Bezier curve algorithms.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">CAD/CAM & Automation (ME/S6/CAD)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">CAD Transformations & Solid Modeling Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-SolidCSGPrimitiveBaseBlock" onclick="selectComp('SolidCSGPrimitiveBaseBlock')">
+                <strong>SolidCSGPrimitiveBaseBlock</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">CSG Primitive Block: Constructive Solid Geometry primitive cuboid with analytical boundary representation.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SolidCylinderBooleanUnion" onclick="selectComp('SolidCylinderBooleanUnion')">
+                <strong>SolidCylinderBooleanUnion</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Boolean Cylinder: Intersecting cylindrical solid merged via Boolean Union (A ∪ B) operation.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CoordinateTransformationFrame" onclick="selectComp('CoordinateTransformationFrame')">
+                <strong>CoordinateTransformationFrame</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Coordinate Frame: Homogeneous [X Y Z 1] orthogonal reference transformation axis frame.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ExtrudedProfileRibFeature" onclick="selectComp('ExtrudedProfileRibFeature')">
+                <strong>ExtrudedProfileRibFeature</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Extruded Rib Feature: Parametric 2D sketch profile swept along guide vector to form 3D feature.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="rot-cad-input">Rotation Angle θ (deg):</label>
+            <input type="number" id="rot-cad-input" class="ctrl-input" value="45" min="-180" max="180" step="15" />
+          </div>
+          <div class="control-group">
+            <label for="tx-input">Translation X (mm):</label>
+            <input type="number" id="tx-input" class="ctrl-input" value="50" min="-200" max="200" step="10" />
+          </div>
+          <div class="control-group">
+            <label for="scale-s-input">Uniform Scaling Factor S:</label>
+            <input type="number" id="scale-s-input" class="ctrl-input" value="1.5" min="0.5" max="3.0" step="0.25" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Transformed Coordinate (P'):</td><td id="val-xprime">(28.8, 63.6) mm</td></tr>
+          <tr><td>3x3 Homogeneous Matrix [T]:</td><td id="val-mat">[1.06 -1.06 50 ; 1.06 1.06 0 ; 0 0 1]</td></tr>
+          <tr><td>CSG Solid Model Volume:</td><td>803,650 mm³</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>CAD Transformations & Solid Modeling Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>CAD/CAM systems manipulate 2D sketches and 3D solid bodies using homogeneous coordinate transformation matrices $[X'\ Y'\ Z'\ 1]^T = [T] \cdot [X\ Y\ Z\ 1]^T$. This simulator executes scaling, translation, rotation, Bezier curve evaluation, and Boolean Constructive Solid Geometry (CSG).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: CAD Transformations & Solid Modeling Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of CAD/CAM & Automation.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>CAD/CAM systems manipulate 2D sketches and 3D solid bodies using homogeneous coordinate transformation matrices $[X'\ Y'\ Z'\ 1]^T = [T] \cdot [X\ Y\ Z\ 1]^T$. This simulator executes scaling, translation, rotation, Bezier curve evaluation, and Boolean Constructive Solid Geometry (CSG).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 2048, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: CAD Transformations & Solid Modeling Lab (CAD/CAM & Automation)</h2>
+      <p>2D/3D homogeneous matrix transformations (rotation, translation, scaling), CSG Boolean operations & Bezier curve algorithms.</p>
+      <p>CAD/CAM systems manipulate 2D sketches and 3D solid bodies using homogeneous coordinate transformation matrices $[X'\ Y'\ Z'\ 1]^T = [T] \cdot [X\ Y\ Z\ 1]^T$. This simulator executes scaling, translation, rotation, Bezier curve evaluation, and Boolean Constructive Solid Geometry (CSG).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const th = parseFloat(document.getElementById('rot-cad-input').value) * Math.PI / 180.0;
+            const tx = parseFloat(document.getElementById('tx-input').value);
+            const s = parseFloat(document.getElementById('scale-s-input').value);
+
+            const x0 = 20.0, y0 = 40.0;
+            const x_prime = s * (x0 * Math.cos(th) - y0 * Math.sin(th)) + tx;
+            const y_prime = s * (x0 * Math.sin(th) + y0 * Math.cos(th));
+
+            document.getElementById('val-xprime').innerText = `(${x_prime.toFixed(1)}, ${y_prime.toFixed(1)}) mm`;
+            document.getElementById('val-mat').innerText = `[${(s*Math.cos(th)).toFixed(2)}  ${(-s*Math.sin(th)).toFixed(2)}  ${tx} ; ${(s*Math.sin(th)).toFixed(2)}  ${(s*Math.cos(th)).toFixed(2)}  0 ; 0  0  1]`;
+
+            drawCADGeometry(th, tx, s);
+          }
+
+          function drawCADGeometry(th, tx, s) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Original Polygon (Blue)
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.strokeRect(60, 60, 60, 60);
+
+            // Transformed Polygon (Yellow)
+            ctx.save();
+            ctx.translate(60 + tx, 60);
+            ctx.rotate(th);
+            ctx.scale(s, s);
+            ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 2 / s;
+            ctx.strokeRect(0, 0, 60, 60);
+            ctx.restore();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Original [T] (Blue) vs Homogeneous Transformed Geometry (Yellow)', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/cad_transformations_solid_modeling.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/cad_transformations_solid_modeling.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

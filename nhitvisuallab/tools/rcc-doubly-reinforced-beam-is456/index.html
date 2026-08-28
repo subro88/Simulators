@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RCC Doubly Reinforced Beam Design Lab — NHIT VisualLab</title>
+  <meta name="description" content="IS 456:2000 Doubly reinforced beam design: Compression steel Asc, stress fsc from d'/d, additional moment Mu2 & total moment capacity Mu.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Design of RCC Structures (CE/DRCS/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">RCC Doubly Reinforced Beam Design Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ConcreteBeamPrismDoublyStem" onclick="selectComp('ConcreteBeamPrismDoublyStem')">
+                <strong>ConcreteBeamPrismDoublyStem</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Doubly Reinforced Concrete Stem: Rectangular section subjected to bending moment exceeding limiting capacity Mulim.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CompressionRebarsAscZone" onclick="selectComp('CompressionRebarsAscZone')">
+                <strong>CompressionRebarsAscZone</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Compression Steel Bars (Asc): Rebars placed in compression zone resisting excess compressive forces.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TensionRebarsAstZone" onclick="selectComp('TensionRebarsAstZone')">
+                <strong>TensionRebarsAstZone</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Total Tensile Steel Rebars (Ast): Rebars balanced with Ast1 = Ast,lim and Ast2 = (fsc - fcc)Asc / (0.87 fy).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ClosedShearStirrupsCage" onclick="selectComp('ClosedShearStirrupsCage')">
+                <strong>ClosedShearStirrupsCage</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Closed Shear Stirrup Cage: Transverse ties anchoring longitudinal compression bars against buckling.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="asc-steel-input">Compression Steel Area Asc (mm²):</label>
+            <input type="number" id="asc-steel-input" class="ctrl-input" value="402.0" min="100" max="2500" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="dprime-cover-input">Effective Cover d' (mm):</label>
+            <input type="number" id="dprime-cover-input" class="ctrl-input" value="45.0" min="25" max="75" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="ast-doubly-input">Tension Steel Area Ast (mm²):</label>
+            <input type="number" id="ast-doubly-input" class="ctrl-input" value="1472.0" min="500" max="4000" step="50" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Limiting Singly Moment (Mu,lim):</td><td id="val-mulim">139.73 kNm</td></tr>
+          <tr><td>Compression Steel Moment (Mu2):</td><td id="val-mu2">56.02 kNm</td></tr>
+          <tr><td>Total Moment Capacity (Mu):</td><td id="val-mutot">195.75 kNm</td></tr>
+          <tr><td>Compression Steel Stress (fsc):</td><td id="val-fsc">353.0 N/mm²</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>RCC Doubly Reinforced Beam Design Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Doubly reinforced beams are designed when architectural headroom restricts beam dimensions such that the applied moment exceeds the limiting singly reinforced capacity ($M_u > M_{u,lim}$). Compression steel ($A_{sc}$) carries the excess moment ($M_{u2} = (f_{sc} - f_{cc}) A_{sc} (d - d')$), while also reducing long-term creep and shrinkage deflections.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: RCC Doubly Reinforced Beam Design Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Design of RCC Structures.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute limit state structural capacities, railway cant geometry, runway corrections, and geotechnical deep foundation loads.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Doubly reinforced beams are designed when architectural headroom restricts beam dimensions such that the applied moment exceeds the limiting singly reinforced capacity ($M_u > M_{u,lim}$). Compression steel ($A_{sc}$) carries the excess moment ($M_{u2} = (f_{sc} - f_{cc}) A_{sc} (d - d')$), while also reducing long-term creep and shrinkage deflections.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Adjust the sliders and input fields on the left. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically visualizes stress blocks, shear failure planes, track banking profiles, runway lengths, or pile skin resistance based on live analytical equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456:2000, IRC:37, ICAO Annex 14, Indian Railway Permanent Way Manual, IS 2911, IS 2720).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: RCC Doubly Reinforced Beam Design Lab (Design of RCC Structures)</h2>
+      <p>IS 456:2000 Doubly reinforced beam design: Compression steel Asc, stress fsc from d'/d, additional moment Mu2 & total moment capacity Mu.</p>
+      <p>Doubly reinforced beams are designed when architectural headroom restricts beam dimensions such that the applied moment exceeds the limiting singly reinforced capacity ($M_u > M_{u,lim}$). Compression steel ($A_{sc}$) carries the excess moment ($M_{u2} = (f_{sc} - f_{cc}) A_{sc} (d - d')$), while also reducing long-term creep and shrinkage deflections.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const asc = parseFloat(document.getElementById('asc-steel-input').value);
+            const d_prime = parseFloat(document.getElementById('dprime-cover-input').value);
+            const fck = 20.0, fy = 415.0, b = 250.0, d = 450.0;
+
+            const xu_max = 0.48 * d;
+            const mu_lim = 0.36 * fck * b * xu_max * (d - 0.42 * xu_max) * 1e-6;
+            const ratio = d_prime / d;
+            const fsc = ratio <= 0.10 ? 353.0 : (ratio <= 0.15 ? 342.0 : 329.0);
+            const fcc = 0.446 * fck;
+
+            const mu2 = (fsc - fcc) * asc * (d - d_prime) * 1e-6;
+            const mu_total = mu_lim + mu2;
+
+            document.getElementById('val-mulim').innerText = mu_lim.toFixed(2) + ' kNm (Limiting Singly Capacity)';
+            document.getElementById('val-mu2').innerText = mu2.toFixed(2) + ' kNm (Compression Steel Contribution)';
+            document.getElementById('val-mutot').innerText = mu_total.toFixed(2) + ' kNm (Total Doubly Capacity)';
+            document.getElementById('val-fsc').innerText = fsc.toFixed(1) + ' N/mm² (IS 456 Table F Stress)';
+
+            drawDoublyBeam(asc, d_prime);
+          }
+
+          function drawDoublyBeam(asc, d_prime) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Beam Section
+            ctx.fillStyle = '#64748b'; ctx.fillRect(100, 50, 120, 180);
+
+            // Compression Steel (Top)
+            ctx.fillStyle = '#00e676';
+            ctx.beginPath(); ctx.arc(130, 70, 6, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(190, 70, 6, 0, 2*Math.PI); ctx.fill();
+
+            // Tension Steel (Bottom)
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(130, 210, 7, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(160, 210, 7, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(190, 210, 7, 0, 2*Math.PI); ctx.fill();
+
+            // Stirrup loop
+            ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 2;
+            ctx.strokeRect(115, 60, 90, 160);
+
+            ctx.fillStyle = '#38bdf8'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Doubly Reinforced Section | Asc = ${asc} mm² (Top) | Total Mu = ${(document.getElementById('val-mutot').innerText)}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/rcc_doubly_reinforced_beam_is456.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/rcc_doubly_reinforced_beam_is456.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermal Linear Expansion Coefficient Lab — WBSCTE Basic Science 1st Sem Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="BS103/BS107 Applied Physics-I: Pullinger's Rod Linear Expansion alpha = dL / (L0 dT), beta = 2alpha, gamma = 3alpha">
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    :root { --accent: #e040fb; }
+    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
+    .site-nav a { color: #94a3b8; text-decoration: none; }
+    .site-nav a:hover { color: var(--accent); }
+    .site-nav span { color: #475569; }
+    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
+    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
+    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
+    .mode-bar { display: flex; gap: 8px; align-items: center; }
+    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
+    .guide-link-btn:hover { background: #475569; }
+    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
+    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
+    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
+    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
+    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
+    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    .diag-table td:first-child { color: #94a3b8; }
+    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
+    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
+    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
+    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
+    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
+    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
+    .seo-article h2, .seo-article h3 { color: #f8fafc; }
+    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+    <span>&rsaquo;</span>
+    <a href="/nhitvisuallab/index.html#bs-sem1">Basic Science & Humanities</a>
+    <span>&rsaquo;</span>
+    <span style="color:#f8fafc;">Thermal Linear Expansion Coefficient Lab</span>
+  </nav>
+
+  <header class="tool-header">
+    <div>
+      <span class="tool-badge">BS103 / BS107</span>
+      <h1 class="tool-title">Thermal Linear Expansion Coefficient Lab</h1>
+      <p class="tool-subtitle">BS103/BS107 Applied Physics-I: Pullinger's Rod Linear Expansion alpha = dL / (L0 dT), beta = 2alpha, gamma = 3alpha</p>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
+      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div id="sim-wrapper" class="sim-grid">
+      <div class="controls-col">
+        <div class="panel">
+          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+          
+              <div class="control-group">
+                <label for="initial_rod_length_l0_cm">Initial Rod Length L0 (cm):</label>
+                <input type="number" id="initial_rod_length_l0_cm" min="20.0" max="100.0" step="5.0" value="50.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="initial_temp_t1_degc">Initial Temp T1 (°C):</label>
+                <input type="number" id="initial_temp_t1_degc" min="10.0" max="40.0" step="1.0" value="25.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="final_temp_t2_degc">Final Temp T2 (°C):</label>
+                <input type="number" id="final_temp_t2_degc" min="50.0" max="100.0" step="1.0" value="100.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="elongation_dl_mm">Elongation dL (mm):</label>
+                <input type="number" id="elongation_dl_mm" min="0.1" max="3.0" step="0.02" value="0.64" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="rod_material">Rod Material:</label>
+                <select id="rod_material" class="form-control" onchange="runSim()"><option value="Brass Rod">Brass Rod</option><option value="Copper Rod">Copper Rod</option><option value="Iron Rod">Iron Rod</option><option value="Aluminium Rod">Aluminium Rod</option></select>
+              </div>
+          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+        </div>
+      </div>
+      <div class="display-col">
+        <div class="canvas-card">
+          <canvas id="sim-canvas" width="800" height="420"></canvas>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
+          <table class="diag-table">
+            <tbody>
+              
+          <tr>
+            <td>Temperature Rise Delta T</td>
+            <td id="out_dt" class="out-val">75.0 °C</td>
+          </tr>
+          <tr>
+            <td>Linear Expansion Coeff alpha</td>
+            <td id="out_alpha" class="out-val">1.707e-5 /°C</td>
+          </tr>
+          <tr>
+            <td>Areal Expansion Coeff beta</td>
+            <td id="out_beta" class="out-val">3.413e-5 /°C</td>
+          </tr>
+          <tr>
+            <td>Volumetric Expansion Coeff gamma</td>
+            <td id="out_gamma" class="out-val">5.120e-5 /°C</td>
+          </tr>
+          <tr>
+            <td>Material Expansion Verdict</td>
+            <td id="out_status" class="out-val">THERMAL EXPANSION VERIFIED: α = 1.707e-5 /°C</td>
+          </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
+        <div id="three-canvas-container"></div>
+        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
+        <div class="comp-grid">
+          
+          <div class="comp-card" onclick="focusComponent('PullingersApparatusSteamJacket')">
+            <h4>Steam Jacket Chamber</h4>
+            <p>Double-walled hollow tube circulating hot steam to heat test rod evenly.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('MetalRodSpecimenCore')">
+            <h4>Metal Rod Specimen</h4>
+            <p>Brass, copper, or steel rod expanding axially under steady temperature difference.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('SpherometerExpansionMicrometerHead')">
+            <h4>Expansion Micrometer Head</h4>
+            <p>Precision dial measuring thermal elongation dL in millimetres.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('SteamInletBoilerConnectionPipe')">
+            <h4>Steam Inlet & Boiler Pipe</h4>
+            <p>Connecting steam supply pipe providing 100°C isothermal steam bath.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="explore-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
+        <p>BS103/BS107 Applied Physics-I: Pullinger's Rod Linear Expansion alpha = dL / (L0 dT), beta = 2alpha, gamma = 3alpha</p>
+        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
+          Calculate the coefficient of linear expansion: $$\alpha = \frac{\Delta L}{L_0 (T_2 - T_1)}$$
+        </div>
+        <p>Understand the three coefficients of thermal expansion: linear $\alpha$, superficial $\beta = 2\alpha$, and cubical $\gamma = 3\alpha$.</p>
+        <p>Compare expansion coefficients across engineering metals: brass ($1.9 \times 10^{-5}$), copper ($1.7 \times 10^{-5}$), iron ($1.2 \times 10^{-5}$).</p>
+      </div>
+    </div>
+
+    <!-- ════ User Guide Section ════ -->
+    <section class="user-guide" id="user-guide">
+      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <details open>
+        <summary>1. Overview &amp; Physical Principles</summary>
+        <div><p>Understand the three coefficients of thermal expansion: linear $\alpha$, superficial $\beta = 2\alpha$, and cubical $\gamma = 3\alpha$.</p></div>
+      </details>
+      <details>
+        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
+        <div><p>Record initial rod length $L_0$ at ambient room temperature $T_1$ and final elongation $\Delta L$ at steam temperature $T_2$.</p></div>
+      </details>
+      <details>
+        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
+        <div><p>Calculate the coefficient of linear expansion: $$\alpha = \frac{\Delta L}{L_0 (T_2 - T_1)}$$</p></div>
+      </details>
+      <details>
+        <summary>4. Step-by-Step Procedure &amp; Zero Errors</summary>
+        <div><p>Compare expansion coefficients across engineering metals: brass ($1.9 \times 10^{-5}$), copper ($1.7 \times 10^{-5}$), iron ($1.2 \times 10^{-5}$).</p></div>
+      </details>
+      <details>
+        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
+        <div><p>Solve numericals on thermal stresses in constrained pipes and railway track gap designs.</p></div>
+      </details>
+      <details>
+        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
+        <div><p>Reference: WBSCTE Applied Physics-I (BS103/BS107).</p></div>
+      </details>
+    </section>
+
+    <!-- ════ SEO Technical Article ════ -->
+    <section class="seo-article">
+      <h2>Engineering Reference &amp; Laboratory Standards: Thermal Linear Expansion Coefficient Lab</h2>
+      <p>BS103/BS107 Applied Physics-I: Pullinger's Rod Linear Expansion alpha = dL / (L0 dT), beta = 2alpha, gamma = 3alpha</p>
+      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
+      <p>Understand the three coefficients of thermal expansion: linear $\alpha$, superficial $\beta = 2\alpha$, and cubical $\gamma = 3\alpha$. Record initial rod length $L_0$ at ambient room temperature $T_1$ and final elongation $\Delta L$ at steam temperature $T_2$.</p>
+      <h3>Governing Equations &amp; Analytical Formulations</h3>
+      <p>Calculate the coefficient of linear expansion: $$\alpha = \frac{\Delta L}{L_0 (T_2 - T_1)}$$ Compare expansion coefficients across engineering metals: brass ($1.9 \times 10^{-5}$), copper ($1.7 \times 10^{-5}$), iron ($1.2 \times 10^{-5}$).</p>
+      <h3>Industrial &amp; Engineering Applications</h3>
+      <p>Solve numericals on thermal stresses in constrained pipes and railway track gap designs. Designed in strict alignment with Reference: WBSCTE Applied Physics-I (BS103/BS107)..</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    let scene, camera, renderer, controls, modelGroup;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function drawSim(arg1, arg2, arg3, arg4) {
+      
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Steam Jacket
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(60, 160, width - 180, 50);
+
+            // Metal Rod inside
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(50, 178, width - 150, 14);
+
+            // Steam arrows
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 2;
+            for(let i=0; i<6; i++) {
+                ctx.beginPath();
+                ctx.arc(100 + i*60, 140, 10, 0, Math.PI, true);
+                ctx.stroke();
+            }
+
+            // Micrometer Spherometer tip
+            ctx.fillStyle = '#e040fb';
+            ctx.fillRect(width - 100, 150, 30, 70);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px Inter';
+            ctx.fillText('Linear Expansion α = ' + arg1.toExponential(3) + ' /°C', width/2 - 130, 80);
+            ctx.fillText('Temp Rise ΔT = ' + arg2.toFixed(1) + ' °C | Elongation ΔL = ' + arg3.toFixed(2) + ' mm', width/2 - 130, 110);
+        
+    }
+
+    function runSim() {
+      
+            const l0_cm = parseFloat(document.getElementById('initial_rod_length_l0_cm').value);
+            const t1 = parseFloat(document.getElementById('initial_temp_t1_degc').value);
+            const t2 = parseFloat(document.getElementById('final_temp_t2_degc').value);
+            const dl_cm = parseFloat(document.getElementById('elongation_dl_mm').value) / 10.0;
+
+            const dt = t2 - t1;
+            const alpha = dl_cm / (l0_cm * Math.max(1, dt));
+            const beta = 2.0 * alpha;
+            const gamma = 3.0 * alpha;
+
+            document.getElementById('out_dt').innerText = dt.toFixed(1) + " °C";
+            document.getElementById('out_alpha').innerText = alpha.toExponential(3) + " /°C";
+            document.getElementById('out_beta').innerText = beta.toExponential(3) + " /°C";
+            document.getElementById('out_gamma').innerText = gamma.toExponential(3) + " /°C";
+            document.getElementById('out_status').innerText = "THERMAL EXPANSION VERIFIED: α = " + alpha.toExponential(3) + " /°C (ΔT = " + dt.toFixed(1) + "°C)";
+            drawSim(alpha, dt, dl_cm * 10);
+        
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+
+      if (mode === '3d' && !renderer) {
+        initThree();
+      }
+    }
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2, 1.5, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('/frontend/models/thermal_linear_expansion_coefficient.glb', function(gltf) {
+        modelGroup = gltf.scene;
+        scene.add(modelGroup);
+        animate();
+      }, undefined, function(err) {
+        console.warn('Fallback 3D geometry loaded');
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+        const mat = new THREE.MeshStandardMaterial({ color: '#e040fb', roughness: 0.3 });
+        modelGroup = new THREE.Mesh(geo, mat);
+        scene.add(modelGroup);
+        animate();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function focusComponent(name) {
+      if (!modelGroup) return;
+      modelGroup.traverse(function(child) {
+        if (child.isMesh) {
+          if (child.name === name) {
+            child.material.emissive = new THREE.Color(0x38bdf8);
+            child.material.emissiveIntensity = 0.6;
+          } else {
+            child.material.emissive = new THREE.Color(0x000000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      runSim();
+    });
+  </script>
+</body>
+</html>

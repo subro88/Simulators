@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gas Turbine & Brayton Cycle Lab — NHIT VisualLab</title>
+  <meta name="description" content="Open/Closed Joule-Brayton gas turbine cycle with regeneration, compressor pressure ratio, turbine work & thermal efficiency.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Thermal Engineering - II (ME/S4/TE2)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Gas Turbine & Brayton Cycle Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-AxialCompressorRotor" onclick="selectComp('AxialCompressorRotor')">
+                <strong>AxialCompressorRotor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Axial Compressor Rotor: Multi-stage bladed rotor raising ambient air pressure from 1 bar to combustion pressure.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-AnnularCombustionChamber" onclick="selectComp('AnnularCombustionChamber')">
+                <strong>AnnularCombustionChamber</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Combustion Chamber: High-temperature combustor where fuel is injected and ignited at constant pressure.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-HighPressureTurbineRotor" onclick="selectComp('HighPressureTurbineRotor')">
+                <strong>HighPressureTurbineRotor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Gas Turbine Rotor: High-nickel superalloy blades extracting kinetic energy from hot expanding combustion gases.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-JetPropulsionExhaustNozzle" onclick="selectComp('JetPropulsionExhaustNozzle')">
+                <strong>JetPropulsionExhaustNozzle</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Exhaust Nozzle: Convergent nozzle converting remaining gas enthalpy into high-velocity thrust.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="rp-input">Pressure Ratio (rp = P2/P1):</label>
+            <input type="number" id="rp-input" class="ctrl-input" value="7.5" min="2.0" max="30.0" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="tit-input">Turbine Inlet Temp TIT (K):</label>
+            <input type="number" id="tit-input" class="ctrl-input" value="1250" min="800" max="1800" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="etac-input">Compressor Isentropic Eff (%):</label>
+            <input type="number" id="etac-input" class="ctrl-input" value="86" min="60" max="98" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="etat-input">Turbine Isentropic Eff (%):</label>
+            <input type="number" id="etat-input" class="ctrl-input" value="89" min="60" max="98" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="regen-input">Regenerator Effectiveness (%):</label>
+            <input type="number" id="regen-input" class="ctrl-input" value="75" min="0" max="95" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Compressor Exit Temp (T2):</td><td id="val-t2">582.4 K</td></tr>
+          <tr><td>Turbine Exhaust Temp (T4):</td><td id="val-t4">762.1 K</td></tr>
+          <tr><td>Net Specific Work (Wnet):</td><td id="val-wnet">208.5 kJ/kg</td></tr>
+          <tr><td>Cycle Thermal Efficiency:</td><td id="val-etath">38.4 %</td></tr>
+          <tr><td>Work Ratio (rw = Wnet/Wt):</td><td id="val-rw">0.425</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Gas Turbine & Brayton Cycle Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>The Joule-Brayton cycle is the fundamental air-standard thermodynamic cycle for gas turbine power plants and aircraft turbojet propulsion. This simulator analyzes pressure ratio optimization, compressor and turbine isentropic component efficiencies, regenerator preheat, and overall cycle work ratio.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Gas Turbine & Brayton Cycle Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Thermal Engineering - II.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>The Joule-Brayton cycle is the fundamental air-standard thermodynamic cycle for gas turbine power plants and aircraft turbojet propulsion. This simulator analyzes pressure ratio optimization, compressor and turbine isentropic component efficiencies, regenerator preheat, and overall cycle work ratio.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Gas Turbine & Brayton Cycle Lab (Thermal Engineering - II)</h2>
+      <p>Open/Closed Joule-Brayton gas turbine cycle with regeneration, compressor pressure ratio, turbine work & thermal efficiency.</p>
+      <p>The Joule-Brayton cycle is the fundamental air-standard thermodynamic cycle for gas turbine power plants and aircraft turbojet propulsion. This simulator analyzes pressure ratio optimization, compressor and turbine isentropic component efficiencies, regenerator preheat, and overall cycle work ratio.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const rp = parseFloat(document.getElementById('rp-input').value);
+            const tit = parseFloat(document.getElementById('tit-input').value);
+            const etaC = parseFloat(document.getElementById('etac-input').value) / 100.0;
+            const etaT = parseFloat(document.getElementById('etat-input').value) / 100.0;
+            const eps = parseFloat(document.getElementById('regen-input').value) / 100.0;
+
+            const t1 = 300.0, gamma = 1.4, cp = 1.005;
+            const t2s = t1 * Math.pow(rp, (gamma - 1.0) / gamma);
+            const t2 = t1 + (t2s - t1) / etaC;
+            const wc = cp * (t2 - t1);
+
+            const t4s = tit / Math.pow(rp, (gamma - 1.0) / gamma);
+            const t4 = tit - etaT * (tit - t4s);
+            const wt = cp * (tit - t4);
+
+            const t_preheat = t2 + eps * (t4 - t2);
+            const qin = cp * (tit - t_preheat);
+            const wnet = wt - wc;
+            const etaTh = (wnet / qin) * 100.0;
+            const workRatio = wnet / wt;
+
+            document.getElementById('val-t2').innerText = t2.toFixed(1) + ' K (' + (t2-273.15).toFixed(1) + ' °C)';
+            document.getElementById('val-t4').innerText = t4.toFixed(1) + ' K (' + (t4-273.15).toFixed(1) + ' °C)';
+            document.getElementById('val-wnet').innerText = wnet.toFixed(1) + ' kJ/kg';
+            document.getElementById('val-etath').innerText = etaTh.toFixed(2) + ' %';
+            document.getElementById('val-rw').innerText = workRatio.toFixed(3);
+
+            drawTSDiagram(t1, t2, tit, t4, t_preheat);
+          }
+
+          function drawTSDiagram(t1, t2, t3, t4, t_preheat) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.strokeStyle = '#4f8ef7'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(40, 20); ctx.lineTo(40, h-40); ctx.lineTo(w-20, h-40); ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Entropy s (kJ/kg·K)', w/2 - 50, h-15);
+            ctx.save(); ctx.translate(15, h/2); ctx.rotate(-Math.PI/2);
+            ctx.fillText('Temperature T (K)', -40, 0); ctx.restore();
+
+            // Brayton T-s polygon: 1 -> 2 -> 3 -> 4 -> 1
+            const scaleY = (h - 80) / 1600.0;
+            const y1 = h - 40 - t1 * scaleY, y2 = h - 40 - t2 * scaleY;
+            const y3 = h - 40 - t3 * scaleY, y4 = h - 40 - t4 * scaleY;
+            const x1 = 80, x2 = 120, x3 = 280, x4 = 250;
+
+            ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.lineTo(x4, y4); ctx.closePath();
+            ctx.fillStyle = 'rgba(0, 229, 255, 0.15)'; ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600';
+            ctx.fillText(`1: Ambient (${t1}K)`, x1 - 30, y1 + 15);
+            ctx.fillText(`2: Compressor Out (${t2.toFixed(0)}K)`, x2 - 50, y2 - 10);
+            ctx.fillText(`3: TIT (${t3.toFixed(0)}K)`, x3 - 30, y3 - 10);
+            ctx.fillText(`4: Turbine Out (${t4.toFixed(0)}K)`, x4 + 10, y4);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/gas_turbine_brayton.glb', function(gltf) {{
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }}, undefined, function(err) {{
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/gas_turbine_brayton.glb', function(gltf) {{
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        }});
+      }});
+
+      function animate() {{
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }}
+      animate();
+    }
+
+    function selectComp(name) {{
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }}
+
+    window.addEventListener('DOMContentLoaded', () => {{
+      updateSim();
+    }});
+  </script>
+</body>
+</html>

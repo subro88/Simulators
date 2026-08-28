@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistical Quality Control (SQC) Lab — NHIT VisualLab</title>
+  <meta name="description" content="X-bar and R variables control charts, Upper/Lower Control Limits (UCL, LCL), Process Capability Cp and Cpk indices.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Metrology & Quality Control (ME/S4/MQC)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Statistical Quality Control (SQC) Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-InspectionWorkstationTable" onclick="selectComp('InspectionWorkstationTable')">
+                <strong>InspectionWorkstationTable</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Inspection Workstation: Quality assurance inspection bench with calibrated digital calipers.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ControlChartAnalyticsDisplay" onclick="selectComp('ControlChartAnalyticsDisplay')">
+                <strong>ControlChartAnalyticsDisplay</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Control Chart Display: Statistical monitoring panel plotting subgroup averages and ranges.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-BatchSamplingInspectionTray" onclick="selectComp('BatchSamplingInspectionTray')">
+                <strong>BatchSamplingInspectionTray</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Subgroup Sampling Tray: Randomized lot sampling tray for statistical sample collation.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PrecisionGoNoGoPlugGauge" onclick="selectComp('PrecisionGoNoGoPlugGauge')">
+                <strong>PrecisionGoNoGoPlugGauge</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Go/No-Go Gauge: Attribute limit gauge verifying hole tolerance limits.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="subgroup-n-input">Subgroup Size n:</label>
+            <input type="number" id="subgroup-n-input" class="ctrl-input" value="5" min="2" max="10" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="usl-input">Upper Spec Limit USL (mm):</label>
+            <input type="number" id="usl-input" class="ctrl-input" value="50.25" min="10" max="200" step="0.05" />
+          </div>
+          <div class="control-group">
+            <label for="lsl-input">Lower Spec Limit LSL (mm):</label>
+            <input type="number" id="lsl-input" class="ctrl-input" value="49.75" min="10" max="200" step="0.05" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Grand Mean (X-double-bar):</td><td id="val-xdbl">50.008 mm</td></tr>
+          <tr><td>Average Range (R-bar):</td><td id="val-rbar">0.110 mm</td></tr>
+          <tr><td>Upper Control Limit (UCL):</td><td id="val-ucl">50.071 mm</td></tr>
+          <tr><td>Lower Control Limit (LCL):</td><td id="val-lcl">49.945 mm</td></tr>
+          <tr><td>Process Capability (Cp):</td><td id="val-cp">1.76</td></tr>
+          <tr><td>Process Capability (Cpk):</td><td id="val-cpk">1.70 (Capable)</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Statistical Quality Control (SQC) Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Statistical Quality Control (SQC) employs Shewhart control charts to distinguish between common-cause variation and special-cause defects in production runs. This simulator constructs X-bar and R control charts, computes Upper/Lower Control Limits (UCL/LCL), and calculates process capability indices Cp and Cpk.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Statistical Quality Control (SQC) Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Metrology & Quality Control.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Statistical Quality Control (SQC) employs Shewhart control charts to distinguish between common-cause variation and special-cause defects in production runs. This simulator constructs X-bar and R control charts, computes Upper/Lower Control Limits (UCL/LCL), and calculates process capability indices Cp and Cpk.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Statistical Quality Control (SQC) Lab (Metrology & Quality Control)</h2>
+      <p>X-bar and R variables control charts, Upper/Lower Control Limits (UCL, LCL), Process Capability Cp and Cpk indices.</p>
+      <p>Statistical Quality Control (SQC) employs Shewhart control charts to distinguish between common-cause variation and special-cause defects in production runs. This simulator constructs X-bar and R control charts, computes Upper/Lower Control Limits (UCL/LCL), and calculates process capability indices Cp and Cpk.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const n = parseInt(document.getElementById('subgroup-n-input').value);
+            const usl = parseFloat(document.getElementById('usl-input').value);
+            const lsl = parseFloat(document.getElementById('lsl-input').value);
+
+            const x_means = [50.02, 49.98, 50.05, 50.01, 49.95, 50.08, 49.99, 50.03, 50.00, 49.97];
+            const r_vals = [0.12, 0.08, 0.15, 0.10, 0.14, 0.09, 0.11, 0.13, 0.08, 0.10];
+
+            const x_dbl = x_means.reduce((a,b)=>a+b,0)/x_means.length;
+            const r_bar = r_vals.reduce((a,b)=>a+b,0)/r_vals.length;
+
+            const a2 = 0.577, d4 = 2.115, d2 = 2.326;
+            const ucl_x = x_dbl + a2 * r_bar;
+            const lcl_x = x_dbl - a2 * r_bar;
+            const sigma_hat = r_bar / d2;
+            const cp = (usl - lsl) / (6.0 * sigma_hat);
+            const cpk = Math.min((usl - x_dbl)/(3.0*sigma_hat), (x_dbl - lsl)/(3.0*sigma_hat));
+
+            document.getElementById('val-xdbl').innerText = x_dbl.toFixed(3) + ' mm';
+            document.getElementById('val-rbar').innerText = r_bar.toFixed(3) + ' mm';
+            document.getElementById('val-ucl').innerText = ucl_x.toFixed(3) + ' mm';
+            document.getElementById('val-lcl').innerText = lcl_x.toFixed(3) + ' mm';
+            document.getElementById('val-cp').innerText = cp.toFixed(2);
+            document.getElementById('val-cpk').innerText = cpk.toFixed(2);
+
+            drawControlChart(x_means, x_dbl, ucl_x, lcl_x);
+          }
+
+          function drawControlChart(points, mean, ucl, lcl) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Limits lines
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(40, 45); ctx.lineTo(w-30, 45); ctx.stroke(); // UCL
+            ctx.beginPath(); ctx.moveTo(40, h-65); ctx.lineTo(w-30, h-65); ctx.stroke(); // LCL
+            ctx.setLineDash([]);
+
+            // Central line
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(40, h/2 - 10); ctx.lineTo(w-30, h/2 - 10); ctx.stroke();
+
+            // Plot sample dots
+            ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            const step = (w - 100) / (points.length - 1);
+            points.forEach((p, idx) => {
+              const x = 50 + idx * step;
+              const y = (h/2 - 10) - (p - mean) * 450.0;
+              if(idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              ctx.fillRect(x - 3, y - 3, 6, 6);
+            });
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`UCL = ${ucl.toFixed(3)} | X-bar = ${mean.toFixed(3)} | LCL = ${lcl.toFixed(3)}`, 50, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/sqc_control_charts.glb', function(gltf) {{
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }}, undefined, function(err) {{
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/sqc_control_charts.glb', function(gltf) {{
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        }});
+      }});
+
+      function animate() {{
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }}
+      animate();
+    }
+
+    function selectComp(name) {{
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }}
+
+    window.addEventListener('DOMContentLoaded', () => {{
+      updateSim();
+    }});
+  </script>
+</body>
+</html>

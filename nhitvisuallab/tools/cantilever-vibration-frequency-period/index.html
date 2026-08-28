@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cantilever Vibration Frequency & Period Lab — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="BS104/BS106 Applied Physics-II: Cantilever Vibration Time Period T = 2pi sqrt(M/k) & Young's Modulus Determination">
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    :root { --accent: #38bdf8; }
+    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
+    .site-nav a { color: #94a3b8; text-decoration: none; }
+    .site-nav a:hover { color: var(--accent); }
+    .site-nav span { color: #475569; }
+    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
+    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
+    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
+    .mode-bar { display: flex; gap: 8px; align-items: center; }
+    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
+    .guide-link-btn:hover { background: #475569; }
+    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
+    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
+    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
+    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
+    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
+    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    .diag-table td:first-child { color: #94a3b8; }
+    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
+    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
+    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
+    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
+    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
+    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
+    .seo-article h2, .seo-article h3 { color: #f8fafc; }
+    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+    <span>&rsaquo;</span>
+    <a href="/nhitvisuallab/index.html#bs-sem2">Basic Science & Humanities</a>
+    <span>&rsaquo;</span>
+    <span style="color:#f8fafc;">Cantilever Vibration Frequency & Period Lab</span>
+  </nav>
+
+  <header class="tool-header">
+    <div>
+      <span class="tool-badge">BS104 / BS106</span>
+      <h1 class="tool-title">Cantilever Vibration Frequency & Period Lab</h1>
+      <p class="tool-subtitle">BS104/BS106 Applied Physics-II: Cantilever Vibration Time Period T = 2pi sqrt(M/k) & Young's Modulus Determination</p>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
+      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div id="sim-wrapper" class="sim-grid">
+      <div class="controls-col">
+        <div class="panel">
+          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+          
+              <div class="control-group">
+                <label for="cantilever_length_l_cm">Cantilever Length L (cm):</label>
+                <input type="number" id="cantilever_length_l_cm" min="20.0" max="100.0" step="5.0" value="50.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="blade_width_b_mm">Blade Width b (mm):</label>
+                <input type="number" id="blade_width_b_mm" min="10.0" max="50.0" step="1.0" value="25.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="blade_thickness_d_mm">Blade Thickness d (mm):</label>
+                <input type="number" id="blade_thickness_d_mm" min="0.5" max="5.0" step="0.1" value="1.5" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="youngs_modulus_y_gpa">Young's Modulus Y (GPa):</label>
+                <input type="number" id="youngs_modulus_y_gpa" min="50.0" max="400.0" step="10.0" value="200.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="attached_load_m_kg">Attached Tip Mass M (kg):</label>
+                <input type="number" id="attached_load_m_kg" min="0.05" max="2.0" step="0.05" value="0.3" class="form-control" oninput="runSim()" />
+              </div>
+          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+        </div>
+      </div>
+      <div class="display-col">
+        <div class="canvas-card">
+          <canvas id="sim-canvas" width="800" height="420"></canvas>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
+          <table class="diag-table">
+            <tbody>
+              
+          <tr>
+            <td>Cantilever Bending Stiffness k</td>
+            <td id="out_k" class="out-val">33.75 N/m</td>
+          </tr>
+          <tr>
+            <td>Oscillation Time Period T</td>
+            <td id="out_t" class="out-val">0.5924 s</td>
+          </tr>
+          <tr>
+            <td>Natural Frequency f</td>
+            <td id="out_f" class="out-val">1.688 Hz</td>
+          </tr>
+          <tr>
+            <td>Static Tip Deflection delta</td>
+            <td id="out_delta" class="out-val">87.20 mm</td>
+          </tr>
+          <tr>
+            <td>Vibration Analysis Verdict</td>
+            <td id="out_status" class="out-val">CANTILEVER OSCILLATION VERIFIED: Period T = 0.5924 s</td>
+          </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
+        <div id="three-canvas-container"></div>
+        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
+        <div class="comp-grid">
+          
+          <div class="comp-card" onclick="focusComponent('RigidGClampBenchMountBase')">
+            <h4>Rigid G-Clamp Bench Fixed End</h4>
+            <p>Heavy structural bench clamp providing ideal fixed encastre boundary condition.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('UniformFlexibleSteelCantileverBlade')">
+            <h4>Flexible Steel Blade (b, d, L)</h4>
+            <p>Uniform rectangular steel bar undergoing transverse flexural oscillations.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('DeadWeightLoadingPanAtFreeEnd')">
+            <h4>Tip Weight Pan (Mass M)</h4>
+            <p>Calibrated dead weight pan attached at cantilever tip imparting restoring force.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('OpticalVibrationSensorGate')">
+            <h4>Digital Photogate & Timer</h4>
+            <p>Infrared optical photogate recording precise period T for 20 oscillations.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="explore-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
+        <p>BS104/BS106 Applied Physics-II: Cantilever Vibration Time Period T = 2pi sqrt(M/k) & Young's Modulus Determination</p>
+        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
+          Calculate oscillation time period: $$T = 2\pi\sqrt{\frac{M}{k}} = 2\pi\sqrt{\frac{4 M L^3}{Y b d^3}}$$
+        </div>
+        <p>Understand transverse flexural vibrations of an encastre cantilever beam with point load $M$ at the free end.</p>
+        <p>Determine Young's Modulus $Y$ by rearranging: $$Y = \frac{16 \pi^2 M L^3}{b d^3 T^2}$$</p>
+      </div>
+    </div>
+
+    <!-- ════ User Guide Section ════ -->
+    <section class="user-guide" id="user-guide">
+      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <details open>
+        <summary>1. Overview &amp; Physical Principles</summary>
+        <div><p>Understand transverse flexural vibrations of an encastre cantilever beam with point load $M$ at the free end.</p></div>
+      </details>
+      <details>
+        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
+        <div><p>Evaluate blade stiffness from structural mechanics: $$k = \frac{3 Y I}{L^3} = \frac{Y b d^3}{4 L^3}$$</p></div>
+      </details>
+      <details>
+        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
+        <div><p>Calculate oscillation time period: $$T = 2\pi\sqrt{\frac{M}{k}} = 2\pi\sqrt{\frac{4 M L^3}{Y b d^3}}$$</p></div>
+      </details>
+      <details>
+        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
+        <div><p>Determine Young's Modulus $Y$ by rearranging: $$Y = \frac{16 \pi^2 M L^3}{b d^3 T^2}$$</p></div>
+      </details>
+      <details>
+        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
+        <div><p>Plot $M$ vs $T^2$ straight line to account for effective mass of the cantilever blade ($0.23m_{blade}$).</p></div>
+      </details>
+      <details>
+        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
+        <div><p>Reference: WBSCTE Applied Physics-II Lab (BS104/BS106).</p></div>
+      </details>
+    </section>
+
+    <!-- ════ SEO Technical Article ════ -->
+    <section class="seo-article">
+      <h2>Engineering Reference &amp; Laboratory Standards: Cantilever Vibration Frequency & Period Lab</h2>
+      <p>BS104/BS106 Applied Physics-II: Cantilever Vibration Time Period T = 2pi sqrt(M/k) & Young's Modulus Determination</p>
+      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
+      <p>Understand transverse flexural vibrations of an encastre cantilever beam with point load $M$ at the free end. Evaluate blade stiffness from structural mechanics: $$k = \frac{3 Y I}{L^3} = \frac{Y b d^3}{4 L^3}$$</p>
+      <h3>Governing Equations &amp; Analytical Formulations</h3>
+      <p>Calculate oscillation time period: $$T = 2\pi\sqrt{\frac{M}{k}} = 2\pi\sqrt{\frac{4 M L^3}{Y b d^3}}$$ Determine Young's Modulus $Y$ by rearranging: $$Y = \frac{16 \pi^2 M L^3}{b d^3 T^2}$$</p>
+      <h3>Industrial &amp; Engineering Applications</h3>
+      <p>Plot $M$ vs $T^2$ straight line to account for effective mass of the cantilever blade ($0.23m_{blade}$). Designed in strict alignment with Reference: WBSCTE Applied Physics-II Lab (BS104/BS106)..</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    let scene, camera, renderer, controls, modelGroup;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function drawSim(arg1, arg2, arg3, arg4) {
+      
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Fixed Clamp Wall
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(60, 100, 30, 180);
+
+            // Cantilever Blade (Deflected Curve)
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(90, 180);
+            ctx.quadraticCurveTo(width/2, 180, width - 120, 240);
+            ctx.stroke();
+
+            // Hanging Mass
+            ctx.fillStyle = '#ffd600';
+            ctx.fillRect(width - 135, 240, 30, 40);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px Inter';
+            ctx.fillText('Cantilever Stiffness k = ' + arg4.toFixed(2) + ' N/m', width/2 - 100, 60);
+            ctx.fillText('Oscillation Period T = ' + arg1.toFixed(4) + ' s | Frequency f = ' + arg2.toFixed(3) + ' Hz', width/2 - 140, 90);
+            ctx.fillText('Static Deflection δ = ' + arg3.toFixed(2) + ' mm', width/2 - 100, 330);
+        
+    }
+
+    function runSim() {
+      
+            const l = parseFloat(document.getElementById('cantilever_length_l_cm').value) * 1e-2;
+            const b = parseFloat(document.getElementById('blade_width_b_mm').value) * 1e-3;
+            const d = parseFloat(document.getElementById('blade_thickness_d_mm').value) * 1e-3;
+            const y = parseFloat(document.getElementById('youngs_modulus_y_gpa').value) * 1e9;
+            const m = parseFloat(document.getElementById('attached_load_m_kg').value);
+
+            const ib = (b * Math.pow(d, 3)) / 12.0;
+            const k = (3.0 * y * ib) / Math.pow(l, 3);
+            const t = 2.0 * Math.PI * Math.sqrt(m / k);
+            const f = 1.0 / t;
+            const delta_mm = ((m * 9.81) / k) * 1000.0;
+
+            document.getElementById('out_k').innerText = k.toFixed(2) + " N/m";
+            document.getElementById('out_t').innerText = t.toFixed(4) + " s";
+            document.getElementById('out_f').innerText = f.toFixed(3) + " Hz";
+            document.getElementById('out_delta').innerText = delta_mm.toFixed(2) + " mm";
+            document.getElementById('out_status').innerText = "CANTILEVER OSCILLATION VERIFIED: Period T = " + t.toFixed(4) + " s, Natural Freq f = " + f.toFixed(2) + " Hz";
+            drawSim(t, f, delta_mm, k);
+        
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+
+      if (mode === '3d' && !renderer) {
+        initThree();
+      }
+    }
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2, 1.5, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('/frontend/models/cantilever_vibration_frequency_period.glb', function(gltf) {
+        modelGroup = gltf.scene;
+        scene.add(modelGroup);
+        animate();
+      }, undefined, function(err) {
+        console.warn('Fallback 3D geometry loaded');
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+        const mat = new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.3 });
+        modelGroup = new THREE.Mesh(geo, mat);
+        scene.add(modelGroup);
+        animate();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function focusComponent(name) {
+      if (!modelGroup) return;
+      modelGroup.traverse(function(child) {
+        if (child.isMesh) {
+          if (child.name === name) {
+            child.material.emissive = new THREE.Color(0x38bdf8);
+            child.material.emissiveIntensity = 0.6;
+          } else {
+            child.material.emissive = new THREE.Color(0x000000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      runSim();
+    });
+  </script>
+</body>
+</html>

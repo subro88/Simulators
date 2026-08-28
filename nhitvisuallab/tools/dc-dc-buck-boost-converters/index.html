@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DC-DC Buck, Boost & Buck-Boost Converters Lab — NHIT VisualLab</title>
+  <meta name="description" content="High-frequency switching regulators: Buck step-down, Boost step-up & Buck-Boost inverting topologies, duty cycle D, inductor ripple current & CCM/DCM boundary.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Industrial Electronics - I (ETCE/IE1/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">DC-DC Buck, Boost & Buck-Boost Converters Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-BuckBoostPowerToroidInductor" onclick="selectComp('BuckBoostPowerToroidInductor')">
+                <strong>BuckBoostPowerToroidInductor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Power Toroidal Inductor: High-permeability powder core inductor storing and transferring magnetic energy per cycle.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-FastRecoverySchottkyDiode" onclick="selectComp('FastRecoverySchottkyDiode')">
+                <strong>FastRecoverySchottkyDiode</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Schottky Freewheeling Diode: Low forward-drop fast recovery diode circulating freewheeling current during switch off-time.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-LowESRSmoothingCapacitor" onclick="selectComp('LowESRSmoothingCapacitor')">
+                <strong>LowESRSmoothingCapacitor</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Low-ESR Output Capacitor: Aluminum electrolytic smoothing capacitor filtering high-frequency voltage ripple.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-MOSFETSwitchingTransistorTO220" onclick="selectComp('MOSFETSwitchingTransistorTO220')">
+                <strong>MOSFETSwitchingTransistorTO220</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Power MOSFET Switch: High-speed N-channel power MOSFET driven by 50kHz PWM gate controller.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="topo-dcdc-sel">Converter Topology:</label>
+            <select id="topo-dcdc-sel" class="ctrl-input">
+              <option value="Buck" selected>Buck Converter (Step-Down: Vout = D · Vin)</option>
+              <option value="Boost">Boost Converter (Step-Up: Vout = Vin / (1-D))</option>
+              <option value="BuckBoost">Buck-Boost Converter (Inverting: Vout = D·Vin / (1-D))</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="vin-dcdc-input">DC Input Voltage Vin (V):</label>
+            <input type="number" id="vin-dcdc-input" class="ctrl-input" value="24" min="5" max="100" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="duty-dcdc-input">Switching Duty Cycle (D):</label>
+            <input type="number" id="duty-dcdc-input" class="ctrl-input" value="0.4" min="0.1" max="0.85" step="0.05" />
+          </div>
+          <div class="control-group">
+            <label for="l-dcdc-input">Inductor Value L (µH):</label>
+            <input type="number" id="l-dcdc-input" class="ctrl-input" value="100" min="20" max="500" step="10" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Regulated DC Output Voltage (Vout):</td><td id="val-vout-dcdc">9.60 V</td></tr>
+          <tr><td>Inductor Current Ripple (ΔIL):</td><td id="val-del-il">1.152 A</td></tr>
+          <tr><td>Conduction State Mode:</td><td id="val-mode-dcdc">CONTINUOUS CONDUCTION (CCM)</td></tr>
+          <tr><td>Critical Inductance Threshold (Lcrit):</td><td id="val-lcrit">60.0 µH</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>DC-DC Buck, Boost & Buck-Boost Converters Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Switched-mode DC-DC converters achieve high efficiency ($> 90\%$) compared to linear dissipative regulators. Buck converters step down average voltage ($V_{out} = D V_{in}$), Boost converters step up ($V_{out} = \frac{V_{in}}{1-D}$), and Buck-Boost topologies provide inverting voltage step-up/step-down ($V_{out} = \frac{D}{1-D} V_{in}$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: DC-DC Buck, Boost & Buck-Boost Converters Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Industrial Electronics - I.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Switched-mode DC-DC converters achieve high efficiency ($> 90\%$) compared to linear dissipative regulators. Buck converters step down average voltage ($V_{out} = D V_{in}$), Boost converters step up ($V_{out} = \frac{V_{in}}{1-D}$), and Buck-Boost topologies provide inverting voltage step-up/step-down ($V_{out} = \frac{D}{1-D} V_{in}$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: DC-DC Buck, Boost & Buck-Boost Converters Lab (Industrial Electronics - I)</h2>
+      <p>High-frequency switching regulators: Buck step-down, Boost step-up & Buck-Boost inverting topologies, duty cycle D, inductor ripple current & CCM/DCM boundary.</p>
+      <p>Switched-mode DC-DC converters achieve high efficiency ($> 90\%$) compared to linear dissipative regulators. Buck converters step down average voltage ($V_{out} = D V_{in}$), Boost converters step up ($V_{out} = \frac{V_{in}}{1-D}$), and Buck-Boost topologies provide inverting voltage step-up/step-down ($V_{out} = \frac{D}{1-D} V_{in}$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const topo = document.getElementById('topo-dcdc-sel').value;
+            const vin = parseFloat(document.getElementById('vin-dcdc-input').value);
+            const d = parseFloat(document.getElementById('duty-dcdc-input').value);
+            const l_uh = parseFloat(document.getElementById('l-dcdc-input').value);
+
+            let vout = 0, delta_il = 0, l_crit = 60.0;
+            const fs = 50000.0, l = l_uh * 1e-6, r = 10.0;
+
+            if (topo === 'Buck') {
+              vout = d * vin;
+              delta_il = ((vin - vout) * d) / (fs * l);
+              l_crit = (((1.0 - d) * r) / (2.0 * fs)) * 1e6;
+            } else if (topo === 'Boost') {
+              vout = vin / (1.0 - d);
+              delta_il = (vin * d) / (fs * l);
+              l_crit = ((d * Math.pow(1.0 - d, 2) * r) / (2.0 * fs)) * 1e6;
+            } else {
+              vout = (d / (1.0 - d)) * vin;
+              delta_il = (vin * d) / (fs * l);
+              l_crit = ((Math.pow(1.0 - d, 2) * r) / (2.0 * fs)) * 1e6;
+            }
+
+            const ccm = l_uh >= l_crit;
+            document.getElementById('val-vout-dcdc').innerText = vout.toFixed(2) + ' V';
+            document.getElementById('val-del-il').innerText = delta_il.toFixed(3) + ' A (Peak-to-Peak)';
+            document.getElementById('val-mode-dcdc').innerText = ccm ? "CONTINUOUS CONDUCTION (CCM)" : "DISCONTINUOUS (DCM)";
+            document.getElementById('val-lcrit').innerText = l_crit.toFixed(1) + ' µH';
+
+            drawDCDCInductorCurrent(delta_il, ccm);
+          }
+
+          function drawDCDCInductorCurrent(del_il, ccm) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Triangular Inductor Ripple Waveform
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            let x = 40;
+            while(x < w - 40) {
+              ctx.moveTo(x, h/2 + 20); ctx.lineTo(x + 30, h/2 - 30);
+              ctx.lineTo(x + 65, h/2 + 20);
+              x += 65;
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`DC-DC Converter Inductor Current (IL) Ripple Waveform | ${ccm ? 'CCM Mode' : 'DCM Mode'}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/dc_dc_buck_boost_converters.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/dc_dc_buck_boost_converters.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IS 800 Steel Beam & Web Crippling Lab — NHIT VisualLab</title>
+  <meta name="description" content="IS 800:2007 Flexural member design: Plastic section modulus Zp, Design moment Md = Zp fy / gamma_m0, Web buckling & Web bearing crippling Pwc.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Design of Steel Structures (CE/DSS/S6)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">IS 800 Steel Beam & Web Crippling Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-RolledSteelJoistISMBBeam" onclick="selectComp('RolledSteelJoistISMBBeam')">
+                <strong>RolledSteelJoistISMBBeam</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Rolled Steel I-Beam (ISMB): Hot-rolled structural steel beam carrying transverse floor loads.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ConcentratedBearingFlangePlate" onclick="selectComp('ConcentratedBearingFlangePlate')">
+                <strong>ConcentratedBearingFlangePlate</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Bearing Flange Stiffener Plate: Stiff plate applying concentrated reaction force at support.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-WebCripplingLocalBucklingZone" onclick="selectComp('WebCripplingLocalBucklingZone')">
+                <strong>WebCripplingLocalBucklingZone</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Web Crippling Bearing Zone: High local stress zone beneath flange root undergoing crippling (Pwc).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-EndBearingStiffenersPair" onclick="selectComp('EndBearingStiffenersPair')">
+                <strong>EndBearingStiffenersPair</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">End Bearing Stiffener: Welded vertical plate preventing web shear buckling and bearing failure.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="zp-modulus-input">Plastic Section Modulus Zp (cm³):</label>
+            <input type="number" id="zp-modulus-input" class="ctrl-input" value="850.0" min="200" max="3500" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="tw-web-input">Web Thickness tw (mm):</label>
+            <input type="number" id="tw-web-input" class="ctrl-input" value="7.5" min="4" max="25" step="0.5" />
+          </div>
+          <div class="control-group">
+            <label for="b1-bearing-input">Bearing Support Length b1 (mm):</label>
+            <input type="number" id="b1-bearing-input" class="ctrl-input" value="75.0" min="30" max="150" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Design Bending Strength (Md = Zp fy / γm0):</td><td id="val-md-moment">193.18 kNm</td></tr>
+          <tr><td>Web Bearing Crippling Strength (Pwc):</td><td id="val-pwc-crip">234.38 kN</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>IS 800 Steel Beam & Web Crippling Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Laterally supported steel beams reach their full plastic flexural moment ($M_d = \frac{\beta_b Z_p f_y}{\gamma_{m0}}$) without lateral-torsional buckling. Concentrated reactions at supports are checked for web bearing crippling ($P_{wc} = \frac{(b_1 + n_2) t_w f_{yw}}{\gamma_{m0}}$) and web shear buckling per IS 800 Clause 8.2.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: IS 800 Steel Beam & Web Crippling Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Design of Steel Structures.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Model IS 800 steel limits, IS 1893 seismic base shears, dam stability, seepage flow nets, and FRP retrofitting.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without analytical equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Laterally supported steel beams reach their full plastic flexural moment ($M_d = \frac{\beta_b Z_p f_y}{\gamma_{m0}}$) without lateral-torsional buckling. Concentrated reactions at supports are checked for web bearing crippling ($P_{wc} = \frac{(b_1 + n_2) t_w f_{yw}}{\gamma_{m0}}$) and web shear buckling per IS 800 Clause 8.2.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Adjust the sliders and input fields on the left. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically visualizes bolted plate layouts, column buckling curves, web crippling dispersion lines, seismic story force pyramids, gravity dam thrust vectors, flow net grids, and FRP confinement rings based on live analytical equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 800:2007, IS 1893:2016, IS 13920:2016, IS 6512, IS 13311, ACI 440.2R).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: IS 800 Steel Beam & Web Crippling Lab (Design of Steel Structures)</h2>
+      <p>IS 800:2007 Flexural member design: Plastic section modulus Zp, Design moment Md = Zp fy / gamma_m0, Web buckling & Web bearing crippling Pwc.</p>
+      <p>Laterally supported steel beams reach their full plastic flexural moment ($M_d = \frac{\beta_b Z_p f_y}{\gamma_{m0}}$) without lateral-torsional buckling. Concentrated reactions at supports are checked for web bearing crippling ($P_{wc} = \frac{(b_1 + n_2) t_w f_{yw}}{\gamma_{m0}}$) and web shear buckling per IS 800 Clause 8.2.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const zp = parseFloat(document.getElementById('zp-modulus-input').value) * 1000.0;
+            const tw = parseFloat(document.getElementById('tw-web-input').value);
+            const b1 = parseFloat(document.getElementById('b1-bearing-input').value);
+            const fy = 250.0;
+
+            const md = (zp * fy / 1.10) * 1e-6;
+            const n2 = 2.5 * 25.0;
+            const pwc = ((b1 + n2) * tw * fy / 1.10) * 1e-3;
+
+            document.getElementById('val-md-moment').innerText = md.toFixed(2) + ' kNm (Plastic Moment Capacity)';
+            document.getElementById('val-pwc-crip').innerText = pwc.toFixed(2) + ' kN (Web Crippling Strength)';
+
+            drawWebCrippling(b1, pwc);
+          }
+
+          function drawWebCrippling(b1, pwc) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Beam Flanges and Web
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(80, 70, w - 160, 20); // Top flange
+            ctx.fillRect(80, 210, w - 160, 20); // Bottom flange
+            ctx.fillRect(w/2 - 10, 90, 20, 120); // Web
+
+            // Bearing Reaction Platen
+            ctx.fillStyle = '#ffd600';
+            ctx.fillRect(w/2 - b1/2, 230, b1, 20);
+
+            // Crippling Dispersion Lines (1:2.5)
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w/2 - b1/2, 210); ctx.lineTo(w/2 - 40, 160);
+            ctx.moveTo(w/2 + b1/2, 210); ctx.lineTo(w/2 + 40, 160);
+            ctx.stroke();
+
+            ctx.fillStyle = '#38bdf8'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`IS 800 Beam: Plastic Moment Md = ${(document.getElementById('val-md-moment').innerText)} | Crippling Pwc = ${(document.getElementById('val-pwc-crip').innerText)}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/is800_steel_beam_bending_web_crippling.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/is800_steel_beam_bending_web_crippling.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

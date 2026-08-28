@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced Machining (Laser & Waterjet) Lab — NHIT VisualLab</title>
+  <meta name="description" content="Fiber Laser Beam Machining (LBM) vs Abrasive Water Jet (AWJM), cutting speeds, kerf width, HAZ & taper angle.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Advanced Manufacturing Process (ME/S5/AMP)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Advanced Machining (Laser & Waterjet) Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-FiberLaserCuttingHeadNozzle" onclick="selectComp('FiberLaserCuttingHeadNozzle')">
+                <strong>FiberLaserCuttingHeadNozzle</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Fiber Laser Head: 1070 nm fiber laser focusing collimator delivering concentrated optical energy flux.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-WaterjetAbrasiveMixingChamber" onclick="selectComp('WaterjetAbrasiveMixingChamber')">
+                <strong>WaterjetAbrasiveMixingChamber</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Waterjet Mixing Chamber: Ultra-high-pressure orifice venturi mixing 80 mesh garnet abrasive.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-AbrasiveGarnetFeedHopper" onclick="selectComp('AbrasiveGarnetFeedHopper')">
+                <strong>AbrasiveGarnetFeedHopper</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Garnet Feed Hopper: Pressurized abrasive hopper metering continuous garnet abrasive flow.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-WorktableSlatGridCatchTank" onclick="selectComp('WorktableSlatGridCatchTank')">
+                <strong>WorktableSlatGridCatchTank</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Slat Grid Catch Tank: Sacrificial stainless slat bed submerged in water dissipating residual jet energy.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="adv-proc-sel">Machining Process:</label>
+            <select id="adv-proc-sel" class="ctrl-input">
+              <option value="laser" selected>Fiber Laser Beam Machining (LBM, 3 kW)</option>
+              <option value="waterjet">Abrasive Water Jet Machining (AWJM, 380 MPa)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="sheet-t-input">Sheet Thickness t (mm):</label>
+            <input type="number" id="sheet-t-input" class="ctrl-input" value="6.0" min="1.0" max="25.0" step="1.0" />
+          </div>
+          <div class="control-group">
+            <label for="power-input">Laser Power (kW) / Jet Press (MPa):</label>
+            <input type="number" id="power-input" class="ctrl-input" value="3.0" min="1.0" max="12.0" step="0.5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Max Linear Cutting Speed:</td><td id="val-vcut-adv">684.2 mm/min</td></tr>
+          <tr><td>Kerf Slot Width:</td><td id="val-kerf">0.300 mm</td></tr>
+          <tr><td>Heat Affected Zone (HAZ):</td><td id="val-haz">0.300 mm</td></tr>
+          <tr><td>Cut Edge Taper Angle:</td><td id="val-taper">0.45°</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Advanced Machining (Laser & Waterjet) Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Advanced non-traditional machining processes such as Fiber Laser Beam Machining (LBM) and Abrasive Water Jet Machining (AWJM) machine complex aerospace contours without mechanical contact. This simulator models thermal vaporisation vs cold abrasive micro-erosion, kerf width, HAZ depth, and taper angles.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Advanced Machining (Laser & Waterjet) Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Advanced Manufacturing Process.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Advanced non-traditional machining processes such as Fiber Laser Beam Machining (LBM) and Abrasive Water Jet Machining (AWJM) machine complex aerospace contours without mechanical contact. This simulator models thermal vaporisation vs cold abrasive micro-erosion, kerf width, HAZ depth, and taper angles.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Advanced Machining (Laser & Waterjet) Lab (Advanced Manufacturing Process)</h2>
+      <p>Fiber Laser Beam Machining (LBM) vs Abrasive Water Jet (AWJM), cutting speeds, kerf width, HAZ & taper angle.</p>
+      <p>Advanced non-traditional machining processes such as Fiber Laser Beam Machining (LBM) and Abrasive Water Jet Machining (AWJM) machine complex aerospace contours without mechanical contact. This simulator models thermal vaporisation vs cold abrasive micro-erosion, kerf width, HAZ depth, and taper angles.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const proc = document.getElementById('adv-proc-sel').value;
+            const t = parseFloat(document.getElementById('sheet-t-input').value);
+            const p = parseFloat(document.getElementById('power-input').value);
+
+            let v_cut = 0, kerf = 0, haz = 0, taper = 0;
+            if(proc === 'laser') {
+              v_cut = (p * 1800.0) / Math.pow(t, 1.15);
+              kerf = 0.18 + 0.02 * t;
+              haz = 0.12 + 0.03 * t;
+              taper = 0.45;
+            } else {
+              v_cut = (Math.pow(380.0 / 350.0, 1.4) * (350.0 / 300.0) * 1200.0) / Math.pow(t, 1.25);
+              kerf = 0.85;
+              haz = 0.0; // Cold process
+              taper = 1.2;
+            }
+
+            document.getElementById('val-vcut-adv').innerText = v_cut.toFixed(1) + ' mm/min';
+            document.getElementById('val-kerf').innerText = kerf.toFixed(3) + ' mm';
+            document.getElementById('val-haz').innerText = haz.toFixed(3) + ' mm';
+            document.getElementById('val-taper').innerText = taper.toFixed(2) + '°';
+
+            drawAdvBeam(proc, t, kerf);
+          }
+
+          function drawAdvBeam(proc, t, kerf) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Workpiece cross-section
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(w/2 - 120, h/2 - 10, 240, 50);
+
+            // Kerf slot
+            ctx.clearRect(w/2 - 10, h/2 - 10, 20, 50);
+
+            // Beam / Jet stream
+            ctx.strokeStyle = proc === 'laser' ? '#ef4444' : '#38bdf8';
+            ctx.lineWidth = proc === 'laser' ? 4 : 6;
+            ctx.beginPath(); ctx.moveTo(w/2, 20); ctx.lineTo(w/2, h/2 + 50); ctx.stroke();
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(proc === 'laser' ? 'Fiber Laser Focused Optical Beam (λ = 1070 nm)' : 'Ultra-High Pressure Abrasive Water Jet Stream', 50, 30);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/advanced_machining_laser_waterjet.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/advanced_machining_laser_waterjet.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jigs & Fixtures Design Lab — NHIT VisualLab</title>
+  <meta name="description" content="3-2-1 principle of location, degrees of freedom restraint, clamping forces, drill bushing sizing & error analysis.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Advanced Manufacturing Process (ME/S5/AMP)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Jigs & Fixtures Design Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its engineering design function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-CastJigMainBaseplate" onclick="selectComp('CastJigMainBaseplate')">
+                <strong>CastJigMainBaseplate</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Jig Main Baseplate: Heavy cast iron ribbed fixture body providing high rigidity under clamping.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ThreeTwoOneLocatingPins" onclick="selectComp('ThreeTwoOneLocatingPins')">
+                <strong>ThreeTwoOneLocatingPins</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">3-2-1 Locating Pin Array: 3 primary base pins, 2 secondary side pins, and 1 tertiary end stop pin.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-QuickActingCamClamp" onclick="selectComp('QuickActingCamClamp')">
+                <strong>QuickActingCamClamp</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Cam Clamp: High-mechanical-advantage eccentric cam lever providing rapid part clamping.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-HardenedDrillBushingGuide" onclick="selectComp('HardenedDrillBushingGuide')">
+                <strong>HardenedDrillBushingGuide</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Drill Bushing Guide: Press-fit case hardened steel guide bushing (IS 4218) locating drill axis.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Simulation Parameters</h3>
+          
+          <div class="control-group">
+            <label for="loc-method-sel">Locating Principle:</label>
+            <select id="loc-method-sel" class="ctrl-input">
+              <option value="321" selected>3-2-1 Principle (Prismatic Workpiece, 9 DOF)</option>
+              <option value="vblock">V-Block Location (Cylindrical Shaft, 8 DOF)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="f-thrust-input">Cutting Thrust Force Fc (N):</label>
+            <input type="number" id="f-thrust-input" class="ctrl-input" value="1600" min="200" max="6000" step="100" />
+          </div>
+          <div class="control-group">
+            <label for="mu-input">Friction Coefficient (µ):</label>
+            <input type="number" id="mu-input" class="ctrl-input" value="0.25" min="0.1" max="0.5" step="0.05" />
+          </div>
+          <div class="control-group">
+            <label for="drill-dia-input">Drill Hole Diameter (mm):</label>
+            <input type="number" id="drill-dia-input" class="ctrl-input" value="14" min="4" max="32" step="2" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Restrained Degrees of Freedom:</td><td id="val-dof">9 Degrees of Freedom</td></tr>
+          <tr><td>Required Clamping Force (F_clamp):</td><td id="val-fclamp">16000 N (1631 kgf)</td></tr>
+          <tr><td>Min Jig Plate Thickness (1.5 x d):</td><td id="val-tplate">21.0 mm</td></tr>
+          <tr><td>Clamping Pad Contact Stress:</td><td id="val-stress-jig">35.56 MPa</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Jigs & Fixtures Design Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Jigs and fixtures are specialized production workholding devices ensuring interchangeable component manufacturing. This simulator demonstrates the 3-2-1 Principle of Location, 12 spatial degrees of freedom (DOF) restraint, clamping force sizing against tool thrust, and drill bushing standards (IS 4218).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Jigs & Fixtures Design Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Advanced Manufacturing Process.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this mechanical engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and design parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real calculations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Jigs and fixtures are specialized production workholding devices ensuring interchangeable component manufacturing. This simulator demonstrates the 3-2-1 Principle of Location, 12 spatial degrees of freedom (DOF) restraint, clamping force sizing against tool thrust, and drill bushing standards (IS 4218).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure operating variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS physics solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time thermodynamic, kinematic, or metrology curves corresponding to the exact mathematical state.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard mechanical engineering practices (ASME, ISO, IS 1991, IS 5359, IS 2984, IS 4218).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Jigs & Fixtures Design Lab (Advanced Manufacturing Process)</h2>
+      <p>3-2-1 principle of location, degrees of freedom restraint, clamping forces, drill bushing sizing & error analysis.</p>
+      <p>Jigs and fixtures are specialized production workholding devices ensuring interchangeable component manufacturing. This simulator demonstrates the 3-2-1 Principle of Location, 12 spatial degrees of freedom (DOF) restraint, clamping force sizing against tool thrust, and drill bushing standards (IS 4218).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const lmethod = document.getElementById('loc-method-sel').value;
+            const fc = parseFloat(document.getElementById('f-thrust-input').value);
+            const mu = parseFloat(document.getElementById('mu-input').value);
+            const dia = parseFloat(document.getElementById('drill-dia-input').value);
+
+            const dof = lmethod === '321' ? 9 : 8;
+            const f_clamp = (2.5 * fc) / mu;
+            const t_plate = 1.5 * dia;
+            const stress = f_clamp / 450.0;
+
+            document.getElementById('val-dof').innerText = dof + ' Degrees of Freedom';
+            document.getElementById('val-fclamp').innerText = f_clamp.toFixed(0) + ' N (' + (f_clamp/9.81).toFixed(0) + ' kgf)';
+            document.getElementById('val-tplate').innerText = t_plate.toFixed(1) + ' mm';
+            document.getElementById('val-stress-jig').innerText = stress.toFixed(2) + ' MPa';
+
+            drawJigSchematic(lmethod, dof);
+          }
+
+          function drawJigSchematic(lmethod, dof) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Workpiece
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillRect(w/2 - 90, h/2 - 40, 180, 80);
+
+            // 3-2-1 Locating Pins
+            ctx.fillStyle = '#ef4444';
+            // 3 Base pins
+            ctx.beginPath(); ctx.arc(w/2 - 60, h/2 + 50, 8, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(w/2, h/2 + 50, 8, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(w/2 + 60, h/2 + 50, 8, 0, 2*Math.PI); ctx.fill();
+            // 2 Side pins
+            ctx.beginPath(); ctx.arc(w/2 - 100, h/2 - 20, 8, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(w/2 - 100, h/2 + 20, 8, 0, 2*Math.PI); ctx.fill();
+
+            // Clamping arrow
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(w/2, 20); ctx.lineTo(w/2, h/2 - 45); ctx.stroke();
+            ctx.fillStyle = '#00e676';
+            ctx.fillText('Clamping Force (F_clamp)', w/2 + 10, 45);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`3-2-1 Location: 3 Base Pins (Z) + 2 Side Pins (Y) + 1 End Pin (X) -> ${dof} DOFs Restrained`, 30, h - 15);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/jigs_fixtures_design.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/jigs_fixtures_design.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

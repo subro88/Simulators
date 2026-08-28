@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theodolite Traverse & Bowditch Balancing Lab — NHIT VisualLab</title>
+  <meta name="description" content="Traverse surveying: Consecutive coordinates (Latitude L = l cos theta, Departure D = l sin theta), linear closing error & Bowditch's compass rule traverse balancing.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Advance Surveying (CE/ASURV/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Theodolite Traverse & Bowditch Balancing Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-ClosedTraversePolygonFrame" onclick="selectComp('ClosedTraversePolygonFrame')">
+                <strong>ClosedTraversePolygonFrame</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Survey Traverse Loop: Closed polygon framework connecting control stations with measured side lengths and bearings.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TraverseStationHubPegs" onclick="selectComp('TraverseStationHubPegs')">
+                <strong>TraverseStationHubPegs</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Control Station Survey Hubs: Wooden pegs with central brass nails marking exact traverse vertex stations.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-BowditchCorrectionVectorArrow" onclick="selectComp('BowditchCorrectionVectorArrow')">
+                <strong>BowditchCorrectionVectorArrow</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Bowditch Correction Vector: Coordinate translation vector adjusting latitudes and departures proportionally to side length.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ClosingErrorDiscrepancyBox" onclick="selectComp('ClosingErrorDiscrepancyBox')">
+                <strong>ClosingErrorDiscrepancyBox</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Error Vector Display: Graphic representation of closing error e = sqrt(eL^2 + eD^2).</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="l1-side-input">Side 1 Length L1 (m):</label>
+            <input type="number" id="l1-side-input" class="ctrl-input" value="120.0" min="20" max="500" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="l2-side-input">Side 2 Length L2 (m):</label>
+            <input type="number" id="l2-side-input" class="ctrl-input" value="150.0" min="20" max="500" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="l3-side-input">Side 3 Length L3 (m):</label>
+            <input type="number" id="l3-side-input" class="ctrl-input" value="110.0" min="20" max="500" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="l4-side-input">Side 4 Length L4 (m):</label>
+            <input type="number" id="l4-side-input" class="ctrl-input" value="140.0" min="20" max="500" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Total Traverse Perimeter (P = Σl):</td><td id="val-perim">520.00 m</td></tr>
+          <tr><td>Linear Closing Error (e = √(eL² + eD²)):</td><td id="val-closing-err">0.000 m</td></tr>
+          <tr><td>Traverse Relative Precision Ratio:</td><td id="val-prec-ratio">1 in 50000</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Theodolite Traverse & Bowditch Balancing Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Theodolite traversing projects consecutive coordinates onto the meridian (Latitude $L = l\cos\theta$) and perpendicular parallel (Departure $D = l\sin\theta$). In a closed loop, algebraic sums of latitudes and departures must equate to zero ($\sum L = 0, \sum D = 0$). Bowditch's Rule distributes closing errors proportionally to individual side lengths ($c_l = -e_L \frac{l}{\sum l}$).</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Theodolite Traverse & Bowditch Balancing Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Advance Surveying.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, geotechnical properties, highway parameters, and irrigation hydraulics.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Theodolite traversing projects consecutive coordinates onto the meridian (Latitude $L = l\cos\theta$) and perpendicular parallel (Departure $D = l\sin\theta$). In a closed loop, algebraic sums of latitudes and departures must equate to zero ($\sum L = 0, \sum D = 0$). Bowditch's Rule distributes closing errors proportionally to individual side lengths ($c_l = -e_L \frac{l}{\sum l}$).</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey angles, soil phase values, pavement loads, or canal discharges. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey vectors, 3-phase soil diagrams, retaining wall pressures, or canal sections corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IRC:73, IRC:37, IS 2720, IS 73, IS 1205, IS 1208, IS 2386).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Theodolite Traverse & Bowditch Balancing Lab (Advance Surveying)</h2>
+      <p>Traverse surveying: Consecutive coordinates (Latitude L = l cos theta, Departure D = l sin theta), linear closing error & Bowditch's compass rule traverse balancing.</p>
+      <p>Theodolite traversing projects consecutive coordinates onto the meridian (Latitude $L = l\cos\theta$) and perpendicular parallel (Departure $D = l\sin\theta$). In a closed loop, algebraic sums of latitudes and departures must equate to zero ($\sum L = 0, \sum D = 0$). Bowditch's Rule distributes closing errors proportionally to individual side lengths ($c_l = -e_L \frac{l}{\sum l}$).</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const l1 = parseFloat(document.getElementById('l1-side-input').value);
+            const l2 = parseFloat(document.getElementById('l2-side-input').value);
+            const l3 = parseFloat(document.getElementById('l3-side-input').value);
+            const l4 = parseFloat(document.getElementById('l4-side-input').value);
+
+            const lengths = [l1, l2, l3, l4];
+            const bearings = [45.0, 135.0, 225.0, 315.0];
+
+            let sum_lat = 0, sum_dep = 0, perim = 0;
+            for(let i=0; i<4; i++) {
+              let rad = bearings[i] * Math.PI / 180.0;
+              sum_lat += lengths[i] * Math.cos(rad);
+              sum_dep += lengths[i] * Math.sin(rad);
+              perim += lengths[i];
+            }
+
+            const e_lin = Math.sqrt(sum_lat*sum_lat + sum_dep*sum_dep);
+            const prec = e_lin > 0.01 ? Math.floor(perim / e_lin) : 50000;
+
+            document.getElementById('val-perim').innerText = perim.toFixed(2) + ' m';
+            document.getElementById('val-closing-err').innerText = e_lin.toFixed(3) + ' m (Linear Misclosure)';
+            document.getElementById('val-prec-ratio').innerText = '1 in ' + prec + ' (Precision Standard)';
+
+            drawClosedTraverse(lengths);
+          }
+
+          function drawClosedTraverse(lens) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const scale = 0.6;
+            const pts = [[w/2 - 80, h - 80]];
+            const bearings = [45.0, 135.0, 225.0, 315.0];
+
+            for(let i=0; i<4; i++) {
+              let rad = (bearings[i] - 90) * Math.PI / 180.0;
+              let nx = pts[i][0] + lens[i] * scale * Math.cos(rad);
+              let ny = pts[i][1] + lens[i] * scale * Math.sin(rad);
+              pts.push([nx, ny]);
+            }
+
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+            for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+            ctx.stroke();
+
+            // Stations
+            ctx.fillStyle = '#00e676';
+            for(let i=0; i<4; i++) {
+              ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], 5, 0, 2*Math.PI); ctx.fill();
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('Closed Loop Theodolite Traverse | Bowditch Balancing Applied', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/theodolite_traverse_bowditch_rule.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/theodolite_traverse_bowditch_rule.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

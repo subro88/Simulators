@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Concrete Mix Design IS 10262 Lab — NHIT VisualLab</title>
+  <meta name="description" content="Mix proportioning: IS 10262:2019 mix design, target mean strength fck' = fck + 1.65s, water-cement ratio W/C, and batch quantities per cubic meter.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Concrete Technology (CE/CT/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Concrete Mix Design IS 10262 Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-SteelCubeMold150mm" onclick="selectComp('SteelCubeMold150mm')">
+                <strong>SteelCubeMold150mm</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">150mm Cube Mold: Precision machined cast-iron/steel mold with base plate for casting compressive cubes.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ConcreteBatchingPanScale" onclick="selectComp('ConcreteBatchingPanScale')">
+                <strong>ConcreteBatchingPanScale</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Digital Batch Scale: Heavy-duty pan scale weighing cement, water, and saturated surface-dry (SSD) aggregates.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SlumpConeWithBasePlate" onclick="selectComp('SlumpConeWithBasePlate')">
+                <strong>SlumpConeWithBasePlate</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Standard Slump Cone: 300mm high galvanized steel frustum with tamping rod measuring workability.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TampingRodSteel" onclick="selectComp('TampingRodSteel')">
+                <strong>TampingRodSteel</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">16mm Steel Tamping Rod: 600mm bullet-nosed compaction rod applying standard 25 strokes per layer.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="grade-conc-sel">Characteristic Concrete Grade:</label>
+            <select id="grade-conc-sel" class="ctrl-input">
+              <option value="M20">M20 (fck = 20 MPa, s = 4.0 MPa)</option>
+              <option value="M25" selected>M25 (fck = 25 MPa, s = 4.0 MPa)</option>
+              <option value="M30">M30 (fck = 30 MPa, s = 5.0 MPa)</option>
+              <option value="M35">M35 (fck = 35 MPa, s = 5.0 MPa)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="slump-target-input">Workability Slump (mm):</label>
+            <input type="number" id="slump-target-input" class="ctrl-input" value="100.0" min="25" max="175" step="25" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Target Mean Strength (fck' = fck + 1.65s):</td><td id="val-fck-prime">31.60 MPa</td></tr>
+          <tr><td>Free Water-Cement Ratio (W/C):</td><td id="val-wc-ratio">0.45</td></tr>
+          <tr><td>Required Cement Content:</td><td id="val-cement-qty">438.2 kg / m³</td></tr>
+          <tr><td>Volumetric Proportioning Ratio:</td><td id="val-mix-ratio">1 : 1.54 : 2.56</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Concrete Mix Design IS 10262 Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Concrete mix design according to IS 10262:2019 establishes the optimal, economical proportioning of cement, water, fine aggregate, and coarse aggregate to achieve target mean compressive strength ($f_{ck}' = f_{ck} + 1.65 s$) and required workability.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Concrete Mix Design IS 10262 Lab</h2>
+        <p class="text-dim">Test your civil engineering conceptual understanding of Concrete Technology.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute field survey reductions, material properties, and structural mechanics reactions.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Concrete mix design according to IS 10262:2019 establishes the optimal, economical proportioning of cement, water, fine aggregate, and coarse aggregate to achieve target mean compressive strength ($f_{ck}' = f_{ck} + 1.65 s$) and required workability.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure survey readings, batch weights, or beam load configurations. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time survey profiles, SFD/BMD diagrams, or material stress distributions corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456, IS 10262, IS 3495, IS 269, IS 383, IS 1077).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Concrete Mix Design IS 10262 Lab (Concrete Technology)</h2>
+      <p>Mix proportioning: IS 10262:2019 mix design, target mean strength fck' = fck + 1.65s, water-cement ratio W/C, and batch quantities per cubic meter.</p>
+      <p>Concrete mix design according to IS 10262:2019 establishes the optimal, economical proportioning of cement, water, fine aggregate, and coarse aggregate to achieve target mean compressive strength ($f_{ck}' = f_{ck} + 1.65 s$) and required workability.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const grade = document.getElementById('grade-conc-sel').value;
+            const slump = parseFloat(document.getElementById('slump-target-input').value);
+
+            let fck = 25.0, s = 4.0, wc = 0.45;
+            if (grade === 'M20') { fck = 20.0; s = 4.0; wc = 0.50; }
+            else if (grade === 'M30') { fck = 30.0; s = 5.0; wc = 0.40; }
+            else if (grade === 'M35') { fck = 35.0; s = 5.0; wc = 0.38; }
+
+            const fck_prime = fck + 1.65 * s;
+            const water_kg = 186.0 * (1.0 + 0.03 * Math.max(0.0, (slump - 50) / 25));
+            const cement_kg = water_kg / wc;
+
+            const vol_agg = 1.0 - ((cement_kg / 3150.0) + (water_kg / 1000.0) + 0.01);
+            const sand_kg = vol_agg * 0.38 * 2650.0;
+            const gravel_kg = vol_agg * 0.62 * 2700.0;
+
+            const mix_str = `1 : ${(sand_kg/cement_kg).toFixed(2)} : ${(gravel_kg/cement_kg).toFixed(2)}`;
+
+            document.getElementById('val-fck-prime').innerText = fck_prime.toFixed(2) + ' MPa (Target Mean Strength)';
+            document.getElementById('val-wc-ratio').innerText = wc.toFixed(2);
+            document.getElementById('val-cement-qty').innerText = cement_kg.toFixed(1) + ' kg / m³';
+            document.getElementById('val-mix-ratio').innerText = mix_str + ' (Cement : Sand : Coarse Agg)';
+
+            drawMixDesignPie(cement_kg, sand_kg, gravel_kg, water_kg);
+          }
+
+          function drawMixDesignPie(c, s, g, w_kg) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const total = c + s + g + w_kg;
+            const slices = [
+              { label: 'Coarse Agg', val: g, color: '#38bdf8' },
+              { label: 'Fine Sand', val: s, color: '#ffd600' },
+              { label: 'Cement', val: c, color: '#94a3b8' },
+              { label: 'Water', val: w_kg, color: '#00e676' }
+            ];
+
+            let startAngle = 0;
+            const cx = w/2 - 60, cy = h/2, r = 80;
+            for(let sl of slices) {
+              let sliceAngle = (sl.val / total) * 2 * Math.PI;
+              ctx.fillStyle = sl.color;
+              ctx.beginPath(); ctx.moveTo(cx, cy);
+              ctx.arc(cx, cy, r, startAngle, startAngle + sliceAngle); ctx.closePath(); ctx.fill();
+              startAngle += sliceAngle;
+            }
+
+            // Legend
+            let ly = 70;
+            ctx.font = '12px Inter, sans-serif';
+            for(let sl of slices) {
+              ctx.fillStyle = sl.color; ctx.fillRect(w - 180, ly - 10, 14, 14);
+              ctx.fillStyle = '#ffffff'; ctx.fillText(`${sl.label}: ${sl.val.toFixed(0)} kg`, w - 160, ly + 2);
+              ly += 26;
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText('IS 10262:2019 Batch Proportions per m³ Concrete', 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/concrete_mix_design_is10262.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/concrete_mix_design_is10262.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

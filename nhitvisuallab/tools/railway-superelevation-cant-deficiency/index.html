@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Railway Superelevation & Cant Deficiency Lab — NHIT VisualLab</title>
+  <meta name="description" content="Railway track geometry: Broad gauge equilibrium cant C = G V^2 / (127 R), actual cant, cant deficiency Cd <= 76 mm & Indian Railway safe speed Vmax.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Transportation Engineering - II (CE/TE2/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Railway Superelevation & Cant Deficiency Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-BroadGaugeSteelRailsPair" onclick="selectComp('BroadGaugeSteelRailsPair')">
+                <strong>BroadGaugeSteelRailsPair</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Broad Gauge Steel Rails: Pair of 60kg/m or 52kg/m steel rails laid at standard 1.676m gauge.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-PrestressedConcreteSleepersPSC" onclick="selectComp('PrestressedConcreteSleepersPSC')">
+                <strong>PrestressedConcreteSleepersPSC</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">PSC Mono-Block Sleepers: Concrete ties maintaining track gauge and transmitting train wheel loads to ballast.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CrushedStoneBallastBedCushion" onclick="selectComp('CrushedStoneBallastBedCushion')">
+                <strong>CrushedStoneBallastBedCushion</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Crushed Stone Ballast Cushion: 300mm ballast bed providing track drainage, resilience and lateral resistance.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ConedTrainWheelsetAxisModel" onclick="selectComp('ConedTrainWheelsetAxisModel')">
+                <strong>ConedTrainWheelsetAxisModel</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Coned Railway Wheelset: Train wheel pair with 1 in 20 coning tilt centering wheels on straight track.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="r-rail-input">Curve Radius R (m):</label>
+            <input type="number" id="r-rail-input" class="ctrl-input" value="600.0" min="200" max="2000" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="v-train-input">Train Speed V (km/h):</label>
+            <input type="number" id="v-train-input" class="ctrl-input" value="80.0" min="30" max="140" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="cd-rail-input">Max Permissible Cant Deficiency (mm):</label>
+            <input type="number" id="cd-rail-input" class="ctrl-input" value="76.0" min="50" max="100" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Theoretical Equilibrium Cant (Ceq):</td><td id="val-ceq">140.7 mm</td></tr>
+          <tr><td>Actual Cant Provided (Cact = Ceq - Cd):</td><td id="val-cact">64.7 mm</td></tr>
+          <tr><td>Maximum Safe Speed (Vmax = 4.35√(R-67)):</td><td id="val-vmax-rail">100.4 km/h</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Railway Superelevation & Cant Deficiency Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Railway superelevation (Cant $C = \frac{G V^2}{127 R}$) raises the outer rail above the inner rail on curves to counteract centrifugal force. Because trains travel at varying speeds, cant deficiency ($C_d \le 76\text{ mm}$ for BG) is permitted for high-speed trains, preventing excess wear and passenger discomfort.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Railway Superelevation & Cant Deficiency Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Transportation Engineering - II.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute limit state structural capacities, railway cant geometry, runway corrections, and geotechnical deep foundation loads.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Railway superelevation (Cant $C = \frac{G V^2}{127 R}$) raises the outer rail above the inner rail on curves to counteract centrifugal force. Because trains travel at varying speeds, cant deficiency ($C_d \le 76\text{ mm}$ for BG) is permitted for high-speed trains, preventing excess wear and passenger discomfort.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Adjust the sliders and input fields on the left. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically visualizes stress blocks, shear failure planes, track banking profiles, runway lengths, or pile skin resistance based on live analytical equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456:2000, IRC:37, ICAO Annex 14, Indian Railway Permanent Way Manual, IS 2911, IS 2720).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Railway Superelevation & Cant Deficiency Lab (Transportation Engineering - II)</h2>
+      <p>Railway track geometry: Broad gauge equilibrium cant C = G V^2 / (127 R), actual cant, cant deficiency Cd <= 76 mm & Indian Railway safe speed Vmax.</p>
+      <p>Railway superelevation (Cant $C = \frac{G V^2}{127 R}$) raises the outer rail above the inner rail on curves to counteract centrifugal force. Because trains travel at varying speeds, cant deficiency ($C_d \le 76\text{ mm}$ for BG) is permitted for high-speed trains, preventing excess wear and passenger discomfort.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const r = parseFloat(document.getElementById('r-rail-input').value);
+            const v = parseFloat(document.getElementById('v-train-input').value);
+            const cd = parseFloat(document.getElementById('cd-rail-input').value);
+            const g = 1.676;
+
+            const c_eq_mm = (g * v * v / (127.0 * r)) * 1000.0;
+            const c_act_mm = Math.max(0.0, Math.min(165.0, c_eq_mm - cd));
+            const v_max = 4.35 * Math.sqrt(Math.max(1.0, r - 67.0));
+
+            document.getElementById('val-ceq').innerText = c_eq_mm.toFixed(1) + ' mm (Equilibrium Cant)';
+            document.getElementById('val-cact').innerText = c_act_mm.toFixed(1) + ' mm (Actual Cant Provided)';
+            document.getElementById('val-vmax-rail').innerText = v_max.toFixed(1) + ' km/h (Safe Speed on Curve)';
+
+            drawRailwayCant(c_act_mm);
+          }
+
+          function drawRailwayCant(c_act) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Ballast Bed (Tilted)
+            const tilt = (c_act / 1000.0) * 150;
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(80, h - 60); ctx.lineTo(w - 80, (h - 60) - tilt);
+            ctx.lineTo(w - 80, (h - 40) - tilt); ctx.lineTo(80, h - 40);
+            ctx.closePath(); ctx.fill();
+
+            // Sleeper + Rails
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(w/2 - 90, (h - 90) - tilt/2, 180, 20);
+
+            ctx.fillStyle = '#ffd600';
+            ctx.fillRect(w/2 - 75, (h - 115) - tilt/2, 12, 25); // Inner Rail
+            ctx.fillRect(w/2 + 65, (h - 115) - tilt, 12, 25); // Outer Raised Rail
+
+            ctx.fillStyle = '#00e676'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Broad Gauge Cant: Actual Cant = ${c_act.toFixed(1)} mm | Indian Railway Max Safe Speed = ${(document.getElementById('val-vmax-rail').innerText)}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/railway_superelevation_cant_deficiency.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/railway_superelevation_cant_deficiency.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pile Foundation Load Capacity Lab — NHIT VisualLab</title>
+  <meta name="description" content="Deep foundations: Driven & bored RCC pile ultimate axial capacity Qu = Qb + Qs = 9 cu Ab + alpha cu As & safe working load Qsafe = Qu / FS.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Geotechnical Engineering Lab II (CE/GTE2/S5)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Pile Foundation Load Capacity Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Laboratory Apparatus Components</h3>
+          <p class="text-sm text-dim">Click any component to inspect its structural and testing role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-CastInSituReinforcedConcretePileShaft" onclick="selectComp('CastInSituReinforcedConcretePileShaft')">
+                <strong>CastInSituReinforcedConcretePileShaft</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Cast-in-Situ RCC Pile Shaft: Long cylindrical pile shaft (diameter D, embedded depth L) transferring structural loads through weak strata.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-ExpandedPileBaseEndBearingBulb" onclick="selectComp('ExpandedPileBaseEndBearingBulb')">
+                <strong>ExpandedPileBaseEndBearingBulb</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Pile Base End Bearing (Qb): Base area Ab resisting loads via deep base bearing capacity (qb = 9 cu).</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-FrictionalSoilShearResistanceInterface" onclick="selectComp('FrictionalSoilShearResistanceInterface')">
+                <strong>FrictionalSoilShearResistanceInterface</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Shaft Skin Friction Interface (Qs): Circumferential pile-soil contact surface transferring shear via adhesion factor alpha.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-RigidPileCapSuperstructureInterface" onclick="selectComp('RigidPileCapSuperstructureInterface')">
+                <strong>RigidPileCapSuperstructureInterface</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Monolithic Pile Cap: Heavy reinforced concrete cap binding pile groups to support building columns.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Engineering Parameters</h3>
+          
+          <div class="control-group">
+            <label for="d-pile-input">Pile Diameter D (m):</label>
+            <input type="number" id="d-pile-input" class="ctrl-input" value="0.6" min="0.3" max="1.5" step="0.05" />
+          </div>
+          <div class="control-group">
+            <label for="l-pile-input">Embedded Pile Length L (m):</label>
+            <input type="number" id="l-pile-input" class="ctrl-input" value="15.0" min="5.0" max="35.0" step="1.0" />
+          </div>
+          <div class="control-group">
+            <label for="cu-pile-input">Undrained Soil Cohesion cu (kPa):</label>
+            <input type="number" id="cu-pile-input" class="ctrl-input" value="60.0" min="20" max="150" step="5" />
+          </div>
+          <div class="control-group">
+            <label for="alpha-pile-input">Adhesion Factor (α):</label>
+            <input type="number" id="alpha-pile-input" class="ctrl-input" value="0.6" min="0.3" max="1.0" step="0.05" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Analyze</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Ultimate Base End Bearing (Qb = 9 cu Ab):</td><td id="val-qb-end">152.68 kN</td></tr>
+          <tr><td>Ultimate Shaft Skin Friction (Qs = α cu As):</td><td id="val-qs-fric">1017.88 kN</td></tr>
+          <tr><td>Total Ultimate Pile Capacity (Qu):</td><td id="val-qu-tot">1170.56 kN</td></tr>
+          <tr><td>Allowable Safe Working Load (Qsafe):</td><td id="val-qsafe">468.22 kN</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Pile Foundation Load Capacity Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>Pile foundations transmit heavy building and bridge loads past weak compressible topsoils down to stiff load-bearing strata. Ultimate capacity ($Q_u = Q_b + Q_s$) is the sum of base end bearing ($Q_b = 9 c_u A_b$) and shaft side shear resistance ($Q_s = \alpha c_u A_s$), divided by a safety factor ($FS = 2.5$) per IS 2911.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Pile Foundation Load Capacity Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Geotechnical Engineering Lab II.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this civil engineering simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Compute limit state structural capacities, railway cant geometry, runway corrections, and geotechnical deep foundation loads.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real state equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Pile foundations transmit heavy building and bridge loads past weak compressible topsoils down to stiff load-bearing strata. Ultimate capacity ($Q_u = Q_b + Q_s$) is the sum of base end bearing ($Q_b = 9 c_u A_b$) and shaft side shear resistance ($Q_s = \alpha c_u A_s$), divided by a safety factor ($FS = 2.5$) per IS 2911.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Adjust the sliders and input fields on the left. Click <strong>Calculate &amp; Analyze</strong> to run the solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically visualizes stress blocks, shear failure planes, track banking profiles, runway lengths, or pile skin resistance based on live analytical equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard Indian Standard codes (IS 456:2000, IRC:37, ICAO Annex 14, Indian Railway Permanent Way Manual, IS 2911, IS 2720).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Pile Foundation Load Capacity Lab (Geotechnical Engineering Lab II)</h2>
+      <p>Deep foundations: Driven & bored RCC pile ultimate axial capacity Qu = Qb + Qs = 9 cu Ab + alpha cu As & safe working load Qsafe = Qu / FS.</p>
+      <p>Pile foundations transmit heavy building and bridge loads past weak compressible topsoils down to stiff load-bearing strata. Ultimate capacity ($Q_u = Q_b + Q_s$) is the sum of base end bearing ($Q_b = 9 c_u A_b$) and shaft side shear resistance ($Q_s = \alpha c_u A_s$), divided by a safety factor ($FS = 2.5$) per IS 2911.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const d = parseFloat(document.getElementById('d-pile-input').value);
+            const l = parseFloat(document.getElementById('l-pile-input').value);
+            const cu = parseFloat(document.getElementById('cu-pile-input').value);
+            const alpha = parseFloat(document.getElementById('alpha-pile-input').value);
+            const fs = 2.5;
+
+            const ab = (Math.PI / 4.0) * d * d;
+            const as_area = Math.PI * d * l;
+
+            const qb = 9.0 * cu * ab;
+            const qs = alpha * cu * as_area;
+            const qu = qb + qs;
+            const q_safe = qu / fs;
+
+            document.getElementById('val-qb-end').innerText = qb.toFixed(2) + ' kN (End Bearing)';
+            document.getElementById('val-qs-fric').innerText = qs.toFixed(2) + ' kN (Skin Friction)';
+            document.getElementById('val-qu-tot').innerText = qu.toFixed(2) + ' kN (Ultimate Capacity)';
+            document.getElementById('val-qsafe').innerText = q_safe.toFixed(2) + ' kN (Safe Load @ FS=2.5)';
+
+            drawPileCapacity(qb, qs);
+          }
+
+          function drawPileCapacity(qb, qs) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Soil Layer
+            ctx.fillStyle = '#b45309'; ctx.fillRect(80, 70, w - 160, 170);
+
+            // Pile Shaft
+            ctx.fillStyle = '#64748b'; ctx.fillRect(w/2 - 20, 50, 40, 180);
+
+            // Skin friction arrows (Sides)
+            ctx.strokeStyle = '#ffd600'; ctx.lineWidth = 2;
+            for(let y = 90; y < 210; y += 30) {
+              ctx.beginPath(); ctx.moveTo(w/2 - 35, y); ctx.lineTo(w/2 - 22, y); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(w/2 + 35, y); ctx.lineTo(w/2 + 22, y); ctx.stroke();
+            }
+
+            // End Bearing Arrow (Base)
+            ctx.strokeStyle = '#00e676'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(w/2, 260); ctx.lineTo(w/2, 235); ctx.stroke();
+
+            ctx.fillStyle = '#38bdf8'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Pile Axial Capacity: Safe Working Load Qsafe = ${(document.getElementById('val-qsafe').innerText)}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/pile_foundation_load_capacity.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/pile_foundation_load_capacity.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

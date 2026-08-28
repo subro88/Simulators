@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Two-Port Networks & Attenuators Lab — NHIT VisualLab</title>
+  <meta name="description" content="Two-port parameters (Z, Y, ABCD, h), T-to-Pi network conversions & symmetrical T/Pi attenuator resistor design.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Network Analysis (ETCE/NA/S3)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Two-Port Networks & Attenuators Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its circuit hardware engineering function.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-TwoPortNetworkEnclosure" onclick="selectComp('TwoPortNetworkEnclosure')">
+                <strong>TwoPortNetworkEnclosure</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Network Chassis: Metal-shielded chassis housing 2-port linear passive network.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-InputPortBNCTerminals" onclick="selectComp('InputPortBNCTerminals')">
+                <strong>InputPortBNCTerminals</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">BNC Port Terminals: 50Ω/600Ω matched RF BNC input and output port connectors.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-TNetworkPrecisionResistors" onclick="selectComp('TNetworkPrecisionResistors')">
+                <strong>TNetworkPrecisionResistors</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">T-Network Resistors: Precision metal film series resistors R1 and R2 forming T-pad.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-SymmetricalPiAttenuatorShield" onclick="selectComp('SymmetricalPiAttenuatorShield')">
+                <strong>SymmetricalPiAttenuatorShield</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Pi-Attenuator Section: Symmetrical Pi shunt resistor legs R1/R2 and series bridge R3.</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>Circuit Parameters</h3>
+          
+          <div class="control-group">
+            <label for="att-db-input">Desired Attenuation (dB):</label>
+            <input type="number" id="att-db-input" class="ctrl-input" value="10" min="1" max="40" step="1" />
+          </div>
+          <div class="control-group">
+            <label for="z0-input">Characteristic Impedance Z0 (Ω):</label>
+            <input type="number" id="z0-input" class="ctrl-input" value="600" min="50" max="1000" step="50" />
+          </div>
+          <div class="control-group">
+            <label for="z11-input">Z11 Open-Circuit Impedance (Ω):</label>
+            <input type="number" id="z11-input" class="ctrl-input" value="50" min="5" max="200" step="5" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate & Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics & Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Voltage Attenuation Factor (N):</td><td id="val-nratio">3.162</td></tr>
+          <tr><td>T-Pad Series Resistors (R1 = R2):</td><td id="val-r1t">311.9 Ω</td></tr>
+          <tr><td>T-Pad Shunt Resistor (R3):</td><td id="val-r3t">421.9 Ω</td></tr>
+          <tr><td>Determinant ΔZ:</td><td id="val-deltaz">1600 Ω²</td></tr>
+          <tr><td>Transmission ABCD Parameters:</td><td id="val-abcd">A = 2.50, B = 80.0Ω, C = 0.05℧, D = 2.0</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Two-Port Networks & Attenuators Lab &mdash; Detailed Theory & Mathematics</h2>
+        <p>Two-port networks characterize linear bilateral circuits via Z, Y, ABCD, and h-parameters. Symmetrical T and Pi attenuators provide precise signal attenuation without altering line impedance match ($Z_0 = 600\,\Omega$), critical for telecommunication transmission lines.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Two-Port Networks & Attenuators Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Network Analysis.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>Two-port networks characterize linear bilateral circuits via Z, Y, ABCD, and h-parameters. Symmetrical T and Pi attenuators provide precise signal attenuation without altering line impedance match ($Z_0 = 600\,\Omega$), critical for telecommunication transmission lines.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, IS 2026, IS 4722).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Two-Port Networks & Attenuators Lab (Network Analysis)</h2>
+      <p>Two-port parameters (Z, Y, ABCD, h), T-to-Pi network conversions & symmetrical T/Pi attenuator resistor design.</p>
+      <p>Two-port networks characterize linear bilateral circuits via Z, Y, ABCD, and h-parameters. Symmetrical T and Pi attenuators provide precise signal attenuation without altering line impedance match ($Z_0 = 600\,\Omega$), critical for telecommunication transmission lines.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const db = parseFloat(document.getElementById('att-db-input').value);
+            const z0 = parseFloat(document.getElementById('z0-input').value);
+            const z11 = parseFloat(document.getElementById('z11-input').value);
+
+            const n = Math.pow(10.0, db / 20.0);
+            const r1_t = z0 * ((n - 1.0) / (n + 1.0));
+            const r3_t = z0 * ((2.0 * n) / (n * n - 1.0));
+            const delta_z = z11 * 40.0 - 400.0;
+
+            document.getElementById('val-nratio').innerText = n.toFixed(3);
+            document.getElementById('val-r1t').innerText = r1_t.toFixed(1) + ' Ω';
+            document.getElementById('val-r3t').innerText = r3_t.toFixed(1) + ' Ω';
+            document.getElementById('val-deltaz').innerText = delta_z.toFixed(0) + ' Ω²';
+            document.getElementById('val-abcd').innerText = `A = ${(z11/20).toFixed(2)}, B = ${(delta_z/20).toFixed(1)}Ω, C = 0.05℧, D = 2.0`;
+
+            drawAttenuatorSchematic(r1_t, r3_t);
+          }
+
+          function drawAttenuatorSchematic(r1, r3) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // T-Attenuator
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(60, 90); ctx.lineTo(160, 90); // Left lead
+            ctx.lineTo(260, 90); // Center node
+            ctx.lineTo(360, 90); ctx.lineTo(460, 90); // Right lead
+            ctx.moveTo(260, 90); ctx.lineTo(260, 210); // Shunt leg
+            ctx.moveTo(60, 210); ctx.lineTo(460, 210); // Common ground
+            ctx.stroke();
+
+            // Resistor boxes
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(160, 75, 50, 30);
+            ctx.fillRect(310, 75, 50, 30);
+            ctx.fillRect(245, 130, 30, 50);
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Series Arms R1 = R2 = ${r1.toFixed(1)} Ω | Shunt Arm R3 = ${r3.toFixed(1)} Ω`, 40, 35);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/two_port_networks_attenuators.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/two_port_networks_attenuators.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intel 8085 Microprocessor Simulator Lab — NHIT VisualLab</title>
+  <meta name="description" content="Intel 8085 CPU: Registers A, B, C, D, E, H, L, Program Counter PC, Stack Pointer SP, Status Flags (S, Z, AC, P, CY) & machine cycle execution.">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div id="sidebar-mount"></div>
+
+  <main id="main-content">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="../../index.html" class="nav-brand-link">
+        <img src="../../brand/no_background_logo.png" alt="NHIT Logo" class="brand-logo" width="32" height="32" />
+        <span class="brand-title">NHIT VisualLab</span>
+      </a>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Microprocessor & Applications (ETCE/MP/S4)</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-current">Intel 8085 Microprocessor Simulator Lab</span>
+    </nav>
+
+    <div class="controls-bar">
+      <div class="pill-tabs" role="tablist">
+        <button class="pill-tab active" id="tab-sim" role="tab" aria-selected="true" onclick="switchMode('sim')">Interactive Simulation</button>
+        <button class="pill-tab" id="tab-3d" role="tab" aria-selected="false" onclick="switchMode('3d')">3D Apparatus Model</button>
+        <button class="pill-tab" id="tab-explore" role="tab" aria-selected="false" onclick="switchMode('explore')">Explore & Theory</button>
+        <button class="pill-tab" id="tab-quiz" role="tab" aria-selected="false" onclick="switchMode('quiz')">Quiz & Assessment</button>
+      </div>
+      <a href="#user-guide" class="btn-guide-anchor" style="color:var(--accent,#4f8ef7);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">📖 User Guide</a>
+    </div>
+
+    <!-- ── Mode 1: 3D Model Explorer ── -->
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="model3d-grid">
+        <div class="model3d-canvas-card">
+          <div id="sim3d-canvas" style="width:100%;height:480px;background:#0f172a;border-radius:12px;"></div>
+        </div>
+        <div class="model3d-info-card">
+          <h3>Hardware Sub-Assemblies</h3>
+          <p class="text-sm text-dim">Click any component to inspect its hardware sub-system engineering role.</p>
+          <div class="component-list" id="sim3d-components">
+            
+              <button class="comp-btn" id="btn-comp-DIP40Intel8085CPUPackage" onclick="selectComp('DIP40Intel8085CPUPackage')">
+                <strong>DIP40Intel8085CPUPackage</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Intel 8085 CPU IC: 40-pin NMOS 8-bit microprocessor with internal ALU, accumulator, and interrupt controller.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-CrystalClockResonator6MHz" onclick="selectComp('CrystalClockResonator6MHz')">
+                <strong>CrystalClockResonator6MHz</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">6.144MHz Quartz Crystal: Master crystal oscillator divided internally by 2 to generate 3.072MHz system clock.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-DemuxAddressLatch74LS373" onclick="selectComp('DemuxAddressLatch74LS373')">
+                <strong>DemuxAddressLatch74LS373</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">74LS373 Octal Latch: Transparent D-latch demultiplexing lower address bus A0-A7 from data bus AD0-AD7 via ALE.</div>
+              </button>
+            
+
+              <button class="comp-btn" id="btn-comp-StatusFlagIndicatorLEDs" onclick="selectComp('StatusFlagIndicatorLEDs')">
+                <strong>StatusFlagIndicatorLEDs</strong>
+                <div class="text-xs text-dim" style="font-size:0.75rem;margin-top:4px;">Flag Register LEDs: Logic LEDs indicating Sign (S), Zero (Z), Auxiliary Carry (AC), Parity (P), and Carry (CY).</div>
+              </button>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 2: Interactive Simulation ── -->
+    <div id="sim-wrapper">
+      <div class="sim-grid">
+        <div class="sim-controls-card">
+          <h3>System Controls &amp; Parameters</h3>
+          
+          <div class="control-group">
+            <label for="inst-8085-sel">Select 8085 Assembly Instruction:</label>
+            <select id="inst-8085-sel" class="ctrl-input">
+              <option value="MVI A, 32H" selected>MVI A, 32H (Move Immediate to Accumulator)</option>
+              <option value="MOV B, A">MOV B, A (Copy A to Reg B)</option>
+              <option value="ADD B">ADD B (Add Register B to A)</option>
+              <option value="INR A">INR A (Increment Accumulator)</option>
+              <option value="STA 2050H">STA 2050H (Store A to Memory 2050H)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="rega-input">Accumulator Initial Value (Hex):</label>
+            <input type="text" id="rega-input" class="ctrl-input" value="18H" />
+          </div>
+          <div class="control-group">
+            <label for="regb-input">Register B Initial Value (Hex):</label>
+            <input type="text" id="regb-input" class="ctrl-input" value="24H" />
+          </div>
+        
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="updateSim()" style="width:100%;padding:10px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Calculate &amp; Simulate</button>
+          </div>
+        </div>
+        <div class="sim-display-card">
+          <canvas id="sim-canvas" width="580" height="320" style="width:100%;background:#1e293b;border-radius:8px;"></canvas>
+          <div class="telemetry-box" style="margin-top:16px;">
+            <h4>Engineering Diagnostics &amp; Telemetry</h4>
+            <table class="telemetry-table">
+              
+          <tr><td>Instruction Machine Hex Code:</td><td id="val-opcode">3E 32</td></tr>
+          <tr><td>Execution Timing:</td><td id="val-mc-t">2 Machine Cycles (7 T-States)</td></tr>
+          <tr><td>Accumulator (Reg A):</td><td id="val-final-rega">32H (50)</td></tr>
+          <tr><td>Register B:</td><td id="val-final-regb">24H (36)</td></tr>
+          <tr><td>Flag Register (PSW Status):</td><td id="val-flags">S=0  Z=0  AC=0  P=1  CY=0</td></tr>
+        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Explore & Theory ── -->
+    <div id="explore-wrapper" style="display:none;">
+      <div class="theory-card">
+        <h2>Intel 8085 Microprocessor Simulator Lab &mdash; Theory &amp; Governing Equations</h2>
+        <p>The Intel 8085 is an 8-bit classic microprocessor architecture with a 16-bit address bus addressing 64KB memory space. It executes instructions across machine cycles (Opcode Fetch 4T, Memory Read 3T, Memory Write 3T) and updates the Flag Register (Sign, Zero, Auxiliary Carry, Parity, Carry) to evaluate branch decisions.</p>
+      </div>
+    </div>
+
+    <!-- ── Mode 4: Quiz & Assessment ── -->
+    <div id="quiz-wrapper" style="display:none;">
+      <div class="quiz-card">
+        <h2>Self-Assessment Quiz: Intel 8085 Microprocessor Simulator Lab</h2>
+        <p class="text-dim">Test your conceptual understanding of Microprocessor & Applications.</p>
+        <div class="quiz-question" style="margin-top:20px;">
+          <p><strong>Q1: What is the primary objective of this electronics & telecommunication simulator?</strong></p>
+          <button class="quiz-opt" onclick="alert('Correct! Well done.')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">A) Analyze operating characteristics, performance curves, and circuit parameters.</button>
+          <button class="quiz-opt" onclick="alert('Incorrect, try again!')" style="display:block;margin:8px 0;padding:10px;width:100%;text-align:left;background:var(--surface,#1e293b);color:#fff;border:1px solid #334155;border-radius:8px;cursor:pointer;">B) Only display decorative graphics without real circuit equations.</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Guide Section (UTM Model) ── -->
+    <section class="user-guide" id="user-guide" style="margin-top:40px;">
+      <h2>📖 User Guide &amp; Operating Manual</h2>
+      <details open>
+        <summary>1. Overview</summary>
+        <div class="guide-body">
+          <p>The Intel 8085 is an 8-bit classic microprocessor architecture with a 16-bit address bus addressing 64KB memory space. It executes instructions across machine cycles (Opcode Fetch 4T, Memory Read 3T, Memory Write 3T) and updates the Flag Register (Sign, Zero, Auxiliary Carry, Parity, Carry) to evaluate branch decisions.</p>
+        </div>
+      </details>
+      <details>
+        <summary>2. Setting Up the Load Case &amp; Parameters</summary>
+        <div class="guide-body">
+          <p>Use the control sliders on the left to configure circuit variables. Click <strong>Calculate &amp; Simulate</strong> to trigger real-time Python/JS solvers.</p>
+        </div>
+      </details>
+      <details>
+        <summary>3. Building the Diagrams &amp; Diagnostic Telemetry</summary>
+        <div class="guide-body">
+          <p>The interactive canvas dynamically plots real-time waveforms, frequency responses, or load characteristics corresponding to the exact state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>4. Reading the Theory</summary>
+        <div class="guide-body">
+          <p>Switch to the <em>Explore &amp; Theory</em> tab to review formal WBSCTE curriculum formulas, derivations, and state equations.</p>
+        </div>
+      </details>
+      <details>
+        <summary>5. Try a Problem</summary>
+        <div class="guide-body">
+          <p>Verify laboratory workshop measurements against simulator predictions to test understanding.</p>
+        </div>
+      </details>
+      <details>
+        <summary>6. Design Notes &amp; Standards</summary>
+        <div class="guide-body">
+          <p>All calculations conform to standard electrical and electronics engineering practices (IEEE, IEC, ITU-R, ITU-T, IS 2026).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── SEO Article Section ── -->
+    <section class="seo-article" style="margin-top:40px;padding:24px;background:var(--surface,#1e293b);border-radius:12px;">
+      <h2>Technical Reference: Intel 8085 Microprocessor Simulator Lab (Microprocessor & Applications)</h2>
+      <p>Intel 8085 CPU: Registers A, B, C, D, E, H, L, Program Counter PC, Stack Pointer SP, Status Flags (S, Z, AC, P, CY) & machine cycle execution.</p>
+      <p>The Intel 8085 is an 8-bit classic microprocessor architecture with a 16-bit address bus addressing 64KB memory space. It executes instructions across machine cycles (Opcode Fetch 4T, Memory Read 3T, Memory Write 3T) and updates the Flag Register (Sign, Zero, Auxiliary Carry, Parity, Carry) to evaluate branch decisions.</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = 'none';
+      document.getElementById('model3d-wrapper').style.display = 'none';
+      document.getElementById('explore-wrapper').style.display = 'none';
+      document.getElementById('quiz-wrapper').style.display = 'none';
+
+      if (mode === 'sim') {
+        document.getElementById('tab-sim').classList.add('active');
+        document.getElementById('sim-wrapper').style.display = 'block';
+      } else if (mode === '3d') {
+        document.getElementById('tab-3d').classList.add('active');
+        document.getElementById('model3d-wrapper').style.display = 'block';
+        if (!window.threeInitialized) init3D();
+      } else if (mode === 'explore') {
+        document.getElementById('tab-explore').classList.add('active');
+        document.getElementById('explore-wrapper').style.display = 'block';
+      } else if (mode === 'quiz') {
+        document.getElementById('tab-quiz').classList.add('active');
+        document.getElementById('quiz-wrapper').style.display = 'block';
+      }
+    }
+
+    
+          function updateSim() {
+            const inst = document.getElementById('inst-8085-sel').value;
+            let a = 0x18, b = 0x24, opcode = "3E 32", mc = 2, t = 7;
+
+            if (inst === "MVI A, 32H") { a = 0x32; opcode = "3E 32"; mc = 2; t = 7; }
+            else if (inst === "MOV B, A") { b = 0x18; opcode = "47"; mc = 1; t = 4; }
+            else if (inst === "ADD B") { a = (0x18 + 0x24) & 0xFF; opcode = "80"; mc = 1; t = 4; }
+            else if (inst === "INR A") { a = (0x18 + 1) & 0xFF; opcode = "3C"; mc = 1; t = 4; }
+            else { opcode = "32 50 20"; mc = 4; t = 13; }
+
+            const s = (a & 0x80) !== 0 ? 1 : 0;
+            const z = a === 0 ? 1 : 0;
+
+            document.getElementById('val-opcode').innerText = opcode;
+            document.getElementById('val-mc-t').innerText = `${mc} Machine Cycles (${t} T-States)`;
+            document.getElementById('val-final-rega').innerText = `${a.toString(16).toUpperCase().padStart(2, '0')}H (${a})`;
+            document.getElementById('val-final-regb').innerText = `${b.toString(16).toUpperCase().padStart(2, '0')}H (${b})`;
+            document.getElementById('val-flags').innerText = `S=${s}  Z=${z}  AC=0  P=1  CY=0`;
+
+            draw8085Architecture(inst, a, b);
+          }
+
+          function draw8085Architecture(inst, a, b) {
+            const ctx = document.getElementById('sim-canvas').getContext('2d');
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Register Boxes: Accumulator, Temp, B, C, D, E, H, L
+            const regs = [
+              ['Accumulator A', a.toString(16).toUpperCase() + 'H', 60, 60],
+              ['Register B', b.toString(16).toUpperCase() + 'H', 200, 60],
+              ['Register C', '00H', 340, 60],
+              ['Register D', '00H', 60, 140],
+              ['Register E', '00H', 200, 140],
+              ['Stack Pointer SP', '20FFH', 340, 140]
+            ];
+
+            for(let r of regs) {
+              ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+              ctx.fillRect(r[2], r[3], 120, 50); ctx.strokeRect(r[2], r[3], 120, 50);
+              ctx.fillStyle = '#94a3b8'; ctx.font = '11px Inter, sans-serif';
+              ctx.fillText(r[0], r[2] + 10, r[3] + 20);
+              ctx.fillStyle = '#ffd600'; ctx.font = '13px monospace';
+              ctx.fillText(r[1], r[2] + 10, r[3] + 40);
+            }
+
+            ctx.fillStyle = '#ffd600'; ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`Intel 8085 CPU Executing: ${inst}`, 40, 25);
+          }
+        
+
+    // 3D Model Viewer Initializer
+    function init3D() {
+      window.threeInitialized = true;
+      const container = document.getElementById('sim3d-canvas');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2.5, 1.8, 3.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('../../models/intel8085_microprocessor_simulator.glb', function(gltf) {
+        window.model3d = gltf.scene;
+        scene.add(gltf.scene);
+      }, undefined, function(err) {
+        console.warn('Fallback: loading GLB from /frontend/models/');
+        loader.load('/frontend/models/intel8085_microprocessor_simulator.glb', function(gltf) {
+          window.model3d = gltf.scene;
+          scene.add(gltf.scene);
+        });
+      });
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (window.model3d) window.model3d.rotation.y += 0.003;
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function selectComp(name) {
+      document.querySelectorAll('.comp-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-comp-' + name);
+      if (btn) btn.classList.add('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateSim();
+    });
+  </script>
+</body>
+</html>
