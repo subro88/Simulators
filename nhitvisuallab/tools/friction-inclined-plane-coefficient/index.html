@@ -7,7 +7,7 @@
   <meta name="description" content="WBSCTE BS103 / BS107 Applied Physics-I Virtual Lab: Friction on Rough Inclined Plane, Angle of Repose mu = tan(theta), and Work-Energy Theorem Verification -Delta U = Kf + W_friction.">
   
   <!-- CSS Stylesheets -->
-  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,16 +34,16 @@
 <body>
 
   <!-- ── Fixed Brand Logo ────────────────────────────────────────────────── -->
-  <a href="/nhitvisuallab/index.html" class="logo-fixed" title="Return to NHIT Visual Lab Home">
-    <img src="/nhitvisuallab/assets/logo.png" alt="NHIT Logo" onerror="this.src='../../assets/logo.png';">
+  <a href="../../index.html" class="logo-fixed" title="Return to NHIT Visual Lab Home">
+    <img src="../../brand/no_background_logo.png" alt="NHIT Logo" onerror="this.src='../../brand/logo.png';">
   </a>
 
   <main id="app">
     <!-- ── Breadcrumb Site Nav ────────────────────────────────────────────── -->
     <nav class="site-nav">
-      <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+      <a href="../../index.html">NHIT Visual Lab</a>
       <span>&rsaquo;</span>
-      <a href="/nhitvisuallab/index.html#bs-sem1">Applied Physics-I</a>
+      <a href="../../index.html#bs-sem1">Applied Physics-I</a>
       <span>&rsaquo;</span>
       <span style="color:#f8fafc;">Friction &amp; Work-Energy Theorem Lab</span>
     </nav>
@@ -744,6 +744,16 @@
     };
   }
 
+  let mathjaxTimer = null;
+  function triggerMathJaxTypeset() {
+    if (mathjaxTimer) clearTimeout(mathjaxTimer);
+    mathjaxTimer = setTimeout(() => {
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise().catch(err => console.log(err));
+      }
+    }, 100);
+  }
+
   /* ==========================================================================
      DOM Parameter Updating
      ========================================================================== */
@@ -765,14 +775,15 @@
     // Equilibrium / Slide Alert Banner
     const alertBox = document.getElementById('equilibrium-alert');
     const alertText = document.getElementById('equilibrium-alert-text');
-    if (phys.willSlide) {
-      alertBox.className = 'balance-banner';
-      alertText.innerHTML = `<span>&#10004;&#65039; Angle of Repose $\\theta_r = ${phys.angleReposeDeg.toFixed(1)}^\\circ$. Since $\\theta = ${state.thetaDeg.toFixed(1)}^\\circ > \\theta_r$, block will accelerate with $a = ${phys.a.toFixed(2)}\\text{ m/s}^2$!</span>`;
-    } else {
-      alertBox.className = 'balance-banner warning';
-      alertText.innerHTML = `<span>&#9888;&#65039; Static Equilibrium: $\\theta = ${state.thetaDeg.toFixed(1)}^\\circ \\le \\theta_r = ${phys.angleReposeDeg.toFixed(1)}^\\circ$. Increase angle $\\theta > ${phys.angleReposeDeg.toFixed(1)}^\\circ$ to initiate slide!</span>`;
+    if (alertBox && alertText) {
+      if (phys.willSlide) {
+        alertBox.className = 'balance-banner';
+        alertText.innerHTML = `<span>&#10004;&#65039; Angle of Repose $\\theta_r = ${phys.angleReposeDeg.toFixed(1)}^\\circ$. Since $\\theta = ${state.thetaDeg.toFixed(1)}^\\circ > \\theta_r$, block will accelerate with $a = ${phys.a.toFixed(2)}\\text{ m/s}^2$!</span>`;
+      } else {
+        alertBox.className = 'balance-banner warning';
+        alertText.innerHTML = `<span>&#9888;&#65039; Static Equilibrium: $\\theta = ${state.thetaDeg.toFixed(1)}^\\circ \\le \\theta_r = ${phys.angleReposeDeg.toFixed(1)}^\\circ$. Increase angle $\\theta > ${phys.angleReposeDeg.toFixed(1)}^\\circ$ to initiate slide!</span>`;
+      }
     }
-    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
 
     // Top HUD Pills
     document.getElementById('hud-timer').innerText = `t = ${state.simTime.toFixed(3)} s`;
@@ -959,11 +970,11 @@
     ctx.fillStyle = '#10b981';
     ctx.fillText('GATE A', gateA_distPx - 16, -32);
 
-    // Slider Block Position along Ramp
-    // Block moves from gateA_distPx down towards origin
+    // Slider Block Position along Ramp (Dynamic Size by Mass m)
     const blockX_onRamp = gateA_distPx - (state.xPos * scalePxPerM);
-    const blockW = 44;
-    const blockH = 26;
+    const massRatio = Math.cbrt(state.m / 0.20);
+    const blockW = Math.max(28, Math.min(80, Math.round(44 * massRatio)));
+    const blockH = Math.max(16, Math.min(48, Math.round(26 * massRatio)));
 
     // Draw Slider Block
     ctx.save();
@@ -985,8 +996,10 @@
 
     // Mass Label on Block
     ctx.fillStyle = '#070b14';
-    ctx.font = 'bold 10px JetBrains Mono';
-    ctx.fillText(`${state.m.toFixed(2)}kg`, -16, 16);
+    ctx.font = `bold ${Math.max(9, Math.min(12, Math.round(10 * massRatio)))}px JetBrains Mono`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${state.m.toFixed(2)}kg`, 0, blockH / 2);
 
     ctx.restore(); // Restore block transform
     ctx.restore(); // Restore ramp transform
@@ -1032,8 +1045,8 @@
     // Free Body Diagram (FBD) Force Vectors
     if (state.showFBD) {
       const curBlockX_ramp = gateA_distPx - (state.xPos * scalePxPerM);
-      const cmX = originX + curBlockX_ramp * Math.cos(thetaRad) + 13 * Math.sin(thetaRad);
-      const cmY = originY - curBlockX_ramp * Math.sin(thetaRad) - 13 * Math.cos(thetaRad);
+      const cmX = originX + curBlockX_ramp * Math.cos(thetaRad) + (blockH / 2) * Math.sin(thetaRad);
+      const cmY = originY - curBlockX_ramp * Math.sin(thetaRad) - (blockH / 2) * Math.cos(thetaRad);
 
       // Normal Force N (Perpendicular outward)
       const nLen = 45;
@@ -1085,6 +1098,8 @@
 
     // Vector Label
     context.font = 'bold 11px Inter';
+    context.textAlign = 'left';
+    context.textBaseline = 'alphabetic';
     context.fillText(label, toX + 6 * Math.cos(angle), toY + 6 * Math.sin(angle));
   }
 
@@ -1102,7 +1117,11 @@
     context.strokeStyle = 'rgba(56, 189, 248, 0.3)';
     context.lineWidth = 1;
     context.beginPath();
-    context.roundRect(barX - 45, barY - 30, 200, totalBarH + 70, 10);
+    if (typeof context.roundRect === 'function') {
+      context.roundRect(barX - 45, barY - 30, 200, totalBarH + 70, 10);
+    } else {
+      context.rect(barX - 45, barY - 30, 200, totalBarH + 70);
+    }
     context.fill();
     context.stroke();
 
@@ -1306,6 +1325,7 @@
     document.getElementById('system-status-text').innerText = 'Ready for Release';
 
     updateUIReadouts();
+    triggerMathJaxTypeset();
     renderCanvas();
   }
 
@@ -1491,7 +1511,7 @@
       setTimeout(init3DApparatus, 60);
     }
 
-    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+    triggerMathJaxTypeset();
   }
 
   document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
@@ -1673,9 +1693,20 @@
   /* ==========================================================================
      Initialization
      ========================================================================== */
-  window.addEventListener('load', () => {
+  function initApp() {
     updateUIReadouts();
     renderCanvas();
+    triggerMathJaxTypeset();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else {
+    initApp();
+  }
+
+  window.addEventListener('load', () => {
+    initApp();
     requestAnimationFrame(animLoop);
   });
   </script>

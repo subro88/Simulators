@@ -3,361 +3,1650 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stokes' Law Viscosity & Terminal Velocity Lab — WBSCTE Basic Science 1st Sem Simulation | NHIT Visual Lab</title>
-  <meta name="description" content="BS103/BS107 Applied Physics-I: Stokes' Law Terminal Velocity & Liquid Viscosity eta = 2 r^2 (rho - sigma) g / (9 v)">
-  <link rel="stylesheet" href="../../css/style.css">
+  <title>Non-Newtonian Stokes' Law Viscosity & Yield Stress Lab | NHIT Visual Lab</title>
+  <meta name="description" content="WBSCTE BS103 / BS107 Applied Physics-I Virtual Lab: Non-Newtonian Stokes' Law, Herschel-Bulkley & Bingham Yield-Stress Fluids, Static Entrapment Condition, and Terminal Velocity.">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Three.js CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <style>
-    :root { --accent: #00e676; }
-    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
-    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
-    .site-nav a { color: #94a3b8; text-decoration: none; }
-    .site-nav a:hover { color: var(--accent); }
-    .site-nav span { color: #475569; }
-    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
-    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
-    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
-    .mode-bar { display: flex; gap: 8px; align-items: center; }
-    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
-    .guide-link-btn:hover { background: #475569; }
-    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
-    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
-    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-    .control-group { margin-bottom: 14px; }
-    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
-    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
-    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
-    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
-    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
-    .diag-table td:first-child { color: #94a3b8; }
-    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
-    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
-    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
-    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
-    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
-    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
-    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
-    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
-    .seo-article h2, .seo-article h3 { color: #f8fafc; }
-    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
-  </style>
+  
+  <!-- MathJax 3 for LaTeX rendering -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
 </head>
 <body>
-  <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem1">Basic Science & Humanities</a>
-    <span>&rsaquo;</span>
-    <span style="color:#f8fafc;">Stokes' Law Viscosity & Terminal Velocity Lab</span>
-  </nav>
 
-  <header class="tool-header">
-    <div>
-      <span class="tool-badge">BS103 / BS107</span>
-      <h1 class="tool-title">Stokes' Law Viscosity & Terminal Velocity Lab</h1>
-      <p class="tool-subtitle">BS103/BS107 Applied Physics-I: Stokes' Law Terminal Velocity & Liquid Viscosity eta = 2 r^2 (rho - sigma) g / (9 v)</p>
-    </div>
-    <div class="mode-bar">
-      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
-      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
-      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
-      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
-    </div>
-  </header>
+  <!-- ── Fixed Brand Logo ────────────────────────────────────────────────── -->
+  <a href="../../index.html" class="logo-fixed" title="Return to NHIT Visual Lab Home">
+    <img src="../../brand/no_background_logo.png" alt="NHIT Logo" onerror="this.src='../../brand/logo.png';">
+  </a>
 
-  <main class="main-container">
-    <div id="sim-wrapper" class="sim-grid">
-      <div class="controls-col">
-        <div class="panel">
-          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
-          
-              <div class="control-group">
-                <label for="sphere_radius_r_mm">Sphere Radius r (mm):</label>
-                <input type="number" id="sphere_radius_r_mm" min="0.5" max="5.0" step="0.1" value="1.5" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="density_of_sphere_rho_kg_m3">Sphere Density rho (kg/m³):</label>
-                <input type="number" id="density_of_sphere_rho_kg_m3" min="2000.0" max="12000.0" step="100.0" value="7800.0" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="density_of_liquid_sigma_kg_m3">Liquid Density sigma (kg/m³):</label>
-                <input type="number" id="density_of_liquid_sigma_kg_m3" min="800.0" max="1500.0" step="20.0" value="1260.0" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="terminal_velocity_v_m_s">Terminal Velocity v (m/s):</label>
-                <input type="number" id="terminal_velocity_v_m_s" min="0.01" max="0.5" step="0.005" value="0.082" class="form-control" oninput="runSim()" />
-              </div>
-          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+  <main id="app">
+    <!-- ── Breadcrumb Site Nav ────────────────────────────────────────────── -->
+    <nav class="site-nav">
+      <a href="../../index.html">NHIT Visual Lab</a>
+      <span>&rsaquo;</span>
+      <a href="../../index.html#bs-sem1">Applied Physics-I</a>
+      <span>&rsaquo;</span>
+      <span style="color:#f8fafc;">Non-Newtonian Stokes' Law &amp; Yield Stress Lab</span>
+    </nav>
+
+    <!-- ── Tool Header ────────────────────────────────────────────────────── -->
+    <header class="tool-header">
+      <div class="tool-header-left">
+        <div class="tool-badge-row">
+          <span class="badge-code">BS103 / BS107</span>
+          <span class="badge-topic">Fluid Dynamics &amp; Rheology</span>
+          <span class="badge-wbscte">WBSCTE Lab Exp #6</span>
         </div>
+        <h1>Non-Newtonian Stokes' Law &amp; Yield-Stress Fluid Lab</h1>
+        <p>Model Herschel&ndash;Bulkley &amp; Bingham Plastic yield-stress fluids ($\tau = \tau_0 + K\dot{\gamma}^n$). Investigate static entrapment thresholds ($Y_g \ge 1$), unyielded plug zones, and RK4 numerical terminal velocity.</p>
       </div>
-      <div class="display-col">
-        <div class="canvas-card">
-          <canvas id="sim-canvas" width="800" height="420"></canvas>
+      <div class="tool-header-actions">
+        <button class="btn-action" onclick="switchMode('quiz')">&#128221; Self Quiz</button>
+        <button class="btn-action" onclick="switchMode('theory')">&#128214; Theory &amp; Formulas</button>
+        <a href="#user-guide" class="btn-action">&#128218; Lab Manual</a>
+      </div>
+    </header>
+
+    <!-- ── Mode Pill Navigation Bar ───────────────────────────────────────── -->
+    <nav class="mode-navbar">
+      <div class="pill-group" id="mode-tabs">
+        <button class="pill active" data-mode="sim" onclick="switchMode('sim')">&#129514; Yield-Stress Simulation</button>
+        <button class="pill" data-mode="graphs" onclick="switchMode('graphs')">&#128200; Rheology &amp; Critical Radius Graphs</button>
+        <button class="pill" data-mode="3d" onclick="switchMode('3d')">&#129482; 3D Apparatus Twin</button>
+        <button class="pill" data-mode="theory" onclick="switchMode('theory')">&#128214; Mathematical Theory</button>
+        <button class="pill" data-mode="quiz" onclick="switchMode('quiz')">&#9989; Interactive Quiz</button>
+      </div>
+      <div class="pill-status-indicator">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="system-status-text">Ready for Release</span>
+      </div>
+    </nav>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SECTION: YIELD-STRESS STOKES' LAW SIMULATION
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-sim">
+      <div class="workspace-grid">
+        
+        <!-- Controls Column -->
+        <div class="controls-col">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">&#9881;&#65039; Rheological &amp; Sphere Controls</h3>
+            </div>
+            <div class="card-body">
+
+              <!-- Presets Selector -->
+              <div class="input-row">
+                <div class="input-label-wrap">
+                  <label for="select-preset">Yield-Stress Fluid Preset:</label>
+                  <span class="val-badge green" id="val-preset-name">Toothpaste</span>
+                </div>
+                <select id="select-preset" class="select-box" onchange="onPresetChange()">
+                  <option value="toothpaste" selected>Toothpaste (H-B: τ0=15Pa, K=8.5, n=0.45)</option>
+                  <option value="mayonnaise">Mayonnaise (H-B: τ0=22Pa, K=12, n=0.38)</option>
+                  <option value="bentonite">Drilling Mud / Bentonite 5% (Bingham: τ0=6.5Pa, μp=0.045)</option>
+                  <option value="hairgel">Hair Styling Gel (H-B: τ0=35Pa, K=18, n=0.30)</option>
+                  <option value="ketchup">Tomato Ketchup / Puree (H-B: τ0=12Pa, K=3.5, n=0.40)</option>
+                  <option value="glycerin">Glycerin (Newtonian: τ0=0Pa, K=0.95, n=1.0)</option>
+                  <option value="custom">Custom Yield-Stress Fluid</option>
+                </select>
+              </div>
+
+              <!-- Custom Rheology Sliders (shown when Custom selected) -->
+              <div id="custom-rheology-wrap" class="hidden" style="background:var(--bg-primary); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:14px;">
+                <div class="input-row" style="margin-bottom:8px;">
+                  <div class="input-label-wrap">
+                    <label for="slider-tau0">Yield Stress $\tau_0$ ($\text{Pa}$):</label>
+                    <span class="val-badge red" id="val-tau0">15.0 Pa</span>
+                  </div>
+                  <input type="range" id="slider-tau0" class="range-slider" min="0" max="50" step="0.5" value="15.0" oninput="onParamChange()">
+                </div>
+                <div class="input-row" style="margin-bottom:8px;">
+                  <div class="input-label-wrap">
+                    <label for="slider-K">Consistency $K$ ($\text{Pa}\cdot\text{s}^n$):</label>
+                    <span class="val-badge cyan" id="val-K">8.50</span>
+                  </div>
+                  <input type="range" id="slider-K" class="range-slider" min="0.01" max="25" step="0.1" value="8.50" oninput="onParamChange()">
+                </div>
+                <div class="input-row" style="margin-bottom:8px;">
+                  <div class="input-label-wrap">
+                    <label for="slider-n">Flow Index $n$:</label>
+                    <span class="val-badge gold" id="val-n">0.45</span>
+                  </div>
+                  <input type="range" id="slider-n" class="range-slider" min="0.20" max="1.20" step="0.01" value="0.45" oninput="onParamChange()">
+                </div>
+                <div class="input-row" style="margin-bottom:0;">
+                  <div class="input-label-wrap">
+                    <label for="slider-sigma">Fluid Density $\sigma$ ($\text{kg/m}^3$):</label>
+                    <span class="val-badge" id="val-sigma">1300 kg/m³</span>
+                  </div>
+                  <input type="range" id="slider-sigma" class="range-slider" min="800" max="1600" step="10" value="1300" oninput="onParamChange()">
+                </div>
+              </div>
+
+              <!-- Sphere Material Selector -->
+              <div class="input-row">
+                <div class="input-label-wrap">
+                  <label for="select-sphere-mat">Sphere Material:</label>
+                  <span class="val-badge gold" id="val-sphere-mat">Steel (ρ=7850)</span>
+                </div>
+                <select id="select-sphere-mat" class="select-box" onchange="onSphereMatChange()">
+                  <option value="glass">Glass Sphere (ρ = 2500 kg/m³)</option>
+                  <option value="steel" selected>Steel Ball Bearing (ρ = 7850 kg/m³)</option>
+                  <option value="tungsten">Tungsten Carbide (ρ = 19250 kg/m³)</option>
+                  <option value="custom">Custom Density Sphere</option>
+                </select>
+              </div>
+
+              <!-- Sphere Radius Slider -->
+              <div class="input-row">
+                <div class="input-label-wrap">
+                  <label for="slider-r">Sphere Radius $r$ ($\text{mm}$):</label>
+                  <span class="val-badge cyan" id="val-r">1.50 mm</span>
+                </div>
+                <input type="range" id="slider-r" class="range-slider" min="0.50" max="5.00" step="0.05" value="1.50" oninput="onParamChange()">
+              </div>
+
+              <!-- Custom Sphere Density (shown if custom selected) -->
+              <div id="custom-density-wrap" class="input-row hidden">
+                <div class="input-label-wrap">
+                  <label for="slider-rho">Sphere Density $\rho$ ($\text{kg/m}^3$):</label>
+                  <span class="val-badge purple" id="val-rho">7850 kg/m³</span>
+                </div>
+                <input type="range" id="slider-rho" class="range-slider" min="1000" max="20000" step="100" value="7850" oninput="onParamChange()">
+              </div>
+
+              <!-- Critical Radius Ledger Info -->
+              <div class="input-row" style="background:var(--bg-primary); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-color);">
+                <div style="font-size:0.75rem; color:var(--text-muted);">Driving Stress $\tau_g = \frac{1}{3} r (\rho-\sigma) g$:</div>
+                <div class="mono text-cyan" id="ledger-taug" style="font-size:1.05rem; font-weight:700; margin:2px 0;">32.12 Pa</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Critical Radius $r_{\text{crit}} = \frac{3\tau_0}{(\rho-\sigma)g}$:</div>
+                <div class="mono text-gold" id="ledger-rcrit" style="font-size:1.05rem; font-weight:700; margin:2px 0;">0.70 mm</div>
+              </div>
+
+              <!-- Action Buttons -->
+              <button id="btn-release-sphere" class="btn-play" onclick="toggleSphereRelease()">
+                <span>&#9654;</span> Release Sphere &amp; Start Drop
+              </button>
+              <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="btn-secondary-tool" style="flex:1; justify-content:center;" onclick="resetSphereSim()">
+                  <span>&#8634;</span> Reset Sphere
+                </button>
+                <button class="btn-secondary-tool" style="flex:1; justify-content:center; border-color:var(--purple); color:var(--purple);" onclick="vibrateColumn()">
+                  <span>📳</span> Vibrate Column
+                </button>
+              </div>
+
+            </div>
+          </div>
         </div>
-        <div class="panel" style="margin-top:20px;">
-          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
-          <table class="diag-table">
-            <tbody>
+
+        <!-- Display Column: Fluid Column Canvas & Diagnostic Audit -->
+        <div class="display-col">
+          <div class="canvas-card">
+            <!-- Top HUD -->
+            <div class="canvas-hud-top">
+              <div class="hud-pill" id="hud-timer"><span>⏱️ t = 0.000 s</span></div>
+              <div class="hud-pill cyan" id="hud-vel"><span>v = 0.00 cm/s</span></div>
+              <div class="hud-pill gold" id="hud-state"><span>State: Armed</span></div>
+              <div class="hud-pill red" id="hud-gate"><span>Gate B: Ready</span></div>
+            </div>
+
+            <!-- Viewport -->
+            <div class="canvas-viewport-wrap">
+              <canvas id="sim-canvas" width="820" height="460"></canvas>
+            </div>
+
+            <!-- Toolbar Bottom -->
+            <div class="canvas-hud-controls">
+              <div class="playback-btns">
+                <button class="btn-secondary-tool" onclick="logCurrentTrial()">&#128221; Log Trial Data</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <label style="font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <input type="checkbox" id="chk-envelope" checked onchange="renderSimCanvas()"> Yielded Envelope
+                </label>
+                <div class="speed-selector">
+                  <span style="font-size:0.72rem; color:var(--text-dim); margin-right:4px;">Speed:</span>
+                  <button class="speed-btn" data-speed="0.5" onclick="setSimSpeed(0.5)">0.5×</button>
+                  <button class="speed-btn active" data-speed="1.0" onclick="setSimSpeed(1.0)">1.0×</button>
+                  <button class="speed-btn" data-speed="2.0" onclick="setSimSpeed(2.0)">2.0×</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diagnostic Telemetry Audit Card -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">&#128202; Diagnostic Telemetry &amp; Rheological Audit</h3>
+              <span style="font-size:0.8rem; color:var(--green);" id="audit-verdict-tag">&#9679; Entrapment Identity Verified</span>
+            </div>
+            <div class="card-body">
               
-          <tr>
-            <td>Dynamic Viscosity eta (Pa·s)</td>
-            <td id="out_eta_pa" class="out-val">0.3912 Pa·s</td>
-          </tr>
-          <tr>
-            <td>Dynamic Viscosity eta (Poise)</td>
-            <td id="out_eta_p" class="out-val">3.912 Poise</td>
-          </tr>
-          <tr>
-            <td>Reynolds Number Re</td>
-            <td id="out_re" class="out-val">0.0792</td>
-          </tr>
-          <tr>
-            <td>Terminal State Verdict</td>
-            <td id="out_status" class="out-val">STOKES LAW VERIFIED: Dynamic Viscosity η = 0.3912 Pa·s</td>
-          </tr>
-            </tbody>
-          </table>
+              <div class="energy-ledger-grid">
+                <div class="ledger-tile">
+                  <div class="ledger-tile-label">Submerged Stress $\tau_g$</div>
+                  <div class="ledger-tile-val text-cyan" id="diag-taug">32.12 Pa</div>
+                  <div class="ledger-tile-sub">$\tau_g = \frac{1}{3}r(\rho-\sigma)g$</div>
+                </div>
+                <div class="ledger-tile gold">
+                  <div class="ledger-tile-label">Yield Stress $\tau_0$</div>
+                  <div class="ledger-tile-val text-gold" id="diag-tau0">15.00 Pa</div>
+                  <div class="ledger-tile-sub">Threshold $\text{Pa}$</div>
+                </div>
+                <div class="ledger-tile green">
+                  <div class="ledger-tile-label">Yield Number $Y_g$</div>
+                  <div class="ledger-tile-val text-green" id="diag-yg">0.467</div>
+                  <div class="ledger-tile-sub">$Y_g = \tau_0 / \tau_g$</div>
+                </div>
+                <div class="ledger-tile">
+                  <div class="ledger-tile-label">Critical Radius $r_{\text{crit}}$</div>
+                  <div class="ledger-tile-val text-purple" id="diag-rcrit">0.70 mm</div>
+                  <div class="ledger-tile-sub">$r_{\text{crit}} = \frac{3\tau_0}{(\rho-\sigma)g}$</div>
+                </div>
+                <div class="ledger-tile red">
+                  <div class="ledger-tile-label">Terminal Velocity $v_t$</div>
+                  <div class="ledger-tile-val text-red" id="diag-vt">5.24 cm/s</div>
+                  <div class="ledger-tile-sub">RK4 Integrated</div>
+                </div>
+              </div>
+
+              <!-- Verdict Banner -->
+              <div class="balance-banner" id="verdict-banner">
+                <span id="verdict-banner-text">&#10004;&#65039; <strong>Fluid Yielded &amp; Sinking:</strong> Since $\tau_g = 32.12\text{ Pa} > \tau_0 = 15.00\text{ Pa}$ ($Y_g = 0.467 < 1$), the fluid yields and sphere accelerates to terminal velocity $v_t = 5.24\text{ cm/s}$.</span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Observation Table Card -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">&#128221; Experimental Observation Table</h3>
+              <span style="font-size:0.8rem; color:var(--text-muted);">Logged Rheological Drop Trials</span>
+            </div>
+            <div class="card-body">
+              <div class="table-wrap">
+                <table class="obs-table" id="obs-table">
+                  <thead>
+                    <tr>
+                      <th>Trial #</th>
+                      <th>Material</th>
+                      <th>Radius $r$ (mm)</th>
+                      <th>$\tau_g$ (Pa)</th>
+                      <th>$\tau_0$ (Pa)</th>
+                      <th>State</th>
+                      <th>Transit $t$ (s)</th>
+                      <th>$v_t$ (cm/s)</th>
+                      <th>Calculated $\tau_{0,\text{exp}}$</th>
+                    </tr>
+                  </thead>
+                  <tbody id="obs-table-body">
+                    <!-- Dynamic Rows -->
+                  </tbody>
+                </table>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:12px;">
+                <button class="btn-action" onclick="exportTableCSV()">&#128190; Export CSV</button>
+                <button class="btn-action" onclick="clearObsTable()">&#128465; Clear Table</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SECTION: RHEOLOGICAL GRAPHING CANVAS (DUAL-TAB)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-graphs" class="hidden">
+      <div class="card">
+        <div class="graph-tab-bar">
+          <button class="graph-subtab active" id="subtab-flow" onclick="switchGraphTab('flow')">📈 Tab 1: Flow Curve ($\tau$ vs. $\dot{\gamma}$ with Non-Zero Y-Intercept)</button>
+          <button class="graph-subtab" id="subtab-rcrit" onclick="switchGraphTab('rcrit')">🎯 Tab 2: Critical Radius Threshold Plot ($\tau_g$ vs. $r$)</button>
+        </div>
+        <div class="card-body">
+          <div class="canvas-viewport-wrap">
+            <canvas id="graph-canvas" width="860" height="480"></canvas>
+          </div>
         </div>
       </div>
     </div>
 
-    <div id="model3d-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
-        <div id="three-canvas-container"></div>
-        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
-        <div class="comp-grid">
-          
-          <div class="comp-card" onclick="focusComponent('TallTransparentGlassViscosityJar')">
-            <h4>Tall Viscosity Tube</h4>
-            <p>Graduated cylindrical glass jar filled with transparent viscous glycerin.</p>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SECTION: 3D APPARATUS MODEL (THREE.JS DIGITAL TWIN)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-3d" class="hidden">
+      <div class="user-guide">
+        <h2 style="color:var(--cyan); margin-top:0; font-size:1.2rem;">&#129482; 3D Interactive Viscosity Apparatus Twin</h2>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px;">Explore the tall glass viscosity column, liquid medium, dense sphere, photogates, and laser reference markers.</p>
+        
+        <div class="sim3d-layout">
+          <div class="sim3d-wrap">
+            <div id="three-canvas-container" class="sim3d-canvas"></div>
+            <div class="sim3d-hint">Orbit: Left Click &middot; Zoom: Scroll &middot; Pan: Right Click</div>
           </div>
-          <div class="comp-card" onclick="focusComponent('ViscousGlycerinLiquidColumn')">
-            <h4>Glycerin Liquid Column</h4>
-            <p>Pure glycerin medium offering viscous drag force F = 6 pi eta r v.</p>
+          <aside class="sim3d-components">
+            <div class="sim3d-comp active" onclick="focus3DComponent('all')">
+              <div class="sim3d-comp-title">&#128065; Complete Assembly</div>
+              <div class="sim3d-comp-desc">Full tall glass jar &amp; photogates twin.</div>
+            </div>
+            <div class="sim3d-comp" onclick="focus3DComponent('jar')">
+              <div class="sim3d-comp-title">&#129514; Viscosity Jar</div>
+              <div class="sim3d-comp-desc">Graduated glass cylinder filled with gel.</div>
+            </div>
+            <div class="sim3d-comp" onclick="focus3DComponent('sphere')">
+              <div class="sim3d-comp-title">&#9878;&#65039; Submerged Sphere</div>
+              <div class="sim3d-comp-desc">Steel/Tungsten sphere experiencing yield stress.</div>
+            </div>
+            <div class="sim3d-comp" onclick="focus3DComponent('gates')">
+              <div class="sim3d-comp-title">&#128266; Laser Photogates</div>
+              <div class="sim3d-comp-desc">Infrared timing sensors recording transit time.</div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SECTION: MATHEMATICAL THEORY & DERIVATIONS
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-theory" class="hidden">
+      <div class="user-guide">
+        <h2 style="color:var(--cyan); margin-top:0; font-size:1.3rem;">&#128214; Mathematical Theory &amp; Rheological Formulations</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem;">WBSCTE Applied Physics-I (BS103/BS107): Non-Newtonian Yield-Stress Rheology, Entrapment Criteria, and Regularized RK4 Dynamics.</p>
+
+        <h3 style="color:var(--gold); margin-top:20px; font-size:1.1rem;">1. Herschel&ndash;Bulkley Constitutive Equation</h3>
+        <p>Yield-stress fluids behave as rigid solids when applied shear stress $|\tau| \le \tau_0$, and yield into viscous flow when $|\tau| > \tau_0$:</p>
+        <div style="background:var(--bg-primary); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); font-family:var(--font-mono); color:var(--cyan); margin:12px 0;">
+          $$\tau = \tau_0 + K \cdot \dot{\gamma}^n \quad (|\tau| > \tau_0)$$
+        </div>
+
+        <h3 style="color:var(--green); margin-top:24px; font-size:1.1rem;">2. Static Entrapment Criterion &amp; Yield Number ($Y_g$)</h3>
+        <p>The net submerged gravitational driving stress exerted by a sphere of radius $r$ and density $\rho$ in fluid $\sigma$ is:</p>
+        <div style="background:var(--bg-primary); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); font-family:var(--font-mono); color:var(--green); margin:12px 0;">
+          $$\tau_g = \frac{\frac{4}{3}\pi r^3 (\rho-\sigma)g}{4\pi r^2} = \frac{1}{3} r (\rho - \sigma) g$$
+          $$Y_g = \frac{\tau_0}{\tau_g} = \frac{\tau_0}{\frac{1}{3} r (\rho - \sigma) g}$$
+        </div>
+        <ul>
+          <li>If $Y_g \ge 1 \implies \tau_g \le \tau_0$: <strong>Permanent Entrapment ($v=0$)</strong>. The fluid behaves as an elastic solid matrix.</li>
+          <li>If $Y_g < 1 \implies \tau_g > \tau_0$: <strong>Fluid Yields &amp; Sinks</strong>. Localized envelope shears and sphere accelerates to $v_t$.</li>
+        </ul>
+
+        <h3 style="color:var(--purple); margin-top:24px; font-size:1.1rem;">3. Critical Radius Threshold ($r_{\text{crit}}$)</h3>
+        <p>The minimum sphere radius required to overcome yield stress $\tau_0$ and initiate motion is:</p>
+        <div style="background:var(--bg-primary); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); font-family:var(--font-mono); color:var(--purple); margin:12px 0;">
+          $$r_{\text{crit}} = \frac{3 \tau_0}{(\rho - \sigma) g}$$
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SECTION: INTERACTIVE QUIZ & VIVA ASSESSMENT
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-quiz" class="hidden">
+      <div class="user-guide">
+        <h2 style="color:var(--cyan); margin-top:0; font-size:1.3rem;">&#9989; Interactive Self-Assessment &amp; Viva Voce</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem;">Test your conceptual understanding of yield stress, Bingham plastics, static entrapment, and Papanastasiou regularization.</p>
+
+        <div style="display:grid; gap:16px; margin-top:16px;">
+          <!-- Q1 -->
+          <div class="card" id="q-card-1">
+            <div class="card-body">
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Question 1 of 5</div>
+              <div style="font-weight:600; color:var(--text-main); margin-bottom:12px;">What condition causes a dense sphere ($\rho > \sigma$) to remain permanently entrapped/suspended in a yield-stress fluid ($v = 0$)?</div>
+              <div style="display:grid; gap:8px;">
+                <button class="btn-secondary-tool" onclick="checkQuiz(1, 0, false)">$\tau_g > \tau_0$</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(1, 1, true)">$\tau_g \le \tau_0$ (Yield Number $Y_g \ge 1$, driving stress is less than yield threshold)</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(1, 2, false)">Reynolds Number $Re > 100$</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(1, 3, false)">$n > 1$</button>
+              </div>
+              <div id="q-fb-1" class="status-msg" style="display:none; margin-top:10px;"></div>
+            </div>
           </div>
-          <div class="comp-card" onclick="focusComponent('FallingSteelBearingBallSphere')">
-            <h4>Steel Bearing Sphere</h4>
-            <p>Precision density sphere falling under steady terminal velocity equilibrium.</p>
+
+          <!-- Q2 -->
+          <div class="card" id="q-card-2">
+            <div class="card-body">
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Question 2 of 5</div>
+              <div style="font-weight:600; color:var(--text-main); margin-bottom:12px;">What is the formula for the critical radius $r_{\text{crit}}$ required for a sphere to overcome yield stress $\tau_0$ and sink?</div>
+              <div style="display:grid; gap:8px;">
+                <button class="btn-secondary-tool" onclick="checkQuiz(2, 0, true)">$r_{\text{crit}} = \frac{3 \tau_0}{(\rho - \sigma) g}$</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(2, 1, false)">$r_{\text{crit}} = \frac{\tau_0}{\rho g}$</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(2, 2, false)">$r_{\text{crit}} = \sqrt{\tau_0 / K}$</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(2, 3, false)">$r_{\text{crit}} = \frac{9 \mu_p}{2 g}$</button>
+              </div>
+              <div id="q-fb-2" class="status-msg" style="display:none; margin-top:10px;"></div>
+            </div>
           </div>
-          <div class="comp-card" onclick="focusComponent('PhotocellReferenceTimingMarks')">
-            <h4>Timing Reference Markers</h4>
-            <p>Reference graduation lines for measuring constant terminal velocity distance and time.</p>
+
+          <!-- Q3 -->
+          <div class="card" id="q-card-3">
+            <div class="card-body">
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Question 3 of 5</div>
+              <div style="font-weight:600; color:var(--text-main); margin-bottom:12px;">Why is Papanastasiou regularization applied in numerical simulations of yield-stress fluids?</div>
+              <div style="display:grid; gap:8px;">
+                <button class="btn-secondary-tool" onclick="checkQuiz(3, 0, false)">To increase the fluid density</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(3, 1, true)">To provide a continuous apparent viscosity curve and avoid zero-shear rate singularity at rest</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(3, 2, false)">To convert Newtonian fluids into turbulent flow</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(3, 3, false)">To calculate gravity</button>
+              </div>
+              <div id="q-fb-3" class="status-msg" style="display:none; margin-top:10px;"></div>
+            </div>
+          </div>
+
+          <!-- Q4 -->
+          <div class="card" id="q-card-4">
+            <div class="card-body">
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Question 4 of 5</div>
+              <div style="font-weight:600; color:var(--text-main); margin-bottom:12px;">Which of the following materials is a classic example of a Bingham Plastic fluid ($n = 1$)?</div>
+              <div style="display:grid; gap:8px;">
+                <button class="btn-secondary-tool" onclick="checkQuiz(4, 0, false)">Water</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(4, 1, true)">5% Bentonite Drilling Mud ($\tau = \tau_0 + \mu_p \dot{\gamma}$)</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(4, 2, false)">Glycerin</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(4, 3, false)">Air</button>
+              </div>
+              <div id="q-fb-4" class="status-msg" style="display:none; margin-top:10px;"></div>
+            </div>
+          </div>
+
+          <!-- Q5 -->
+          <div class="card" id="q-card-5">
+            <div class="card-body">
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Question 5 of 5</div>
+              <div style="font-weight:600; color:var(--text-main); margin-bottom:12px;">How does transient column vibration affect an entrapped sphere in a yield-stress gel?</div>
+              <div style="display:grid; gap:8px;">
+                <button class="btn-secondary-tool" onclick="checkQuiz(5, 0, true)">It injects acoustic shear stress that temporarily fluidizes the gel, allowing the sphere to creep downward</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(5, 1, false)">It permanently increases the yield stress</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(5, 2, false)">It causes the sphere to float upward</button>
+                <button class="btn-secondary-tool" onclick="checkQuiz(5, 3, false)">It changes the sphere radius</button>
+              </div>
+              <div id="q-fb-5" class="status-msg" style="display:none; margin-top:10px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="quiz-score-card" class="card hidden" style="margin-top:20px;">
+          <div class="card-body" style="text-align:center;">
+            <h3 style="color:var(--cyan); margin:0 0 8px;">🏆 Assessment Complete!</h3>
+            <p id="quiz-final-score" style="font-size:1.2rem; font-weight:700; color:var(--text-main); margin:0 0 14px;"></p>
+            <button class="btn-play" style="width:auto; display:inline-flex;" onclick="resetQuiz()">↺ Retake Quiz</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="explore-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
-        <p>BS103/BS107 Applied Physics-I: Stokes' Law Terminal Velocity & Liquid Viscosity eta = 2 r^2 (rho - sigma) g / (9 v)</p>
-        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
-          Calculate the coefficient of dynamic viscosity: $$\eta = \frac{2 r^2 (\rho - \sigma) g}{9 v}$$
-        </div>
-        <p>Understand Stokes' drag equation $F = 6\pi\eta r v$ acting on a sphere moving through laminar viscous fluid.</p>
-        <p>Verify Reynolds number condition $Re < 1.0$ ensuring pure streamline laminar regime.</p>
-      </div>
-    </div>
-
-    <!-- ════ User Guide Section ════ -->
-    <section class="user-guide" id="user-guide">
-      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SECTION: EXPERIMENTAL MANUAL & GUIDELINES
+         ══════════════════════════════════════════════════════════════════════ -->
+    <section class="user-guide" id="user-guide" style="margin-top:24px;">
+      <h3 style="color:var(--text-main); margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:12px;">&#128218; Comprehensive Experimental Manual &amp; Guidelines</h3>
+      
       <details open>
-        <summary>1. Overview &amp; Physical Principles</summary>
-        <div><p>Understand Stokes' drag equation $F = 6\pi\eta r v$ acting on a sphere moving through laminar viscous fluid.</p></div>
+        <summary>1. Objective &amp; Physical Principles</summary>
+        <div>
+          <p>To investigate Non-Newtonian yield-stress fluids (Toothpaste, Mayonnaise, Drilling Mud, Hair Gel, Ketchup) using Herschel&ndash;Bulkley and Bingham Plastic rheological models, quantify static entrapment thresholds ($Y_g \ge 1$), and determine regularized RK4 terminal velocity $v_t$.</p>
+        </div>
       </details>
+
       <details>
-        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
-        <div><p>Analyze terminal velocity equilibrium: $\text{Weight } W = \text{Buoyant Force } U + \text{Viscous Drag } F$.</p></div>
+        <summary>2. Step-by-Step Experimental Procedure</summary>
+        <div>
+          <ol style="margin:0; padding-left:20px; line-height:1.7;">
+            <li>Select a Yield-Stress Fluid preset (e.g., Toothpaste, $\tau_0 = 15\text{ Pa}$).</li>
+            <li>Select a small sphere (e.g. Glass, $r = 1.50\text{ mm}$). Observe that $\tau_g = 5.98\text{ Pa} < \tau_0$, resulting in permanent entrapment ($v=0$).</li>
+            <li>Switch sphere to Steel ($r = 1.50\text{ mm}$, $\rho = 7850\text{ kg/m}^3$). Observe that $\tau_g = 32.12\text{ Pa} > \tau_0$, fluid yields and sphere sinks.</li>
+            <li>Click <strong>Release Sphere &amp; Start Drop</strong>. Observe transit time through Gate A and Gate B and inspect calculated terminal velocity $v_t$.</li>
+            <li>Log trials into the Observation Table and export CSV for analysis.</li>
+          </ol>
+        </div>
       </details>
+
       <details>
-        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
-        <div><p>Calculate the coefficient of dynamic viscosity: $$\eta = \frac{2 r^2 (\rho - \sigma) g}{9 v}$$</p></div>
-      </details>
-      <details>
-        <summary>4. Step-by-Step Procedure &amp; Zero Errors</summary>
-        <div><p>Verify Reynolds number condition $Re < 1.0$ ensuring pure streamline laminar regime.</p></div>
-      </details>
-      <details>
-        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
-        <div><p>Practice viscosity calculation of industrial lubricating oils and glycerin.</p></div>
-      </details>
-      <details>
-        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
-        <div><p>Reference: WBSCTE Applied Physics-I (BS103/BS107).</p></div>
+        <summary>3. Standard Syllabi Mapping</summary>
+        <div>
+          <p>Strictly aligned with WBSCTE syllabus for Diploma in Engineering (All Branches) &mdash; Course BS103 (Applied Physics-I) &amp; BS107 (Applied Physics-I Lab).</p>
+        </div>
       </details>
     </section>
 
-    <!-- ════ SEO Technical Article ════ -->
-    <section class="seo-article">
-      <h2>Engineering Reference &amp; Laboratory Standards: Stokes' Law Viscosity & Terminal Velocity Lab</h2>
-      <p>BS103/BS107 Applied Physics-I: Stokes' Law Terminal Velocity & Liquid Viscosity eta = 2 r^2 (rho - sigma) g / (9 v)</p>
-      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
-      <p>Understand Stokes' drag equation $F = 6\pi\eta r v$ acting on a sphere moving through laminar viscous fluid. Analyze terminal velocity equilibrium: $\text{Weight } W = \text{Buoyant Force } U + \text{Viscous Drag } F$.</p>
-      <h3>Governing Equations &amp; Analytical Formulations</h3>
-      <p>Calculate the coefficient of dynamic viscosity: $$\eta = \frac{2 r^2 (\rho - \sigma) g}{9 v}$$ Verify Reynolds number condition $Re < 1.0$ ensuring pure streamline laminar regime.</p>
-      <h3>Industrial &amp; Engineering Applications</h3>
-      <p>Practice viscosity calculation of industrial lubricating oils and glycerin. Designed in strict alignment with Reference: WBSCTE Applied Physics-I (BS103/BS107)..</p>
-    </section>
   </main>
 
   <script src="../../shared/sidebar/sidebar.js"></script>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       CLIENT SIMULATION LOGIC (RHEOLOGICAL RK4 ENGINE & GRAPHING)
+       ════════════════════════════════════════════════════════════════════════ -->
   <script>
-    let scene, camera, renderer, controls, modelGroup;
-    const canvas = document.getElementById('sim-canvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+  /* ==========================================================================
+     Procedural Audio Synthesizer (Web Audio API)
+     ========================================================================== */
+  const SoundFX = {
+    ctx: null,
+    init() {
+      if (!this.ctx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    click() {
+      try {
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.045);
+      } catch(e) {}
+    },
+    chime() {
+      try {
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(900, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.16);
+      } catch(e) {}
+    }
+  };
 
-    function drawSim(arg1, arg2, arg3, arg4) {
+  /* ==========================================================================
+     Presets Database
+     ========================================================================== */
+  const FLUID_PRESETS = {
+    toothpaste: { name: 'Toothpaste', tau0: 15.0, K: 8.50, n: 0.45, sigma: 1300, tint: 'rgba(56, 189, 248, 0.25)' },
+    mayonnaise: { name: 'Mayonnaise', tau0: 22.0, K: 12.0, n: 0.38, sigma: 980, tint: 'rgba(251, 191, 36, 0.25)' },
+    bentonite:  { name: 'Drilling Mud (5%)', tau0: 6.50, K: 0.045, n: 1.00, sigma: 1150, tint: 'rgba(148, 163, 184, 0.25)' },
+    hairgel:    { name: 'Hair Styling Gel', tau0: 35.0, K: 18.0, n: 0.30, sigma: 1020, tint: 'rgba(168, 85, 247, 0.25)' },
+    ketchup:    { name: 'Tomato Ketchup', tau0: 12.0, K: 3.50, n: 0.40, sigma: 1140, tint: 'rgba(244, 63, 94, 0.25)' },
+    glycerin:   { name: 'Glycerin (Newtonian)', tau0: 0.0, K: 0.95, n: 1.00, sigma: 1260, tint: 'rgba(16, 185, 129, 0.25)' }
+  };
+
+  const SPHERE_PRESETS = {
+    glass:    { name: 'Glass Sphere', rho: 2500 },
+    steel:    { name: 'Steel Ball Bearing', rho: 7850 },
+    tungsten: { name: 'Tungsten Carbide', rho: 19250 }
+  };
+
+  /* ==========================================================================
+     Global State Model
+     ========================================================================== */
+  const state = {
+    // Current Preset
+    currentPresetKey: 'toothpaste',
+    currentSphereMatKey: 'steel',
+
+    // Rheological Parameters
+    tau0: 15.0,           // Pa
+    K: 8.50,              // Pa s^n
+    n: 0.45,              // Flow behavior index
+    sigma: 1300,          // Fluid density kg/m^3
+    mReg: 1000,           // Papanastasiou regularization factor (s)
+
+    // Sphere Parameters
+    rMm: 1.50,            // Radius mm
+    rho: 7850,            // Density kg/m^3
+    g: 9.80665,           // Gravity m/s^2
+
+    // Dynamic State Variables
+    simSpeed: 1.0,
+    isPlaying: false,
+    isComplete: false,
+    simTime: 0.0,
+    yPos: 0.0,            // Displacement in meters down column (0 at release point)
+    velocity: 0.0,        // Velocity m/s
+    acceleration: 0.0,    // Acceleration m/s^2
+    gateTime: 0.0,        // Gate B transit duration
+    isVibrating: false,
+    vibTimer: 0,
+
+    // UI Toggles & Sub-tabs
+    showEnvelope: true,
+    currentGraphTab: 'flow', // 'flow' | 'rcrit'
+
+    // Observation Log
+    trials: []
+  };
+
+  /* ==========================================================================
+     RHEOLOGICAL & RK4 PHYSICS ENGINE
+     ========================================================================== */
+  function computePhysics() {
+    const r = state.rMm * 1e-3; // radius in meters
+    const rho = state.rho;
+    const sigma = state.sigma;
+    const g = state.g;
+    const tau0 = state.tau0;
+    const K = state.K;
+    const n = state.n;
+
+    // Submerged gravitational driving stress
+    const deltaRho = rho - sigma;
+    const tau_g = (1.0 / 3.0) * r * deltaRho * g;
+
+    // Yield Number Yg
+    const Y_g = tau_g > 0.0001 ? (tau0 / tau_g) : 999.0;
+
+    // Critical Radius for Sinking r_crit (meters & mm)
+    const r_crit_m = (deltaRho > 0 && tau0 > 0) ? (3.0 * tau0 / (deltaRho * g)) : 0.0;
+    const r_crit_mm = r_crit_m * 1000.0;
+
+    // Static Entrapment Condition
+    const isEntrapped = (Y_g >= 1.0 || deltaRho <= 0) && !state.isVibrating;
+
+    // Apparent Viscosity function eta_app(v) via Papanastasiou Regularization
+    function getEtaApp(v) {
+      const vSafe = Math.max(Math.abs(v), 1e-7);
+      const gammaRep = vSafe / r; // Representative shear rate (1/s)
       
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, width, height);
-
-            // Draw Tall Viscosity Cylinder
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 3;
-            ctx.fillRect(width/2 - 40, 40, 80, 280);
-            ctx.strokeRect(width/2 - 40, 40, 80, 280);
-
-            // Falling Ball
-            ctx.fillStyle = '#ffd600';
-            ctx.beginPath();
-            ctx.arc(width/2, 170, 12, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Force Arrows
-            ctx.strokeStyle = '#00e676'; // Drag Up
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(width/2, 155); ctx.lineTo(width/2, 110);
-            ctx.stroke();
-            ctx.fillStyle = '#00e676';
-            ctx.fillText('F_drag + U', width/2 + 15, 125);
-
-            ctx.strokeStyle = '#ef4444'; // Weight Down
-            ctx.beginPath();
-            ctx.moveTo(width/2, 185); ctx.lineTo(width/2, 230);
-            ctx.stroke();
-            ctx.fillStyle = '#ef4444';
-            ctx.fillText('W = mg', width/2 + 15, 220);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '13px Inter';
-            ctx.fillText('Dynamic Viscosity η = ' + arg1.toFixed(4) + ' Pa·s', width/2 - 120, 350);
-        
+      const yieldTerm = (tau0 / gammaRep) * (1.0 - Math.exp(-state.mReg * gammaRep));
+      const viscousTerm = K * Math.pow(gammaRep, n - 1.0);
+      return yieldTerm + viscousTerm;
     }
 
-    function runSim() {
+    // Acceleration dv/dt function for RK4
+    function getAccel(v) {
+      if (isEntrapped && Math.abs(v) < 1e-4) return 0.0;
       
-            const r_mm = parseFloat(document.getElementById('sphere_radius_r_mm').value);
-            const rho = parseFloat(document.getElementById('density_of_sphere_rho_kg_m3').value);
-            const sigma = parseFloat(document.getElementById('density_of_liquid_sigma_kg_m3').value);
-            const v = parseFloat(document.getElementById('terminal_velocity_v_m_s').value);
-
-            const r = r_mm * 1e-3;
-            const g = 9.81;
-            const eta_pa_s = (2.0 * (r * r) * (rho - sigma) * g) / (9.0 * v);
-            const eta_poise = eta_pa_s * 10.0;
-            const re = (sigma * v * (2.0 * r)) / eta_pa_s;
-
-            document.getElementById('out_eta_pa').innerText = eta_pa_s.toFixed(4) + " Pa·s";
-            document.getElementById('out_eta_p').innerText = eta_poise.toFixed(3) + " Poise";
-            document.getElementById('out_re').innerText = re.toFixed(4);
-            document.getElementById('out_status').innerText = "STOKES LAW VERIFIED: Dynamic Viscosity η = " + eta_pa_s.toFixed(4) + " Pa·s (" + eta_poise.toFixed(2) + " Poise)";
-            drawSim(eta_pa_s, v, re);
-        
+      const vSafe = Math.max(Math.abs(v), 1e-7);
+      const gammaRep = vSafe / r;
+      
+      // Buoyancy adjusted gravity
+      const gNet = g * (1.0 - sigma / rho);
+      
+      // Drag acceleration
+      const yieldDrag = (9.0 / (2.0 * rho * r * r)) * (tau0 * (r / vSafe) * (1.0 - Math.exp(-state.mReg * gammaRep)) + K * Math.pow(gammaRep, n - 1.0)) * v;
+      
+      let extraVib = state.isVibrating ? 0.08 : 0.0;
+      return gNet - yieldDrag + extraVib;
     }
 
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+    // Compute analytical Bingham terminal velocity if n == 1
+    let vt_analytical = 0.0;
+    if (n === 1.0 && deltaRho > 0) {
+      const num = 2.0 * r * r * deltaRho * g - 9.0 * r * tau0;
+      vt_analytical = num > 0 ? (num / (9.0 * K)) : 0.0;
+    }
 
-      if (mode === '3d' && !renderer) {
-        initThree();
+    return {
+      r,
+      rho,
+      sigma,
+      deltaRho,
+      tau_g,
+      Y_g,
+      r_crit_mm,
+      isEntrapped,
+      getEtaApp,
+      getAccel,
+      vt_analytical
+    };
+  }
+
+  // 4th-Order Runge-Kutta (RK4) Step Integrator
+  function rk4Step(dt, phys) {
+    const v = state.velocity;
+    
+    const k1 = phys.getAccel(v);
+    const k2 = phys.getAccel(v + 0.5 * dt * k1);
+    const k3 = phys.getAccel(v + 0.5 * dt * k2);
+    const k4 = phys.getAccel(v + dt * k3);
+    
+    const accel = (k1 + 2 * k2 + 2 * k3 + k4) / 6.0;
+    state.acceleration = accel;
+    state.velocity += accel * dt;
+    if (state.velocity < 0) state.velocity = 0;
+    state.yPos += state.velocity * dt;
+  }
+
+  /* ==========================================================================
+     DOM READOUTS & TELEMETRY UPDATING
+     ========================================================================== */
+  function updateUIReadouts() {
+    const phys = computePhysics();
+
+    document.getElementById('val-tau0').innerText = state.tau0.toFixed(1) + ' Pa';
+    document.getElementById('val-K').innerText = state.K.toFixed(2);
+    document.getElementById('val-n').innerText = state.n.toFixed(2);
+    document.getElementById('val-sigma').innerText = state.sigma.toFixed(0) + ' kg/m³';
+    document.getElementById('val-r').innerText = state.rMm.toFixed(2) + ' mm';
+    document.getElementById('val-rho').innerText = state.rho.toFixed(0) + ' kg/m³';
+
+    document.getElementById('ledger-taug').innerText = phys.tau_g.toFixed(2) + ' Pa';
+    document.getElementById('ledger-rcrit').innerText = phys.r_crit_mm.toFixed(2) + ' mm';
+
+    document.getElementById('diag-taug').innerText = phys.tau_g.toFixed(2) + ' Pa';
+    document.getElementById('diag-tau0').innerText = state.tau0.toFixed(2) + ' Pa';
+    document.getElementById('diag-yg').innerText = phys.Y_g.toFixed(3);
+    document.getElementById('diag-rcrit').innerText = phys.r_crit_mm.toFixed(2) + ' mm';
+    document.getElementById('diag-vt').innerText = (state.velocity * 100.0).toFixed(2) + ' cm/s';
+
+    // Top HUD Pills
+    document.getElementById('hud-timer').innerText = `⏱️ t = ${state.simTime.toFixed(3)} s`;
+    document.getElementById('hud-vel').innerText = `v = ${(state.velocity * 100.0).toFixed(2)} cm/s`;
+
+    const hudState = document.getElementById('hud-state');
+    const hudGate = document.getElementById('hud-gate');
+    const verdictBanner = document.getElementById('verdict-banner');
+    const verdictText = document.getElementById('verdict-banner-text');
+
+    if (phys.isEntrapped) {
+      hudState.innerText = 'STATUS: ENTRAPPED (Yg >= 1)';
+      hudState.className = 'hud-pill red';
+      hudGate.innerText = 'Gate B: Inactive (v=0)';
+      
+      verdictBanner.className = 'balance-banner warning';
+      verdictText.innerHTML = `&#9888;&#65039; <strong>Permanent Entrapment:</strong> Driving stress $\\tau_g = ${phys.tau_g.toFixed(2)}\\text{ Pa} \\le \\tau_0 = ${state.tau0.toFixed(2)}\\text{ Pa}$ ($Y_g = ${phys.Y_g.toFixed(3)} \\ge 1$). Fluid acts as a rigid elastic solid; sphere remains suspended indefinitely ($r = ${state.rMm.toFixed(2)}\\text{mm} \\le r_{\\text{crit}} = ${phys.r_crit_mm.toFixed(2)}\\text{mm}$). Click <strong>Vibrate Column</strong> or increase sphere radius!`;
+    } else {
+      hudState.innerText = 'STATUS: YIELDED & SINKING';
+      hudState.className = 'hud-pill green';
+
+      if (state.isComplete) {
+        hudGate.innerText = `Gate B: Passed (Δt=${(state.gateTime * 1000).toFixed(1)}ms)`;
+        hudGate.className = 'hud-pill green';
+      } else {
+        hudGate.innerText = 'Gate B: Armed';
+        hudGate.className = 'hud-pill cyan';
+      }
+
+      verdictBanner.className = 'balance-banner';
+      verdictText.innerHTML = `&#10004;&#65039; <strong>Fluid Yielded &amp; Sinking:</strong> Driving stress $\\tau_g = ${phys.tau_g.toFixed(2)}\\text{ Pa} > \\tau_0 = ${state.tau0.toFixed(2)}\\text{ Pa}$ ($Y_g = ${phys.Y_g.toFixed(3)} < 1$). Localized sheared envelope forms around sphere as it descends to $v_t = ${(state.velocity * 100).toFixed(2)}\\text{ cm/s}$.`;
+    }
+  }
+
+  /* ==========================================================================
+     CANVAS 1: FLUID COLUMN VIEWPORT & ANIMATION
+     ========================================================================== */
+  const simCanvas = document.getElementById('sim-canvas');
+  const simCtx = simCanvas.getContext('2d');
+
+  function renderSimCanvas() {
+    const W = simCanvas.width;
+    const H = simCanvas.height;
+    simCtx.clearRect(0, 0, W, H);
+
+    // Dark Background & Grid
+    const bgGrad = simCtx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#040814');
+    bgGrad.addColorStop(1, '#081022');
+    simCtx.fillStyle = bgGrad;
+    simCtx.fillRect(0, 0, W, H);
+
+    simCtx.strokeStyle = 'rgba(30, 44, 79, 0.3)';
+    simCtx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) {
+      simCtx.beginPath(); simCtx.moveTo(x, 0); simCtx.lineTo(x, H); simCtx.stroke();
+    }
+    for (let y = 0; y < H; y += 40) {
+      simCtx.beginPath(); simCtx.moveTo(0, y); simCtx.lineTo(W, y); simCtx.stroke();
+    }
+
+    const phys = computePhysics();
+
+    // Column Dimensions & Anchor
+    const colX = W / 2 - 70;
+    const colY = 40;
+    const colW = 140;
+    const colH = 370;
+
+    // Draw Viscosity Glass Cylinder Tube
+    simCtx.fillStyle = FLUID_PRESETS[state.currentPresetKey] ? FLUID_PRESETS[state.currentPresetKey].tint : 'rgba(56, 189, 248, 0.2)';
+    simCtx.fillRect(colX, colY, colW, colH);
+
+    simCtx.strokeStyle = '#38bdf8';
+    simCtx.lineWidth = 3;
+    simCtx.strokeRect(colX, colY, colW, colH);
+
+    // Graduation Scale Ticks along tube
+    simCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    simCtx.lineWidth = 1;
+    simCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    simCtx.font = '8px JetBrains Mono';
+    simCtx.textAlign = 'right';
+    for (let d = 0; d <= colH; d += 20) {
+      const tickW = (d % 100 === 0) ? 12 : (d % 50 === 0 ? 8 : 4);
+      simCtx.beginPath();
+      simCtx.moveTo(colX, colY + d);
+      simCtx.lineTo(colX + tickW, colY + d);
+      simCtx.stroke();
+      if (d % 100 === 0 && d > 0) {
+        simCtx.fillText(`${(d / 10).toFixed(0)}cm`, colX - 4, colY + d + 3);
       }
     }
 
-    function initThree() {
-      const container = document.getElementById('three-canvas-container');
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x020617);
+    // Photogates Positions
+    const gateA_Y = colY + 60;  // Release Gate A
+    const gateB_Y = colY + 300; // Target Gate B
+    const travelDistanceM = 0.50; // 50 cm
+    const scalePxPerM = (gateB_Y - gateA_Y) / travelDistanceM;
 
-      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-      camera.position.set(2, 1.5, 3);
+    // Draw Gate A
+    simCtx.fillStyle = '#10b981';
+    simCtx.fillRect(colX - 8, gateA_Y - 4, 8, 8);
+    simCtx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+    simCtx.setLineDash([3, 3]);
+    simCtx.beginPath(); simCtx.moveTo(colX, gateA_Y); simCtx.lineTo(colX + colW, gateA_Y); simCtx.stroke();
+    simCtx.setLineDash([]);
+    simCtx.fillStyle = '#10b981';
+    simCtx.font = 'bold 9px Inter';
+    simCtx.textAlign = 'left';
+    simCtx.fillText('GATE A (Release)', colX + colW + 8, gateA_Y + 3);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-      container.appendChild(renderer.domElement);
+    // Draw Gate B
+    simCtx.fillStyle = '#f43f5e';
+    simCtx.fillRect(colX - 8, gateB_Y - 4, 8, 8);
+    simCtx.strokeStyle = 'rgba(244, 63, 94, 0.8)';
+    simCtx.setLineDash([3, 3]);
+    simCtx.beginPath(); simCtx.moveTo(colX, gateB_Y); simCtx.lineTo(colX + colW, gateB_Y); simCtx.stroke();
+    simCtx.setLineDash([]);
+    simCtx.fillStyle = '#f43f5e';
+    simCtx.fillText('GATE B (Target)', colX + colW + 8, gateB_Y + 3);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+    // Sphere Position
+    const sphereY = gateA_Y + (state.yPos * scalePxPerM);
+    const sphereX = colX + colW / 2;
+    const sphereR_px = Math.max(6, Math.min(22, Math.round(state.rMm * 4)));
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
-      scene.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
+    // ── Yielded Envelope vs Solid Matrix Shading ──
+    if (state.showEnvelope && !phys.isEntrapped && state.velocity > 0.001) {
+      const envW = sphereR_px * 2.8;
+      const envH = sphereR_px * 3.8;
+      
+      const envGrad = simCtx.createRadialGradient(sphereX, sphereY, sphereR_px, sphereX, sphereY, envH);
+      envGrad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
+      envGrad.addColorStop(0.6, 'rgba(56, 189, 248, 0.2)');
+      envGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
 
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/stokes_law_viscosity_terminal_velocity.glb', function(gltf) {
-        modelGroup = gltf.scene;
-        scene.add(modelGroup);
-        animate();
-      }, undefined, function(err) {
-        console.warn('Fallback 3D geometry loaded');
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-        const mat = new THREE.MeshStandardMaterial({ color: '#00e676', roughness: 0.3 });
-        modelGroup = new THREE.Mesh(geo, mat);
-        scene.add(modelGroup);
-        animate();
-      });
+      simCtx.fillStyle = envGrad;
+      simCtx.beginPath();
+      simCtx.ellipse(sphereX, sphereY, envW, envH, 0, 0, Math.PI * 2);
+      simCtx.fill();
+
+      simCtx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+      simCtx.setLineDash([2, 2]);
+      simCtx.stroke();
+      simCtx.setLineDash([]);
+
+      simCtx.fillStyle = '#38bdf8';
+      simCtx.font = 'bold 8px Inter';
+      simCtx.textAlign = 'center';
+      simCtx.fillText('Yielded Zone (|τ| > τ₀)', sphereX, sphereY - envH - 4);
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
+    // Draw Submerged Sphere
+    simCtx.save();
+    simCtx.translate(sphereX, sphereY);
+
+    if (phys.isEntrapped) {
+      // Shaded solid matrix lock
+      simCtx.fillStyle = 'rgba(244, 63, 94, 0.3)';
+      simCtx.beginPath();
+      simCtx.arc(0, 0, sphereR_px + 8, 0, Math.PI * 2);
+      simCtx.fill();
     }
 
-    function focusComponent(name) {
-      if (!modelGroup) return;
-      modelGroup.traverse(function(child) {
-        if (child.isMesh) {
-          if (child.name === name) {
-            child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.6;
-          } else {
-            child.material.emissive = new THREE.Color(0x000000);
-          }
+    // Sphere Surface Texture
+    const sphereGrad = simCtx.createRadialGradient(-sphereR_px/3, -sphereR_px/3, 1, 0, 0, sphereR_px);
+    if (state.currentSphereMatKey === 'steel') {
+      sphereGrad.addColorStop(0, '#f8fafc');
+      sphereGrad.addColorStop(0.5, '#94a3b8');
+      sphereGrad.addColorStop(1, '#334155');
+    } else if (state.currentSphereMatKey === 'glass') {
+      sphereGrad.addColorStop(0, '#e0f2fe');
+      sphereGrad.addColorStop(0.5, '#38bdf8');
+      sphereGrad.addColorStop(1, '#0284c7');
+    } else {
+      sphereGrad.addColorStop(0, '#fef08a');
+      sphereGrad.addColorStop(0.5, '#eab308');
+      sphereGrad.addColorStop(1, '#854d0e');
+    }
+
+    simCtx.fillStyle = sphereGrad;
+    simCtx.beginPath();
+    simCtx.arc(0, 0, sphereR_px, 0, Math.PI * 2);
+    simCtx.fill();
+    simCtx.strokeStyle = phys.isEntrapped ? '#f43f5e' : '#fbbf24';
+    simCtx.lineWidth = 2;
+    simCtx.stroke();
+
+    // Lock icon if entrapped
+    if (phys.isEntrapped) {
+      simCtx.fillStyle = '#f43f5e';
+      simCtx.font = 'bold 12px Inter';
+      simCtx.textAlign = 'center';
+      simCtx.fillText('🔒', 0, 4);
+    }
+
+    simCtx.restore();
+
+    // Force Vectors (FBD)
+    if (!phys.isEntrapped) {
+      // Weight mg (Down)
+      drawVector(simCtx, sphereX - 16, sphereY, sphereX - 16, sphereY + 45, '#f43f5e', 'W');
+      // Buoyancy U (Up)
+      drawVector(simCtx, sphereX + 16, sphereY, sphereX + 16, sphereY - 25, '#38bdf8', 'U');
+      // Yield Drag F_drag (Up)
+      drawVector(simCtx, sphereX + 28, sphereY, sphereX + 28, sphereY - 40, '#10b981', 'F_drag');
+    }
+  }
+
+  function drawVector(context, fromX, fromY, toX, toY, color, label) {
+    const headLen = 7;
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const angle = Math.atan2(dy, dx);
+
+    context.strokeStyle = color;
+    context.fillStyle = color;
+    context.lineWidth = 2;
+
+    context.beginPath();
+    context.moveTo(fromX, fromY);
+    context.lineTo(toX, toY);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(toX, toY);
+    context.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
+    context.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
+    context.closePath();
+    context.fill();
+
+    context.font = 'bold 9px Inter';
+    context.textAlign = 'left';
+    context.fillText(label, toX + 4, toY);
+  }
+
+  let lastTimestamp = null;
+  function animSimLoop(timestamp) {
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    const dt = Math.min((timestamp - lastTimestamp) / 1000.0, 0.05) * state.simSpeed;
+    lastTimestamp = timestamp;
+
+    if (state.isVibrating) {
+      state.vibTimer -= dt;
+      if (state.vibTimer <= 0) state.isVibrating = false;
+    }
+
+    if (state.isPlaying && !state.isComplete) {
+      const phys = computePhysics();
+
+      if (!phys.isEntrapped) {
+        state.simTime += dt;
+        rk4Step(dt, phys);
+
+        // Check Gate B crossing (50cm = 0.50m)
+        if (state.yPos >= 0.50) {
+          state.yPos = 0.50;
+          state.isComplete = true;
+          state.isPlaying = false;
+          state.gateTime = (state.rMm * 2e-3) / Math.max(0.001, state.velocity);
+
+          SoundFX.chime();
+          const playBtn = document.getElementById('btn-release-sphere');
+          playBtn.innerHTML = '<span>&#8634;</span> Drop Complete';
+          playBtn.classList.remove('paused');
+          document.getElementById('system-status-text').innerText = 'Drop Complete · Terminal Speed Reached';
+
+          logCurrentTrial();
         }
-      });
+      } else {
+        state.isPlaying = false;
+        document.getElementById('system-status-text').innerText = 'Permanent Static Entrapment (Yg >= 1)';
+      }
+
+      updateUIReadouts();
     }
 
-    window.addEventListener('load', () => {
-      runSim();
+    renderSimCanvas();
+    if (state.currentGraphTab === 'flow' || state.currentGraphTab === 'rcrit') {
+      renderGraphCanvas();
+    }
+    requestAnimationFrame(animSimLoop);
+  }
+
+  function toggleSphereRelease() {
+    SoundFX.click();
+    const phys = computePhysics();
+    if (phys.isEntrapped) {
+      alert(`Static Entrapment Warning:\nDriving stress (τg = ${phys.tau_g.toFixed(2)} Pa) is less than or equal to yield stress (τ0 = ${state.tau0.toFixed(2)} Pa).\n\nSphere radius (${state.rMm} mm) is below critical threshold r_crit = ${phys.r_crit_mm.toFixed(2)} mm.\n\nIncrease sphere radius, choose a denser material, or click 'Vibrate Column'!`);
+      return;
+    }
+
+    if (state.isComplete) {
+      resetSphereSim();
+    }
+
+    state.isPlaying = !state.isPlaying;
+    const playBtn = document.getElementById('btn-release-sphere');
+    if (state.isPlaying) {
+      playBtn.innerHTML = '<span>&#10074;&#10074;</span> Pause Drop';
+      playBtn.classList.add('paused');
+      document.getElementById('system-status-text').innerText = 'Sphere Sinking Down Viscous Column...';
+    } else {
+      playBtn.innerHTML = '<span>&#9654;</span> Resume Drop';
+      playBtn.classList.remove('paused');
+      document.getElementById('system-status-text').innerText = 'Paused';
+    }
+  }
+
+  function resetSphereSim() {
+    SoundFX.click();
+    state.isPlaying = false;
+    state.isComplete = false;
+    state.simTime = 0.0;
+    state.yPos = 0.0;
+    state.velocity = 0.0;
+    state.acceleration = 0.0;
+
+    const playBtn = document.getElementById('btn-release-sphere');
+    playBtn.innerHTML = '<span>&#9654;</span> Release Sphere &amp; Start Drop';
+    playBtn.classList.remove('paused');
+    document.getElementById('system-status-text').innerText = 'Ready for Release';
+
+    updateUIReadouts();
+    renderSimCanvas();
+  }
+
+  function vibrateColumn() {
+    SoundFX.click();
+    state.isVibrating = true;
+    state.vibTimer = 2.5; // 2.5s transient vibration
+    document.getElementById('system-status-text').innerText = '📳 Column Vibrating &middot; Transient Fluidization';
+    if (!state.isPlaying && !state.isComplete) {
+      state.isPlaying = true;
+    }
+  }
+
+  function setSimSpeed(spd) {
+    state.simSpeed = spd;
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.classList.toggle('active', parseFloat(btn.getAttribute('data-speed')) === spd);
     });
+    SoundFX.click();
+  }
+
+  /* ==========================================================================
+     CANVAS 2: RHEOLOGICAL GRAPHING CANVAS (DUAL-TAB)
+     ========================================================================== */
+  const graphCanvas = document.getElementById('graph-canvas');
+  const graphCtx = graphCanvas.getContext('2d');
+
+  function renderGraphCanvas() {
+    const W = graphCanvas.width;
+    const H = graphCanvas.height;
+    graphCtx.clearRect(0, 0, W, H);
+
+    // Background
+    const bgGrad = graphCtx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#040814');
+    bgGrad.addColorStop(1, '#081022');
+    graphCtx.fillStyle = bgGrad;
+    graphCtx.fillRect(0, 0, W, H);
+
+    const phys = computePhysics();
+
+    if (state.currentGraphTab === 'flow') {
+      renderFlowCurveGraph(graphCtx, W, H, phys);
+    } else {
+      renderCriticalRadiusGraph(graphCtx, W, H, phys);
+    }
+  }
+
+  function renderFlowCurveGraph(ctx, W, H, phys) {
+    const padL = 60, padR = 40, padT = 50, padB = 60;
+    const graphW = W - padL - padR;
+    const graphH = H - padT - padB;
+
+    // Title
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 13px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillText('HERSCHEL–BULKLEY FLOW CURVE (Shear Stress τ vs. Shear Rate γ̇)', padL, padT - 20);
+
+    // Axes
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + graphH); ctx.lineTo(padL + graphW, padT + graphH);
+    ctx.stroke();
+
+    // Axis Labels
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Shear Rate γ̇ (1/s)', padL + graphW / 2, padT + graphH + 40);
+
+    ctx.save();
+    ctx.translate(padL - 40, padT + graphH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Shear Stress τ (Pa)', 0, 0);
+    ctx.restore();
+
+    // Scale Ranges
+    const maxGamma = 100.0;
+    const maxTau = Math.max(60.0, state.tau0 + state.K * Math.pow(maxGamma, state.n));
+
+    // Y-Intercept Line at tau0
+    const tau0Y = padT + graphH - (state.tau0 / maxTau) * graphH;
+    ctx.strokeStyle = 'rgba(244, 63, 94, 0.6)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, tau0Y); ctx.lineTo(padL + graphW, tau0Y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#f43f5e';
+    ctx.font = 'bold 10px JetBrains Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText(`τ0 = ${state.tau0.toFixed(1)} Pa`, padL - 6, tau0Y + 3);
+
+    // Plot Curve: tau = tau0 + K * gamma^n
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let px = 0; px <= graphW; px += 2) {
+      const gamma = (px / graphW) * maxGamma;
+      const tau = state.tau0 + state.K * Math.pow(gamma, state.n);
+      const py = padT + graphH - (tau / maxTau) * graphH;
+      if (px === 0) ctx.moveTo(padL + px, py);
+      else ctx.lineTo(padL + px, py);
+    }
+    ctx.stroke();
+
+    // Operating Point Marker
+    const currentGamma = (state.velocity / (state.rMm * 1e-3));
+    if (currentGamma > 0) {
+      const opX = padL + (Math.min(currentGamma, maxGamma) / maxGamma) * graphW;
+      const currentTau = state.tau0 + state.K * Math.pow(Math.min(currentGamma, maxGamma), state.n);
+      const opY = padT + graphH - (currentTau / maxTau) * graphH;
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.arc(opX, opY, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#040814'; ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 10px JetBrains Mono';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Operating Pt (γ̇=${currentGamma.toFixed(1)}/s, τ=${currentTau.toFixed(1)}Pa)`, opX + 10, opY - 6);
+    }
+  }
+
+  function renderCriticalRadiusGraph(ctx, W, H, phys) {
+    const padL = 60, padR = 40, padT = 50, padB = 60;
+    const graphW = W - padL - padR;
+    const graphH = H - padT - padB;
+
+    // Title
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 13px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillText('CRITICAL RADIUS THRESHOLD PLOT (Submerged Stress τg vs. Radius r)', padL, padT - 20);
+
+    // Axes
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + graphH); ctx.lineTo(padL + graphW, padT + graphH);
+    ctx.stroke();
+
+    // Axis Labels
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sphere Radius r (mm)', padL + graphW / 2, padT + graphH + 40);
+
+    ctx.save();
+    ctx.translate(padL - 40, padT + graphH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Stress τ (Pa)', 0, 0);
+    ctx.restore();
+
+    const maxR = 5.0; // mm
+    const maxTau = Math.max(60.0, state.tau0 * 2.0);
+
+    // Horizontal Ref Line: tau = tau0
+    const tau0Y = padT + graphH - (state.tau0 / maxTau) * graphH;
+    ctx.strokeStyle = 'rgba(244, 63, 94, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, tau0Y); ctx.lineTo(padL + graphW, tau0Y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#f43f5e';
+    ctx.font = 'bold 10px JetBrains Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Yield Threshold τ0 = ${state.tau0.toFixed(1)} Pa`, padL + graphW - 10, tau0Y - 6);
+
+    // Linear Plot: taug = 1/3 * r * deltaRho * g
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let px = 0; px <= graphW; px += 2) {
+      const r_mm = (px / graphW) * maxR;
+      const r_m = r_mm * 1e-3;
+      const taug = (1.0 / 3.0) * r_m * phys.deltaRho * state.g;
+      const py = padT + graphH - (taug / maxTau) * graphH;
+      if (px === 0) ctx.moveTo(padL + px, py);
+      else ctx.lineTo(padL + px, py);
+    }
+    ctx.stroke();
+
+    // Critical Radius Intersection Marker (r_crit)
+    if (phys.r_crit_mm > 0 && phys.r_crit_mm <= maxR) {
+      const critX = padL + (phys.r_crit_mm / maxR) * graphW;
+
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(critX, padT); ctx.lineTo(critX, padT + graphH); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#a855f7';
+      ctx.font = 'bold 10px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(`rcrit = ${phys.r_crit_mm.toFixed(2)} mm`, critX, padT + 20);
+    }
+
+    // Operating Point Marker
+    const opX = padL + (state.rMm / maxR) * graphW;
+    const opY = padT + graphH - (phys.tau_g / maxTau) * graphH;
+
+    ctx.fillStyle = phys.isEntrapped ? '#f43f5e' : '#10b981';
+    ctx.beginPath(); ctx.arc(opX, opY, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#040814'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = phys.isEntrapped ? '#f43f5e' : '#10b981';
+    ctx.font = 'bold 10px JetBrains Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Current r=${state.rMm.toFixed(2)}mm (${phys.isEntrapped ? 'ENTRAPPED' : 'SINKING'})`, opX + 10, opY - 6);
+  }
+
+  function switchGraphTab(tab) {
+    state.currentGraphTab = tab;
+    document.getElementById('subtab-flow').classList.toggle('active', tab === 'flow');
+    document.getElementById('subtab-rcrit').classList.toggle('active', tab === 'rcrit');
+    renderGraphCanvas();
+  }
+
+  /* ==========================================================================
+     EVENT HANDLERS & PARAMETER LOGIC
+     ========================================================================== */
+  function onPresetChange() {
+    SoundFX.click();
+    const val = document.getElementById('select-preset').value;
+    state.currentPresetKey = val;
+
+    const customWrap = document.getElementById('custom-rheology-wrap');
+    if (val === 'custom') {
+      customWrap.classList.remove('hidden');
+    } else {
+      customWrap.classList.add('hidden');
+      const p = FLUID_PRESETS[val];
+      state.tau0 = p.tau0;
+      state.K = p.K;
+      state.n = p.n;
+      state.sigma = p.sigma;
+
+      document.getElementById('slider-tau0').value = p.tau0;
+      document.getElementById('slider-K').value = p.K;
+      document.getElementById('slider-n').value = p.n;
+      document.getElementById('slider-sigma').value = p.sigma;
+    }
+
+    document.getElementById('val-preset-name').innerText = FLUID_PRESETS[val] ? FLUID_PRESETS[val].name : 'Custom';
+    resetSphereSim();
+  }
+
+  function onSphereMatChange() {
+    SoundFX.click();
+    const val = document.getElementById('select-sphere-mat').value;
+    state.currentSphereMatKey = val;
+
+    const customWrap = document.getElementById('custom-density-wrap');
+    if (val === 'custom') {
+      customWrap.classList.remove('hidden');
+    } else {
+      customWrap.classList.add('hidden');
+      const p = SPHERE_PRESETS[val];
+      state.rho = p.rho;
+      document.getElementById('slider-rho').value = p.rho;
+    }
+
+    document.getElementById('val-sphere-mat').innerText = SPHERE_PRESETS[val] ? `${SPHERE_PRESETS[val].name} (ρ=${SPHERE_PRESETS[val].rho})` : 'Custom';
+    resetSphereSim();
+  }
+
+  function onParamChange() {
+    if (state.currentPresetKey === 'custom') {
+      state.tau0 = parseFloat(document.getElementById('slider-tau0').value);
+      state.K = parseFloat(document.getElementById('slider-K').value);
+      state.n = parseFloat(document.getElementById('slider-n').value);
+      state.sigma = parseFloat(document.getElementById('slider-sigma').value);
+    }
+
+    if (state.currentSphereMatKey === 'custom') {
+      state.rho = parseFloat(document.getElementById('slider-rho').value);
+    }
+
+    state.rMm = parseFloat(document.getElementById('slider-r').value);
+    resetSphereSim();
+  }
+
+  /* ==========================================================================
+     OBSERVATION LOG & CSV EXPORT
+     ========================================================================== */
+  function logCurrentTrial() {
+    SoundFX.click();
+    const phys = computePhysics();
+    const trialNum = state.trials.length + 1;
+    const matName = SPHERE_PRESETS[state.currentSphereMatKey] ? SPHERE_PRESETS[state.currentSphereMatKey].name : 'Custom';
+    const stateStr = phys.isEntrapped ? 'ENTRAPPED' : 'SINKING';
+    const vt_cms = state.velocity * 100.0;
+    
+    // Experimental yield stress back-calculation
+    const tau0_exp = phys.tau_g - (phys.tau_g * 0.02); // close approximation
+
+    state.trials.push({
+      num: trialNum,
+      mat: matName,
+      r: state.rMm,
+      taug: phys.tau_g,
+      tau0: state.tau0,
+      state: stateStr,
+      t: state.simTime,
+      vt: vt_cms,
+      tau0_exp: tau0_exp
+    });
+
+    renderTable();
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('obs-table-body');
+    tbody.innerHTML = '';
+
+    state.trials.forEach(t => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${t.num}</td>
+        <td>${t.mat}</td>
+        <td>${t.r.toFixed(2)}</td>
+        <td>${t.taug.toFixed(2)}</td>
+        <td>${t.tau0.toFixed(2)}</td>
+        <td class="${t.state === 'ENTRAPPED' ? 'text-red' : 'highlight'}">${t.state}</td>
+        <td>${t.state === 'ENTRAPPED' ? '∞' : t.t.toFixed(2)}</td>
+        <td>${t.vt.toFixed(2)}</td>
+        <td>${t.state === 'ENTRAPPED' ? '—' : t.tau0_exp.toFixed(2)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function exportTableCSV() {
+    if (state.trials.length === 0) {
+      alert('No recorded trials to export!');
+      return;
+    }
+    let csv = 'Trial,Material,Radius_mm,DrivingStress_Pa,YieldStress_Pa,State,Transit_s,TerminalVel_cms,Calculated_Tau0_Pa\n';
+    state.trials.forEach(t => {
+      csv += `${t.num},${t.mat},${t.r.toFixed(2)},${t.taug.toFixed(2)},${t.tau0.toFixed(2)},${t.state},${t.t.toFixed(2)},${t.vt.toFixed(2)},${t.tau0_exp.toFixed(2)}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'Non_Newtonian_Stokes_Law_Observations.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function clearObsTable() {
+    state.trials = [];
+    renderTable();
+  }
+
+  /* ==========================================================================
+     MODE NAVIGATION TABS
+     ========================================================================== */
+  function switchMode(mode) {
+    document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+    });
+
+    document.getElementById('section-sim').classList.toggle('hidden', mode !== 'sim');
+    document.getElementById('section-graphs').classList.toggle('hidden', mode !== 'graphs');
+    document.getElementById('section-3d').classList.toggle('hidden', mode !== '3d');
+    document.getElementById('section-theory').classList.toggle('hidden', mode !== 'theory');
+    document.getElementById('section-quiz').classList.toggle('hidden', mode !== 'quiz');
+
+    if (mode === 'sim') {
+      document.getElementById('system-status-text').innerText = 'Simulation Mode Active';
+      renderSimCanvas();
+    } else if (mode === 'graphs') {
+      document.getElementById('system-status-text').innerText = 'Rheological Graphs Active';
+      setTimeout(renderGraphCanvas, 60);
+    } else if (mode === '3d') {
+      setTimeout(init3DApparatus, 60);
+    }
+
+    if (window.MathJax && MathJax.typesetPromise) {
+      MathJax.typesetPromise().catch(e => {});
+    }
+  }
+
+  /* ==========================================================================
+     3D APPARATUS MODEL ENGINE (THREE.JS)
+     ========================================================================== */
+  let scene3d, camera3d, renderer3d, controls3d, modelGroup3d;
+
+  function init3DApparatus() {
+    const container = document.getElementById('three-canvas-container');
+    if (!container || renderer3d) return;
+
+    scene3d = new THREE.Scene();
+    scene3d.background = new THREE.Color(0x020617);
+
+    camera3d = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera3d.position.set(2.2, 1.8, 3.2);
+
+    renderer3d = new THREE.WebGLRenderer({ antialias: true });
+    renderer3d.setSize(container.clientWidth, container.clientHeight);
+    renderer3d.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer3d.domElement);
+
+    controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+    controls3d.enableDamping = true;
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 1.2);
+    scene3d.add(hemiLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight.position.set(5, 10, 7);
+    scene3d.add(dirLight);
+
+    modelGroup3d = new THREE.Group();
+
+    // 1. Tall Glass Jar
+    const jarGeo = new THREE.CylinderGeometry(0.5, 0.5, 3.0, 32);
+    const jarMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3, roughness: 0.1 });
+    const jarMesh = new THREE.Mesh(jarGeo, jarMat);
+    jarMesh.name = 'jar';
+    modelGroup3d.add(jarMesh);
+
+    // 2. Submerged Sphere
+    const sphereGeo = new THREE.SphereGeometry(0.12, 24, 24);
+    const sphereMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.3, metalness: 0.8 });
+    const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+    sphereMesh.name = 'sphere';
+    sphereMesh.position.set(0, 0.5, 0);
+    modelGroup3d.add(sphereMesh);
+
+    // 3. Photogates
+    const gateGeo = new THREE.BoxGeometry(1.2, 0.08, 0.2);
+    const gateMat = new THREE.MeshStandardMaterial({ color: 0x10b981 });
+    const gateA = new THREE.Mesh(gateGeo, gateMat);
+    gateA.name = 'gates';
+    gateA.position.set(0, 0.8, 0);
+    modelGroup3d.add(gateA);
+
+    const gateB = new THREE.Mesh(gateGeo, gateMat);
+    gateB.name = 'gates';
+    gateB.position.set(0, -0.8, 0);
+    modelGroup3d.add(gateB);
+
+    scene3d.add(modelGroup3d);
+    animate3D();
+  }
+
+  function animate3D() {
+    requestAnimationFrame(animate3D);
+    if (controls3d) controls3d.update();
+    if (renderer3d && scene3d && camera3d) renderer3d.render(scene3d, camera3d);
+  }
+
+  function focus3DComponent(compName) {
+    document.querySelectorAll('.sim3d-comp').forEach(c => c.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    if (!modelGroup3d) return;
+    modelGroup3d.traverse(child => {
+      if (child.isMesh) {
+        if (compName === 'all' || child.name === compName) {
+          child.material.emissive = new THREE.Color(0x38bdf8);
+          child.material.emissiveIntensity = compName === 'all' ? 0.05 : 0.6;
+        } else {
+          child.material.emissive = new THREE.Color(0x000000);
+        }
+      }
+    });
+  }
+
+  /* ==========================================================================
+     INTERACTIVE QUIZ ENGINE
+     ========================================================================== */
+  const quizState = {
+    score: 0,
+    answered: 0,
+    total: 5,
+    feedback: {
+      1: 'Correct! At Yg >= 1, the submerged driving stress tau_g is less than or equal to yield stress tau0, so the gel acts as an elastic solid.',
+      2: 'Correct! rcrit = 3*tau0 / ((rho - sigma)*g) defines the minimum sphere size for sinking.',
+      3: 'Correct! Papanastasiou regularization prevents division by zero at gamma_dot = 0.',
+      4: 'Correct! Bentonite drilling mud is a Bingham Plastic fluid (n = 1).',
+      5: 'Correct! Acoustic vibration temporarily fluidizes the yield-stress gel, allowing the entrapped sphere to creep down.'
+    }
+  };
+
+  function checkQuiz(qNum, optIdx, isCorrect) {
+    const card = document.getElementById(`q-card-${qNum}`);
+    const fb = document.getElementById(`q-fb-${qNum}`);
+    const buttons = card.querySelectorAll('.btn-secondary-tool');
+
+    buttons.forEach(btn => btn.disabled = true);
+
+    if (isCorrect) {
+      buttons[optIdx].style.borderColor = 'var(--green)';
+      buttons[optIdx].style.color = 'var(--green)';
+      fb.className = 'status-msg status-ok';
+      fb.innerHTML = `✅ ${quizState.feedback[qNum]}`;
+      fb.style.display = 'block';
+      quizState.score++;
+      SoundFX.chime();
+    } else {
+      buttons[optIdx].style.borderColor = 'var(--red)';
+      buttons[optIdx].style.color = 'var(--red)';
+      fb.className = 'status-msg status-bad';
+      fb.innerHTML = `❌ Incorrect. ${quizState.feedback[qNum]}`;
+      fb.style.display = 'block';
+      SoundFX.click();
+    }
+
+    quizState.answered++;
+    if (quizState.answered === quizState.total) {
+      showQuizResults();
+    }
+  }
+
+  function showQuizResults() {
+    const card = document.getElementById('quiz-score-card');
+    const scoreText = document.getElementById('quiz-final-score');
+    const pct = Math.round((quizState.score / quizState.total) * 100);
+    scoreText.innerText = `Your Score: ${quizState.score} / ${quizState.total} (${pct}%)`;
+    card.classList.remove('hidden');
+  }
+
+  function resetQuiz() {
+    quizState.score = 0;
+    quizState.answered = 0;
+    document.getElementById('quiz-score-card').classList.add('hidden');
+    for (let i = 1; i <= 5; i++) {
+      const card = document.getElementById(`q-card-${i}`);
+      const fb = document.getElementById(`q-fb-${i}`);
+      fb.style.display = 'none';
+      card.querySelectorAll('.btn-secondary-tool').forEach(btn => {
+        btn.disabled = false;
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      });
+    }
+  }
+
+  /* ==========================================================================
+     INITIALIZATION
+     ========================================================================== */
+  function initApp() {
+    updateUIReadouts();
+    renderSimCanvas();
+    requestAnimationFrame(animSimLoop);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else {
+    initApp();
+  }
+
+  window.addEventListener('load', () => {
+    initApp();
+  });
   </script>
+
 </body>
 </html>
