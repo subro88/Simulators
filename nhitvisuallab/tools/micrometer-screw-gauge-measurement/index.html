@@ -122,27 +122,78 @@
     <!-- Dual-Card Stage Layout -->
     <div class="dual-canvas-row">
 
-      <!-- Left Card: Realistic Clean Micrometer Screw Gauge Canvas -->
-      <div class="canvas-card">
+      <!-- Left Card: Realistic Clean Micrometer Screw Gauge Stage -->
+      <div class="canvas-card" style="display:flex; flex-direction:column;">
         <div class="canvas-card-header">
-          <span>🔬 High-Precision Micrometer Screw Gauge Stage</span>
-          <span class="canvas-badge" id="instrument-state-badge">Spindle Ready &bull; Specimen Wire Gripped</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>🔬 High-Precision Micrometer Screw Gauge Stage</span>
+          </div>
+          <span class="canvas-badge" id="instrument-state-badge">🟢 Specimen Wire Clamped</span>
         </div>
-        <div class="canvas-wrap" style="background:#0b1820; position:relative;">
-          <canvas id="gauge-canvas" width="900" height="240" style="width:100%; height:250px; display:block; cursor:grab;"></canvas>
-          <div id="gauge-hint" style="position:absolute; right:12px; bottom:8px; font-size:11px; color:#94a3b8; background:rgba(0,0,0,0.5); padding:2px 8px; border-radius:4px;">
-            Drag thimble &bull; Scroll wheel to spin thimble &bull; Ratchet button to clamp
+        
+        <div class="canvas-wrap" style="background:#090e17; position:relative;">
+          <canvas id="gauge-canvas" width="900" height="240" style="width:100%; height:230px; display:block; cursor:grab;"></canvas>
+          <div id="gauge-hint" style="position:absolute; right:12px; bottom:8px; font-size:11px; color:#94a3b8; background:rgba(0,0,0,0.65); padding:3px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.1); backdrop-filter:blur(4px);">
+            🖱️ Drag thimble &bull; Scroll wheel to spin &bull; Ratchet to clamp
           </div>
         </div>
-        <div style="padding:10px 14px; background:var(--bg-card-alt); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <div style="font-size:0.84rem; color:var(--text-muted);">
-            <span>Golden mark highlights coinciding circular division on the datum baseline</span>
+
+        <!-- Live Metrology Reading HUD Strip -->
+        <div style="padding:10px 14px; background:linear-gradient(180deg, #0f172a, #0b1120); border-top:1px solid var(--border-color); border-bottom:1px solid var(--border-color);">
+          <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--cyan); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+            <span>⚡ Live Micrometer Metrology Readout</span>
+            <span style="color:var(--text-muted); font-weight:500; text-transform:none;">$LC = 0.01\text{ mm}$ &bull; Pitch $= 0.50\text{ mm}$</span>
           </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="cp-btn cp-btn-primary" onclick="tightenRatchet()">🔊 Tighten Ratchet (3 Clicks)</button>
-            <button class="cp-btn cp-btn-gold" onclick="autoClampWire()">🧲 Auto-Grip Specimen Wire</button>
-            <button class="cp-btn" onclick="toggleZoomView()" id="btn-zoom">🔍 Toggle Zoom View</button>
-            <button class="cp-btn" onclick="resetGauge()">🔄 Close Jaws</button>
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); padding:8px 10px; border-radius:6px; text-align:center;">
+              <div style="font-size:0.72rem; color:var(--text-muted);">Main Scale (MSR)</div>
+              <div style="font-size:1.05rem; font-weight:800; font-family:var(--font-mono); color:#f8fafc; margin-top:2px;" id="hud-msr">0.00 mm</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); padding:8px 10px; border-radius:6px; text-align:center;">
+              <div style="font-size:0.72rem; color:var(--text-muted);">Circular Scale (CSR)</div>
+              <div style="font-size:1.05rem; font-weight:800; font-family:var(--font-mono); color:#fbbf24; margin-top:2px;" id="hud-csr">45 div</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); padding:8px 10px; border-radius:6px; text-align:center;">
+              <div style="font-size:0.72rem; color:var(--text-muted);">Observed Reading</div>
+              <div style="font-size:1.05rem; font-weight:800; font-family:var(--font-mono); color:var(--cyan); margin-top:2px;" id="hud-obs">0.450 mm</div>
+            </div>
+            <div style="background:rgba(61,220,132,0.08); border:1px solid rgba(61,220,132,0.3); padding:8px 10px; border-radius:6px; text-align:center;">
+              <div style="font-size:0.72rem; color:var(--green); font-weight:600;">Corrected Dia ($D$)</div>
+              <div style="font-size:1.05rem; font-weight:800; font-family:var(--font-mono); color:var(--green); margin-top:2px;" id="hud-corr">0.450 mm</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Micro-Adjustment Stepper & Action Controls -->
+        <div style="padding:12px 14px; background:var(--bg-card); display:flex; flex-direction:column; gap:10px;">
+          <!-- Thimble Micro-Steppers -->
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:0.80rem; font-weight:600; color:var(--text-muted);">Thimble Micro-Step:</span>
+              <div style="display:flex; gap:4px;">
+                <button class="cp-btn" style="padding:4px 8px; font-size:0.78rem;" onclick="stepOpening(-0.50)" title="Step back 1 full pitch (0.5 mm)">-0.5mm</button>
+                <button class="cp-btn" style="padding:4px 8px; font-size:0.78rem;" onclick="stepOpening(-0.05)" title="Step back 5 divisions (0.05 mm)">-0.05</button>
+                <button class="cp-btn" style="padding:4px 8px; font-size:0.78rem;" onclick="stepOpening(-0.01)" title="Step back 1 division (0.01 mm)">-0.01</button>
+                <button class="cp-btn" style="padding:4px 8px; font-size:0.78rem;" onclick="stepOpening(+0.01)" title="Step forward 1 division (+0.01 mm)">+0.01</button>
+                <button class="cp-btn" style="padding:4px 8px; font-size:0.78rem;" onclick="stepOpening(+0.05)" title="Step forward 5 divisions (+0.05 mm)">+0.05</button>
+                <button class="cp-btn" style="padding:4px 8px; font-size:0.78rem;" onclick="stepOpening(+0.50)" title="Step forward 1 full pitch (+0.5 mm)">+0.5mm</button>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="cp-btn cp-btn-primary" style="padding:5px 12px; font-size:0.82rem;" onclick="tightenRatchet()">🔊 Tighten Ratchet (3 Clicks)</button>
+              <button class="cp-btn cp-btn-gold" style="padding:5px 12px; font-size:0.82rem;" onclick="autoClampWire()">🧲 Auto-Grip Wire</button>
+              <button class="cp-btn" style="padding:5px 12px; font-size:0.82rem;" onclick="toggleZoomView()" id="btn-zoom">🔍 Zoom View</button>
+              <button class="cp-btn" style="padding:5px 10px; font-size:0.82rem;" onclick="resetGauge()">🔄 Zero Jaws</button>
+            </div>
+          </div>
+
+          <!-- Direct Spindle Slider Row -->
+          <div style="display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+            <span style="font-size:0.80rem; color:var(--text-muted); white-space:nowrap;">Spindle Opening ($x$):</span>
+            <input type="range" class="cp-slider" id="slider-opening" min="0" max="15.00" step="0.01" value="0.45" oninput="setGaugeOpening(this.value)" style="flex:1;">
+            <span style="font-family:var(--font-mono); font-size:0.88rem; font-weight:700; color:var(--cyan); min-width:65px; text-align:right;" id="val-opening">0.45 mm</span>
           </div>
         </div>
       </div>
@@ -154,7 +205,7 @@
           <span class="canvas-badge" id="specimen-mat-badge">Copper Wire</span>
         </div>
         <div class="canvas-wrap">
-          <canvas id="cross-canvas" width="380" height="240"></canvas>
+          <canvas id="cross-canvas" width="380" height="150"></canvas>
         </div>
         <div class="telemetry-body">
           <div class="telemetry-grid">
@@ -686,7 +737,63 @@ function getCSR(mm) {
   return ((Math.round((q - getMSR(q)) / state.lc) % state.csd) + state.csd) % state.csd;
 }
 
+function stepOpening(delta) {
+  SoundFX.click();
+  const nextVal = Math.max(0, Math.min(15.0, parseFloat((state.openingMm + delta).toFixed(3))));
+  setGaugeOpening(nextVal);
+}
+
+function setGaugeOpening(val) {
+  state.openingMm = parseFloat(val) || 0.0;
+  const slider = document.getElementById('slider-opening');
+  if (slider) slider.value = state.openingMm;
+  const valOpening = document.getElementById('val-opening');
+  if (valOpening) valOpening.textContent = `${state.openingMm.toFixed(2)} mm`;
+  computePhysics();
+  renderAllCanvases();
+}
+
 function computePhysics() {
+  const displayMm = state.openingMm;
+  const msr = getMSR(displayMm);
+  const csr = getCSR(displayMm);
+  const csrVal = csr * state.lc;
+  const observedMm = msr + csrVal;
+  const correctedD = observedMm - state.zeroErrorMm;
+
+  // Update Left Stage Metrology HUD
+  const elHudMsr = document.getElementById('hud-msr');
+  const elHudCsr = document.getElementById('hud-csr');
+  const elHudObs = document.getElementById('hud-obs');
+  const elHudCorr = document.getElementById('hud-corr');
+  const elInstBadge = document.getElementById('instrument-state-badge');
+
+  if (elHudMsr) elHudMsr.textContent = `${msr.toFixed(2)} mm`;
+  if (elHudCsr) elHudCsr.textContent = `${csr} div (${csrVal.toFixed(2)} mm)`;
+  if (elHudObs) elHudObs.textContent = `${observedMm.toFixed(3)} mm`;
+  if (elHudCorr) elHudCorr.textContent = `${Math.max(0, correctedD).toFixed(3)} mm`;
+
+  if (elInstBadge) {
+    const isContact = Math.abs(state.openingMm - (state.wire.D_mm + state.zeroErrorMm)) < 0.015;
+    if (isContact) {
+      elInstBadge.textContent = '🟢 Specimen Clamped (Ratchet Locked)';
+      elInstBadge.style.color = 'var(--green)';
+      elInstBadge.style.borderColor = 'rgba(61,220,132,0.4)';
+      elInstBadge.style.background = 'rgba(61,220,132,0.15)';
+    } else if (state.openingMm < 0.01) {
+      elInstBadge.textContent = '⚪ Jaws Closed (0.00 mm)';
+      elInstBadge.style.color = 'var(--cyan)';
+      elInstBadge.style.borderColor = 'rgba(56,189,248,0.3)';
+      elInstBadge.style.background = 'rgba(56,189,248,0.15)';
+    } else {
+      elInstBadge.textContent = `🟡 Spindle Open (Gap: ${state.openingMm.toFixed(2)} mm)`;
+      elInstBadge.style.color = 'var(--gold)';
+      elInstBadge.style.borderColor = 'rgba(234,179,8,0.3)';
+      elInstBadge.style.background = 'rgba(234,179,8,0.15)';
+    }
+  }
+
+  // Right Card Specimen Telemetry
   const D_mm = state.wire.D_mm;
   const r_mm = D_mm / 2;
   const L_mm = state.wire.L_cm * 10;
@@ -1396,7 +1503,7 @@ function renderCrossCanvas() {
   ctx.fillStyle = '#090e1a';
   ctx.fillRect(0, 0, w, h);
 
-  const cx = w * 0.48;
+  const cx = w * 0.50;
   const cy = h * 0.52;
 
   const matColors = {
@@ -1407,7 +1514,7 @@ function renderCrossCanvas() {
   };
   const theme = matColors[state.wire.material] || matColors.copper;
 
-  const rPx = Math.min(80, Math.max(12, state.wire.D_mm * 40));
+  const rPx = Math.min(46, Math.max(14, state.wire.D_mm * 32));
 
   ctx.save();
   ctx.beginPath();
@@ -1415,25 +1522,25 @@ function renderCrossCanvas() {
   ctx.fillStyle = theme.fill;
   ctx.fill();
   ctx.strokeStyle = theme.stroke;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2.0;
   ctx.stroke();
 
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 1.0;
   ctx.beginPath();
   ctx.moveTo(cx - rPx, cy);
   ctx.lineTo(cx + rPx, cy);
   ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 11px sans-serif';
+  ctx.font = 'bold 10px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`D = ${state.wire.D_mm.toFixed(3)} mm`, cx, cy - rPx - 10);
+  ctx.fillText(`D = ${state.wire.D_mm.toFixed(3)} mm`, cx, cy - rPx - 6);
 
   const A_mm2 = (Math.PI * state.wire.D_mm * state.wire.D_mm) / 4;
   ctx.fillStyle = '#3ddc84';
-  ctx.font = 'bold 10px monospace';
-  ctx.fillText(`A = ${A_mm2.toFixed(4)} mm²`, cx, cy + 4);
+  ctx.font = 'bold 9.5px monospace';
+  ctx.fillText(`A = ${A_mm2.toFixed(4)} mm²`, cx, cy + 3);
 
   ctx.restore();
 }
