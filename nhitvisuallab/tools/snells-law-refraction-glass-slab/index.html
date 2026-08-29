@@ -1,362 +1,1919 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snell's Law of Refraction & Glass Slab Lab — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
-  <meta name="description" content="BS104/BS106 Applied Physics-II: Snell's Law Refraction mu = sin(i)/sin(r) & Lateral Shift d = t sin(i-r)/cos(r)">
-  <link rel="stylesheet" href="../../css/style.css">
-  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snell's Law of Refraction & Glass Slab Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Snell's Law & 4-Pin Glass Slab refraction experiment. Determine refractive index and lateral shift with realistic drawing board, eye-level parallax view, and 3D apparatus." />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  
+  <!-- MathJax for LaTeX mathematical rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  
+  <!-- Three.js for 3D Apparatus Mode -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <style>
-    :root { --accent: #38bdf8; }
-    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
-    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
-    .site-nav a { color: #94a3b8; text-decoration: none; }
-    .site-nav a:hover { color: var(--accent); }
-    .site-nav span { color: #475569; }
-    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
-    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
-    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
-    .mode-bar { display: flex; gap: 8px; align-items: center; }
-    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
-    .guide-link-btn:hover { background: #475569; }
-    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
-    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
-    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-    .control-group { margin-bottom: 14px; }
-    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
-    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
-    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
-    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
-    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
-    .diag-table td:first-child { color: #94a3b8; }
-    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
-    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
-    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
-    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
-    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
-    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
-    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
-    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
-    .seo-article h2, .seo-article h3 { color: #f8fafc; }
-    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
-  </style>
+  
+  <!-- Custom Design CSS -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+<!-- Fixed Brand Logo -->
+<a class="logo-fixed" href="../../index.html" title="NHIT VisualLab Home">
+  <img src="../../brand/no_background_logo.png" alt="NHIT Logo" width="42" height="42" />
+</a>
+
+<div id="app">
+
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem2">Basic Science & Humanities</a>
-    <span>&rsaquo;</span>
-    <span style="color:#f8fafc;">Snell's Law of Refraction & Glass Slab Lab</span>
+    <a href="../../index.html">🌐 All Tools</a>
+    <span style="color:var(--text-dim);"> / </span>
+    <a href="../../index.html#bs-sem2">Applied Physics-II (BS104/BS106)</a>
+    <span style="color:var(--text-dim);"> / </span>
+    <span style="color:var(--accent); font-weight:600;">Snell's Law &amp; Glass Slab Lab</span>
   </nav>
 
-  <header class="tool-header">
-    <div>
-      <span class="tool-badge">BS104 / BS106</span>
-      <h1 class="tool-title">Snell's Law of Refraction & Glass Slab Lab</h1>
-      <p class="tool-subtitle">BS104/BS106 Applied Physics-II: Snell's Law Refraction mu = sin(i)/sin(r) & Lateral Shift d = t sin(i-r)/cos(r)</p>
-    </div>
-    <div class="mode-bar">
-      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
-      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
-      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
-      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
-    </div>
+  <!-- Header -->
+  <header>
+    <h1>Snell's Law of Refraction &amp; Glass Slab Virtual Lab</h1>
+    <p class="subtitle">Applied Physics-II &bull; Verification of Snell's Law ($\mu = \frac{\sin i}{\sin r}$), Lateral Displacement ($d$), and 4-Pin Optical Line-of-Sight Experiment</p>
   </header>
 
-  <main class="main-container">
-    <div id="sim-wrapper" class="sim-grid">
-      <div class="controls-col">
-        <div class="panel">
-          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
-          
-              <div class="control-group">
-                <label for="angle_of_incidence_i_deg">Angle of Incidence i (°): <span id="angle_of_incidence_i_deg_val" class="val-badge">45.0</span></label>
-                <input type="range" id="angle_of_incidence_i_deg" min="0.0" max="85.0" step="1.0" value="45.0" class="form-range" oninput="document.getElementById('angle_of_incidence_i_deg_val').innerText=this.value; runSim();" />
-              </div>
-              <div class="control-group">
-                <label for="refractive_index_mu">Refractive Index μ:</label>
-                <input type="number" id="refractive_index_mu" min="1.0" max="2.5" step="0.01" value="1.5" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="slab_thickness_t_cm">Glass Slab Thickness t (cm):</label>
-                <input type="number" id="slab_thickness_t_cm" min="1.0" max="20.0" step="0.5" value="6.0" class="form-control" oninput="runSim()" />
-              </div>
-          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
-        </div>
+  <!-- Mode Selector Bar -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Experiment Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="4pin">📌 4-Pin Lab Experiment</button>
+        <button class="pill" data-mode="rayoptics">⚡ Ray Optics Simulation</button>
+        <button class="pill" data-mode="3d">🔍 3D Apparatus</button>
+        <button class="pill" data-mode="theory">📖 Lab Manual &amp; Theory</button>
+        <button class="pill" data-mode="quiz">🎯 Quiz &amp; Viva</button>
       </div>
-      <div class="display-col">
-        <div class="canvas-card">
-          <canvas id="sim-canvas" width="800" height="420"></canvas>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#lab-manual-section">&#128214; Lab Manual</a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 1: 4-PIN EXPERIMENT MODE (PRIMARY)                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-4pin">
+
+    <!-- Guided 4-Step Lab Procedure Rail -->
+    <div class="lab-procedure">
+      <div class="lab-steps" id="lab-steps-rail">
+        <div class="lab-step active" id="step-btn-1" onclick="setLabStep(1)">
+          <div class="lab-step-num">1</div>
+          <span>Slab Setup &amp; Outline</span>
         </div>
-        <div class="panel" style="margin-top:20px;">
-          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
-          <table class="diag-table">
-            <tbody>
-              
-          <tr>
-            <td>Angle of Refraction r</td>
-            <td id="out_r" class="out-val">28.13°</td>
-          </tr>
-          <tr>
-            <td>Lateral Shift Displacement d</td>
-            <td id="out_d" class="out-val">1.974 cm</td>
-          </tr>
-          <tr>
-            <td>Apparent Slab Thickness t'</td>
-            <td id="out_app" class="out-val">4.00 cm</td>
-          </tr>
-          <tr>
-            <td>Optical Verdict</td>
-            <td id="out_status" class="out-val">SNELL'S LAW VERIFIED: Refraction Angle r = 28.13°</td>
-          </tr>
-            </tbody>
-          </table>
+        <div class="lab-step" id="step-btn-2" onclick="setLabStep(2)">
+          <div class="lab-step-num">2</div>
+          <span>Normal &amp; Pins $P_1, P_2$</span>
+        </div>
+        <div class="lab-step" id="step-btn-3" onclick="setLabStep(3)">
+          <div class="lab-step-num">3</div>
+          <span>Eye View &amp; Pins $P_3, P_4$</span>
+        </div>
+        <div class="lab-step" id="step-btn-4" onclick="setLabStep(4)">
+          <div class="lab-step-num">4</div>
+          <span>Reconstruct &amp; Measure</span>
         </div>
       </div>
     </div>
 
-    <div id="model3d-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
-        <div id="three-canvas-container"></div>
-        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
-        <div class="comp-grid">
-          
-          <div class="comp-card" onclick="focusComponent('RectangularOpticalGlassSlab')">
-            <h4>Rectangular Glass Slab</h4>
-            <p>Crown glass slab of refractive index mu = 1.50 and thickness t with parallel refracting faces.</p>
+    <!-- Active Step Instruction Alert -->
+    <div id="step-instruction-alert" class="lab-alert alert-info">
+      <span style="font-size:1.2rem;">💡</span>
+      <span id="step-instruction-text">
+        <strong>Step 1: Setup Phase.</strong> The drawing sheet is pinned to the board. Select slab material, adjust dimensions, and click <strong>"Trace Slab Boundary (ABCD)"</strong>.
+      </span>
+    </div>
+
+    <!-- Dual Canvas Section: Top-Down Drawing Board + Eye-Level Parallax Viewport -->
+    <div class="dual-canvas-row">
+
+      <!-- Left Card: Drawing Board Viewport -->
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="canvas-title">📋 Drawing Board Top View (Millimeter Grid Sheet)</span>
+          <div style="display:flex; gap:6px;">
+            <button class="tool-overlay-pill" id="toggle-protractor-btn" onclick="toggleProtractor()">📐 Protractor</button>
+            <button class="tool-overlay-pill" id="toggle-ruler-btn" onclick="toggleRuler()">📏 Ruler</button>
+            <button class="tool-overlay-pill" id="reset-view-btn" onclick="resetBoardView()">🔄 Reset</button>
           </div>
-          <div class="comp-card" onclick="focusComponent('LaserLightRayIncidentBeam')">
-            <h4>Incident Ray Beam (Angle i)</h4>
-            <p>Precision incident laser ray impinging at angle i relative to surface normal.</p>
+        </div>
+
+        <canvas id="board-canvas" class="drawing-board-canvas" width="680" height="480"></canvas>
+
+        <!-- Interactive Control Panel under Board -->
+        <div class="ctrl-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="cp-title">Board Tools &amp; Actions</span>
+            <span id="pin-distance-badge" style="font-size:0.72rem; font-weight:700; color:var(--text-dim);">P1–P2 Distance: 62 mm (OK)</span>
           </div>
-          <div class="comp-card" onclick="focusComponent('RefractedInternalLightRay')">
-            <h4>Refracted Ray (Angle r)</h4>
-            <p>Light ray bending toward normal inside the denser medium according to Snell's law.</p>
+
+          <div class="cp-actions" id="step-actions-container">
+            <!-- Dynamically populated by JS according to active step -->
           </div>
-          <div class="comp-card" onclick="focusComponent('EmergentParallelBeamWithShift')">
-            <h4>Emergent Ray & Lateral Shift d</h4>
-            <p>Emergent ray parallel to incident path displaced by lateral shift d = t sin(i-r)/cos(r).</p>
+
+          <div class="cp-params">
+            <div class="cp-field">
+              <span class="cp-field-label">Glass Material</span>
+              <select id="slab-material-select" onchange="changeSlabMaterial()" class="form-control" style="background:var(--bg); color:#fff; border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:0.8rem;">
+                <option value="1.52">Crown Glass (μ = 1.52)</option>
+                <option value="1.66">Dense Flint Glass (μ = 1.66)</option>
+                <option value="1.49">Perspex / Acrylic (μ = 1.49)</option>
+                <option value="1.33">Water Cell (μ = 1.33)</option>
+                <option value="2.42">Diamond Block (μ = 2.42)</option>
+              </select>
+            </div>
+            <div class="cp-field">
+              <span class="cp-field-label">Incident Angle $\angle i$: <span class="cp-field-val" id="val-angle-i">45°</span></span>
+              <div class="stepper-row">
+                <button class="stepper-btn" onclick="adjustIncidentAngle(-5)">&minus;</button>
+                <input type="number" id="input-angle-i" class="stepper-input" value="45" min="15" max="75" step="5" onchange="setIncidentAngle(this.value)" />
+                <button class="stepper-btn" onclick="adjustIncidentAngle(5)">+</button>
+              </div>
+            </div>
+            <div class="cp-field">
+              <span class="cp-field-label">Slab Thickness $t$: <span class="cp-field-val" id="val-slab-t">6.0 cm</span></span>
+              <div class="stepper-row">
+                <button class="stepper-btn" onclick="adjustSlabThickness(-0.5)">&minus;</button>
+                <input type="number" id="input-slab-t" class="stepper-input" value="6.0" min="3.0" max="10.0" step="0.5" onchange="setSlabThickness(this.value)" />
+                <button class="stepper-btn" onclick="adjustSlabThickness(0.5)">+</button>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Right Card: Eye-Level Perspective / Parallax Alignment Viewport -->
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="canvas-title">👁️ Eye-Level Line-of-Sight Viewport (Refracted Parallax)</span>
+          <span id="collinear-badge" style="font-size:0.75rem; font-weight:700; color:var(--gold);">Alignment: 0% (Place P3, P4)</span>
+        </div>
+
+        <canvas id="eye-canvas" width="680" height="480"></canvas>
+
+        <!-- Eye Viewport Controls -->
+        <div class="ctrl-panel">
+          <span class="cp-title">Parallax Observer Controls</span>
+          <div class="cp-field">
+            <span class="cp-field-label">
+              <span>Observer Head / Eye Position (Left &harr; Right Shift)</span>
+              <span class="cp-field-val" id="val-eye-offset">0.0 cm</span>
+            </span>
+            <input type="range" id="eye-slider" min="-8" max="8" step="0.1" value="0" style="width:100%; accent-color:var(--accent); cursor:pointer;" oninput="updateEyePosition(this.value)" />
+          </div>
+
+          <!-- Collinear Alignment Progress Bar -->
+          <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-dim); font-weight:600;">
+              <span>4-Pin Collinearity Metric</span>
+              <span id="collinear-percent" style="font-weight:700; color:var(--accent);">0%</span>
+            </div>
+            <div style="width:100%; height:8px; background:var(--bg); border-radius:4px; overflow:hidden; border:1px solid var(--border);">
+              <div id="collinear-bar-fill" style="width:0%; height:100%; background:var(--gold); transition:width 0.15s, background 0.2s;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Live Telemetry Readout Strip -->
+    <div class="live-strip" style="margin-top:14px;">
+      <div class="ls-item">
+        <span class="ls-label">Incident Angle $\angle i$</span>
+        <span class="ls-val" id="readout-i">45.0°</span>
+      </div>
+      <div class="ls-item">
+        <span class="ls-label">Refraction Angle $\angle r$</span>
+        <span class="ls-val" id="readout-r">27.7°</span>
+      </div>
+      <div class="ls-item">
+        <span class="ls-label">Emergent Angle $\angle e$</span>
+        <span class="ls-val" id="readout-e">45.0°</span>
+      </div>
+      <div class="ls-item">
+        <span class="ls-label">Calculated $\mu = \frac{\sin i}{\sin r}$</span>
+        <span class="ls-val" id="readout-mu">1.520</span>
+      </div>
+      <div class="ls-item">
+        <span class="ls-label">Lateral Shift $d$</span>
+        <span class="ls-val" id="readout-d">2.01 cm</span>
+      </div>
+      <div class="ls-item">
+        <span class="ls-label">Status</span>
+        <span class="ls-val" id="readout-verdict" style="color:var(--green); font-size:0.8rem;">Ready</span>
+      </div>
+    </div>
+
+    <!-- Interactive Observation Table & Lab Notebook -->
+    <div class="obs-section" style="margin-top:16px;">
+      <div class="obs-header">
+        <div class="obs-title">
+          <span>📓 Student Observation Table (Data Logging)</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="cp-btn cp-btn-primary" onclick="logCurrentObservation()">📝 Log Current Reading</button>
+          <button class="cp-btn" onclick="exportTableCSV()">📥 Export CSV</button>
+          <button class="cp-btn cp-btn-danger" onclick="clearObservationTable()">🗑️ Clear</button>
+        </div>
+      </div>
+
+      <div class="obs-table-wrap">
+        <table class="obs-table" id="observation-table">
+          <thead>
+            <tr>
+              <th>Trial #</th>
+              <th>Material</th>
+              <th>$\angle i$ (deg)</th>
+              <th>$\angle r$ (deg)</th>
+              <th>$\angle e$ (deg)</th>
+              <th>$\sin i$</th>
+              <th>$\sin r$</th>
+              <th>$\mu = \frac{\sin i}{\sin r}$</th>
+              <th>Lateral Shift $d$ (cm)</th>
+              <th>True $\mu$</th>
+              <th>Error %</th>
+            </tr>
+          </thead>
+          <tbody id="obs-table-body">
+            <tr>
+              <td colspan="11" style="color:var(--text-dim); padding:16px;">No trials logged yet. Perform experiments with different incident angles and click <strong>"Log Current Reading"</strong>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Statistical Summary of Trials -->
+      <div class="obs-summary-grid">
+        <div class="obs-summary-card">
+          <div class="obs-summary-label">Mean Refractive Index $\bar{\mu}$</div>
+          <div class="obs-summary-val" id="stat-mean-mu">&mdash;</div>
+        </div>
+        <div class="obs-summary-card">
+          <div class="obs-summary-label">Mean Lateral Shift $\bar{d}$</div>
+          <div class="obs-summary-val" id="stat-mean-d" style="color:var(--accent);">&mdash;</div>
+        </div>
+        <div class="obs-summary-card">
+          <div class="obs-summary-label">Average Experimental Error</div>
+          <div class="obs-summary-val" id="stat-error-percent" style="color:var(--gold);">&mdash;</div>
+        </div>
+        <div class="obs-summary-card">
+          <div class="obs-summary-label">Total Trials Recorded</div>
+          <div class="obs-summary-val" id="stat-trial-count" style="color:#fff;">0</div>
         </div>
       </div>
     </div>
 
-    <div id="explore-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
-        <p>BS104/BS106 Applied Physics-II: Snell's Law Refraction mu = sin(i)/sin(r) & Lateral Shift d = t sin(i-r)/cos(r)</p>
-        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
-          Calculate the lateral shift between incident and emergent parallel rays: $$d = \frac{t \sin(i - r)}{\cos r}$$
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 2: RAY OPTICS CONTINUOUS SIMULATION                                -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-rayoptics" style="display:none;">
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="canvas-title">⚡ Interactive Laser Ray Engine</span>
+          <div style="display:flex; gap:6px;">
+            <label class="tool-overlay-pill active"><input type="checkbox" id="ray-opt-normals" checked onchange="drawRayOptics()" /> Normals</label>
+            <label class="tool-overlay-pill active"><input type="checkbox" id="ray-opt-angles" checked onchange="drawRayOptics()" /> Angle Arcs</label>
+            <label class="tool-overlay-pill active"><input type="checkbox" id="ray-opt-extended" checked onchange="drawRayOptics()" /> Extended Ray</label>
+            <label class="tool-overlay-pill active"><input type="checkbox" id="ray-opt-shift" checked onchange="drawRayOptics()" /> Lateral $d$</label>
+          </div>
         </div>
-        <p>Understand Snell's Law of Refraction: $\mu = \frac{\sin i}{\sin r}$ representing the ratio of wave velocity in medium 1 to medium 2.</p>
-        <p>Determine the apparent thickness of the glass block: $t' = \frac{t}{\mu}$ and apparent elevation: $\Delta t = t\left(1 - \frac{1}{\mu}\right)$.</p>
+        <canvas id="rayoptics-canvas" width="680" height="480"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="canvas-title">🎛️ Optical Parameters &amp; Wave Analysis</span>
+        </div>
+
+        <div class="ctrl-panel" style="gap:14px;">
+          <div class="cp-field">
+            <span class="cp-field-label">
+              <span>Angle of Incidence $i$</span>
+              <span class="cp-field-val" id="ro-val-i">45.0°</span>
+            </span>
+            <input type="range" id="ro-slider-i" min="0" max="85" step="1" value="45" style="width:100%; accent-color:var(--accent);" oninput="updateRayOpticsParam('i', this.value)" />
+          </div>
+
+          <div class="cp-field">
+            <span class="cp-field-label">
+              <span>Medium Refractive Index $\mu$</span>
+              <span class="cp-field-val" id="ro-val-mu">1.50</span>
+            </span>
+            <input type="range" id="ro-slider-mu" min="1.00" max="2.50" step="0.01" value="1.50" style="width:100%; accent-color:var(--gold);" oninput="updateRayOpticsParam('mu', this.value)" />
+          </div>
+
+          <div class="cp-field">
+            <span class="cp-field-label">
+              <span>Slab Thickness $t$ (cm)</span>
+              <span class="cp-field-val" id="ro-val-t">6.0 cm</span>
+            </span>
+            <input type="range" id="ro-slider-t" min="2.0" max="15.0" step="0.5" value="6.0" style="width:100%; accent-color:var(--green);" oninput="updateRayOpticsParam('t', this.value)" />
+          </div>
+
+          <div class="cp-field">
+            <span class="cp-field-label">
+              <span>Laser Light Wavelength $\lambda$ (nm)</span>
+              <span class="cp-field-val" id="ro-val-lambda">532 nm (Green)</span>
+            </span>
+            <input type="range" id="ro-slider-lambda" min="380" max="750" step="10" value="532" style="width:100%; accent-color:#3ddc84;" oninput="updateRayOpticsParam('lambda', this.value)" />
+          </div>
+
+          <div class="guide-formula-box" style="margin-top:4px;">
+            <div><strong>Key Formulae:</strong></div>
+            <div>&bull; Snell's Law: $n_1 \sin i = n_2 \sin r \implies r = \arcsin\left(\frac{\sin i}{\mu}\right)$</div>
+            <div>&bull; Lateral Displacement: $d = \frac{t \sin(i - r)}{\cos r}$</div>
+            <div>&bull; Wave Velocity in Medium: $v = \frac{c}{\mu} \approx \frac{3 \times 10^8}{\mu}\text{ m/s}$</div>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- ════ User Guide Section ════ -->
-    <section class="user-guide" id="user-guide">
-      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
-      <details open>
-        <summary>1. Overview &amp; Physical Principles</summary>
-        <div><p>Understand Snell's Law of Refraction: $\mu = \frac{\sin i}{\sin r}$ representing the ratio of wave velocity in medium 1 to medium 2.</p></div>
-      </details>
-      <details>
-        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
-        <div><p>Measure the angle of incidence $i$ and evaluate the internal refracted angle $r = \sin^{-1}\left(\frac{\sin i}{\mu}\right)$.</p></div>
-      </details>
-      <details>
-        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
-        <div><p>Calculate the lateral shift between incident and emergent parallel rays: $$d = \frac{t \sin(i - r)}{\cos r}$$</p></div>
-      </details>
-      <details>
-        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
-        <div><p>Determine the apparent thickness of the glass block: $t' = \frac{t}{\mu}$ and apparent elevation: $\Delta t = t\left(1 - \frac{1}{\mu}\right)$.</p></div>
-      </details>
-      <details>
-        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
-        <div><p>Trace light through prisms and optical fibers using total internal reflection (TIR) principles.</p></div>
-      </details>
-      <details>
-        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
-        <div><p>Reference: WBSCTE Applied Physics-II Lab (BS104/BS106).</p></div>
-      </details>
-    </section>
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 3: 3D APPARATUS MODEL                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-3d" style="display:none;">
+    <div class="sim3d-section">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <h2 style="font-size:1.2rem; color:var(--accent);">3D Interactive Apparatus &mdash; Glass Slab Refraction</h2>
+          <p style="color:var(--text-dim); font-size:0.85rem; margin-top:2px;">Inspect the optical glass slab, drawing board, incident laser beam, and physical alignment pins in 3D WebGL.</p>
+        </div>
+        <span style="font-size:0.75rem; color:var(--text-dim);">Left Click: Rotate &bull; Scroll: Zoom &bull; Right Click: Pan</span>
+      </div>
 
-    <!-- ════ SEO Technical Article ════ -->
-    <section class="seo-article">
-      <h2>Engineering Reference &amp; Laboratory Standards: Snell's Law of Refraction & Glass Slab Lab</h2>
-      <p>BS104/BS106 Applied Physics-II: Snell's Law Refraction mu = sin(i)/sin(r) & Lateral Shift d = t sin(i-r)/cos(r)</p>
-      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
-      <p>Understand Snell's Law of Refraction: $\mu = \frac{\sin i}{\sin r}$ representing the ratio of wave velocity in medium 1 to medium 2. Measure the angle of incidence $i$ and evaluate the internal refracted angle $r = \sin^{-1}\left(\frac{\sin i}{\mu}\right)$.</p>
-      <h3>Governing Equations &amp; Analytical Formulations</h3>
-      <p>Calculate the lateral shift between incident and emergent parallel rays: $$d = \frac{t \sin(i - r)}{\cos r}$$ Determine the apparent thickness of the glass block: $t' = \frac{t}{\mu}$ and apparent elevation: $\Delta t = t\left(1 - \frac{1}{\mu}\right)$.</p>
-      <h3>Industrial &amp; Engineering Applications</h3>
-      <p>Trace light through prisms and optical fibers using total internal reflection (TIR) principles. Designed in strict alignment with Reference: WBSCTE Applied Physics-II Lab (BS104/BS106)..</p>
-    </section>
-  </main>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <div id="three-container" class="sim3d-canvas"></div>
+        </div>
 
-  <script src="../../shared/sidebar/sidebar.js"></script>
-  <script>
-    let scene, camera, renderer, controls, modelGroup;
-    const canvas = document.getElementById('sim-canvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+        <div class="sim3d-components">
+          <button class="sim3d-comp active" onclick="focus3DComponent('slab')">
+            <strong>Rectangular Glass Slab</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Crown glass block with polished parallel faces ($ABCD$).</span>
+          </button>
+          <button class="sim3d-comp" onclick="focus3DComponent('pins')">
+            <strong>4 Optical Fixation Pins</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Numbered steel pins $P_1, P_2, P_3, P_4$ with colored heads.</span>
+          </button>
+          <button class="sim3d-comp" onclick="focus3DComponent('beam')">
+            <strong>Laser Incident Beam</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Monochromatic light ray showing angle $i$, internal $r$, and emergent $e$.</span>
+          </button>
+          <button class="sim3d-comp" onclick="focus3DComponent('board')">
+            <strong>Drawing Board Base</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Soft wood board with white millimeter sheet.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    function drawSim(arg1, arg2, arg3, arg4) {
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 4: LAB MANUAL & THEORY                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-theory" style="display:none;">
+    <div class="guide-section" id="lab-manual-section">
+      <h2>📖 Laboratory Manual: Determination of Refractive Index of Glass Slab</h2>
       
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, width, height);
+      <div class="guide-formula-box">
+        <h3>1. Aim &amp; Objective</h3>
+        <p>To trace the path of a ray of light through a rectangular glass slab for different angles of incidence, measure the angle of incidence ($\angle i$), angle of refraction ($\angle r$), and angle of emergence ($\angle e$), verify Snell's law of refraction, and determine the refractive index ($\mu$) and lateral displacement ($d$) of the glass slab.</p>
+      </div>
 
-            // Draw Glass Slab
-            const slab_top = 160, slab_bot = 260;
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
-            ctx.fillRect(100, slab_top, width - 200, slab_bot - slab_top);
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(100, slab_top, width - 200, slab_bot - slab_top);
-
-            // Normal lines
-            ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = '#94a3b8';
-            ctx.beginPath();
-            ctx.moveTo(width/2 - 40, 80); ctx.lineTo(width/2 - 40, 340);
-            ctx.moveTo(width/2 + 20, 80); ctx.lineTo(width/2 + 20, 340);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Incident ray
-            const i_rad = arg1 * Math.PI / 180.0;
-            const r_rad = arg2 * Math.PI / 180.0;
-            const x0 = width/2 - 40 - 120 * Math.tan(i_rad);
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(x0, 80);
-            ctx.lineTo(width/2 - 40, slab_top);
-            ctx.lineTo(width/2 + 20, slab_bot);
-            ctx.lineTo(width/2 + 20 + 120 * Math.tan(i_rad), 340);
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffd600';
-            ctx.font = '13px Inter';
-            ctx.fillText('Incident i = ' + arg1.toFixed(1) + '° | Refracted r = ' + arg2.toFixed(1) + '°', width/2 - 140, 60);
-            ctx.fillText('Lateral Displacement d = ' + arg3.toFixed(3) + ' cm', width/2 - 120, 370);
+      <div>
+        <h3>2. Theoretical Principles</h3>
+        <p>When a monochromatic ray of light travels from an optically rarer medium (air, $n_1 \approx 1$) into an optically denser medium (glass, $n_2 = \mu$), it bends towards the normal line. According to <strong>Snell's Law</strong>:</p>
+        $$\mu = \frac{\sin i}{\sin r}$$
+        <p>At the second refracting surface (glass to air), light travels from denser to rarer medium and bends away from the normal with emergent angle $e$. Since both refracting surfaces are strictly parallel, the emergent ray is parallel to the incident ray ($\angle e = \angle i$).</p>
         
+        <h4>Lateral Displacement ($d$):</h4>
+        <p>The perpendicular distance between the incident ray produced forward and the emergent ray is known as <strong>Lateral Shift</strong> or <strong>Lateral Displacement</strong> ($d$). It is given by:</p>
+        $$d = \frac{t \cdot \sin(i - r)}{\cos r}$$
+        <p>Where $t$ is the thickness of the glass slab, $i$ is the angle of incidence, and $r$ is the angle of refraction.</p>
+      </div>
+
+      <details class="guide-acc" open>
+        <summary>3. Apparatus Required</summary>
+        <div>
+          <ul>
+            <li>Rectangular Glass Slab with smooth polished parallel faces.</li>
+            <li>Soft wooden drawing board with 4 brass thumb pins.</li>
+            <li>White drawing sheet (millimeter grid paper).</li>
+            <li>Four sharp steel fixation pins ($P_1, P_2, P_3, P_4$).</li>
+            <li>360° / 180° Protractor, metric ruler, and sharp pencil.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="guide-acc" open>
+        <summary>4. Step-by-Step Laboratory Procedure</summary>
+        <div>
+          <ol>
+            <li>Fix a white paper sheet on the soft drawing board with thumb pins at the four corners.</li>
+            <li>Place the glass slab centrally and draw its sharp boundary $ABCD$ with a fine pencil.</li>
+            <li>Mark point $O$ roughly at the middle of face $AB$ and construct normal $N_1ON_2$.</li>
+            <li>Draw an incident ray $IO$ inclined at chosen angle $i$ ($30^\circ, 45^\circ, 60^\circ$).</li>
+            <li>Fix two pins $P_1$ and $P_2$ vertically on the incident ray at least <strong>$5\text{ cm}$ apart</strong>.</li>
+            <li>Look through the opposite face $CD$ with one eye closed. Fix pin $P_3$ such that its foot lies in line with the virtual refracted images of $P_1$ and $P_2$.</li>
+            <li>Fix pin $P_4$ such that $P_4, P_3$ and images of $P_1, P_2$ appear in a single straight line.</li>
+            <li>Remove the slab and pins; mark pin pricks as $P_1, P_2, P_3, P_4$. Connect $P_4P_3$ to meet face $CD$ at $O'$.</li>
+            <li>Join $O$ to $O'$ to represent the internal refracted ray. Measure $\angle r$, $\angle e$, and lateral shift $d$.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="guide-acc">
+        <summary>5. Standard Precautions &amp; Sources of Error</summary>
+        <div>
+          <ul>
+            <li><strong>Pin Spacing:</strong> Keep distance between $P_1-P_2$ and $P_3-P_4$ greater than $5\text{ cm}$ to avoid parallax error in slope alignment.</li>
+            <li><strong>Vertical Fixation:</strong> Pins must be planted strictly perpendicular to the drawing sheet.</li>
+            <li><strong>Base Alignment:</strong> Always align the <em>feet / tips</em> of the pins rather than the pinheads.</li>
+            <li><strong>Pencil Sharpness:</strong> Use a $2\text{H}$ sharp pencil to minimize line thickness errors.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 5: QUIZ & VIVA-VOCE                                                -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-quiz" style="display:none;">
+    <div class="quiz-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:1.2rem; color:#fff;">🎯 Quiz &amp; Viva-Voce Assessment</h2>
+          <p style="color:var(--text-dim); font-size:0.85rem;">Test your conceptual understanding of Snell's Law, lateral shift, and 4-pin laboratory techniques.</p>
+        </div>
+        <div id="quiz-score-badge" style="background:var(--surface2); border:1px solid var(--border); padding:6px 14px; border-radius:8px; font-weight:700; color:var(--accent);">
+          Score: <span id="quiz-score">0</span> / 5
+        </div>
+      </div>
+
+      <div id="quiz-questions-container">
+        <!-- Generated by JS -->
+      </div>
+
+      <button class="cp-btn cp-btn-primary" style="margin-top:14px;" onclick="initQuiz()">🔄 Reset / Retake Quiz</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Interactive JavaScript Logic -->
+<script>
+// ── Global State & Physics Engine ──────────────────────────────────────────
+const state = {
+  mode: '4pin', // '4pin', 'rayoptics', '3d', 'theory', 'quiz'
+  labStep: 1,   // 1: Setup, 2: P1-P2, 3: P3-P4, 4: Reconstruct
+
+  // Slab Geometry & Material
+  mu: 1.52,
+  matName: 'Crown Glass',
+  thicknessCm: 6.0,
+  angleIDeg: 45.0,
+  angleRDeg: 27.7,
+  angleEDeg: 45.0,
+  lateralShiftCm: 2.01,
+
+  // Board Viewport Layout
+  slabPlaced: true,
+  boundaryTraced: false,
+  slabRemoved: false,
+  raysReconstructed: false,
+
+  // Tool Overlays
+  showProtractor: false,
+  showRuler: false,
+  protractor: { x: 340, y: 220, angle: 0, dragging: false },
+  ruler: { x: 200, y: 380, angle: 0, dragging: false },
+
+  // Pins (Board coordinates)
+  p1: { x: 230, y: 110, placed: false, dragging: false, label: 'P1' },
+  p2: { x: 290, y: 170, placed: false, dragging: false, label: 'P2' },
+  p3: { x: 390, y: 360, placed: false, dragging: false, label: 'P3' },
+  p4: { x: 450, y: 420, placed: false, dragging: false, label: 'P4' },
+
+  // Eye Viewport Observer
+  eyeOffsetCm: 0.0,
+  collinearityScore: 0, // 0 to 100%
+
+  // Observation Logs
+  observations: [],
+
+  // Ray Optics Mode parameters
+  ro: {
+    i: 45,
+    mu: 1.50,
+    t: 6.0,
+    lambda: 532,
+    normals: true,
+    angles: true,
+    extended: true,
+    shift: true
+  }
+};
+
+// ── Physics Calculations ──────────────────────────────────────────────────
+function computePhysics() {
+  const iRad = (state.angleIDeg * Math.PI) / 180;
+  // Snell's law: sin(r) = sin(i) / mu
+  const sinR = Math.sin(iRad) / state.mu;
+  const rRad = Math.asin(Math.min(1.0, sinR));
+  state.angleRDeg = (rRad * 180) / Math.PI;
+  state.angleEDeg = state.angleIDeg;
+
+  // Lateral shift d = t * sin(i - r) / cos(r)
+  const dCm = (state.thicknessCm * Math.sin(iRad - rRad)) / Math.cos(rRad);
+  state.lateralShiftCm = dCm;
+
+  // Update readouts
+  const elI = document.getElementById('readout-i');
+  const elR = document.getElementById('readout-r');
+  const elE = document.getElementById('readout-e');
+  const elMu = document.getElementById('readout-mu');
+  const elD = document.getElementById('readout-d');
+  
+  if (elI) elI.textContent = `${state.angleIDeg.toFixed(1)}°`;
+  if (elR) elR.textContent = `${state.angleRDeg.toFixed(1)}°`;
+  if (elE) elE.textContent = `${state.angleEDeg.toFixed(1)}°`;
+  if (elMu) elMu.textContent = state.mu.toFixed(3);
+  if (elD) elD.textContent = `${state.lateralShiftCm.toFixed(2)} cm`;
+}
+
+// ── Mode Switcher ─────────────────────────────────────────────────────────
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    switchAppMode(mode);
+  });
+});
+
+function switchAppMode(mode) {
+  state.mode = mode;
+  document.getElementById('section-4pin').style.display = (mode === '4pin') ? 'block' : 'none';
+  document.getElementById('section-rayoptics').style.display = (mode === 'rayoptics') ? 'block' : 'none';
+  document.getElementById('section-3d').style.display = (mode === '3d') ? 'block' : 'none';
+  document.getElementById('section-theory').style.display = (mode === 'theory') ? 'block' : 'none';
+  document.getElementById('section-quiz').style.display = (mode === 'quiz') ? 'block' : 'none';
+
+  if (mode === '4pin') {
+    renderAllCanvases();
+  } else if (mode === 'rayoptics') {
+    drawRayOptics();
+  } else if (mode === '3d') {
+    init3DScene();
+  } else if (mode === 'quiz') {
+    initQuiz();
+  }
+}
+
+// ── 4-Pin Lab Procedure Steps ─────────────────────────────────────────────
+function setLabStep(stepNum) {
+  state.labStep = stepNum;
+  
+  // Update UI step rail
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`step-btn-${i}`);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < stepNum) el.classList.add('done');
+    else if (i === stepNum) el.classList.add('active');
+  }
+
+  const alertText = document.getElementById('step-instruction-text');
+  const actionsBox = document.getElementById('step-actions-container');
+
+  if (stepNum === 1) {
+    alertText.innerHTML = `<strong>Step 1: Setup Phase.</strong> Position the glass slab on the white drawing sheet. Click <strong>"Trace Slab Boundary (ABCD)"</strong> with a sharp pencil.`;
+    actionsBox.innerHTML = `
+      <button class="cp-btn cp-btn-primary" onclick="traceSlabBoundary()">✏️ Trace Slab Boundary (ABCD)</button>
+      <button class="cp-btn" onclick="resetBoardView()">🔄 Re-center Slab</button>
+    `;
+  } else if (stepNum === 2) {
+    alertText.innerHTML = `<strong>Step 2: Incident Pins (P1, P2).</strong> Normal line $N_1N_2$ and incident ray are drawn. Drag pins $P_1$ and $P_2$ along the incident line. <em>Rule: Ensure distance &ge; 50 mm.</em>`;
+    actionsBox.innerHTML = `
+      <button class="cp-btn cp-btn-primary" onclick="autoFixP1P2()">📌 Auto-Plant Pins P1 &amp; P2</button>
+      <button class="cp-btn" onclick="setLabStep(3)">➡️ Proceed to Eye Alignment (Step 3)</button>
+    `;
+    if (!state.p1.placed) autoFixP1P2();
+  } else if (stepNum === 3) {
+    alertText.innerHTML = `<strong>Step 3: Eye-Level Alignment (P3, P4).</strong> Look through face $CD$ in the right viewport. Shift your eye to find the optical line, then drag and plant Pins $P_3$ and $P_4$ to achieve 100% collinearity!`;
+    actionsBox.innerHTML = `
+      <button class="cp-btn cp-btn-gold" onclick="autoAlignP3P4()">🎯 Auto-Align Pins P3 &amp; P4</button>
+      <button class="cp-btn cp-btn-primary" onclick="setLabStep(4)">➡️ Proceed to Ray Reconstruction (Step 4)</button>
+    `;
+  } else if (stepNum === 4) {
+    alertText.innerHTML = `<strong>Step 4: Ray Reconstruction &amp; Verification.</strong> Remove the slab and pins to expose pin-pricks. Connect $P_4 \to P_3 \to O'$, and draw internal ray $O \to O'$. Use the Protractor &amp; Ruler to measure $\angle i, \angle r, d$!`;
+    actionsBox.innerHTML = `
+      <button class="cp-btn cp-btn-danger" onclick="removeSlabAndPins()">📦 Remove Slab &amp; Pins</button>
+      <button class="cp-btn cp-btn-primary" onclick="reconstructRays()">📐 Reconstruct All Light Rays</button>
+      <button class="cp-btn cp-btn-gold" onclick="toggleProtractor()">📐 Toggle Protractor</button>
+      <button class="cp-btn" onclick="toggleRuler()">📏 Toggle Metric Ruler</button>
+    `;
+  }
+
+  renderAllCanvases();
+}
+
+function traceSlabBoundary() {
+  state.boundaryTraced = true;
+  showStepToast("✅ Slab boundary ABCD traced with pencil!");
+  setTimeout(() => setLabStep(2), 600);
+}
+
+function autoFixP1P2() {
+  state.p1.placed = true;
+  state.p2.placed = true;
+  computePinCoordinates();
+  renderAllCanvases();
+  showStepToast("📌 Pins P1 and P2 placed on incident ray!");
+}
+
+function autoAlignP3P4() {
+  state.p3.placed = true;
+  state.p4.placed = true;
+  state.collinearityScore = 100;
+  computePinCoordinates();
+  renderAllCanvases();
+  showStepToast("🎯 Pins P3 & P4 aligned perfectly in line of sight!");
+}
+
+function removeSlabAndPins() {
+  state.slabRemoved = true;
+  showStepToast("📦 Slab removed. Pin pricks P1, P2, P3, P4 are visible.");
+  renderAllCanvases();
+}
+
+function reconstructRays() {
+  state.raysReconstructed = true;
+  showStepToast("📐 Rays reconstructed! Snell's law verified: i ≈ e.");
+  renderAllCanvases();
+}
+
+function showStepToast(msg) {
+  const verdictEl = document.getElementById('readout-verdict');
+  if (verdictEl) {
+    verdictEl.textContent = msg;
+    verdictEl.style.color = 'var(--gold)';
+    setTimeout(() => { verdictEl.textContent = 'Active Trial'; verdictEl.style.color = 'var(--green)'; }, 3000);
+  }
+}
+
+// ── Coordinate Geometry for Canvas ─────────────────────────────────────────
+const board = {
+  cx: 340,       // Center X of board
+  topFaceY: 210, // Slab top face Y (AB)
+  slabW: 240,    // Slab width in px
+  scalePxPerCm: 22 // 22px = 1cm
+};
+
+function getSlabBottomY() {
+  return board.topFaceY + (state.thicknessCm * board.scalePxPerCm);
+}
+
+function computePinCoordinates() {
+  const iRad = (state.angleIDeg * Math.PI) / 180;
+  const rRad = (state.angleRDeg * Math.PI) / 180;
+  const slabH = state.thicknessCm * board.scalePxPerCm;
+  const bottomY = board.topFaceY + slabH;
+
+  // Incident Ray Point O on Face AB
+  const Ox = board.cx;
+  const Oy = board.topFaceY;
+
+  // Incident direction vector pointing towards O
+  const dxI = -Math.sin(iRad);
+  const dyI = -Math.cos(iRad);
+
+  // Pin P1 (further away, e.g. 130px from O)
+  state.p1.x = Ox + dxI * 130;
+  state.p1.y = Oy + dyI * 130;
+
+  // Pin P2 (closer to O, e.g. 65px from O -> distance P1-P2 = 65px ≈ 30mm)
+  state.p2.x = Ox + dxI * 65;
+  state.p2.y = Oy + dyI * 65;
+
+  // Internal Refracted Ray Point O' on Face CD
+  // x_O' = x_O + t * tan(r)
+  const shiftX = slabH * Math.tan(rRad);
+  const OprimeX = Ox + shiftX;
+  const OprimeY = bottomY;
+
+  // Emergent Ray vector from O' (same direction as incident ray: +sin(i), +cos(i))
+  const dxE = Math.sin(iRad);
+  const dyE = Math.cos(iRad);
+
+  // Pin P3 (near emergent face, e.g. 55px from O')
+  state.p3.x = OprimeX + dxE * 55;
+  state.p3.y = OprimeY + dyE * 55;
+
+  // Pin P4 (further away, e.g. 120px from O')
+  state.p4.x = OprimeX + dxE * 120;
+  state.p4.y = OprimeY + dyE * 120;
+
+  // Update P1-P2 distance badge
+  const distPx = Math.hypot(state.p1.x - state.p2.x, state.p1.y - state.p2.y);
+  const distMm = ((distPx / board.scalePxPerCm) * 10).toFixed(0);
+  const badge = document.getElementById('pin-distance-badge');
+  if (badge) {
+    if (distMm >= 50) {
+      badge.textContent = `P1–P2 Distance: ${distMm} mm (OK ≥ 50 mm)`;
+      badge.style.color = 'var(--green)';
+    } else {
+      badge.textContent = `P1–P2 Distance: ${distMm} mm (Too short! Increase ≥ 50 mm)`;
+      badge.style.color = 'var(--red)';
     }
+  }
+}
 
-    function runSim() {
-      
-            const i_deg = parseFloat(document.getElementById('angle_of_incidence_i_deg').value);
-            const mu = parseFloat(document.getElementById('refractive_index_mu').value);
-            const t = parseFloat(document.getElementById('slab_thickness_t_cm').value);
+// ── Rendering Top-Down Drawing Board Canvas ────────────────────────────────
+function renderBoardCanvas() {
+  const cvs = document.getElementById('board-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  const w = cvs.width;
+  const h = cvs.height;
 
-            const i_rad = i_deg * Math.PI / 180.0;
-            const sin_r = Math.sin(i_rad) / mu;
-            const r_rad = Math.asin(Math.max(-1, Math.min(1, sin_r)));
-            const r_deg = r_rad * 180.0 / Math.PI;
+  // 1. Draw Wooden Board Base
+  ctx.fillStyle = '#2d1b10';
+  ctx.fillRect(0, 0, w, h);
 
-            const d_lat = (t * Math.sin(i_rad - r_rad)) / Math.cos(r_rad);
-            const app_thick = t / mu;
+  // Wood grain lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 2;
+  for (let y = 10; y < h; y += 24) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(w * 0.3, y + 6, w * 0.7, y - 6, w, y + 2);
+    ctx.stroke();
+  }
 
-            document.getElementById('out_r').innerText = r_deg.toFixed(2) + "°";
-            document.getElementById('out_d').innerText = d_lat.toFixed(3) + " cm";
-            document.getElementById('out_app').innerText = app_thick.toFixed(2) + " cm";
-            document.getElementById('out_status').innerText = "SNELL'S LAW VERIFIED: Refraction Angle r = " + r_deg.toFixed(2) + "°, Lateral Shift d = " + d_lat.toFixed(2) + " cm";
-            drawSim(i_deg, r_deg, d_lat, t);
-        
+  // 2. White Drawing Sheet
+  const sheetMargin = 30;
+  ctx.fillStyle = '#f8fafc';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 15;
+  ctx.fillRect(sheetMargin, sheetMargin, w - sheetMargin * 2, h - sheetMargin * 2);
+  ctx.shadowBlur = 0;
+
+  // Millimeter Grid Pattern on Sheet
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 0.5;
+  for (let x = sheetMargin + 10; x < w - sheetMargin; x += 10) {
+    ctx.beginPath();
+    ctx.moveTo(x, sheetMargin);
+    ctx.lineTo(x, h - sheetMargin);
+    ctx.stroke();
+  }
+  for (let y = sheetMargin + 10; y < h - sheetMargin; y += 10) {
+    ctx.beginPath();
+    ctx.moveTo(sheetMargin, y);
+    ctx.lineTo(w - sheetMargin, y);
+    ctx.stroke();
+  }
+
+  // 4 Corner Brass Thumb Pins
+  drawThumbPin(ctx, sheetMargin + 12, sheetMargin + 12);
+  drawThumbPin(ctx, w - sheetMargin - 12, sheetMargin + 12);
+  drawThumbPin(ctx, sheetMargin + 12, h - sheetMargin - 12);
+  drawThumbPin(ctx, w - sheetMargin - 12, h - sheetMargin - 12);
+
+  const slabH = state.thicknessCm * board.scalePxPerCm;
+  const slabX = board.cx - board.slabW / 2;
+  const slabY = board.topFaceY;
+  const Ox = board.cx;
+  const Oy = board.topFaceY;
+  const iRad = (state.angleIDeg * Math.PI) / 180;
+  const rRad = (state.angleRDeg * Math.PI) / 180;
+  const OprimeX = Ox + slabH * Math.tan(rRad);
+  const OprimeY = slabY + slabH;
+
+  // 3. Draw Traced Pencil Boundary ABCD
+  if (state.boundaryTraced || state.labStep >= 2) {
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(slabX, slabY, board.slabW, slabH);
+
+    // Labels A, B, C, D
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('A', slabX - 14, slabY + 12);
+    ctx.fillText('B', slabX + board.slabW + 6, slabY + 12);
+    ctx.fillText('C', slabX + board.slabW + 6, slabY + slabH);
+    ctx.fillText('D', slabX - 14, slabY + slabH);
+  }
+
+  // 4. Draw Glass Slab (unless removed in step 4)
+  if (!state.slabRemoved) {
+    // Glass Body
+    const grad = ctx.createLinearGradient(slabX, slabY, slabX + board.slabW, slabY + slabH);
+    grad.addColorStop(0, 'rgba(56, 189, 248, 0.25)');
+    grad.addColorStop(0.5, 'rgba(147, 197, 253, 0.18)');
+    grad.addColorStop(1, 'rgba(56, 189, 248, 0.3)');
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(slabX, slabY, board.slabW, slabH);
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(slabX, slabY, board.slabW, slabH);
+
+    // Glass Reflection highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(slabX + 10, slabY + 6);
+    ctx.lineTo(slabX + 60, slabY + 6);
+    ctx.lineTo(slabX + 30, slabY + slabH - 6);
+    ctx.lineTo(slabX + 10, slabY + slabH - 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Material Watermark
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${state.matName} (μ = ${state.mu})`, board.cx, slabY + slabH / 2 + 5);
+    ctx.textAlign = 'left';
+  }
+
+  // 5. Draw Normal Line N1ON2 & Emergent Normal
+  if (state.labStep >= 2) {
+    // Normal at Face AB (O)
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(Ox, Oy - 70);
+    ctx.lineTo(Ox, Oy + 50);
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('N₁', Ox + 5, Oy - 55);
+    ctx.fillText('N₂', Ox + 5, Oy + 45);
+
+    // Incident Ray Line
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(Ox - Math.sin(iRad) * 160, Oy - Math.cos(iRad) * 160);
+    ctx.lineTo(Ox, Oy);
+    ctx.stroke();
+
+    // Point O marker
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(Ox, Oy, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText('O', Ox + 8, Oy - 4);
+  }
+
+  // Internal & Emergent Rays in Step 4 or if Reconstructed
+  if (state.raysReconstructed || (!state.slabRemoved && state.labStep >= 3)) {
+    // Internal Refracted Ray OO'
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(Ox, Oy);
+    ctx.lineTo(OprimeX, OprimeY);
+    ctx.stroke();
+
+    // Normal at Face CD (O')
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(OprimeX, OprimeY - 40);
+    ctx.lineTo(OprimeX, OprimeY + 60);
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.fillText("N'₁", OprimeX + 5, OprimeY - 25);
+    ctx.fillText("N'₂", OprimeX + 5, OprimeY + 50);
+
+    // Emergent Ray from O' through P3, P4
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(OprimeX, OprimeY);
+    ctx.lineTo(OprimeX + Math.sin(iRad) * 150, OprimeY + Math.cos(iRad) * 150);
+    ctx.stroke();
+
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(OprimeX, OprimeY, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText("O'", OprimeX - 16, OprimeY + 14);
+
+    // Extended Incident Ray (Dotted line for Lateral Shift measurement)
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(Ox, Oy);
+    ctx.lineTo(Ox + Math.sin(iRad) * 180, Oy + Math.cos(iRad) * 180);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Lateral Shift dimension bracket
+    if (state.raysReconstructed) {
+      const pEmergentRefX = OprimeX + Math.sin(iRad) * 70;
+      const pEmergentRefY = OprimeY + Math.cos(iRad) * 70;
+      // Perpendicular vector (-cos(i), sin(i))
+      const dPx = state.lateralShiftCm * board.scalePxPerCm;
+      const pExtX = pEmergentRefX - Math.cos(iRad) * dPx;
+      const pExtY = pEmergentRefY + Math.sin(iRad) * dPx;
+
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(pEmergentRefX, pEmergentRefY);
+      ctx.lineTo(pExtX, pExtY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(`d = ${state.lateralShiftCm.toFixed(2)} cm`, pEmergentRefX - 45, pEmergentRefY + 18);
     }
+  }
 
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+  // 6. Draw Pins or Pin-Pricks
+  computePinCoordinates();
 
-      if (mode === '3d' && !renderer) {
-        initThree();
-      }
+  if (state.labStep >= 2) {
+    drawBoardPin(ctx, state.p1, '#ef4444', state.slabRemoved);
+    drawBoardPin(ctx, state.p2, '#f59e0b', state.slabRemoved);
+  }
+  if (state.labStep >= 3) {
+    drawBoardPin(ctx, state.p3, '#00e5ff', state.slabRemoved);
+    drawBoardPin(ctx, state.p4, '#10b981', state.slabRemoved);
+  }
+
+  // 7. Draw Protractor Overlay if enabled
+  if (state.showProtractor) {
+    drawProtractorOverlay(ctx, state.protractor.x, state.protractor.y, state.protractor.angle);
+  }
+
+  // 8. Draw Metric Ruler Overlay if enabled
+  if (state.showRuler) {
+    drawRulerOverlay(ctx, state.ruler.x, state.ruler.y, state.ruler.angle);
+  }
+}
+
+function drawThumbPin(ctx, x, y) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = '#eab308';
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#a16207';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBoardPin(ctx, pin, color, isRemoved) {
+  if (isRemoved) {
+    // Pin prick circle
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pin.x, pin.y, 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pin.x, pin.y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`⊙ ${pin.label}`, pin.x + 8, pin.y - 4);
+    return;
+  }
+
+  // Physical Pin with colored head and cast drop-shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 4;
+  ctx.shadowOffsetY = 5;
+
+  // Pinhead outer ring
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(pin.x, pin.y, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pinhead 3D highlight
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(pin.x - 2.5, pin.y - 2.5, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Label
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText(pin.label, pin.x + 11, pin.y + 4);
+}
+
+// ── Virtual Protractor Overlay ────────────────────────────────────────────
+function drawProtractorOverlay(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const r = 90;
+  // Semi-transparent acrylic glass body
+  ctx.fillStyle = 'rgba(240, 249, 255, 0.4)';
+  ctx.strokeStyle = 'rgba(14, 165, 233, 0.8)';
+  ctx.lineWidth = 1.5;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r, Math.PI, 0, false);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Baseline crosshair
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-r, 0);
+  ctx.lineTo(r, 0);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, -r);
+  ctx.stroke();
+
+  // Degree ticks
+  ctx.fillStyle = '#0c4a6e';
+  ctx.font = '8px sans-serif';
+  ctx.textAlign = 'center';
+
+  for (let deg = 0; deg <= 180; deg += 10) {
+    const rad = (Math.PI / 180) * (180 - deg);
+    const tickLen = deg % 30 === 0 ? 10 : (deg % 10 === 0 ? 6 : 3);
+    const x1 = Math.cos(rad) * (r - tickLen);
+    const y1 = -Math.sin(rad) * (r - tickLen);
+    const x2 = Math.cos(rad) * r;
+    const y2 = -Math.sin(rad) * r;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    if (deg % 30 === 0 && deg > 0 && deg < 180) {
+      const tx = Math.cos(rad) * (r - 18);
+      const ty = -Math.sin(rad) * (r - 18) + 3;
+      ctx.fillText(`${deg}°`, tx, ty);
     }
+  }
 
-    function initThree() {
-      const container = document.getElementById('three-canvas-container');
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x020617);
+  // Drag handle center
+  ctx.fillStyle = '#0284c7';
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fill();
 
-      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-      camera.position.set(2, 1.5, 3);
+  ctx.restore();
+}
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-      container.appendChild(renderer.domElement);
+// ── Virtual Metric Ruler Overlay ──────────────────────────────────────────
+function drawRulerOverlay(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+  const rulerLen = 220;
+  const rulerH = 34;
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
-      scene.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
+  ctx.fillStyle = 'rgba(254, 243, 199, 0.6)';
+  ctx.strokeStyle = 'rgba(217, 119, 6, 0.8)';
+  ctx.lineWidth = 1.5;
 
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/snells_law_refraction_glass_slab.glb', function(gltf) {
-        modelGroup = gltf.scene;
-        scene.add(modelGroup);
-        animate();
-      }, undefined, function(err) {
-        console.warn('Fallback 3D geometry loaded');
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-        const mat = new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.3 });
-        modelGroup = new THREE.Mesh(geo, mat);
-        scene.add(modelGroup);
-        animate();
-      });
+  ctx.fillRect(0, 0, rulerLen, rulerH);
+  ctx.strokeRect(0, 0, rulerLen, rulerH);
+
+  // cm & mm markings
+  ctx.fillStyle = '#78350f';
+  ctx.font = '8px sans-serif';
+  ctx.textAlign = 'center';
+
+  const pxPerCm = board.scalePxPerCm;
+  for (let px = 0; px <= rulerLen; px += pxPerCm / 10) {
+    const isCm = Math.round(px % pxPerCm) === 0;
+    const isHalfCm = Math.round(px % (pxPerCm / 2)) === 0;
+    const tickH = isCm ? 12 : (isHalfCm ? 8 : 4);
+
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, tickH);
+    ctx.stroke();
+
+    if (isCm && px > 0) {
+      const cmVal = Math.round(px / pxPerCm);
+      ctx.fillText(`${cmVal}`, px, 22);
     }
+  }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
+  ctx.restore();
+}
+
+function toggleProtractor() {
+  state.showProtractor = !state.showProtractor;
+  document.getElementById('toggle-protractor-btn').classList.toggle('active', state.showProtractor);
+  renderAllCanvases();
+}
+
+function toggleRuler() {
+  state.showRuler = !state.showRuler;
+  document.getElementById('toggle-ruler-btn').classList.toggle('active', state.showRuler);
+  renderAllCanvases();
+}
+
+function resetBoardView() {
+  state.slabRemoved = false;
+  state.boundaryTraced = false;
+  state.raysReconstructed = false;
+  state.p1.placed = false;
+  state.p2.placed = false;
+  state.p3.placed = false;
+  state.p4.placed = false;
+  state.collinearityScore = 0;
+  setLabStep(1);
+}
+
+// ── Rendering Right Card: Eye-Level Parallax Viewport ─────────────────────
+function renderEyeCanvas() {
+  const cvs = document.getElementById('eye-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  const w = cvs.width;
+  const h = cvs.height;
+
+  // Dark laboratory observation background
+  ctx.fillStyle = '#060c18';
+  ctx.fillRect(0, 0, w, h);
+
+  // Drawing Board Table Surface in Perspective
+  ctx.fillStyle = '#1e140d';
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.55);
+  ctx.lineTo(w, h * 0.55);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // Glass Slab Block viewed from face CD
+  const slabLeft = w * 0.15;
+  const slabRight = w * 0.85;
+  const slabTop = h * 0.35;
+  const slabBottom = h * 0.72;
+
+  // Glass Front Face (CD)
+  const glassGrad = ctx.createLinearGradient(slabLeft, slabTop, slabRight, slabBottom);
+  glassGrad.addColorStop(0, 'rgba(56, 189, 248, 0.25)');
+  glassGrad.addColorStop(0.5, 'rgba(147, 197, 253, 0.12)');
+  glassGrad.addColorStop(1, 'rgba(56, 189, 248, 0.35)');
+
+  ctx.fillStyle = glassGrad;
+  ctx.fillRect(slabLeft, slabTop, slabRight - slabLeft, slabBottom - slabTop);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(slabLeft, slabTop, slabRight - slabLeft, slabBottom - slabTop);
+
+  // Optical Horizon Line
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.55);
+  ctx.lineTo(w, h * 0.55);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labels for Face CD & AB in depth
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('Glass Slab Front Face (CD)', slabLeft + 10, slabTop + 20);
+  ctx.fillText('← Rear Face (AB) Behind Glass →', w * 0.38, slabTop - 12);
+
+  // Apparent Shift Calculation based on Eye Offset
+  const eyeOffsetPx = state.eyeOffsetCm * 20;
+  const iRad = (state.angleIDeg * Math.PI) / 180;
+  const rRad = (state.angleRDeg * Math.PI) / 180;
+  const lateralPx = state.lateralShiftCm * 22;
+
+  // True optical emergent line center X on front face CD
+  const trueEmergentCenterX = w * 0.5 + lateralPx;
+
+  // Virtual Refracted Images of P1 and P2 seen THROUGH the glass
+  // Shifted due to refraction by lateral shift + eye parallax angle!
+  const imgP1_X = trueEmergentCenterX - 18 + eyeOffsetPx * 0.4;
+  const imgP2_X = trueEmergentCenterX - 8 + eyeOffsetPx * 0.2;
+
+  // Near Pins P3 and P4 placed on the near table side outside Face CD
+  const pinP3_X = w * 0.5 + lateralPx + (state.p3.placed ? 0 : 40) + eyeOffsetPx * 0.8;
+  const pinP4_X = w * 0.5 + lateralPx + (state.p4.placed ? 0 : 80) + eyeOffsetPx * 1.2;
+
+  // Draw Virtual Image of P1 (Red - further away, looks shorter)
+  if (state.labStep >= 2) {
+    draw3DPinSilhouette(ctx, imgP1_X, slabTop + 30, slabBottom, '#ef4444', 'Image P₁', true);
+    draw3DPinSilhouette(ctx, imgP2_X, slabTop + 15, slabBottom, '#f59e0b', 'Image P₂', true);
+  }
+
+  // Draw Physical Pins P3 and P4 on Foreground
+  if (state.labStep >= 3) {
+    draw3DPinSilhouette(ctx, pinP3_X, slabBottom - 20, h - 20, '#00e5ff', 'Pin P₃', false);
+    draw3DPinSilhouette(ctx, pinP4_X, pinP4_X ? slabBottom + 10 : 0, h - 10, '#10b981', 'Pin P₄', false);
+  }
+
+  // Calculate Collinearity Alignment
+  // When eyeOffset is near 0 and P3/P4 placed, error is near 0
+  const alignError = Math.abs(imgP1_X - pinP3_X) + Math.abs(imgP2_X - pinP4_X) + Math.abs(state.eyeOffsetCm);
+  let score = Math.max(0, Math.min(100, Math.round(100 - alignError * 1.8)));
+  if (!state.p3.placed || !state.p4.placed) score = Math.min(score, 35);
+  state.collinearityScore = score;
+
+  // Update Collinearity Meter
+  const barFill = document.getElementById('collinear-bar-fill');
+  const percentText = document.getElementById('collinear-percent');
+  const badgeText = document.getElementById('collinear-badge');
+  if (barFill) {
+    barFill.style.width = `${score}%`;
+    barFill.style.background = score > 85 ? 'var(--green)' : (score > 50 ? 'var(--gold)' : 'var(--red)');
+  }
+  if (percentText) percentText.textContent = `${score}%`;
+  if (badgeText) {
+    if (score >= 90) {
+      badgeText.textContent = '🎯 Optical Line-of-Sight Aligned (100%)';
+      badgeText.style.color = 'var(--green)';
+    } else {
+      badgeText.textContent = `Alignment: ${score}% (Adjust eye slider or pins)`;
+      badgeText.style.color = 'var(--gold)';
     }
+  }
 
-    function focusComponent(name) {
-      if (!modelGroup) return;
-      modelGroup.traverse(function(child) {
-        if (child.isMesh) {
-          if (child.name === name) {
-            child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.6;
-          } else {
-            child.material.emissive = new THREE.Color(0x000000);
-          }
-        }
-      });
-    }
+  // Collinear Line overlay when aligned
+  if (score >= 90) {
+    ctx.strokeStyle = 'rgba(61, 220, 132, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(trueEmergentCenterX, 0);
+    ctx.lineTo(trueEmergentCenterX, h);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-    window.addEventListener('load', () => {
-      runSim();
-    });
-  </script>
+    ctx.fillStyle = 'var(--green)';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('✔ Pins P1, P2, P3, P4 are strictly Collinear in Line of Sight', slabLeft + 20, h - 35);
+  }
+}
+
+function draw3DPinSilhouette(ctx, x, topY, bottomY, color, label, isVirtualImage) {
+  ctx.save();
+  ctx.globalAlpha = isVirtualImage ? 0.75 : 1.0;
+
+  // Steel pin shaft
+  ctx.strokeStyle = isVirtualImage ? 'rgba(203, 213, 225, 0.7)' : '#cbd5e1';
+  ctx.lineWidth = isVirtualImage ? 2.5 : 3.5;
+  ctx.beginPath();
+  ctx.moveTo(x, topY);
+  ctx.lineTo(x, bottomY);
+  ctx.stroke();
+
+  // Pinhead bead
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(x, topY, isVirtualImage ? 6 : 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Label
+  ctx.fillStyle = color;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x, topY - 10);
+
+  ctx.restore();
+}
+
+function updateEyePosition(val) {
+  state.eyeOffsetCm = parseFloat(val);
+  const el = document.getElementById('val-eye-offset');
+  if (el) el.textContent = `${state.eyeOffsetCm > 0 ? '+' : ''}${state.eyeOffsetCm.toFixed(1)} cm`;
+  renderEyeCanvas();
+}
+
+function adjustIncidentAngle(delta) {
+  state.angleIDeg = Math.max(15, Math.min(75, state.angleIDeg + delta));
+  document.getElementById('input-angle-i').value = state.angleIDeg;
+  document.getElementById('val-angle-i').textContent = `${state.angleIDeg}°`;
+  computePhysics();
+  renderAllCanvases();
+}
+
+function setIncidentAngle(val) {
+  state.angleIDeg = Math.max(15, Math.min(75, parseFloat(val) || 45));
+  document.getElementById('val-angle-i').textContent = `${state.angleIDeg}°`;
+  computePhysics();
+  renderAllCanvases();
+}
+
+function adjustSlabThickness(delta) {
+  state.thicknessCm = Math.max(3.0, Math.min(10.0, parseFloat((state.thicknessCm + delta).toFixed(1))));
+  document.getElementById('input-slab-t').value = state.thicknessCm;
+  document.getElementById('val-slab-t').textContent = `${state.thicknessCm.toFixed(1)} cm`;
+  computePhysics();
+  renderAllCanvases();
+}
+
+function setSlabThickness(val) {
+  state.thicknessCm = Math.max(3.0, Math.min(10.0, parseFloat(val) || 6.0));
+  document.getElementById('val-slab-t').textContent = `${state.thicknessCm.toFixed(1)} cm`;
+  computePhysics();
+  renderAllCanvases();
+}
+
+function changeSlabMaterial() {
+  const sel = document.getElementById('slab-material-select');
+  state.mu = parseFloat(sel.value);
+  state.matName = sel.options[sel.selectedIndex].text.split('(')[0].trim();
+  computePhysics();
+  renderAllCanvases();
+}
+
+function renderAllCanvases() {
+  computePhysics();
+  renderBoardCanvas();
+  renderEyeCanvas();
+}
+
+// ── Observation Table & Data Logging ──────────────────────────────────────
+function logCurrentObservation() {
+  const iRad = (state.angleIDeg * Math.PI) / 180;
+  const rRad = (state.angleRDeg * Math.PI) / 180;
+  const sinI = Math.sin(iRad);
+  const sinR = Math.sin(rRad);
+  const calcMu = sinI / sinR;
+  const errPercent = Math.abs((calcMu - state.mu) / state.mu) * 100;
+
+  const obs = {
+    trial: state.observations.length + 1,
+    mat: state.matName,
+    i: state.angleIDeg.toFixed(1),
+    r: state.angleRDeg.toFixed(1),
+    e: state.angleEDeg.toFixed(1),
+    sinI: sinI.toFixed(4),
+    sinR: sinR.toFixed(4),
+    calcMu: calcMu.toFixed(3),
+    d: state.lateralShiftCm.toFixed(2),
+    trueMu: state.mu.toFixed(2),
+    err: errPercent.toFixed(2)
+  };
+
+  state.observations.push(obs);
+  updateObservationTableUI();
+  showStepToast(`📝 Trial #${obs.trial} logged (i=${obs.i}°, r=${obs.r}°, μ=${obs.calcMu})!`);
+}
+
+function updateObservationTableUI() {
+  const tbody = document.getElementById('obs-table-body');
+  if (!tbody) return;
+
+  if (state.observations.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="color:var(--text-dim); padding:16px;">No trials logged yet. Perform experiments with different incident angles and click <strong>"Log Current Reading"</strong>.</td></tr>`;
+    document.getElementById('stat-mean-mu').textContent = '—';
+    document.getElementById('stat-mean-d').textContent = '—';
+    document.getElementById('stat-error-percent').textContent = '—';
+    document.getElementById('stat-trial-count').textContent = '0';
+    return;
+  }
+
+  tbody.innerHTML = state.observations.map(o => `
+    <tr>
+      <td>#${o.trial}</td>
+      <td>${o.mat}</td>
+      <td>${o.i}°</td>
+      <td>${o.r}°</td>
+      <td>${o.e}°</td>
+      <td>${o.sinI}</td>
+      <td>${o.sinR}</td>
+      <td style="color:var(--green); font-weight:700;">${o.calcMu}</td>
+      <td>${o.d} cm</td>
+      <td>${o.trueMu}</td>
+      <td style="color:${parseFloat(o.err) < 2 ? 'var(--green)' : 'var(--gold)'};">${o.err}%</td>
+    </tr>
+  `).join('');
+
+  // Compute statistics
+  const meanMu = state.observations.reduce((acc, o) => acc + parseFloat(o.calcMu), 0) / state.observations.length;
+  const meanD = state.observations.reduce((acc, o) => acc + parseFloat(o.d), 0) / state.observations.length;
+  const meanErr = state.observations.reduce((acc, o) => acc + parseFloat(o.err), 0) / state.observations.length;
+
+  document.getElementById('stat-mean-mu').textContent = meanMu.toFixed(3);
+  document.getElementById('stat-mean-d').textContent = `${meanD.toFixed(2)} cm`;
+  document.getElementById('stat-error-percent').textContent = `${meanErr.toFixed(2)}%`;
+  document.getElementById('stat-trial-count').textContent = state.observations.length;
+}
+
+function clearObservationTable() {
+  if (!confirm("Are you sure you want to clear all observation records?")) return;
+  state.observations = [];
+  updateObservationTableUI();
+  showStepToast("🗑️ Observation table cleared.");
+}
+
+function exportTableCSV() {
+  if (state.observations.length === 0) {
+    alert("No observations to export! Log some trials first.");
+    return;
+  }
+  let csv = "Trial,Material,Angle_i_deg,Angle_r_deg,Angle_e_deg,sin_i,sin_r,Calculated_Mu,Lateral_Shift_cm,True_Mu,Error_Percent\n";
+  state.observations.forEach(o => {
+    csv += `${o.trial},"${o.mat}",${o.i},${o.r},${o.e},${o.sinI},${o.sinR},${o.calcMu},${o.d},${o.trueMu},${o.err}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Snells_Law_Observation_Table_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── Ray Optics Simulation Canvas ──────────────────────────────────────────
+function updateRayOpticsParam(key, val) {
+  state.ro[key] = parseFloat(val);
+  if (key === 'i') document.getElementById('ro-val-i').textContent = `${state.ro.i.toFixed(1)}°`;
+  if (key === 'mu') document.getElementById('ro-val-mu').textContent = state.ro.mu.toFixed(2);
+  if (key === 't') document.getElementById('ro-val-t').textContent = `${state.ro.t.toFixed(1)} cm`;
+  if (key === 'lambda') {
+    const col = state.ro.lambda < 450 ? 'Violet' : (state.ro.lambda < 495 ? 'Blue' : (state.ro.lambda < 570 ? 'Green' : (state.ro.lambda < 590 ? 'Yellow' : (state.ro.lambda < 620 ? 'Orange' : 'Red'))));
+    document.getElementById('ro-val-lambda').textContent = `${state.ro.lambda} nm (${col})`;
+  }
+  drawRayOptics();
+}
+
+function drawRayOptics() {
+  const cvs = document.getElementById('rayoptics-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  const w = cvs.width;
+  const h = cvs.height;
+
+  ctx.fillStyle = '#030712';
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const topY = 160;
+  const slabH = state.ro.t * 22;
+  const bottomY = topY + slabH;
+  const slabW = 420;
+
+  // Draw Glass Slab
+  const grad = ctx.createLinearGradient(cx - slabW/2, topY, cx + slabW/2, bottomY);
+  grad.addColorStop(0, 'rgba(56, 189, 248, 0.25)');
+  grad.addColorStop(1, 'rgba(147, 197, 253, 0.15)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(cx - slabW/2, topY, slabW, slabH);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cx - slabW/2, topY, slabW, slabH);
+
+  // Ray Math
+  const iRad = (state.ro.i * Math.PI) / 180;
+  const sinR = Math.sin(iRad) / state.ro.mu;
+  const rRad = Math.asin(Math.min(1.0, sinR));
+  const rDeg = (rRad * 180) / Math.PI;
+
+  const Ox = cx;
+  const Oy = topY;
+  const OprimeX = Ox + slabH * Math.tan(rRad);
+  const OprimeY = bottomY;
+
+  // Normals
+  if (document.getElementById('ray-opt-normals')?.checked) {
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(Ox, topY - 90);
+    ctx.lineTo(Ox, topY + 70);
+    ctx.moveTo(OprimeX, bottomY - 70);
+    ctx.lineTo(OprimeX, bottomY + 90);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Wavelength to Color
+  const laserCol = wavelengthToColor(state.ro.lambda);
+
+  // 1. Incident Laser Ray
+  ctx.strokeStyle = laserCol;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = laserCol;
+  ctx.shadowBlur = 12;
+
+  ctx.beginPath();
+  ctx.moveTo(Ox - Math.sin(iRad) * 200, Oy - Math.cos(iRad) * 200);
+  ctx.lineTo(Ox, Oy);
+  ctx.stroke();
+
+  // 2. Refracted Internal Ray
+  ctx.beginPath();
+  ctx.moveTo(Ox, Oy);
+  ctx.lineTo(OprimeX, OprimeY);
+  ctx.stroke();
+
+  // 3. Emergent Ray
+  ctx.beginPath();
+  ctx.moveTo(OprimeX, OprimeY);
+  ctx.lineTo(OprimeX + Math.sin(iRad) * 200, OprimeY + Math.cos(iRad) * 200);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // 4. Extended Ray
+  if (document.getElementById('ray-opt-extended')?.checked) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(Ox, Oy);
+    ctx.lineTo(Ox + Math.sin(iRad) * 240, Oy + Math.cos(iRad) * 240);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 5. Lateral Displacement Dimension
+  if (document.getElementById('ray-opt-shift')?.checked) {
+    const latShiftCm = (state.ro.t * Math.sin(iRad - rRad)) / Math.cos(rRad);
+    const latShiftPx = latShiftCm * 22;
+
+    const refX = OprimeX + Math.sin(iRad) * 90;
+    const refY = OprimeY + Math.cos(iRad) * 90;
+    const extX = refX - Math.cos(iRad) * latShiftPx;
+    const extY = refY + Math.sin(iRad) * latShiftPx;
+
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(refX, refY);
+    ctx.lineTo(extX, extY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(`d = ${latShiftCm.toFixed(2)} cm`, refX - 60, refY + 24);
+  }
+
+  // 6. Angle Arcs
+  if (document.getElementById('ray-opt-angles')?.checked) {
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.8)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(`i = ${state.ro.i.toFixed(1)}°`, Ox - 45, Oy - 25);
+    ctx.fillText(`r = ${rDeg.toFixed(1)}°`, Ox + 8, Oy + 30);
+    ctx.fillText(`e = ${state.ro.i.toFixed(1)}°`, OprimeX + 8, OprimeY + 35);
+  }
+}
+
+function wavelengthToColor(wl) {
+  if (wl >= 380 && wl < 440) return '#8b5cf6'; // Violet
+  if (wl >= 440 && wl < 490) return '#3b82f6'; // Blue
+  if (wl >= 490 && wl < 560) return '#10b981'; // Green
+  if (wl >= 560 && wl < 590) return '#eab308'; // Yellow
+  if (wl >= 590 && wl < 635) return '#f97316'; // Orange
+  if (wl >= 635 && wl <= 750) return '#ef4444'; // Red
+  return '#10b981';
+}
+
+// ── 3D WebGL Three.js Apparatus Scene ─────────────────────────────────────
+let threeScene, threeCamera, threeRenderer, threeControls;
+let threeSlab, threeBeam, threePinsGroup;
+
+function init3DScene() {
+  const container = document.getElementById('three-container');
+  if (!container || threeRenderer) return;
+
+  const w = container.clientWidth || 600;
+  const h = 460;
+
+  threeScene = new THREE.Scene();
+  threeScene.background = new THREE.Color(0x0a0e17);
+
+  threeCamera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+  threeCamera.position.set(0, 18, 28);
+
+  threeRenderer = new THREE.WebGLRenderer({ antialias: true });
+  threeRenderer.setSize(w, h);
+  threeRenderer.shadowMap.enabled = true;
+  container.appendChild(threeRenderer.domElement);
+
+  threeControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
+  threeControls.enableDamping = true;
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  threeScene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(15, 25, 15);
+  dirLight.castShadow = true;
+  threeScene.add(dirLight);
+
+  // Drawing Board Base
+  const boardGeo = new THREE.BoxGeometry(24, 1, 18);
+  const boardMat = new THREE.MeshStandardMaterial({ color: 0x3d271d, roughness: 0.8 });
+  const boardMesh = new THREE.Mesh(boardGeo, boardMat);
+  boardMesh.position.y = -0.5;
+  threeScene.add(boardMesh);
+
+  // White Paper Sheet
+  const paperGeo = new THREE.PlaneGeometry(21, 15);
+  const paperMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+  const paperMesh = new THREE.Mesh(paperGeo, paperMat);
+  paperMesh.rotation.x = -Math.PI / 2;
+  paperMesh.position.y = 0.01;
+  threeScene.add(paperMesh);
+
+  // Glass Slab
+  const slabGeo = new THREE.BoxGeometry(14, 2.5, 7);
+  const slabMat = new THREE.MeshPhysicalMaterial({
+    color: 0x93c5fd,
+    transparent: true,
+    opacity: 0.55,
+    roughness: 0.1,
+    transmission: 0.9,
+    ior: 1.52,
+    reflectivity: 0.9
+  });
+  threeSlab = new THREE.Mesh(slabGeo, slabMat);
+  threeSlab.position.set(0, 1.25, 0);
+  threeScene.add(threeSlab);
+
+  // Pins Group
+  threePinsGroup = new THREE.Group();
+  const createPinMesh = (x, z, col) => {
+    const pinG = new THREE.Group();
+    // Needle
+    const needleG = new THREE.CylinderGeometry(0.06, 0.06, 2.8, 16);
+    const needleM = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
+    const needle = new THREE.Mesh(needleG, needleM);
+    needle.position.y = 1.4;
+    pinG.add(needle);
+    // Bead
+    const headG = new THREE.SphereGeometry(0.35, 16, 16);
+    const headM = new THREE.MeshStandardMaterial({ color: col, roughness: 0.3 });
+    const head = new THREE.Mesh(headG, headM);
+    head.position.y = 2.8;
+    pinG.add(head);
+
+    pinG.position.set(x, 0, z);
+    return pinG;
+  };
+
+  threePinsGroup.add(createPinMesh(-5, -6, 0xef4444)); // P1
+  threePinsGroup.add(createPinMesh(-2.5, -4.2, 0xf59e0b)); // P2
+  threePinsGroup.add(createPinMesh(2.5, 4.2, 0x00e5ff)); // P3
+  threePinsGroup.add(createPinMesh(5, 6, 0x10b981)); // P4
+  threeScene.add(threePinsGroup);
+
+  // Laser Beams
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 3 });
+  const points = [
+    new THREE.Vector3(-7, 1.25, -7.5),
+    new THREE.Vector3(0, 1.25, -3.5),
+    new THREE.Vector3(1.6, 1.25, 3.5),
+    new THREE.Vector3(8.6, 1.25, 7.5)
+  ];
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+  threeBeam = new THREE.Line(lineGeo, lineMat);
+  threeScene.add(threeBeam);
+
+  // Render Loop
+  const animate = () => {
+    requestAnimationFrame(animate);
+    threeControls.update();
+    threeRenderer.render(threeScene, threeCamera);
+  };
+  animate();
+}
+
+function focus3DComponent(comp) {
+  document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  if (comp === 'slab') {
+    threeCamera.position.set(0, 12, 16);
+    threeControls.target.set(0, 1.25, 0);
+  } else if (comp === 'pins') {
+    threeCamera.position.set(6, 10, 12);
+    threeControls.target.set(2, 1, 2);
+  } else if (comp === 'beam') {
+    threeCamera.position.set(0, 24, 0);
+    threeControls.target.set(0, 0, 0);
+  } else if (comp === 'board') {
+    threeCamera.position.set(0, 20, 24);
+    threeControls.target.set(0, 0, 0);
+  }
+}
+
+// ── Interactive Quiz Data & Engine ────────────────────────────────────────
+const quizQuestions = [
+  {
+    q: "1. What is the fundamental relation stated by Snell's Law of Refraction?",
+    options: [
+      "\\(\\mu = \\frac{\\sin r}{\\sin i}\\)",
+      "\\(\\mu = \\frac{\\sin i}{\\sin r}\\)",
+      "\\(\\mu = \\sin i \\cdot \\sin r\\)",
+      "\\(\\mu = \\frac{\\cos i}{\\cos r}\\)"
+    ],
+    correct: 1,
+    expl: "Snell's Law states that the ratio of the sine of the angle of incidence (i) to the sine of the angle of refraction (r) is constant and equal to the refractive index (μ)."
+  },
+  {
+    q: "2. Why must the emergent ray be strictly parallel to the incident ray for a rectangular glass slab?",
+    options: [
+      "Because the refractive index of glass is greater than air.",
+      "Because the two opposing refracting surfaces (AB and CD) are strictly parallel.",
+      "Because lateral displacement is zero.",
+      "Because total internal reflection occurs inside the block."
+    ],
+    correct: 1,
+    expl: "Since the opposing faces of a rectangular slab are parallel, the bending at the second surface exactly cancels the bending at the first surface, making angle of emergence e = angle of incidence i."
+  },
+  {
+    q: "3. What happens to the lateral displacement (d) when the thickness (t) of the glass slab is doubled?",
+    options: [
+      "Lateral displacement is halved.",
+      "Lateral displacement remains unchanged.",
+      "Lateral displacement is doubled.",
+      "Lateral displacement becomes zero."
+    ],
+    correct: 2,
+    expl: "From the formula d = (t · sin(i - r)) / cos(r), lateral displacement d is directly proportional to slab thickness t."
+  },
+  {
+    q: "4. In the 4-pin experiment, why is it advised to keep the distance between pins P1–P2 and P3–P4 at least 5 cm?",
+    options: [
+      "To prevent the pins from scratching the glass surface.",
+      "To minimize angular sighting error and ensure an accurate line slope.",
+      "To reduce the intensity of light passing through.",
+      "To allow the protractor to fit between the pins."
+    ],
+    correct: 1,
+    expl: "Placing pins closely together amplifies small positional errors into large angular deviations when drawing the ray lines."
+  },
+  {
+    q: "5. If light enters a glass slab (μ = 1.50) at an incident angle of i = 30°, what is sin(r)?",
+    options: [
+      "0.333",
+      "0.500",
+      "0.750",
+      "0.250"
+    ],
+    correct: 0,
+    expl: "Using sin(r) = sin(i) / μ = sin(30°) / 1.50 = 0.50 / 1.50 = 0.333."
+  }
+];
+
+let quizAnswers = {};
+
+function initQuiz() {
+  quizAnswers = {};
+  document.getElementById('quiz-score').textContent = '0';
+  const container = document.getElementById('quiz-questions-container');
+  if (!container) return;
+
+  container.innerHTML = quizQuestions.map((q, idx) => `
+    <div class="quiz-card" id="qc-${idx}">
+      <div class="quiz-q">${q.q}</div>
+      <div class="quiz-options">
+        ${q.options.map((opt, oIdx) => `
+          <button class="quiz-opt" id="qo-${idx}-${oIdx}" onclick="selectQuizOption(${idx}, ${oIdx})">
+            <span>${String.fromCharCode(65 + oIdx)}.</span>
+            <span>${opt}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="quiz-expl" id="qe-${idx}">${q.expl}</div>
+    </div>
+  `).join('');
+
+  if (window.MathJax) MathJax.typesetPromise();
+}
+
+function selectQuizOption(qIdx, oIdx) {
+  if (quizAnswers[qIdx] !== undefined) return; // Already answered
+  quizAnswers[qIdx] = oIdx;
+
+  const q = quizQuestions[qIdx];
+  const isCorrect = (oIdx === q.correct);
+
+  for (let i = 0; i < q.options.length; i++) {
+    const btn = document.getElementById(`qo-${qIdx}-${i}`);
+    if (i === q.correct) btn.classList.add('correct');
+    else if (i === oIdx && !isCorrect) btn.classList.add('wrong');
+  }
+
+  document.getElementById(`qe-${qIdx}`).style.display = 'block';
+
+  // Update Score
+  const score = Object.keys(quizAnswers).filter(k => quizAnswers[k] === quizQuestions[k].correct).length;
+  document.getElementById('quiz-score').textContent = score;
+}
+
+// ── Drag & Drop Handlers for Protractor and Ruler ──────────────────────────
+const boardCvs = document.getElementById('board-canvas');
+let draggingTool = null;
+let dragOffset = { x: 0, y: 0 };
+
+boardCvs.addEventListener('mousedown', (e) => {
+  const rect = boardCvs.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (boardCvs.width / rect.width);
+  const my = (e.clientY - rect.top) * (boardCvs.height / rect.height);
+
+  if (state.showProtractor && Math.hypot(mx - state.protractor.x, my - state.protractor.y) < 90) {
+    draggingTool = 'protractor';
+    dragOffset.x = mx - state.protractor.x;
+    dragOffset.y = my - state.protractor.y;
+    return;
+  }
+  if (state.showRuler && mx >= state.ruler.x && mx <= state.ruler.x + 220 && my >= state.ruler.y && my <= state.ruler.y + 40) {
+    draggingTool = 'ruler';
+    dragOffset.x = mx - state.ruler.x;
+    dragOffset.y = my - state.ruler.y;
+    return;
+  }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!draggingTool) return;
+  const rect = boardCvs.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (boardCvs.width / rect.width);
+  const my = (e.clientY - rect.top) * (boardCvs.height / rect.height);
+
+  if (draggingTool === 'protractor') {
+    state.protractor.x = mx - dragOffset.x;
+    state.protractor.y = my - dragOffset.y;
+  } else if (draggingTool === 'ruler') {
+    state.ruler.x = mx - dragOffset.x;
+    state.ruler.y = my - dragOffset.y;
+  }
+  renderBoardCanvas();
+});
+
+window.addEventListener('mouseup', () => {
+  draggingTool = null;
+});
+
+// ── Wheel Rotate Tool ─────────────────────────────────────────────────────
+boardCvs.addEventListener('wheel', (e) => {
+  if (state.showProtractor || state.showRuler) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.05 : -0.05;
+    if (state.showProtractor) state.protractor.angle += delta;
+    if (state.showRuler) state.ruler.angle += delta;
+    renderBoardCanvas();
+  }
+}, { passive: false });
+
+// ── Initial Boot ──────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  setLabStep(1);
+  computePhysics();
+  renderAllCanvases();
+});
+</script>
+
 </body>
 </html>
