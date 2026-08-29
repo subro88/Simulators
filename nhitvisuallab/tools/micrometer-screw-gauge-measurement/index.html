@@ -918,25 +918,15 @@ function tightenRatchet() {
 function autoClampWire() {
   SoundFX.metalContact();
   if (state.labStep === 2) {
-    state.openingMm = 0.00;
+    setGaugeOpening(0.00);
   } else {
-    state.openingMm = state.wire.D_mm + state.zeroErrorMm;
+    setGaugeOpening(state.wire.D_mm + state.zeroErrorMm);
   }
-  const slider = document.getElementById('slider-opening');
-  if (slider) slider.value = state.openingMm;
-  const valOpening = document.getElementById('val-opening');
-  if (valOpening) valOpening.textContent = `${state.openingMm.toFixed(2)} mm`;
-  renderAllCanvases();
 }
 
 function resetGauge() {
   SoundFX.metalContact();
-  state.openingMm = 0.00;
-  const slider = document.getElementById('slider-opening');
-  if (slider) slider.value = 0.00;
-  const valOpening = document.getElementById('val-opening');
-  if (valOpening) valOpening.textContent = `0.00 mm`;
-  renderAllCanvases();
+  setGaugeOpening(0.00);
 }
 
 function toggleZoomView() {
@@ -1122,6 +1112,9 @@ function drawGaugeContent(ctx) {
   const maxShift = getShiftPx(15.0);
   const shift = Math.max(0, Math.min(maxShift, rawShift));
 
+  // 0. Specimen Wire — Drawn FIRST so the anvil (base) and spindle overlap its edges
+  drawSpecimenWire(ctx, shift);
+
   // 1. Spindle
   if (imgSpindle && imgSpindle.naturalWidth) {
     ctx.drawImage(imgSpindle, OX.spindleX + shift, OX.spindleY, imgSpindle.naturalWidth, imgSpindle.naturalHeight);
@@ -1131,9 +1124,6 @@ function drawGaugeContent(ctx) {
   if (imgBase && imgBase.naturalWidth) {
     ctx.drawImage(imgBase, 0, 0, imgBase.naturalWidth, imgBase.naturalHeight);
   }
-
-  // 3. Specimen Wire — Drawn in throat between anvil (X=200) and spindle (X=200+shift)
-  drawSpecimenWire(ctx, shift);
 
   // 4. Main Scale Ticks
   {
@@ -1303,47 +1293,47 @@ function drawGaugeContent(ctx) {
 
 // ── Draw Specimen Wire Clamped in Micrometer Throat ────────────────────────
 function drawSpecimenWire(ctx, shift) {
-  // If in step 2 (zero error calibration) and jaws closed, no wire
+  // Only hide wire when explicitly in Step 2 (zero error calibration) with closed jaws
   if (state.labStep === 2 && state.openingMm < 0.02) return;
 
   const matThemes = {
-    copper:   { stroke: '#7c2d12', shine: '#ffedd5', fill: '#ea580c', fillDark: '#9a3412', cap: '#fdba74' },
+    copper:   { stroke: '#9a3412', shine: '#fed7aa', fill: '#f97316', fillDark: '#c2410c', cap: '#fdba74' },
     nichrome: { stroke: '#1e293b', shine: '#f8fafc', fill: '#64748b', fillDark: '#334155', cap: '#cbd5e1' },
-    brass:    { stroke: '#713f12', shine: '#fef9c3', fill: '#eab308', fillDark: '#a16207', cap: '#fde047' },
+    brass:    { stroke: '#713f12', shine: '#fef08a', fill: '#eab308', fillDark: '#a16207', cap: '#fde047' },
     steel:    { stroke: '#334155', shine: '#ffffff', fill: '#94a3b8', fillDark: '#475569', cap: '#e2e8f0' }
   };
   const theme = matThemes[state.wire.material] || matThemes.copper;
 
   const ppm = getMsdPx() / state.pitch; // px per mm
-  const w = Math.max(3, state.wire.D_mm * ppm);
-  const h = 130; // Tall vertical wire extending across the C-frame throat
+  const w = Math.max(5, state.wire.D_mm * ppm);
+  const h = 160; // Tall vertical wire extending across and beyond the C-frame throat
   const x = 200; // Anvil face is at X = 200 in world coordinates
-  const y = 100 - h / 2; // Centered on spindle axis Y = 100
+  const y = 100 - h / 2; // Centered on spindle axis Y = 100 (y = 20 to 180)
 
   ctx.save();
 
-  // 1. Specimen Wire Cast Shadow
+  // 1. Specimen Wire Cast Shadow Behind Jaws
   ctx.save();
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
   ctx.beginPath();
-  ctx.ellipse(x + w / 2 + 2, y + h + 2, Math.max(3, w / 2 + 1), 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2 + 2, y + h + 2, Math.max(3, w / 2 + 2), 3.5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   // 2. Wire Cylinder Body Gradient
   const g = ctx.createLinearGradient(x, 0, x + w, 0);
   g.addColorStop(0.00, theme.stroke);
-  g.addColorStop(0.18, theme.shine);
+  g.addColorStop(0.20, theme.shine);
   g.addColorStop(0.50, theme.fill);
-  g.addColorStop(0.82, theme.fillDark);
+  g.addColorStop(0.80, theme.fillDark);
   g.addColorStop(1.00, theme.stroke);
 
   ctx.fillStyle = g;
   ctx.fillRect(x, y, w, h);
 
   // 3. Specular Highlight Strip
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-  ctx.lineWidth = Math.max(0.8, w * 0.12);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.lineWidth = Math.max(1.0, w * 0.15);
   ctx.beginPath();
   ctx.moveTo(x + w * 0.25, y + 2);
   ctx.lineTo(x + w * 0.25, y + h - 2);
@@ -1357,33 +1347,31 @@ function drawSpecimenWire(ctx, shift) {
   // 5. Top & Bottom Wire Cut End Caps
   ctx.fillStyle = theme.cap;
   ctx.beginPath();
-  ctx.ellipse(x + w / 2, y, w / 2, Math.min(3, w / 3), 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2, y, w / 2, Math.min(4, Math.max(2, w / 2.5)), 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.ellipse(x + w / 2, y + h, w / 2, Math.min(3, w / 3), 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2, y + h, w / 2, Math.min(4, Math.max(2, w / 2.5)), 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 6. Carbide Face Contact Marks (Bright Green Halo)
+  // 6. Carbide Face Contact Marks (Crisp Green Markers on contacting jaws)
   const inContact = (state.openingMm <= state.wire.D_mm + state.zeroErrorMm + 0.02);
   if (inContact) {
-    ctx.strokeStyle = 'rgba(61, 220, 132, 0.95)';
-    ctx.lineWidth = 2.4;
-    ctx.shadowColor = 'rgba(61, 220, 132, 0.9)';
-    ctx.shadowBlur = 6;
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 1.8;
 
     // Anvil Contact line (X = 200)
     ctx.beginPath();
-    ctx.moveTo(x + 0.5, 100 - 16);
-    ctx.lineTo(x + 0.5, 100 + 16);
+    ctx.moveTo(x + 0.5, 100 - 18);
+    ctx.lineTo(x + 0.5, 100 + 18);
     ctx.stroke();
 
     // Spindle Contact line (X = 200 + w)
     ctx.beginPath();
-    ctx.moveTo(x + w - 0.5, 100 - 16);
-    ctx.lineTo(x + w - 0.5, 100 + 16);
+    ctx.moveTo(x + w - 0.5, 100 - 18);
+    ctx.lineTo(x + w - 0.5, 100 + 18);
     ctx.stroke();
   }
 
@@ -1394,19 +1382,19 @@ function drawWorkpieceDims(ctx, shift) {
   if (state.labStep === 2 && state.openingMm < 0.02) return;
 
   const ppm = getMsdPx() / state.pitch;
-  const w = Math.max(3, state.wire.D_mm * ppm);
+  const w = Math.max(5, state.wire.D_mm * ppm);
   const x = 200;
   const inContact = (state.openingMm <= state.wire.D_mm + state.zeroErrorMm + 0.02);
-  const partBottom = 100 + 130 / 2; // y = 165
-  const dy = Math.min(215, partBottom + 22);
+  const partBottom = 100 + 160 / 2; // y = 180
+  const dy = Math.min(220, partBottom + 20);
 
   ctx.save();
-  ctx.strokeStyle = inContact ? 'rgba(61, 220, 132, 0.95)' : 'rgba(180, 196, 216, 0.65)';
+  ctx.strokeStyle = inContact ? '#3ddc84' : 'rgba(180, 196, 216, 0.75)';
   ctx.fillStyle = ctx.strokeStyle;
   ctx.lineWidth = 1.2;
 
   // Witness lines dropping down from anvil and wire edge
-  ctx.globalAlpha = 0.65;
+  ctx.globalAlpha = 0.70;
   ctx.beginPath();
   ctx.moveTo(x, partBottom + 4); ctx.lineTo(x, dy + 5);
   ctx.moveTo(x + w, partBottom + 4); ctx.lineTo(x + w, dy + 5);
