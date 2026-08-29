@@ -111,7 +111,7 @@
 
       <div class="lab-alert">
         <div id="step-instruction-text">
-          <strong>Step 1: Determine Pitch &amp; Least Count ($LC$).</strong> Turn thimble 5 complete rotations to verify linear pitch $= 0.5\text{ mm}$ (or $1.0\text{ mm}$). Compute $LC = \frac{\text{Pitch}}{\text{CSD}} = \frac{0.5\text{ mm}}{50} = 0.01\text{ mm}$.
+          <strong>Step 1: Determine Pitch &amp; Least Count ($LC$).</strong> Turn thimble to inspect the main barrel scale. Calculate $LC = \frac{\text{Pitch}}{\text{CSD}} = \frac{0.5\text{ mm}}{50} = 0.01\text{ mm}$.
         </div>
         <div class="lab-actions-row" id="step-actions-container">
           <button class="cp-btn cp-btn-primary" onclick="setLabStep(2)">➡️ Proceed to Zero Error Calibration (Step 2)</button>
@@ -122,27 +122,27 @@
     <!-- Dual-Card Stage Layout -->
     <div class="dual-canvas-row">
 
-      <!-- Left Card: Realistic Micrometer Screw Gauge Canvas -->
+      <!-- Left Card: Realistic Clean Micrometer Screw Gauge Canvas -->
       <div class="canvas-card">
         <div class="canvas-card-header">
           <span>🔬 High-Precision Micrometer Screw Gauge Stage</span>
           <span class="canvas-badge" id="instrument-state-badge">Spindle Ready &bull; Specimen Wire Gripped</span>
         </div>
         <div class="canvas-wrap" style="background:#0b1820; position:relative;">
-          <canvas id="gauge-canvas" width="923" height="379" style="width:100%; height:auto; display:block; cursor:grab;"></canvas>
+          <canvas id="gauge-canvas" width="900" height="240" style="width:100%; height:250px; display:block; cursor:grab;"></canvas>
           <div id="gauge-hint" style="position:absolute; right:12px; bottom:8px; font-size:11px; color:#94a3b8; background:rgba(0,0,0,0.5); padding:2px 8px; border-radius:4px;">
             Drag thimble &bull; Scroll wheel to spin thimble &bull; Ratchet button to clamp
           </div>
         </div>
         <div style="padding:10px 14px; background:var(--bg-card-alt); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <div style="font-size:0.84rem; color:var(--text-muted);">
-            <span>$2.5\times$ Magnifier Loupe inspects datum baseline coincidence</span>
+            <span>Golden mark highlights coinciding circular division on the datum baseline</span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="cp-btn cp-btn-primary" onclick="tightenRatchet()">🔊 Tighten Ratchet (3 Clicks)</button>
             <button class="cp-btn cp-btn-gold" onclick="autoClampWire()">🧲 Auto-Grip Specimen Wire</button>
-            <button class="cp-btn" onclick="toggleMagnifier()" id="btn-mag">🔍 Toggle Magnifier Loupe</button>
-            <button class="cp-btn" onclick="resetGauge()">🔄 Fully Close Spindle</button>
+            <button class="cp-btn" onclick="toggleZoomView()" id="btn-zoom">🔍 Toggle Zoom View</button>
+            <button class="cp-btn" onclick="resetGauge()">🔄 Close Jaws</button>
           </div>
         </div>
       </div>
@@ -282,7 +282,7 @@
             <button class="cp-btn" onclick="stepOpening(-1.00)">-1.0</button>
             <button class="cp-btn" onclick="stepOpening(-0.10)">-0.1</button>
             <button class="cp-btn" onclick="stepOpening(-0.01)">-0.01</button>
-            <input type="range" id="slider-opening" min="0.00" max="25.00" step="0.01" value="0.45" oninput="setGaugeOpening(this.value)" />
+            <input type="range" id="slider-opening" min="0.00" max="15.00" step="0.01" value="0.45" oninput="setGaugeOpening(this.value)" />
             <button class="cp-btn" onclick="stepOpening(0.01)">+0.01</button>
             <button class="cp-btn" onclick="stepOpening(0.10)">+0.1</button>
             <button class="cp-btn" onclick="stepOpening(1.00)">+1.0</button>
@@ -361,7 +361,7 @@
     <div class="control-panel" style="margin-bottom:16px;">
       <h3 style="margin-top:0;">⚡ Precision Screw Gauge Free Exploration Engine</h3>
       <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:14px;">
-        Freely rotate the thimble across the 25 mm barrel scale. Practice reading Main Scale Reading (MSR) + (Circular Scale Reading &times; Least Count) on arbitrary workpieces.
+        Freely rotate the thimble across the 15 mm barrel scale. Practice reading Main Scale Reading (MSR) + (Circular Scale Reading &times; Least Count) on arbitrary workpieces.
       </p>
       <div style="display:flex; gap:12px; flex-wrap:wrap;">
         <a class="cp-btn cp-btn-primary" href="../screw-gauge/index.html">
@@ -428,7 +428,7 @@
 
       <h3>2. Apparatus Required</h3>
       <ul>
-        <li>Micrometer Screw Gauge (Range 0–25 mm, Pitch 0.5 mm, Least Count $0.01\text{ mm}$).</li>
+        <li>Micrometer Screw Gauge (Range 0–15 mm, Pitch 0.5 mm, Least Count $0.01\text{ mm}$).</li>
         <li>Specimen wire (Copper, Nichrome, Brass, or Steel).</li>
         <li>Half-meter ruler (to measure wire length $L$).</li>
         <li>Analytical balance (to determine wire mass $M$).</li>
@@ -542,7 +542,6 @@ const SoundFX = {
     if (this.muted) return;
     this.init();
     if (!this.ctx) return;
-    // 3 crisp mechanical clicks in rapid succession
     [0, 0.07, 0.14].forEach(offset => {
       const now = this.ctx.currentTime + offset;
       const osc = this.ctx.createOscillator();
@@ -612,26 +611,29 @@ const SoundFX = {
   }
 };
 
-// ── Sprites & Offsets Setup ───────────────────────────────────────────────
+// ── Clean Exact Coordinate & Layout Constants ─────────────────────────────
+const DS = 0.75;
+const CW = Math.round(1200 * DS); // 900
+const CH = 240;
+
+const OX = {
+  scaleX: 539, scaleY: 100, spindleX: 200, spindleY: 79,
+  thimbleY1: 49, thimbleY3: 31, thimbleX2: 40, thimbleX3: 440,
+};
+const SCALE_WIN_W = OX.thimbleX3 - OX.thimbleX2 - 153; // 247
+const R1 = OX.scaleY - OX.thimbleY1; // 51
+const R2 = OX.scaleY - OX.thimbleY3; // 69
+const WP_FACE_X = 143.5;
+const WP_AXIS_Y = 100;
+
+// Sprites
 const imgThimble = new Image(); imgThimble.src = 'assets/thimble.png';
 const imgSpindle = new Image(); imgSpindle.src = 'assets/spindle.png';
 const imgBase    = new Image(); imgBase.src    = 'assets/micrometer_base.png';
 const imgTexture = new Image(); imgTexture.src = 'assets/texture9.png';
 
-const OX = {
-  scaleX: 212,
-  scaleY: 76,
-  thimbleY3: 45,
-  thimbleX2: 0,
-  spindleX: 72,
-  spindleY: 67
-};
-const R1 = 28, R2 = 32, SCALE_WIN_W = 49;
-
-let imagesLoaded = 0;
-function onImgLoad() {
-  if (++imagesLoaded === 4) renderAllCanvases();
-}
+let loadedCount = 0;
+function onImgLoad() { if (++loadedCount === 4) renderAllCanvases(); }
 [imgThimble, imgSpindle, imgBase, imgTexture].forEach(img => {
   img.onload = onImgLoad;
   img.onerror = onImgLoad;
@@ -639,32 +641,29 @@ function onImgLoad() {
 
 // ── Global State & Physics Engine ──────────────────────────────────────────
 const state = {
-  mode: 'lab', // 'lab', 'gauge', '3d', 'theory', 'quiz'
-  labStep: 1,  // 1: Setup/LC, 2: Zero Error, 3: Wire Diam D, 4: Area & Volume
-  showMagnifier: true,
+  mode: 'lab',
+  labStep: 1,
+  zoomOpen: false,
 
-  // Instrument Parameters
-  pitch: 0.5,    // 0.5 mm or 1.0 mm
-  csd: 50,       // 50 or 100 divisions
-  lc: 0.01,      // 0.01 mm
-  msdCount: 50,  // 50 half-mm ticks on main scale
-  zeroErrorMm: 0.0, // Instrument zero error in mm
-  openingMm: 0.45,  // Current physical spindle opening in mm
+  pitch: 0.5,
+  csd: 50,
+  lc: 0.01,
+  msdCount: 30, // 15 mm range (30 half-mm ticks)
+  zeroErrorMm: 0.0,
+  openingMm: 0.45,
 
-  // Specimen Wire
   wire: {
     material: 'copper',
     presetName: 'Copper Wire',
-    density: 8.96, // g/cm³
-    D_mm: 0.45,    // Diameter in mm
-    L_cm: 100.0    // Length in cm
+    density: 8.96,
+    D_mm: 0.45,
+    L_cm: 100.0
   },
 
-  // Dynamic Observation Table
   observations: []
 };
 
-// ── Mathematical Formulations ──────────────────────────────────────────────
+// ── Scale & Geometry Helpers ───────────────────────────────────────────────
 function getMsdPx() {
   return 200 / state.msdCount;
 }
@@ -673,13 +672,17 @@ function getShiftPx(mm) {
   return (mm / state.pitch) * getMsdPx();
 }
 
+function snapToLc(mm) {
+  return Math.round(mm / state.lc) * state.lc;
+}
+
 function getMSR(mm) {
-  const q = Math.round(mm / state.lc) * state.lc;
+  const q = snapToLc(mm);
   return Math.floor(q / state.pitch + 1e-9) * state.pitch;
 }
 
 function getCSR(mm) {
-  const q = Math.round(mm / state.lc) * state.lc;
+  const q = snapToLc(mm);
   return ((Math.round((q - getMSR(q)) / state.lc) % state.csd) + state.csd) % state.csd;
 }
 
@@ -692,7 +695,6 @@ function computePhysics() {
   const V_cm3 = V_mm3 / 1000;
   const mass_g = V_cm3 * state.wire.density;
 
-  // Update DOM telemetry cards
   const elD = document.getElementById('disp-D');
   const elr = document.getElementById('disp-r');
   const elL = document.getElementById('disp-L');
@@ -830,11 +832,11 @@ function resetGauge() {
   renderAllCanvases();
 }
 
-function toggleMagnifier() {
+function toggleZoomView() {
   SoundFX.click();
-  state.showMagnifier = !state.showMagnifier;
-  const btn = document.getElementById('btn-mag');
-  if (btn) btn.classList.toggle('active', state.showMagnifier);
+  state.zoomOpen = !state.zoomOpen;
+  const btn = document.getElementById('btn-zoom');
+  if (btn) btn.classList.toggle('active', state.zoomOpen);
   renderGaugeCanvas();
 }
 
@@ -844,7 +846,7 @@ function setPitchAndCsd(pitchVal, csdVal) {
   state.pitch = pitchVal;
   state.csd = csdVal;
   state.lc = pitchVal / csdVal;
-  state.msdCount = pitchVal === 0.5 ? 50 : 25;
+  state.msdCount = pitchVal === 0.5 ? 30 : 15;
 
   document.querySelectorAll('#lc-tabs .pill').forEach((b, idx) => {
     b.classList.toggle('active', (idx === 0 && pitchVal === 0.5) || (idx === 1 && pitchVal === 1.0));
@@ -883,7 +885,7 @@ function injectRandomZeroError() {
 }
 
 function setGaugeOpening(val) {
-  state.openingMm = Math.max(0.00, Math.min(25.00, parseFloat(val) || 0.00));
+  state.openingMm = Math.max(0.00, Math.min(15.00, parseFloat(val) || 0.00));
   const el = document.getElementById('val-opening');
   if (el) el.textContent = `${state.openingMm.toFixed(2)} mm`;
   SoundFX.thimbleSpin();
@@ -959,31 +961,37 @@ function adjustSpecimenL(delta) {
   document.getElementById('slider-spec-L').value = state.wire.L_cm;
 }
 
-// ── Realistic Canvas Drawing Engine ───────────────────────────────────────
-function renderGaugeCanvas() {
-  const cvs = document.getElementById('gauge-canvas');
-  if (!cvs) return;
-  const ctx = cvs.getContext('2d');
-  const w = cvs.width;
-  const h = cvs.height;
-
-  ctx.clearRect(0, 0, w, h);
-
-  // Background Studio Gradient
-  const bg = ctx.createLinearGradient(0, 0, 0, h);
-  bg.addColorStop(0, '#12222c');
-  bg.addColorStop(0.55, '#0b1820');
-  bg.addColorStop(1, '#060f15');
+// ── Realistic Clean Screw Gauge Canvas Engine ──────────────────────────────
+function drawSceneBackground(ctx) {
+  const bg = ctx.createLinearGradient(0, 0, 0, CH);
+  bg.addColorStop(0, '#10151f');
+  bg.addColorStop(0.55, '#0d1117');
+  bg.addColorStop(1, '#090c11');
   ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, CW, CH);
 
-  const glow = ctx.createRadialGradient(w * 0.5, 60, 40, w * 0.5, 60, w * 0.75);
-  glow.addColorStop(0, 'rgba(125,175,205,0.12)');
-  glow.addColorStop(1, 'rgba(125,175,205,0)');
+  const gx = CW * 0.5, gy = CH * 0.40;
+  const glow = ctx.createRadialGradient(gx, gy, 30, gx, gy, CW * 0.6);
+  glow.addColorStop(0, 'rgba(79,142,247,0.10)');
+  glow.addColorStop(1, 'rgba(79,142,247,0)');
   ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, CW, CH);
 
-  // Geometry shifts
+  ctx.save();
+  ctx.translate(CW * 0.5, CH * 0.70);
+  ctx.scale(1, 0.16);
+  const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, CW * 0.42);
+  sh.addColorStop(0, 'rgba(0,0,0,0.5)');
+  sh.addColorStop(0.7, 'rgba(0,0,0,0.22)');
+  sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh;
+  ctx.beginPath();
+  ctx.arc(0, 0, CW * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGaugeContent(ctx) {
   const displayMm = state.openingMm;
   const csr = getCSR(displayMm);
   const msdPx = getMsdPx();
@@ -992,31 +1000,23 @@ function renderGaugeCanvas() {
   const N = csd / 4;
 
   const rawShift = getShiftPx(displayMm);
-  const maxShift = getShiftPx(25.0);
+  const maxShift = getShiftPx(15.0);
   const shift = Math.max(0, Math.min(maxShift, rawShift));
 
-  ctx.save();
-  ctx.translate(60, 40); // Centering offset
+  // 0. Workpiece Wire — drawn FIRST so anvil (base) and spindle overlap its edges
+  drawSpecimenWire(ctx);
 
-  // 1. Draw Specimen Wire between Jaws
-  drawSpecimenWireOnCanvas(ctx, shift);
-
-  // 2. Spindle
+  // 1. Spindle
   if (imgSpindle && imgSpindle.naturalWidth) {
     ctx.drawImage(imgSpindle, OX.spindleX + shift, OX.spindleY, imgSpindle.naturalWidth, imgSpindle.naturalHeight);
   }
 
-  // 3. Base Frame
+  // 2. Base Frame
   if (imgBase && imgBase.naturalWidth) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.45)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 6;
     ctx.drawImage(imgBase, 0, 0, imgBase.naturalWidth, imgBase.naturalHeight);
-    ctx.restore();
   }
 
-  // 4. Main Scale Graduations on Sleeve / Barrel
+  // 3. Main Scale Ticks
   {
     ctx.save();
     ctx.translate(OX.scaleX, OX.scaleY);
@@ -1031,14 +1031,9 @@ function renderGaugeCanvas() {
     for (let i = 0; i <= msdCount; i++) {
       const x = i * msdPx;
       let len;
-      if (state.pitch === 0.5) {
-        // Upper lines for whole mm, lower lines for 0.5 mm
-        if (i % 2 === 1) len = -MIN;
-        else if (i % 10 === 0) len = MAJ;
-        else len = MED;
-      } else {
-        len = (i % 5 === 0) ? MAJ : MIN;
-      }
+      if (i % 2 === 1) len = -MIN;
+      else if (i % 10 === 0) len = MAJ;
+      else len = MED;
 
       ctx.lineWidth = (i % 10 === 0) ? 1.5 : 1.0;
       ctx.beginPath();
@@ -1047,21 +1042,21 @@ function renderGaugeCanvas() {
       ctx.stroke();
 
       if (i % 10 === 0) {
-        ctx.font = 'bold 10pt sans-serif';
+        ctx.font = 'bold 11pt sans-serif';
         ctx.fillText(String(i * state.pitch), x, -MAJ - 2);
       }
     }
     ctx.restore();
   }
 
-  // 5. Thimble Image
+  // 4. Thimble Image
   if (imgThimble && imgThimble.naturalWidth) {
     ctx.drawImage(imgThimble, OX.scaleX + shift, OX.thimbleY3, imgThimble.naturalWidth, imgThimble.naturalHeight);
   }
 
-  // 6. Thimble Knurled Texture Fill
+  // 5. Texture Fill (Knurling)
   if (imgTexture && imgTexture.naturalWidth) {
-    const totalDivs = Math.floor(displayMm / state.pitch + 1e-9) * csd + csr;
+    const totalDivs = Math.floor(snapToLc(displayMm) / state.pitch + 1e-9) * csd + csr;
     const offsetY = totalDivs * R1 * Math.PI / N / 2;
     const wx = OX.scaleX + shift + OX.thimbleX2 + 49;
 
@@ -1076,7 +1071,7 @@ function renderGaugeCanvas() {
     ctx.restore();
   }
 
-  // 7. Thimble Metallic Sheen
+  // 6. Gradient Sheen
   {
     const wx = OX.scaleX + shift + OX.thimbleX2 + 49;
     const grd = ctx.createLinearGradient(wx, OX.thimbleY3, wx, OX.thimbleY3 + 2 * R2);
@@ -1089,172 +1084,238 @@ function renderGaugeCanvas() {
     ctx.globalAlpha = 1;
   }
 
-  // 8. Circular Scale Graduations on Beveled Edge
+  // 7. Circular Scale Ticks
   {
     const dth = (Math.PI / 2) / N;
     const refX = OX.scaleX + shift;
     const MAJ_T = 28, MIN_T = 16;
 
-    for (let k = -N; k <= N; k++) {
-      const cy = OX.scaleY + R1 * Math.sin(k * dth);
-      const cx = refX + R1 * (1 - Math.cos(k * dth)) / 2;
-      const num = (csr - k + csd) % csd;
-      const isMaj = (num % 5 === 0);
-      const isAlign = (k === 0);
-
-      ctx.strokeStyle = isAlign ? '#FFD700' : '#1a1a1a';
-      ctx.lineWidth = isAlign ? 2.2 : (isMaj ? 1.4 : 0.8);
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + (isMaj ? MAJ_T : MIN_T), cy);
-      ctx.stroke();
-
-      if (isMaj && Math.abs(k) < N - 1) {
-        ctx.fillStyle = isAlign ? '#FFD700' : '#1a1a1a';
-        ctx.font = 'bold 8.5pt monospace';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(num), cx + MAJ_T + 4, cy);
-      }
-    }
-  }
-
-  // 9. Laser-Etched Watermark on U-Frame
-  {
     ctx.save();
-    ctx.font = 'italic 700 13px Georgia, "Times New Roman", serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.fillText('NHIT VisualLab &bull; 0-25mm / 0.01mm', 140, 240);
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(refX, OX.thimbleY1 - 2);
+    ctx.lineTo(refX, OX.thimbleY1 + 2 * R1 + 2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = '#111';
+    ctx.fillStyle = '#111';
+    ctx.lineWidth = 1.2;
+    ctx.font = '9pt sans-serif';
+    ctx.textBaseline = 'middle';
+
+    const labelEvery = 5;
+
+    for (let i = 0; i < Math.ceil(N) + 1; i++) {
+      const sinTh = Math.sin(i * dth);
+      if (sinTh > 0.70) ctx.globalAlpha = Math.max(0, 1 - 3 * (sinTh - 0.70));
+
+      const dy1 = R1 * sinTh;
+      const isAlign = (i === 0);
+
+      // Upper tick
+      const divU = (csr + i) % csd;
+      const isMajU = divU % labelEvery === 0;
+      const lenU = isMajU ? MAJ_T : MIN_T;
+      const dy2U = dy1 * (R1 + (isMajU ? 8 : 4)) / R1;
+      ctx.textAlign = 'left';
+
+      if (isAlign) {
+        ctx.save();
+        ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2.2;
+        ctx.shadowColor = 'rgba(255,215,0,0.85)'; ctx.shadowBlur = 6;
+      }
+      ctx.beginPath(); ctx.moveTo(refX, OX.scaleY - dy1); ctx.lineTo(refX + lenU, OX.scaleY - dy2U); ctx.stroke();
+      if (isAlign) ctx.restore();
+
+      if (isMajU && i < Math.ceil(N) - 1) {
+        ctx.fillText(String(divU), refX + lenU + 3, OX.scaleY - dy2U);
+      }
+
+      if (i === 0) { ctx.globalAlpha = 1; continue; }
+
+      // Lower tick
+      const divL = ((csr - i) % csd + csd) % csd;
+      const isMajL = divL % labelEvery === 0;
+      const lenL = isMajL ? MAJ_T : MIN_T;
+      const dy2L = dy1 * (R1 + (isMajL ? 8 : 4)) / R1;
+      ctx.beginPath(); ctx.moveTo(refX, OX.scaleY + dy1); ctx.lineTo(refX + lenL, OX.scaleY + dy2L); ctx.stroke();
+      if (isMajL && i < Math.ceil(N) - 1) {
+        ctx.fillText(String(divL), refX + lenL + 3, OX.scaleY + dy2L);
+      }
+
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   }
 
-  // 10. Magnifier Loupe Inset Window
-  if (state.showMagnifier) {
-    drawLoupeInspection(ctx, OX.scaleX + shift, OX.scaleY, csr);
+  // 8. LC Badge Above Sleeve
+  {
+    const lcTxt = `LC = ${state.lc} mm`;
+    ctx.save();
+    ctx.font = 'bold 8.5pt sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    const tw = ctx.measureText(lcTxt).width;
+    const bx = Math.min(OX.scaleX + shift - 40, 1200 * 0.97 / DS - 70);
+    const by = 8;
+    const bw = tw + 14, bh = 18;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.60)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, 4);
+    else ctx.rect(bx - bw / 2, by - bh / 2, bw, bh);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,183,77,0.55)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffb74d';
+    ctx.fillText(lcTxt, bx, by);
+    ctx.restore();
   }
 
-  ctx.restore();
+  // 9. Technical Dimension Annotation
+  drawWorkpieceDims(ctx);
 }
 
-// ── Draw Specimen Wire in Jaws ─────────────────────────────────────────────
-function drawSpecimenWireOnCanvas(ctx, shift) {
-  if (state.labStep === 2 && state.openingMm < 0.05) return; // Jaws closed for zero error
+// ── Draw Specimen Wire ─────────────────────────────────────────────────────
+function drawSpecimenWire(ctx) {
+  if (state.labStep === 2 && state.openingMm < 0.02) return; // closed for zero error
 
   const matColors = {
-    copper: { fill: '#f97316', stroke: '#c2410c', shine: '#fed7aa' },
-    nichrome: { fill: '#64748b', stroke: '#334155', shine: '#cbd5e1' },
-    brass: { fill: '#eab308', stroke: '#a16207', shine: '#fef08a' },
-    steel: { fill: '#94a3b8', stroke: '#475569', shine: '#f1f5f9' }
+    copper: { stroke: '#c2410c', shine: '#fed7aa', fill: '#f97316' },
+    nichrome: { stroke: '#334155', shine: '#cbd5e1', fill: '#64748b' },
+    brass: { stroke: '#a16207', shine: '#fef08a', fill: '#eab308' },
+    steel: { stroke: '#475569', shine: '#f1f5f9', fill: '#94a3b8' }
   };
   const theme = matColors[state.wire.material] || matColors.copper;
 
-  const wireDPx = Math.max(3, state.wire.D_mm * getMsdPx() / state.pitch);
-  const anvilX = 64;
-  const wireX = anvilX;
-  const wireY = 20;
-  const wireH = 100;
+  const ppm = getMsdPx() / state.pitch; // px per mm
+  const w = Math.max(3, state.wire.D_mm * ppm);
+  const h = 50;
+  const x = WP_FACE_X;
+  const y = WP_AXIS_Y - h / 2;
 
   ctx.save();
-  // Cylindrical wire gradient
-  const g = ctx.createLinearGradient(wireX, 0, wireX + wireDPx, 0);
+  const g = ctx.createLinearGradient(x, 0, x + w, 0);
   g.addColorStop(0, theme.stroke);
-  g.addColorStop(0.35, theme.shine);
+  g.addColorStop(0.3, theme.shine);
   g.addColorStop(0.7, theme.fill);
   g.addColorStop(1, theme.stroke);
-
   ctx.fillStyle = g;
-  ctx.fillRect(wireX, wireY, wireDPx, wireH);
+  ctx.fillRect(x, y, w, h);
+
   ctx.strokeStyle = theme.stroke;
   ctx.lineWidth = 1;
-  ctx.strokeRect(wireX, wireY, wireDPx, wireH);
+  ctx.strokeRect(x, y, w, h);
 
-  // Contact indicator lines
-  ctx.strokeStyle = 'rgba(61,220,132,0.95)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(wireX + 1, wireY + 20); ctx.lineTo(wireX + 1, wireY + wireH - 20);
-  ctx.moveTo(wireX + wireDPx - 1, wireY + 20); ctx.lineTo(wireX + wireDPx - 1, wireY + wireH - 20);
-  ctx.stroke();
-
-  // Dimension Chip
-  drawDimChip(ctx, `D = ${state.wire.D_mm.toFixed(3)} mm`, wireX + wireDPx / 2, wireY + wireH + 20);
-
+  // Contact marks
+  const inContact = (state.openingMm <= state.wire.D_mm + state.zeroErrorMm + 0.01);
+  if (inContact) {
+    ctx.strokeStyle = 'rgba(61,220,132,0.95)';
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = 'rgba(61,220,132,0.9)';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.8, WP_AXIS_Y - 14); ctx.lineTo(x + 0.8, WP_AXIS_Y + 14);
+    ctx.moveTo(x + w - 0.8, WP_AXIS_Y - 14); ctx.lineTo(x + w - 0.8, WP_AXIS_Y + 14);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
-function drawDimChip(ctx, txt, cx, cy) {
+function drawWorkpieceDims(ctx) {
+  if (state.labStep === 2 && state.openingMm < 0.02) return;
+
+  const ppm = getMsdPx() / state.pitch;
+  const w = Math.max(3, state.wire.D_mm * ppm);
+  const h = 50;
+  const x = WP_FACE_X;
+  const inContact = (state.openingMm <= state.wire.D_mm + state.zeroErrorMm + 0.01);
+  const partBottom = WP_AXIS_Y + h / 2;
+  const dy = partBottom + 20;
+
+  ctx.save();
+  ctx.strokeStyle = inContact ? 'rgba(61,220,132,0.9)' : 'rgba(180,196,216,0.6)';
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.lineWidth = 1.2;
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath(); ctx.moveTo(x, partBottom + 3); ctx.lineTo(x, dy + 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + w, partBottom + 3); ctx.lineTo(x + w, dy + 5); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Arrow line
+  ctx.beginPath(); ctx.moveTo(x, dy); ctx.lineTo(x + w, dy); ctx.stroke();
+
+  // Caption chip
+  const txt = `${state.wire.D_mm.toFixed(3)} mm`;
   ctx.font = 'bold 9pt sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(txt).width;
+  const cx = x + w / 2;
+  const cy = dy + 15;
 
   ctx.fillStyle = 'rgba(6,12,18,0.85)';
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(cx - tw / 2 - 8, cy - 9, tw + 16, 18, 4);
-  else ctx.rect(cx - tw / 2 - 8, cy - 9, tw + 16, 18);
+  if (ctx.roundRect) ctx.roundRect(cx - tw / 2 - 6, cy - 9, tw + 12, 18, 4);
+  else ctx.rect(cx - tw / 2 - 6, cy - 9, tw + 12, 18);
   ctx.fill();
 
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = '#3ddc84';
+  ctx.fillStyle = inContact ? '#3ddc84' : 'rgba(190,206,224,0.85)';
   ctx.fillText(txt, cx, cy);
+  ctx.restore();
 }
 
-// ── 2.5x Magnifier Loupe Inspection HUD ────────────────────────────────────
-function drawLoupeInspection(ctx, targetX, targetY, csr) {
-  const loupeX = 580;
-  const loupeY = 55;
-  const loupeR = 56;
+function renderGaugeCanvas() {
+  const cvs = document.getElementById('gauge-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
 
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.6)';
-  ctx.shadowBlur = 10;
-  ctx.shadowOffsetX = 3;
-  ctx.shadowOffsetY = 4;
+  if (loadedCount < 4) {
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillStyle = '#6b7a99';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Loading Micrometer Sprites…', CW / 2, CH / 2);
+    return;
+  }
 
-  ctx.beginPath();
-  ctx.arc(loupeX, loupeY, loupeR, 0, Math.PI * 2);
-  ctx.fillStyle = '#0f172a';
-  ctx.fill();
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
+  if (state.zoomOpen) {
+    // Zoomed View focused on datum line
+    const bg = ctx.createLinearGradient(0, 0, 0, CH);
+    bg.addColorStop(0, '#10151f');
+    bg.addColorStop(1, '#090c11');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, CW, CH);
 
-  ctx.beginPath();
-  ctx.arc(loupeX, loupeY, loupeR - 3, 0, Math.PI * 2);
-  ctx.clip();
+    const ZDS = DS * 3.0;
+    const displayMm = state.openingMm;
+    const rawShift = getShiftPx(displayMm);
+    const maxShift = getShiftPx(15.0);
+    const shift = Math.max(0, Math.min(maxShift, rawShift));
+    const offX = ZDS * (OX.scaleX + shift) - CW / 2;
+    const offY = ZDS * OX.scaleY - CH / 2;
 
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillRect(loupeX - loupeR, loupeY - loupeR, loupeR * 2, loupeR * 2);
-
-  // Datum horizontal baseline
-  ctx.strokeStyle = '#0f172a';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(loupeX - 45, loupeY);
-  ctx.lineTo(loupeX + 45, loupeY);
-  ctx.stroke();
-
-  // Coinciding Circular Division
-  ctx.strokeStyle = '#FFD700';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(loupeX, loupeY - 25);
-  ctx.lineTo(loupeX, loupeY + 25);
-  ctx.stroke();
-
-  const msr = getMSR(state.openingMm);
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 9px monospace';
-  ctx.fillText(`MSR: ${msr.toFixed(2)} mm`, loupeX - 35, loupeY - 34);
-  ctx.fillStyle = '#b45309';
-  ctx.fillText(`CSR: ${csr} div`, loupeX - 30, loupeY + 44);
-
-  ctx.restore();
+    ctx.save();
+    ctx.scale(ZDS, ZDS);
+    ctx.translate(-offX / ZDS, -offY / ZDS);
+    drawGaugeContent(ctx);
+    ctx.restore();
+  } else {
+    // Normal View
+    drawSceneBackground(ctx);
+    ctx.save();
+    ctx.scale(DS, DS);
+    drawGaugeContent(ctx);
+    ctx.restore();
+  }
 }
 
 // ── Rendering Right Card: Technical Cross-Section Canvas ───────────────────
@@ -1281,7 +1342,6 @@ function renderCrossCanvas() {
   };
   const theme = matColors[state.wire.material] || matColors.copper;
 
-  // Scale wire circle
   const rPx = Math.min(80, Math.max(12, state.wire.D_mm * 40));
 
   ctx.save();
@@ -1293,7 +1353,6 @@ function renderCrossCanvas() {
   ctx.lineWidth = 2.5;
   ctx.stroke();
 
-  // Diameter dimension arrow
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
@@ -1464,28 +1523,24 @@ function build3DApparatus() {
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, metalness: 0.4, roughness: 0.5 });
   const steelMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.8, roughness: 0.2 });
 
-  // U-Frame
   const frameGeo = new THREE.TorusGeometry(8, 2.2, 16, 32, Math.PI);
   const frameMesh = new THREE.Mesh(frameGeo, frameMat);
   frameMesh.rotation.z = Math.PI;
   frameMesh.position.set(-4, 0, 0);
   threeScene.add(frameMesh);
 
-  // Barrel / Sleeve
   const barrelGeo = new THREE.CylinderGeometry(2.2, 2.2, 12, 32);
   const barrelMesh = new THREE.Mesh(barrelGeo, steelMat);
   barrelMesh.rotation.z = Math.PI / 2;
   barrelMesh.position.set(6, 0, 0);
   threeScene.add(barrelMesh);
 
-  // Thimble
   const thimbleGeo = new THREE.CylinderGeometry(2.6, 2.6, 10, 32);
   const thimbleMesh = new THREE.Mesh(thimbleGeo, steelMat);
   thimbleMesh.rotation.z = Math.PI / 2;
   thimbleMesh.position.set(13, 0, 0);
   threeScene.add(thimbleMesh);
 
-  // Wire Specimen
   const wireMat = new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.7, roughness: 0.3 });
   const wireGeo = new THREE.CylinderGeometry(0.8, 0.8, 14, 24);
   const wireMesh = new THREE.Mesh(wireGeo, wireMat);
@@ -1638,24 +1693,24 @@ function selectQuizOption(qIdx, oIdx) {
 // ── Drag & Mouse Wheel Handlers for Thimble Rotation ──────────────────────
 const cvs = document.getElementById('gauge-canvas');
 let isDraggingThimble = false;
-let dragStartY = 0;
+let dragStartX = 0;
 let dragStartOpening = 0;
 
 cvs.addEventListener('mousedown', (e) => {
   const rect = cvs.getBoundingClientRect();
-  const my = (e.clientY - rect.top) * (cvs.height / rect.height);
+  const mx = (e.clientX - rect.left) * (CW / rect.width);
   isDraggingThimble = true;
-  dragStartY = my;
+  dragStartX = mx;
   dragStartOpening = state.openingMm;
 });
 
 window.addEventListener('mousemove', (e) => {
   if (!isDraggingThimble) return;
   const rect = cvs.getBoundingClientRect();
-  const my = (e.clientY - rect.top) * (cvs.height / rect.height);
-  const deltaY = my - dragStartY;
+  const mx = (e.clientX - rect.left) * (CW / rect.width);
+  const deltaX = mx - dragStartX;
 
-  const newOpening = Math.max(0.00, Math.min(25.00, dragStartOpening - (deltaY * 0.01)));
+  const newOpening = Math.max(0.00, Math.min(15.00, dragStartOpening + (deltaX * 0.02)));
   state.openingMm = parseFloat(newOpening.toFixed(2));
 
   const slider = document.getElementById('slider-opening');
