@@ -7,8 +7,20 @@
   <meta name="description" content="Interactive Snell's Law & 4-Pin Glass Slab refraction experiment. Determine refractive index and lateral shift with realistic drawing board, eye-level parallax view, and 3D apparatus." />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   
-  <!-- MathJax for LaTeX mathematical rendering -->
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <!-- MathJax Configuration for Inline $...$ and Display $$...$$ rendering -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
   
   <!-- Three.js for 3D Apparatus Mode -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -54,6 +66,7 @@
       </div>
     </div>
     <div class="head-actions">
+      <button class="tool-overlay-pill active" id="sound-toggle-btn" onclick="SoundFX.toggleMute()" title="Toggle laboratory audio sound effects">🔊 Sound: ON</button>
       <a class="btn-guide" href="#lab-manual-section">&#128214; Lab Manual</a>
     </div>
   </div>
@@ -477,6 +490,127 @@
 
 <!-- Interactive JavaScript Logic -->
 <script>
+// ── Procedural Web Audio Sound Effects Engine ──────────────────────────────
+const SoundFX = {
+  ctx: null,
+  muted: false,
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  },
+  toggleMute() {
+    this.muted = !this.muted;
+    const btn = document.getElementById('sound-toggle-btn');
+    if (btn) {
+      btn.innerHTML = this.muted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+      btn.classList.toggle('active', !this.muted);
+    }
+    if (!this.muted) this.click();
+  },
+  // Sharp steel pin insertion tap
+  pinDrop() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.08);
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  },
+  // Glass slab gentle resonance slide/chime
+  glassChime() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1250, now);
+    osc.frequency.exponentialRampToValueAtTime(1750, now + 0.18);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.29);
+  },
+  // Graphite pencil sketching sound
+  pencilSketch() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const bufferSize = this.ctx.sampleRate * 0.14;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 3400;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.14);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    noise.start(now);
+  },
+  // Major chord chime when optical collinearity reaches 100%!
+  collinearSuccess() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    const freqs = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    freqs.forEach((f, idx) => {
+      const now = this.ctx.currentTime + idx * 0.055;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.42);
+    });
+  },
+  // Subtle UI click / stepper sound
+  click() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(650, now);
+    osc.frequency.exponentialRampToValueAtTime(220, now + 0.04);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+};
+
 // ── Global State & Physics Engine ──────────────────────────────────────────
 const state = {
   mode: '4pin', // '4pin', 'rayoptics', '3d', 'theory', 'quiz'
@@ -512,6 +646,7 @@ const state = {
   // Eye Viewport Observer
   eyeOffsetCm: 0.0,
   collinearityScore: 0, // 0 to 100%
+  lastSuccessChime: 0,
 
   // Observation Logs
   observations: [],
@@ -559,6 +694,7 @@ function computePhysics() {
 // ── Mode Switcher ─────────────────────────────────────────────────────────
 document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
   btn.addEventListener('click', () => {
+    SoundFX.click();
     document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const mode = btn.dataset.mode;
@@ -582,6 +718,11 @@ function switchAppMode(mode) {
     init3DScene();
   } else if (mode === 'quiz') {
     initQuiz();
+  }
+
+  // Ensure MathJax renders formulas when switching to Theory, Ray Optics or Quiz
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise();
   }
 }
 
@@ -634,12 +775,14 @@ function setLabStep(stepNum) {
 }
 
 function traceSlabBoundary() {
+  SoundFX.pencilSketch();
   state.boundaryTraced = true;
   showStepToast("✅ Slab boundary ABCD traced with pencil!");
   setTimeout(() => setLabStep(2), 600);
 }
 
 function autoFixP1P2() {
+  SoundFX.pinDrop();
   state.p1.placed = true;
   state.p2.placed = true;
   computePinCoordinates();
@@ -648,6 +791,7 @@ function autoFixP1P2() {
 }
 
 function autoAlignP3P4() {
+  SoundFX.collinearSuccess();
   state.p3.placed = true;
   state.p4.placed = true;
   state.collinearityScore = 100;
@@ -657,12 +801,14 @@ function autoAlignP3P4() {
 }
 
 function removeSlabAndPins() {
+  SoundFX.glassChime();
   state.slabRemoved = true;
   showStepToast("📦 Slab removed. Pin pricks P1, P2, P3, P4 are visible.");
   renderAllCanvases();
 }
 
 function reconstructRays() {
+  SoundFX.pencilSketch();
   state.raysReconstructed = true;
   showStepToast("📐 Rays reconstructed! Snell's law verified: i ≈ e.");
   renderAllCanvases();
@@ -1147,18 +1293,21 @@ function drawRulerOverlay(ctx, x, y, angle) {
 }
 
 function toggleProtractor() {
+  SoundFX.click();
   state.showProtractor = !state.showProtractor;
   document.getElementById('toggle-protractor-btn').classList.toggle('active', state.showProtractor);
   renderAllCanvases();
 }
 
 function toggleRuler() {
+  SoundFX.click();
   state.showRuler = !state.showRuler;
   document.getElementById('toggle-ruler-btn').classList.toggle('active', state.showRuler);
   renderAllCanvases();
 }
 
 function resetBoardView() {
+  SoundFX.click();
   state.slabRemoved = false;
   state.boundaryTraced = false;
   state.raysReconstructed = false;
@@ -1235,7 +1384,6 @@ function renderEyeCanvas() {
   const trueEmergentCenterX = w * 0.5 + lateralPx;
 
   // Virtual Refracted Images of P1 and P2 seen THROUGH the glass
-  // Shifted due to refraction by lateral shift + eye parallax angle!
   const imgP1_X = trueEmergentCenterX - 18 + eyeOffsetPx * 0.4;
   const imgP2_X = trueEmergentCenterX - 8 + eyeOffsetPx * 0.2;
 
@@ -1256,11 +1404,16 @@ function renderEyeCanvas() {
   }
 
   // Calculate Collinearity Alignment
-  // When eyeOffset is near 0 and P3/P4 placed, error is near 0
   const alignError = Math.abs(imgP1_X - pinP3_X) + Math.abs(imgP2_X - pinP4_X) + Math.abs(state.eyeOffsetCm);
   let score = Math.max(0, Math.min(100, Math.round(100 - alignError * 1.8)));
   if (!state.p3.placed || !state.p4.placed) score = Math.min(score, 35);
   state.collinearityScore = score;
+
+  // Trigger SoundFX chime if student achieves alignment!
+  if (score >= 90 && (!state.lastSuccessChime || Date.now() - state.lastSuccessChime > 3000)) {
+    SoundFX.collinearSuccess();
+    state.lastSuccessChime = Date.now();
+  }
 
   // Update Collinearity Meter
   const barFill = document.getElementById('collinear-bar-fill');
@@ -1336,6 +1489,7 @@ function updateEyePosition(val) {
 }
 
 function adjustIncidentAngle(delta) {
+  SoundFX.click();
   state.angleIDeg = Math.max(15, Math.min(75, state.angleIDeg + delta));
   document.getElementById('input-angle-i').value = state.angleIDeg;
   document.getElementById('val-angle-i').textContent = `${state.angleIDeg}°`;
@@ -1344,6 +1498,7 @@ function adjustIncidentAngle(delta) {
 }
 
 function setIncidentAngle(val) {
+  SoundFX.click();
   state.angleIDeg = Math.max(15, Math.min(75, parseFloat(val) || 45));
   document.getElementById('val-angle-i').textContent = `${state.angleIDeg}°`;
   computePhysics();
@@ -1351,6 +1506,7 @@ function setIncidentAngle(val) {
 }
 
 function adjustSlabThickness(delta) {
+  SoundFX.click();
   state.thicknessCm = Math.max(3.0, Math.min(10.0, parseFloat((state.thicknessCm + delta).toFixed(1))));
   document.getElementById('input-slab-t').value = state.thicknessCm;
   document.getElementById('val-slab-t').textContent = `${state.thicknessCm.toFixed(1)} cm`;
@@ -1359,6 +1515,7 @@ function adjustSlabThickness(delta) {
 }
 
 function setSlabThickness(val) {
+  SoundFX.click();
   state.thicknessCm = Math.max(3.0, Math.min(10.0, parseFloat(val) || 6.0));
   document.getElementById('val-slab-t').textContent = `${state.thicknessCm.toFixed(1)} cm`;
   computePhysics();
@@ -1366,6 +1523,7 @@ function setSlabThickness(val) {
 }
 
 function changeSlabMaterial() {
+  SoundFX.glassChime();
   const sel = document.getElementById('slab-material-select');
   state.mu = parseFloat(sel.value);
   state.matName = sel.options[sel.selectedIndex].text.split('(')[0].trim();
@@ -1381,6 +1539,7 @@ function renderAllCanvases() {
 
 // ── Observation Table & Data Logging ──────────────────────────────────────
 function logCurrentObservation() {
+  SoundFX.click();
   const iRad = (state.angleIDeg * Math.PI) / 180;
   const rRad = (state.angleRDeg * Math.PI) / 180;
   const sinI = Math.sin(iRad);
@@ -1839,6 +1998,9 @@ function selectQuizOption(qIdx, oIdx) {
   const q = quizQuestions[qIdx];
   const isCorrect = (oIdx === q.correct);
 
+  if (isCorrect) SoundFX.collinearSuccess();
+  else SoundFX.click();
+
   for (let i = 0; i < q.options.length; i++) {
     const btn = document.getElementById(`qo-${qIdx}-${i}`);
     if (i === q.correct) btn.classList.add('correct');
@@ -1850,6 +2012,10 @@ function selectQuizOption(qIdx, oIdx) {
   // Update Score
   const score = Object.keys(quizAnswers).filter(k => quizAnswers[k] === quizQuestions[k].correct).length;
   document.getElementById('quiz-score').textContent = score;
+
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise();
+  }
 }
 
 // ── Drag & Drop Handlers for Protractor and Ruler ──────────────────────────
@@ -1912,6 +2078,9 @@ window.addEventListener('DOMContentLoaded', () => {
   setLabStep(1);
   computePhysics();
   renderAllCanvases();
+  setTimeout(() => {
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+  }, 300);
 });
 </script>
 
