@@ -328,3 +328,57 @@ leftover native `#sim3d-canvas` height rule.
 4. Regenerate pages after any 3D/viewer/CSS change: `python tools/migrate_sim3d_carousel.py`.
 5. User runs `uvicorn app.main:app --port 8080` (needs `requirements.txt`: fastapi, uvicorn, pydantic,
    numpy). Visit `http://localhost:8080/nhitvisuallab/tools/<slug>/index.html`. Hard-refresh (cache).
+
+---
+
+## 10. Advanced Physics & Laboratory Apparatus Standard (Virtual Lab Mode)
+
+When upgrading or building hands-on physical science / optics / mechanics simulators (e.g. 4-Pin Snell's Law, Spherometer, Screw Gauge, Vernier Caliper, Titration, Wheatstone Bridge), follow these architectural standards:
+
+### 1. Hands-On Step-by-Step Laboratory Procedure Rail
+- Implement a `.lab-procedure` progress rail (`.lab-steps` $\to$ `.lab-step` numbered circles) tracking student progress through official syllabus experimental stages (e.g. Setup $\to$ Pin/Specimen Placement $\to$ Alignment/Observation $\to$ Ray/Curve Reconstruction & Measurement).
+- Provide dynamic context alerts (`.lab-alert`) with clear student instructions for each step.
+
+### 2. Dual-Card Viewports & Parallax Line-of-Sight View
+- Use `.dual-canvas-row` to provide both a **Top-Down Drawing Board / Apparatus Stage** and an **Eye-Level Parallax Viewport** with an interactive observer head/eye slider.
+- Compute apparent optical shifts and display a real-time **Collinearity / Alignment Score Meter** with visual and auditory feedback upon reaching $\ge 90\%$.
+
+### 3. Draggable & Rotatable Virtual Measuring Overlays
+- Provide interactive on-canvas measurement tools:
+  - **Protractor Overlay**: Calibrated in degrees with center crosshairs, mouse-drag translation, and mouse-wheel angle rotation.
+  - **Metric Ruler Overlay**: Calibrated in cm/mm increments with drag and wheel rotation.
+
+### 4. Dynamic Observation Table & Data Logging (Lab Notebook)
+- Include a student observation table recording trials ($\angle i, \angle r, \angle e, \sin i, \sin r, \mu, d$, % error).
+- Compute live statistical summaries: Mean values ($\bar{\mu}, \bar{d}$), Standard Deviation, and Percentage Error against theoretical constants.
+- Provide action buttons: **📝 Log Current Reading**, **📥 Export CSV**, and **🗑️ Clear Table**.
+
+### 5. Procedural Web Audio API Sound Effects Engine
+- Use the zero-dependency Web Audio API (`AudioContext`) to generate high-fidelity physical feedback:
+  - `SoundFX.pinDrop()`: Sharp high-to-low triangle wave tap for pin insertions.
+  - `SoundFX.pencilSketch()`: Bandpass-filtered white noise burst for pencil drawing/tracing.
+  - `SoundFX.glassChime()`: Resonant sine sweep for glass/specimen placement.
+  - `SoundFX.collinearSuccess()`: 4-note ascending C-Major chord (C5, E5, G5, C6) on optical alignment or quiz success.
+  - `SoundFX.click()`: Subtle sine micro-click for stepper and button interactions.
+- Provide a header audio toggle button (`🔊 Sound: ON` / `🔇 Sound: OFF`).
+
+### 6. MathJax 3 LaTeX Rendering Standard
+- Always configure MathJax before loading the script to support inline `$...$` notation:
+  ```html
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+  ```
+- Trigger `if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();` on tab mode switching and dynamic quiz rendering.
+
+### 7. Global Sidebar Drawer Integration
+- Always mount the global navigation drawer by including `<script src="../../shared/sidebar/sidebar.js"></script>` right before `</body>`.
+
