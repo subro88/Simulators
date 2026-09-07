@@ -53,7 +53,7 @@ fi
 if [ "$USE_BLUE_GREEN" = true ]; then
     echo -e "\n${BOLD}[2/6] Detecting active Blue-Green deployment slots...${NC}"
 
-    # Check port 8081 (Blue) and port 8082 (Green)
+    # Check port 8081 (Blue) and port 8083 (Green)
     BLUE_HEALTHY=false
     GREEN_HEALTHY=false
 
@@ -61,7 +61,7 @@ if [ "$USE_BLUE_GREEN" = true ]; then
         BLUE_HEALTHY=true
     fi
 
-    if curl -s -f http://127.0.0.1:8082/api/health >/dev/null 2>&1; then
+    if curl -s -f http://127.0.0.1:8083/api/health >/dev/null 2>&1; then
         GREEN_HEALTHY=true
     fi
 
@@ -70,12 +70,12 @@ if [ "$USE_BLUE_GREEN" = true ]; then
         ACTIVE_SLOT="blue"
         ACTIVE_PORT=8081
         TARGET_SLOT="green"
-        TARGET_PORT=8082
+        TARGET_PORT=8083
         TARGET_SERVICE="vlab-green"
         ACTIVE_SERVICE="vlab-blue"
     elif [ "$GREEN_HEALTHY" = true ] && [ "$BLUE_HEALTHY" = false ]; then
         ACTIVE_SLOT="green"
-        ACTIVE_PORT=8082
+        ACTIVE_PORT=8083
         TARGET_SLOT="blue"
         TARGET_PORT=8081
         TARGET_SERVICE="vlab-blue"
@@ -85,7 +85,7 @@ if [ "$USE_BLUE_GREEN" = true ]; then
         ACTIVE_SLOT="blue"
         ACTIVE_PORT=8081
         TARGET_SLOT="green"
-        TARGET_PORT=8082
+        TARGET_PORT=8083
         TARGET_SERVICE="vlab-green"
         ACTIVE_SERVICE="vlab-blue"
     else

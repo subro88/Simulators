@@ -417,13 +417,13 @@ For advanced electrical instruments (e.g. Galvanometer conversion to Ammeter and
 
 To prevent downtime and `502 Bad Gateway` errors during production updates:
 - **Blue-Green Compose Strategy (`docker-compose.bluegreen.yml`)**:
-  - Maintains two independent production slots: `vlab-blue` (port 8081) and `vlab-green` (port 8082).
+  - Maintains two independent production slots: `vlab-blue` (port 8081) and `vlab-green` (port 8083).
   - Background compilation: new images are built on the inactive target slot while live traffic continues uninterrupted on the active slot.
   - Automated health probing: polls `/api/health` on the new container before cutover.
   - Automatic Rollback: if the new container fails health checks, deployment aborts and traffic remains on the old slot.
   - Graceful connection draining: waits 4 seconds for in-flight requests before terminating the old container.
 - **Resilient Nginx Upstream & Failover Routing**:
-  - `upstream vlab_backend` with multi-port failover (`8081`, `8082`, and backup `8080`).
+  - `upstream vlab_backend` with multi-port failover (`8081`, `8083`, and backup `8080`).
   - `proxy_next_upstream error timeout http_502 http_503 http_504 non_idempotent;` ensures zero dropped client requests even during container restarts.
 - **Automated Deployment Runner (`scripts/zero_downtime_deploy.sh`)**:
   - Automated by GitHub Actions CI/CD (`.github/workflows/ci-cd.yml`) and executable manually via `./scripts/deploy.sh`.
