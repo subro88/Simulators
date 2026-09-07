@@ -1,0 +1,76 @@
+version: "3.8"
+
+# ==============================================================================
+# NHIT Visual Lab (vlab.nhit.in) — Blue-Green Zero-Downtime Compose Architecture
+# ==============================================================================
+
+services:
+  vlab-blue:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    image: vlab-simulators:production
+    container_name: vlab-simulators-blue
+    restart: always
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WEB_CONCURRENCY=4
+      - LOG_LEVEL=info
+      - AUTH_USERNAME=${AUTH_USERNAME:-nhit}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-nhit}
+      - SESSION_SECRET=${SESSION_SECRET:-super-secret-production-nhit-2026}
+      - VLAB_SLOT=blue
+    volumes:
+      - static_models:/workspace/static/models
+      - app_data:/workspace/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 8s
+
+  vlab-green:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    image: vlab-simulators:production
+    container_name: vlab-simulators-green
+    restart: always
+    ports:
+      - "127.0.0.1:8082:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WEB_CONCURRENCY=4
+      - LOG_LEVEL=info
+      - AUTH_USERNAME=${AUTH_USERNAME:-nhit}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-nhit}
+      - SESSION_SECRET=${SESSION_SECRET:-super-secret-production-nhit-2026}
+      - VLAB_SLOT=green
+    volumes:
+      - static_models:/workspace/static/models
+      - app_data:/workspace/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 8s
+
+volumes:
+  static_models:
+    name: vlab_static_models
+  app_data:
+    name: vlab_app_data

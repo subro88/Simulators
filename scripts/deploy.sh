@@ -21,11 +21,19 @@ echo -e "\n${BOLD}[1/4] Pulling latest code from GitHub...${NC}"
 git fetch origin master
 git reset --hard origin/master
 
-echo -e "\n${BOLD}[2/4] Rebuilding and launching production container...${NC}"
-docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+if [ -f "${SCRIPT_DIR}/zero_downtime_deploy.sh" ]; then
+    echo -e "${CYAN}Executing zero-downtime deployment engine...${NC}"
+    exec bash "${SCRIPT_DIR}/zero_downtime_deploy.sh" "$@"
+fi
 
-echo -e "\n${BOLD}[3/4] Running health check...${NC}"
-sleep 4
+echo -e "\n${BOLD}[2/4] Building image in background before container swap...${NC}"
+docker compose -f docker-compose.prod.yml build
+
+echo -e "\n${BOLD}[3/4] Seamlessly launching updated production container...${NC}"
+docker compose -f docker-compose.prod.yml up -d --no-build --remove-orphans
+
+echo -e "\n${BOLD}[4/4] Running health check...${NC}"
+sleep 3
 if curl -s -f http://127.0.0.1:8080/api/health > /dev/null 2>&1; then
     echo -e "${GREEN}${BOLD}✓ Deployment Successful & Healthy on https://vlab.nhit.in!${NC}"
 else

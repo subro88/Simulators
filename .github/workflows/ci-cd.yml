@@ -83,16 +83,21 @@ jobs:
             echo "=== [1/4] Navigating to project directory ==="
             cd ~/simulator/Simulators || cd /home/techblog/simulator/Simulators || cd ~/Simulators || cd /var/www/vlab || cd /opt/vlab
 
-            echo "=== [2/4] Pulling latest updates from GitHub ==="
-            git fetch origin master
-            git reset --hard origin/master
+            echo "=== [2/3] Executing Zero-Downtime Deployment Engine ==="
+            if [ -f "scripts/zero_downtime_deploy.sh" ]; then
+              chmod +x scripts/zero_downtime_deploy.sh scripts/deploy.sh
+              bash scripts/zero_downtime_deploy.sh
+            elif [ -f "scripts/deploy.sh" ]; then
+              chmod +x scripts/deploy.sh
+              bash scripts/deploy.sh
+            else
+              git fetch origin master
+              git reset --hard origin/master
+              docker compose -f docker-compose.prod.yml build
+              docker compose -f docker-compose.prod.yml up -d --no-build --remove-orphans
+              sleep 4
+              curl -f http://127.0.0.1:8080/api/health || exit 1
+            fi
 
-            echo "=== [3/4] Rebuilding and launching production container ==="
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-
-            echo "=== [4/4] Verifying health check ==="
-            sleep 5
-            curl -f http://127.0.0.1:8080/api/health || exit 1
-            docker image prune -f
-
-            echo "✅ Deployment completed successfully for vlab.nhit.in!"
+            echo "=== [3/3] Deployment complete & verified ==="
+            echo "✅ Zero-Downtime Deployment completed successfully for vlab.nhit.in!"
