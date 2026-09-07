@@ -382,3 +382,32 @@ When upgrading or building hands-on physical science / optics / mechanics simula
 ### 7. Global Sidebar Drawer Integration
 - Always mount the global navigation drawer by including `<script src="../../shared/sidebar/sidebar.js"></script>` right before `</body>`.
 
+### 8. Non-Obstructive Translucent & Collapsible HUD Standard
+To prevent overlays from obstructing virtual apparatus leads, binding posts, or controls:
+- **Horizontal Single-Row Layout**: Arrange HUD badges into a compact, single horizontal row (`.canvas-hud-overlay`) rather than vertical stacks.
+- **Translucent Glassmorphism**: Use `background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1)`.
+- **See-Through Hover**: Apply `opacity: 0.15; transition: opacity 0.25s ease;` on `:hover` so students can see directly through to any underlying schematic wires.
+- **1-Click Collapse Toggle**: Provide a discrete `[ 👁 HUD ]` button (`#btn-hud-toggle`) that collapses badges with `.is-collapsed`.
+- **Apparatus Headroom**: Position all canvas apparatus components at $y \ge 110\text{px}$, leaving $\ge 80\text{px}$ of clear overhead space.
+
+### 9. Draggable & Zoomable Canvas Navigation Standard
+For complex schematics and bench setups, enable effortless viewport navigation:
+- **Smooth Panning**: Implement mouse left-click drag and 1-finger touch drag (`grab` / `grabbing` cursor) updating `STATE.panX` and `STATE.panY`.
+- **Centered Wheel Zooming**: Zoom in/out ($0.5\times$ to $3.0\times$) centered at current mouse pointer coordinates.
+- **Double-Click & Reset Button**: Double-clicking the canvas or clicking `↺ Fit View` resets zoom to `1.0` and pan offsets to `(0, 0)`.
+- **Floating Viewport Navigation Toolpad**: Include a compact top-right toolbar (`.canvas-viewport-tools`):
+  `[ + ]` Zoom In &bull; `[ − ]` Zoom Out &bull; `[ ↺ ]` Reset View &bull; `[ 100% ]` Zoom Pill &bull; `[ ✋ Drag ]` Hint.
+- **Transformed Hit-Testing**: Convert raw canvas clicks to world coordinates:
+  `worldX = (canvasX - STATE.panX) / STATE.zoom;`
+  `worldY = (canvasY - STATE.panY) / STATE.zoom;`
+  Ensures clicking interactive circuit elements (keys, switches, knobs) remains accurate regardless of pan or zoom.
+
+### 10. Multi-Phase Conversion & Calibration Workbench Pattern
+For advanced electrical instruments (e.g. Galvanometer conversion to Ammeter and Voltmeter):
+- **Phase 1: Parameter Extraction**: Half-Deflection / Bridge method extracting coil resistance $G$ and Figure of Merit $k$.
+- **Phase 2 & 3: Interactive Conversion**:
+  - Ammeter: Shunt calculation $S = \frac{I_g \cdot G}{I - I_g}$, interactive wire-cutting engine with standard wire gauges (SWG), and dial scale swapping.
+  - Voltmeter: Series multiplier calculation $R_{\text{series}} = \frac{V}{I_g} - G$ with decade box dials.
+- **Side-by-Side Dual-Meter Calibration Sweep**: Sweep virtual load rheostats to drive real-time simultaneous deflections on both converted and reference master meters.
+- **Dual-Mode Graph Suite**: Live **Calibration Curve** ($I_{\text{conv}}$ vs $I_{\text{std}}$ against ideal $y = x$) and **Error Curve** ($\Delta$ vs reading with $\pm 1.5\%$ limit envelope).
+
