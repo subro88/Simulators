@@ -1,2140 +1,1794 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cantilever Vibration Frequency, Period & Young's Modulus Lab — WBSCTE Applied Physics | NHIT Visual Lab</title>
-  <meta name="description" content="BS104/BS106 Applied Physics-I / Mechanics & Elasticity Simulation: Transverse flexural oscillations of a cantilever beam, Euler-Bernoulli stiffness k = Ybd^3/(4L^3), Rayleigh effective mass correction (33/140 m_beam), and experimental extraction of Young's Modulus Y.">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cantilever Beam Vibration & Young's Modulus Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Cantilever Beam Vibration Virtual Lab. Investigate flexural oscillations, Euler-Bernoulli stiffness, Rayleigh effective mass correction (33/140 m_beam), and experimental extraction of Young's Modulus (Y)." />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-
-  <!-- Site Stylesheet & Local Stylesheet -->
-  <link rel="stylesheet" href="../../css/style.css">
-  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
-  <link rel="stylesheet" href="style.css">
-
-  <!-- MathJax for Formula Typesetting -->
+  <!-- MathJax Configuration for Inline $...$ and Display $$...$$ rendering -->
   <script>
     window.MathJax = {
-      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-      svg: { fontCache: 'global' }
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
 
-  <!-- Three.js Libraries for 3D Apparatus Viewer -->
+  <!-- Three.js for 3D Apparatus Mode -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+  <!-- Custom Design CSS (Matching Snell's Law design standard) -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Top Breadcrumb Navigation -->
+
+<!-- Fixed Brand Logo -->
+<a class="logo-fixed" href="../../index.html" title="NHIT VisualLab Home">
+  <img src="../../brand/no_background_logo.png" alt="NHIT Logo" width="42" height="42" />
+</a>
+
+<div id="app">
+
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem1">Applied Science (BS104/BS106)</a>
-    <span>&rsaquo;</span>
-    <span style="color: var(--cyan); font-weight: 600;">Cantilever Beam Vibration Lab</span>
+    <a href="../../index.html">🌐 All Tools</a>
+    <span style="color:var(--text-dim);"> / </span>
+    <a href="../../index.html#bs-sem1">Applied Physics-I (BS104/BS106)</a>
+    <span style="color:var(--text-dim);"> / </span>
+    <span style="color:var(--accent); font-weight:600;">Cantilever Beam Vibration Lab</span>
   </nav>
 
-  <!-- Header Card with Metadata & Mode Buttons -->
-  <header class="tool-header-card">
-    <div class="header-meta-row">
-      <div class="badge-group">
-        <span class="badge-pill badge-code">WBSCTE BS104 / BS106</span>
-        <span class="badge-pill badge-curriculum">Applied Physics-I</span>
-        <span class="badge-pill badge-syllabus">Lab Exp: Elasticity &amp; Cantilever Vibrations</span>
-      </div>
-      <div class="header-actions">
-        <button class="btn-header-link" id="audio-toggle-btn" onclick="toggleAudio()" title="Toggle Web Audio SFX">
-          <span id="audio-icon">&#128266;</span> Audio SFX
-        </button>
-        <a href="#theory-section" class="btn-header-link">&#128214; Theory &amp; Formulas</a>
-        <a href="#user-guide" class="btn-header-link">&#128218; Lab Manual</a>
-      </div>
-    </div>
-    <h1 class="tool-title">Cantilever Beam Vibration: Frequency, Period &amp; Young's Modulus ($Y$)</h1>
-    <p class="tool-subtitle">
-      Model transverse flexural oscillations of an elastic cantilever blade under tip load $M$. Investigate Euler-Bernoulli bending stiffness ($k = \frac{Y b d^3}{4 L^3}$), verify Rayleigh's distributed beam mass correction ($m_{\text{eff}} = \frac{33}{140} m_{\text{beam}}$), solve damped simple harmonic motion via RK4 numerical integration, and experimentally extract <strong>Young’s Modulus ($Y$)</strong> from linearized $T^2$ vs. $M$ and $T^2$ vs. $L^3$ scaling laws.
-    </p>
+  <!-- Header -->
+  <header>
+    <h1>Cantilever Beam Vibration &amp; Young's Modulus Lab</h1>
+    <p class="subtitle">Applied Physics-I &bull; Transverse Flexural Oscillations &bull; Euler-Bernoulli Stiffness ($k = \frac{Y b d^3}{4 L^3}$) &bull; Rayleigh's Effective Mass ($m_{\text{eff}} = \frac{33}{140} m_{\text{beam}}$) &bull; Extraction of $Y$</p>
   </header>
 
-  <!-- Mode & Specimen Presets Bar -->
-  <div class="mode-stepper-card">
-    <div class="mode-pill-tabs">
-      <button class="mode-pill active" id="mode-sim-btn" onclick="switchMainView('sim')">
-        <span>&#9889;</span> 1. Interactive Apparatus &amp; RK4 Oscillation
-      </button>
-      <button class="mode-pill" id="mode-3d-btn" onclick="switchMainView('3d')">
-        <span>&#129513;</span> 2. 3D Apparatus Model
-      </button>
-      <button class="mode-pill mode-explore" id="mode-explore-btn" onclick="switchMainView('explore')">
-        <span>&#128214;</span> 3. Formulas &amp; Theory
-      </button>
+  <!-- Mode Selector Bar -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Experiment Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-mode="sim">⚡ Cantilever Oscillation Lab</button>
+        <button class="pill" data-mode="graphs">📊 Scaling Graphs &amp; Regression</button>
+        <button class="pill" data-mode="3d">🔍 3D Apparatus</button>
+        <button class="pill" data-mode="theory">📖 Lab Manual &amp; Theory</button>
+        <button class="pill" data-mode="quiz">🎯 Quiz &amp; Viva</button>
+      </div>
     </div>
-
-    <!-- Material Specimen Presets -->
-    <div class="specimen-presets-bar">
-      <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Specimen Material:</span>
-      <button class="preset-chip active" onclick="applyMaterialPreset('steel')">Mild Steel (200 GPa)</button>
-      <button class="preset-chip" onclick="applyMaterialPreset('brass')">Brass (100 GPa)</button>
-      <button class="preset-chip" onclick="applyMaterialPreset('aluminum')">Aluminum (70 GPa)</button>
-      <button class="preset-chip" onclick="applyMaterialPreset('copper')">Copper (110 GPa)</button>
-      <button class="preset-chip" onclick="applyMaterialPreset('acrylic')">Acrylic PMMA (3.2 GPa)</button>
-      <button class="preset-chip" onclick="applyMaterialPreset('custom')">Custom Specimen</button>
+    <div class="head-actions">
+      <button class="tool-overlay-pill active" id="sound-toggle-btn" onclick="SoundFX.toggleMute()" title="Toggle laboratory audio sound effects">🔊 Sound: ON</button>
+      <a class="btn-guide" href="#theory-section">&#128214; Lab Manual</a>
     </div>
   </div>
 
-  <!-- 4-Step Lab Guide Bar -->
-  <div class="lab-procedure-card">
-    <div class="lab-steps-rail">
-      <div class="step-indicator active" id="rail-step-1">
-        <span class="step-num">1</span>
-        <span>Configure Blade Geometry ($L, b, d$)</span>
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- GUIDED 4-STEP PROCEDURE RAIL                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="lab-procedure">
+    <div class="lab-steps" id="lab-steps-rail">
+      <div class="lab-step active" id="step-btn-1" onclick="setLabStep(1)">
+        <div class="lab-step-num">1</div>
+        <span>Blade Setup ($L, b, d$)</span>
       </div>
-      <div class="step-indicator" id="rail-step-2">
-        <span class="step-num">2</span>
-        <span>Attach Tip Mass $M$ &amp; Pluck Tip</span>
+      <div class="lab-step" id="step-btn-2" onclick="setLabStep(2)">
+        <div class="lab-step-num">2</div>
+        <span>Tip Load &amp; Pluck</span>
       </div>
-      <div class="step-indicator" id="rail-step-3">
-        <span class="step-num">3</span>
-        <span>Photogate 20-Cycle Timing ($t_{20} \to T$)</span>
+      <div class="lab-step" id="step-btn-3" onclick="setLabStep(3)">
+        <div class="lab-step-num">3</div>
+        <span>Photogate Timing ($t_{20}$)</span>
       </div>
-      <div class="step-indicator" id="rail-step-4">
-        <span class="step-num">4</span>
-        <span>Extract Young's Modulus ($Y$) &amp; $m_{\text{eff}}$</span>
+      <div class="lab-step" id="step-btn-4" onclick="setLabStep(4)">
+        <div class="lab-step-num">4</div>
+        <span>Regress &amp; Extract $Y$</span>
       </div>
     </div>
   </div>
 
-  <!-- Main Dual-Viewport Container (54% Left Workbench / 46% Right Analytics) -->
-  <main class="workbench-container" id="sim-main-stage">
+  <!-- Active Step Instruction Alert -->
+  <div id="step-instruction-alert" class="lab-alert alert-info">
+    <span style="font-size:1.2rem;">💡</span>
+    <span id="step-instruction-text">
+      <strong>Step 1: Blade Geometry &amp; Specimen Selection.</strong> Select material preset (e.g. Mild Steel), set protruding cantilever length $L$, breadth $b$, and thickness $d$. Notice how stiffness $k = \frac{Y b d^3}{4 L^3}$ updates in real-time.
+    </span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 1: CANTILEVER OSCILLATION SIMULATION (PRIMARY)                    -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-sim">
+
+    <div class="dual-canvas-row">
+
+      <!-- Main Cantilever Dynamic Canvas Card -->
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="canvas-title">🔬 Transverse Flexural Oscillation Workbench (Euler-Bernoulli Mechanics)</span>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="tool-overlay-pill" id="toggle-photogate-btn" onclick="togglePhotogate()">⚡ Photogate: ON</button>
+            <button class="tool-overlay-pill" id="toggle-grid-btn" onclick="toggleGrid()">📏 Grid &amp; Ruler</button>
+            <button class="tool-overlay-pill" id="damp-oscillations-btn" onclick="dampOscillations()">🛑 Damp / Rest</button>
+          </div>
+        </div>
+
+        <div style="position:relative; width:100%; height:460px; background:#00151d; overflow:hidden; border-bottom:1px solid var(--border);">
+          <canvas id="cantilever-canvas" width="800" height="460" style="display:block; width:100%; height:100%;"></canvas>
+          <div id="drag-hint" style="position:absolute; bottom:12px; left:16px; background:rgba(0,33,43,0.85); border:1px solid var(--border); padding:6px 12px; border-radius:6px; font-size:0.75rem; color:var(--accent); pointer-events:none;">
+            🖐️ <strong>Interactive:</strong> Drag the free tip down with your mouse / touch and release to pluck!
+          </div>
+        </div>
+
+        <!-- Interactive Control Panel under Board -->
+        <div class="ctrl-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span class="cp-title">Cantilever Physical Parameters</span>
+            <div style="display:flex; gap:8px;">
+              <button class="cp-btn" onclick="pluckBeam(25)">⚡ Pluck Beam (25 mm)</button>
+              <button class="cp-btn" onclick="addTipMassQuick(50)">+50g Tip Mass</button>
+              <button class="cp-btn" onclick="resetDefaults()">🔄 Reset Defaults</button>
+            </div>
+          </div>
+
+          <!-- Specimen Material Presets -->
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; padding-bottom:8px; border-bottom:1px dashed var(--border);">
+            <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">Material Preset:</span>
+            <button class="tool-overlay-pill active material-pill" data-mat="steel" onclick="setMaterial('steel')">Mild Steel (Y = 200 GPa)</button>
+            <button class="tool-overlay-pill material-pill" data-mat="brass" onclick="setMaterial('brass')">Brass (Y = 100 GPa)</button>
+            <button class="tool-overlay-pill material-pill" data-mat="aluminum" onclick="setMaterial('aluminum')">Aluminum (Y = 70 GPa)</button>
+            <button class="tool-overlay-pill material-pill" data-mat="copper" onclick="setMaterial('copper')">Copper (Y = 110 GPa)</button>
+            <button class="tool-overlay-pill material-pill" data-mat="acrylic" onclick="setMaterial('acrylic')">Acrylic PMMA (Y = 3.2 GPa)</button>
+          </div>
+
+          <!-- Parameter Sliders -->
+          <div class="cp-params">
+            <div class="cp-field">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="cp-field-label">Vibrating Length ($L$)</span>
+                <span class="cp-val" id="val-length">60.0 cm</span>
+              </div>
+              <input type="range" id="slider-length" min="25" max="90" step="1" value="60" oninput="updateBeamParams()" />
+            </div>
+
+            <div class="cp-field">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="cp-field-label">Attached Tip Mass ($M$)</span>
+                <span class="cp-val" id="val-mass">150 g</span>
+              </div>
+              <input type="range" id="slider-mass" min="0" max="500" step="10" value="150" oninput="updateBeamParams()" />
+            </div>
+
+            <div class="cp-field">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="cp-field-label">Blade Breadth ($b$)</span>
+                <span class="cp-val" id="val-breadth">2.5 cm</span>
+              </div>
+              <input type="range" id="slider-breadth" min="1.0" max="4.0" step="0.1" value="2.5" oninput="updateBeamParams()" />
+            </div>
+
+            <div class="cp-field">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="cp-field-label">Blade Thickness ($d$)</span>
+                <span class="cp-val" id="val-thickness">1.8 mm</span>
+              </div>
+              <input type="range" id="slider-thickness" min="0.8" max="4.0" step="0.1" value="1.8" oninput="updateBeamParams()" />
+            </div>
+
+            <div class="cp-field">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="cp-field-label">Damping Ratio ($\zeta$)</span>
+                <span class="cp-val" id="val-damping">0.015</span>
+              </div>
+              <input type="range" id="slider-damping" min="0.002" max="0.060" step="0.002" value="0.015" oninput="updateBeamParams()" />
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Live Real-Time Parameter Telemetry Strip -->
+    <div class="live-strip" style="margin-top:14px;">
+      <div class="metric-box">
+        <span class="metric-label">Oscillation Period ($T$)</span>
+        <span class="metric-value" id="disp-period">0.428 s</span>
+        <span class="metric-sub" id="disp-calc-t">Theory: $T = 2\pi\sqrt{M_{\text{tot}}/k}$</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Frequency ($f = 1/T$)</span>
+        <span class="metric-value" id="disp-freq">2.34 Hz</span>
+        <span class="metric-sub">&omega;<sub>n</sub> = 14.68 rad/s</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Bending Stiffness ($k$)</span>
+        <span class="metric-value" id="disp-stiffness">33.72 N/m</span>
+        <span class="metric-sub">$k = Y b d^3 / (4 L^3)$</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Rayleigh Effective Mass ($m_{\text{eff}}$)</span>
+        <span class="metric-value" id="disp-meff">24.5 g</span>
+        <span class="metric-sub">Total: $M_{\text{tot}} = M + \frac{33}{140}m_{\text{b}}$</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Static Tip Deflection ($\delta$)</span>
+        <span class="metric-value" id="disp-deflection">43.6 mm</span>
+        <span class="metric-sub">$\delta = 4 M g L^3 / (Y b d^3)$</span>
+      </div>
+    </div>
+
+    <!-- Real-Time Dynamic Oscilloscope & Photogate Section -->
+    <div class="canvas-card" style="margin-top:14px;">
+      <div class="canvas-header">
+        <span class="canvas-title">📈 Dynamic Oscilloscope Trace &amp; Automated Photogate Timer ($t_{20}$)</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span id="photogate-status-badge" style="font-size:0.75rem; font-weight:700; color:var(--green);">● Optical Gate: BEAM CLEAR</span>
+          <button class="tool-overlay-pill" onclick="clearScope()">Clear Trace</button>
+          <button class="cp-btn" onclick="recordCurrentObservation()">📥 Record into Table A</button>
+        </div>
+      </div>
+      <div style="padding:10px 14px; background:var(--surface);">
+        <canvas id="oscilloscope-canvas" width="800" height="150" style="display:block; width:100%; height:150px; background:#001016; border-radius:6px; border:1px solid var(--border);"></canvas>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:0.8rem; color:var(--text-dim);">
+          <div>
+            <strong>Cycle Counter: </strong><span id="photogate-cycles" style="color:var(--accent); font-weight:700;">0 / 20</span> cycles | 
+            <strong>Elapsed Time ($t_{20}$): </strong><span id="photogate-elapsed" style="color:var(--gold); font-weight:700;">0.00 s</span> | 
+            <strong>Measured Period: </strong><span id="photogate-measured-t" style="color:var(--green); font-weight:700;">-- s</span>
+          </div>
+          <div>
+            <button class="tool-overlay-pill" id="start-photogate-run-btn" onclick="startPhotogateRun()">▶ Start 20-Cycle Run</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 2: DYNAMIC SCALING GRAPHS & REGRESSION NOTEBOOK                    -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-graphs" style="display:none;">
+
+    <div class="canvas-card">
+      <div class="canvas-header">
+        <div class="pill-tabs" id="graph-sub-tabs">
+          <button class="pill active" onclick="switchGraphMode('T2_M')">Graph 1: $T^2$ vs. Mass $M$ (Constant $L$)</button>
+          <button class="pill" onclick="switchGraphMode('T2_L3')">Graph 2: $T^2$ vs. $L^3$ (Constant $M$)</button>
+          <button class="pill" onclick="switchGraphMode('damping')">Graph 3: Damped Decay Envelope</button>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="cp-btn" onclick="autoPopulateMassSweep()">⚡ Auto-Sweep (6 Loads)</button>
+          <button class="tool-overlay-pill" onclick="exportTableCSV()">💾 Export CSV</button>
+          <button class="tool-overlay-pill" onclick="clearObservations()">🗑️ Clear Data</button>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 340px; gap:14px; padding:14px; background:var(--surface);">
+        <!-- Interactive Graph Canvas -->
+        <div style="background:#00131a; border:1px solid var(--border); border-radius:8px; padding:10px;">
+          <canvas id="regression-canvas" width="600" height="380" style="display:block; width:100%; height:380px;"></canvas>
+        </div>
+
+        <!-- Linear Regression Analytical Box -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="guide-formula-box" style="margin:0;">
+            <h3 style="font-size:0.95rem; color:var(--accent); margin-bottom:6px;">📐 Linear Regression Output</h3>
+            <div style="font-size:0.82rem; line-height:1.6;">
+              <div><strong>Slope ($S_M$): </strong><span id="reg-slope" style="color:#fff; font-family:var(--mono);">-- s²/kg</span></div>
+              <div><strong>Intercept ($C$): </strong><span id="reg-intercept" style="color:#fff; font-family:var(--mono);">-- s²</span></div>
+              <div><strong>Neg X-Intercept ($-m_{\text{eff}}$): </strong><span id="reg-x-int" style="color:var(--gold); font-family:var(--mono);">-- g</span></div>
+              <div style="margin-top:4px; padding-top:4px; border-top:1px dashed var(--border);">
+                <strong>Extracted Young's Modulus ($Y$):</strong>
+                <div id="reg-y-calc" style="font-size:1.1rem; color:var(--green); font-weight:700; margin-top:2px;">-- GPa</div>
+              </div>
+              <div><strong>Theoretical Reference: </strong><span id="reg-y-theo" style="color:var(--text-dim);">200.0 GPa</span></div>
+              <div><strong>Relative Error: </strong><span id="reg-error" style="color:var(--gold);">-- %</span></div>
+              <div><strong>Correlation Coefficient ($R^2$): </strong><span id="reg-r2" style="color:var(--accent);">--</span></div>
+            </div>
+          </div>
+
+          <div class="lab-alert alert-info" style="margin:0; font-size:0.78rem;">
+            <span>ℹ️</span>
+            <span>
+              <strong>Physical Significance:</strong> In the $T^2$ vs. $M$ plot, the negative X-intercept directly equals Rayleigh's effective beam mass:
+              $$M_{\text{intercept}} = -m_{\text{eff}} = -\frac{33}{140} m_{\text{beam}}$$
+              The slope yields $Y = \frac{16\pi^2 L^3}{b d^3 S_M}$.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observation Table A -->
+      <div style="padding:14px; background:var(--surface2); border-top:1px solid var(--border);">
+        <h3 style="font-size:0.95rem; color:var(--text); margin-bottom:8px;">📋 Table A: Observation of Oscillation Period for Varying Tip Mass ($M$) at Fixed $L$</h3>
+        <div style="overflow-x:auto;">
+          <table class="obs-table" id="obs-table-elem">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Vibrating Length $L$ (cm)</th>
+                <th>Added Mass $M$ (g)</th>
+                <th>Beam Mass $m_{\text{b}}$ (g)</th>
+                <th>Effective Mass $m_{\text{eff}}$ (g)</th>
+                <th>Total Mass $M_{\text{tot}}$ (g)</th>
+                <th>Time for 20 Osc $t_{20}$ (s)</th>
+                <th>Period $T$ (s)</th>
+                <th>$T^2$ (s²)</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="obs-table-body">
+              <tr>
+                <td colspan="10" style="text-align:center; color:var(--text-dim); padding:16px;">
+                  No observations recorded yet. Click <strong>"Record into Table A"</strong> from the workbench or click <strong>"⚡ Auto-Sweep (6 Loads)"</strong>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 3: 3D APPARATUS MODEL                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-3d" style="display:none;">
+    <div class="sim3d-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h2 style="font-size:1.2rem; color:var(--accent);">3D Interactive Apparatus &mdash; Cantilever Oscillation</h2>
+          <p style="color:var(--text-dim); font-size:0.85rem; margin-top:2px;">Inspect the heavy G-clamp bench fixture, flexible cantilever blade, slotted tip mass pan, and optical vibration sensor in 3D WebGL.</p>
+        </div>
+        <span style="font-size:0.75rem; color:var(--text-dim);">Left Click: Rotate &bull; Scroll: Zoom &bull; Right Click: Pan</span>
+      </div>
+
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <div id="three-container" class="sim3d-canvas"></div>
+        </div>
+
+        <div class="sim3d-components">
+          <button class="sim3d-comp active" onclick="focus3DComponent('mount')">
+            <strong>Rigid G-Clamp Bench Mount Base</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Heavy cast-iron workbench clamp preventing any knife-edge tilting or compliance error at $x=0$.</span>
+          </button>
+          <button class="sim3d-comp" onclick="focus3DComponent('blade')">
+            <strong>Uniform Elastic Cantilever Blade</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Cold-rolled steel beam calibrated for length $L$, breadth $b$, and thickness $d$.</span>
+          </button>
+          <button class="sim3d-comp" onclick="focus3DComponent('pan')">
+            <strong>Dead-Weight Tip Mass Hanger</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Slotted 50g brass loading weights exerting concentrated end point force $F = Mg$.</span>
+          </button>
+          <button class="sim3d-comp" onclick="focus3DComponent('sensor')">
+            <strong>Optical Vibration Sensor Gate</strong>
+            <span style="color:var(--text-dim); font-size:0.75rem;">Precision infrared beam detector registering zero-crossing oscillation cycles.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 4: LAB MANUAL & THEORY (Supports #theory-section Anchor)           -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-theory" style="display:none;">
+    <div class="guide-section" id="theory-section">
+      <h2>📖 Laboratory Manual: Cantilever Beam Vibration &amp; Young's Modulus ($Y$)</h2>
+
+      <div class="guide-formula-box">
+        <h3>1. Aim &amp; Objective</h3>
+        <p>To determine the Young's Modulus ($Y$) of the material of a uniform metallic cantilever blade by measuring its period of flexural oscillation ($T$) for various tip loads ($M$), to verify the linear relationship between $T^2$ and $M$, and to experimentally extract the Rayleigh effective mass ($m_{\text{eff}}$) of the vibrating beam.</p>
+      </div>
+
+      <div>
+        <h3>2. Theoretical Principles</h3>
+        <p>A cantilever is a horizontal beam rigidly clamped at one end and free at the other. When a load $M$ is applied at the free end, the beam bends downward under flexure. According to <strong>Euler-Bernoulli Beam Theory</strong>, the bending moment $M(x)$ at distance $x$ from the fixed clamp is balanced by the internal elastic restoring couple:</p>
+        $$M(x) = Y \cdot I_g \cdot \frac{d^2 y}{dx^2} = F \cdot (L - x)$$
+        <p>where $Y$ is Young's modulus, $L$ is the vibrating free length, and $I_g$ is the geometrical moment of inertia of the cross-section. For a rectangular blade of breadth $b$ and thickness $d$:</p>
+        $$I_g = \frac{b \cdot d^3}{12}$$
+
+        <h4>Static Deflection ($\delta$):</h4>
+        <p>Integrating twice subject to the boundary conditions $y(0) = 0$ and $y'(0) = 0$ gives the deflection curve:</p>
+        $$y(x) = \frac{F}{6 Y I_g} \left(3 L x^2 - x^3\right)$$
+        <p>The maximum static deflection $\delta$ at the free tip ($x = L$) under load $F = M g$ is:</p>
+        $$\delta = \frac{M g L^3}{3 Y I_g} = \frac{4 M g L^3}{Y b d^3}$$
+
+        <h4>Equivalent Spring Stiffness ($k$):</h4>
+        <p>From Hooke's Law ($F = k \cdot \delta$), the transverse flexural stiffness is:</p>
+        $$k = \frac{F}{\delta} = \frac{3 Y I_g}{L^3} = \frac{Y b d^3}{4 L^3}$$
+
+        <h4>Rayleigh's Effective Beam Mass Correction ($m_{\text{eff}}$):</h4>
+        <p>The cantilever blade itself possesses distributed mass $m_{\text{beam}} = \rho b d L$. Because elements near the clamped end hardly oscillate while the tip moves with maximum velocity, only a fraction of the beam's mass participates dynamically. Using <strong>Rayleigh's Energy Method</strong>, equating kinetic energy yields:</p>
+        $$m_{\text{eff}} = \frac{33}{140} m_{\text{beam}} \approx 0.2357 \cdot m_{\text{beam}}$$
+        <p>The total vibrating inertia is therefore $M_{\text{total}} = M + m_{\text{eff}}$.</p>
+
+        <h4>Frequency and Period of Flexural Vibration:</h4>
+        <p>The undamped equation of transverse motion is $(M + m_{\text{eff}}) \ddot{y} + k y = 0$. The natural angular frequency $\omega_n$ and time period $T$ are:</p>
+        $$\omega_n = \sqrt{\frac{k}{M + m_{\text{eff}}}}, \quad T = 2\pi \sqrt{\frac{M + m_{\text{eff}}}{k}} = 2\pi \sqrt{\frac{4 L^3 (M + m_{\text{eff}})}{Y b d^3}}$$
+        <p>Squaring both sides yields the primary experimental equation:</p>
+        $$T^2 = \left(\frac{16 \pi^2 L^3}{Y b d^3}\right) M + \left(\frac{16 \pi^2 L^3}{Y b d^3}\right) m_{\text{eff}}$$
+        <p>A plot of $T^2$ on the Y-axis against added tip mass $M$ on the X-axis yields a straight line with slope $S_M$:</p>
+        $$S_M = \frac{16 \pi^2 L^3}{Y b d^3} \implies Y = \frac{16 \pi^2 L^3}{b d^3 \cdot S_M}$$
+        <p>The negative X-intercept of this straight line gives the Rayleigh effective mass: $\text{Intercept} = -m_{\text{eff}}$.</p>
+      </div>
+
+      <details class="guide-acc" open>
+        <summary>3. Apparatus Required</summary>
+        <div>
+          <ul>
+            <li>Uniform metallic cantilever blade (Mild Steel, Brass, or Aluminum) of length $\approx 100\text{ cm}$.</li>
+            <li>Heavy cast-iron bench G-clamp with wooden packing blocks for rigid clamping.</li>
+            <li>Lightweight tip weight hanger with a set of calibrated 50 g slotted dead-weights.</li>
+            <li>Digital stopwatch or automated infrared photogate timer (precision 0.01 s).</li>
+            <li>Vernier Calipers (for breadth $b$) and Slide Callipers / Screw Gauge (for thickness $d$).</li>
+            <li>Standard 100 cm meter scale.</li>
+          </ul>
+        </div>
+      </div>
+
+      <details class="guide-acc" open>
+        <summary>4. Step-by-Step Laboratory Procedure</summary>
+        <div>
+          <ol>
+            <li>Measure the total mass $m_{\text{beam}}$ of the blade and its total length. Compute mass per unit length $\mu = m_{\text{beam}} / L_{\text{total}}$.</li>
+            <li>Measure the breadth $b$ of the blade at 3 different points using Vernier Calipers and record the mean.</li>
+            <li>Measure the thickness $d$ of the blade at 5 different locations using a Screw Gauge (taking zero-error into account) and calculate the mean thickness.</li>
+            <li>Clamp one end of the blade firmly to the laboratory bench between two flat wooden blocks using the heavy G-clamp such that a chosen length $L$ (e.g. 60 cm) projects horizontally.</li>
+            <li>Suspend the empty weight hanger from the free tip. Ensure that the clamping screw is tightened solidly so that no slipping occurs during oscillation.</li>
+            <li>Depress the free end slightly downward (by no more than 2 to 3 cm to stay strictly within the elastic limit and small-angle linear regime) and release it gently to initiate vertical transverse oscillations.</li>
+            <li>Verify that the beam oscillates purely in the vertical plane without twisting or lateral wobble.</li>
+            <li>Using the photogate or stopwatch, start timing as the tip crosses the equilibrium position and record the time for 20 complete oscillations ($t_{20}$). Repeat twice for consistency and find the mean period $T = t_{20} / 20$.</li>
+            <li>Add a 50 g slotted weight to the hanger, wait for steady oscillations, and record the new period $T$.</li>
+            <li>Repeat the measurement for 5 to 6 increasing masses ($M = 0, 50, 100, 150, 200, 250\text{ g}$).</li>
+            <li>Plot $T^2$ against $M$. Fit a linear regression line, determine the slope $S_M$ and the negative X-intercept ($-m_{\text{eff}}$), and calculate Young's Modulus $Y$.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="guide-acc">
+        <summary>5. Observation Tables &amp; Sample Calculations</summary>
+        <div>
+          <h4>Table 1: Dimensions of Cantilever Blade</h4>
+          <p>&bull; Mean Breadth ($b$) = $2.50 \times 10^{-2}\text{ m}$<br/>
+          &bull; Mean Thickness ($d$) = $1.80 \times 10^{-3}\text{ m}$<br/>
+          &bull; Vibrating Free Length ($L$) = $0.60\text{ m}$<br/>
+          &bull; Total Blade Mass ($m_{\text{beam}}$) = $0.104\text{ kg}$</p>
+
+          <h4>Sample Calculation:</h4>
+          $$I_g = \frac{b d^3}{12} = \frac{(0.025)(0.0018)^3}{12} = 1.215 \times 10^{-11}\text{ m}^4$$
+          $$\text{If } S_M = 0.725\text{ s}^2/\text{kg}: \quad Y = \frac{16 \pi^2 (0.60)^3}{(0.025)(0.0018)^3 \cdot (0.725)} \approx 200.2 \times 10^9\text{ N/m}^2 = 200.2\text{ GPa}$$
+        </div>
+      </details>
+
+      <details class="guide-acc">
+        <summary>6. Precautions &amp; Sources of Error</summary>
+        <div>
+          <ul>
+            <li><strong>Rigid Clamping:</strong> The fixed end must be clamped extremely tight between wooden jaws. Any bench vibration or clamp compliance acts as a series spring, lowering the measured frequency and underestimating $Y$.</li>
+            <li><strong>Small Amplitude Oscillations:</strong> Keep tip deflection small ($\delta \ll L$) so that Euler-Bernoulli linear beam assumptions ($\frac{dy}{dx} \ll 1$) and Hooke's law hold true. Large amplitudes induce non-linear geometric stiffening.</li>
+            <li><strong>Pure Vertical Mode:</strong> Ensure the tip is plucked straight downward without any lateral displacement to avoid coupling with torsional or lateral vibration modes.</li>
+            <li><strong>Accurate Thickness Measurement:</strong> Since $d$ appears cubed ($d^3$) in the formula for $Y$, a 1% error in thickness $d$ produces a 3% error in the calculated Young's Modulus.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="guide-acc">
+        <summary>7. Curriculum &amp; Syllabus Mapping</summary>
+        <div>
+          <p>This laboratory simulation strictly satisfies the requirements of:</p>
+          <ul>
+            <li><strong>WBSCTE Diploma in Engineering:</strong> Course BS104 / BS106 Applied Physics-I &bull; Unit 3: Elasticity &amp; Flexure of Beams.</li>
+            <li><strong>AICTE Model Curriculum:</strong> Mechanical Properties of Solids, Flexural Vibrations &amp; Young's Modulus Determination.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MODE 5: INTERACTIVE QUIZ & VIVA VOCE                                    -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="section-quiz" style="display:none;">
+    <div class="guide-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h2>🎯 Cantilever Vibration Viva-Voce &amp; Concept Evaluation</h2>
+          <p style="color:var(--text-dim); font-size:0.85rem; margin-top:2px;">Test your conceptual understanding of beam dynamics, Rayleigh mass correction, and Young's modulus.</p>
+        </div>
+        <div style="font-size:0.85rem; font-weight:700; color:var(--accent);">
+          Score: <span id="quiz-score">0</span> / 5
+        </div>
+      </div>
+
+      <div id="quiz-container" style="display:flex; flex-direction:column; gap:16px; margin-top:16px;">
+        <!-- Populated dynamically by JS -->
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT SIMULATION ENGINE                                             -->
+<!-- ═════════════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Audio Synthesizer Engine (Web Audio API) ──────────────────────────────
+const SoundFX = {
+  ctx: null,
+  muted: false,
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+  },
+  toggleMute() {
+    this.muted = !this.muted;
+    const btn = document.getElementById('sound-toggle-btn');
+    if (btn) {
+      btn.textContent = this.muted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+      btn.classList.toggle('active', !this.muted);
+    }
+  },
+  playPluck(freq) {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const clampedFreq = Math.max(60, Math.min(600, freq * 30));
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(clampedFreq, this.ctx.currentTime);
+      gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.8);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.85);
+    } catch (e) {}
+  },
+  playGateBeep() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.07);
+    } catch (e) {}
+  }
+};
+
+// ── Specimen Material Database ─────────────────────────────────────────────
+const MATERIALS = {
+  steel:    { name: "Mild Steel",   Y: 200e9, density: 7850, color: "#94a3b8" },
+  brass:    { name: "Brass",        Y: 100e9, density: 8500, color: "#fbbf24" },
+  aluminum: { name: "Aluminum",     Y: 70e9,  density: 2700, color: "#cbd5e1" },
+  copper:   { name: "Copper",       Y: 110e9, density: 8960, color: "#f97316" },
+  acrylic:  { name: "Acrylic PMMA", Y: 3.2e9, density: 1190, color: "#38bdf8" }
+};
+
+// ── Global State Object ───────────────────────────────────────────────────
+const state = {
+  materialKey: 'steel',
+  L: 0.60,       // Vibrating length in meters
+  b: 0.025,      // Breadth in meters
+  d: 0.0018,     // Thickness in meters
+  M: 0.150,      // Added tip mass in kg
+  damping: 0.015,// Damping ratio zeta
+  
+  // Dynamic Oscillation State (RK4 Integrator)
+  y: 0.0,        // Tip displacement in meters (positive = down)
+  v: 0.0,        // Tip velocity in m/s
+  yStatic: 0.0,  // Equilibrium deflection in meters
+  omegaN: 14.6,  // Natural angular frequency (rad/s)
+  period: 0.43,  // Natural period (s)
+  stiffness: 33.7,// k in N/m
+  beamMass: 0.085,// Total beam mass in kg
+  mEff: 0.020,   // Rayleigh effective mass in kg
+  
+  // Interactive Dragging
+  isDragging: false,
+  dragStartY: 0,
+  initialTipY: 0,
+  
+  // UI & Features
+  showGrid: true,
+  photogateEnabled: true,
+  activeStep: 1,
+  
+  // Photogate Measurement Engine
+  photogateState: 'clear', // 'clear' or 'blocked'
+  cycleCount: 0,
+  runStartTime: null,
+  isRunningPhotogate: false,
+  lastZeroCrossTime: 0,
+  measuredPeriod: null,
+  
+  // Dynamic Scope History
+  scopeBuffer: [],
+  maxScopePoints: 400,
+  
+  // Observation Records
+  observations: [],
+  
+  // Active Graph Tab
+  graphMode: 'T2_M'
+};
+
+// ── Physics Calculations ──────────────────────────────────────────────────
+function computePhysics() {
+  const mat = MATERIALS[state.materialKey];
+  const Y = mat.Y;
+  const rho = mat.density;
+  
+  // Beam Mass & Rayleigh Effective Mass (33/140 * m_beam)
+  const vol = state.L * state.b * state.d;
+  state.beamMass = vol * rho;
+  state.mEff = (33 / 140) * state.beamMass;
+  
+  // Total Dynamic Inertia
+  const totalInertia = state.M + state.mEff;
+  
+  // Geometrical Moment of Inertia I_g = (b * d^3) / 12
+  const Ig = (state.b * Math.pow(state.d, 3)) / 12;
+  
+  // Bending Stiffness k = 3 Y I_g / L^3 = Y b d^3 / (4 L^3)
+  state.stiffness = (Y * state.b * Math.pow(state.d, 3)) / (4 * Math.pow(state.L, 3));
+  
+  // Static deflection delta = (M * g) / k
+  const g = 9.80665;
+  state.yStatic = state.M > 0 ? (state.M * g) / state.stiffness : 0;
+  
+  // Natural frequency & period
+  state.omegaN = Math.sqrt(state.stiffness / totalInertia);
+  state.period = (2 * Math.PI) / state.omegaN;
+  
+  updateTelemetryUI();
+}
+
+function updateTelemetryUI() {
+  const f = 1 / state.period;
+  document.getElementById('disp-period').textContent = `${state.period.toFixed(3)} s`;
+  document.getElementById('disp-freq').textContent = `${f.toFixed(2)} Hz`;
+  document.getElementById('disp-stiffness').textContent = `${state.stiffness.toFixed(2)} N/m`;
+  document.getElementById('disp-meff').textContent = `${(state.mEff * 1000).toFixed(1)} g`;
+  document.getElementById('disp-deflection').textContent = `${(state.yStatic * 1000).toFixed(1)} mm`;
+}
+
+// ── 4th-Order Runge-Kutta (RK4) Numerical Integrator ────────────────────────
+function rk4Step(dt) {
+  if (state.isDragging) return;
+  
+  const wn = state.omegaN;
+  const zeta = state.damping;
+  
+  // Equation: y'' + 2*zeta*wn*y' + wn^2*(y - yStatic) = 0
+  const f = (yVal, vVal) => -2 * zeta * wn * vVal - Math.pow(wn, 2) * (yVal - state.yStatic);
+  
+  const k1_y = state.v;
+  const k1_v = f(state.y, state.v);
+  
+  const k2_y = state.v + 0.5 * dt * k1_v;
+  const k2_v = f(state.y + 0.5 * dt * k1_y, state.v + 0.5 * dt * k1_v);
+  
+  const k3_y = state.v + 0.5 * dt * k2_v;
+  const k3_v = f(state.y + 0.5 * dt * k2_y, state.v + 0.5 * dt * k2_v);
+  
+  const k4_y = state.v + dt * k3_v;
+  const k4_v = f(state.y + dt * k3_y, state.v + dt * k3_v);
+  
+  state.y += (dt / 6) * (k1_y + 2 * k2_y + 2 * k3_y + k4_y);
+  state.v += (dt / 6) * (k1_v + 2 * k2_v + 2 * k3_v + k4_v);
+  
+  // Optical Photogate Beam Interrupt Detection
+  checkPhotogateCrossing();
+}
+
+function checkPhotogateCrossing() {
+  if (!state.photogateEnabled) return;
+  
+  // Photogate aligned at equilibrium position y = yStatic
+  const threshold = 0.003; // 3 mm beam width
+  const isBlocked = Math.abs(state.y - state.yStatic) < threshold;
+  
+  const badge = document.getElementById('photogate-status-badge');
+  
+  if (isBlocked && state.photogateState === 'clear') {
+    state.photogateState = 'blocked';
+    if (badge) {
+      badge.textContent = '● Optical Gate: BEAM INTERRUPTED';
+      badge.style.color = 'var(--red)';
+    }
     
-    <!-- ══════════════════════════════════════════════════════════════════════════
-         LEFT PANE: Physical Cantilever Workbench & Interactive Canvas (54%)
-         ══════════════════════════════════════════════════════════════════════════ -->
-    <section class="left-workbench-pane">
-      
-      <div class="canvas-viewport-card">
-        <div class="canvas-header-bar">
-          <div class="canvas-title-group">
-            <span>&#9881;</span>
-            <span>Cantilever Flexural Vibration Bench</span>
-            <span class="canvas-status-tag" id="oscillation-state-badge">Equilibrium State</span>
-          </div>
-          <div class="canvas-controls-group">
-            <button class="btn-canvas-action" onclick="pluckAndRelease()" title="Pluck free tip to initiate oscillation">
-              <span>&#127926;</span> Pluck Tip
-            </button>
-            <button class="btn-canvas-action" onclick="resetToEquilibrium()" title="Damp out and stop motion">
-              <span>&#9209;</span> Stop Motion
-            </button>
-            <button class="btn-canvas-action" onclick="zoomBench(1.1)" title="Zoom in apparatus view">
-              <span>&#128269;+</span>
-            </button>
-            <button class="btn-canvas-action" onclick="zoomBench(0.9)" title="Zoom out apparatus view">
-              <span>&#128269;&minus;</span>
-            </button>
-            <button class="btn-canvas-action" onclick="resetBenchView()" title="Reset zoom and pan">
-              <span>&#8634;</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Canvas Stage -->
-        <div class="canvas-canvas-stage" id="canvas-stage-wrapper">
-          <canvas id="cantilever-canvas" width="900" height="440"></canvas>
-
-          <!-- Non-obstructive top-left translucent overlay HUD (clears apparatus > 80px) -->
-          <div class="canvas-hud-overlay" id="top-left-hud">
-            <div class="hud-item">
-              <span>Tip Defl:</span> <strong id="hud-tip-y">0.00 mm</strong>
-            </div>
-            <div class="hud-item">
-              <span>Stiffness $k$:</span> <strong id="hud-stiffness">33.75 N/m</strong>
-            </div>
-            <div class="hud-item">
-              <span>Period $T$:</span> <strong id="hud-period">0.592 s</strong>
-            </div>
-            <div class="hud-item">
-              <span>$M_{\text{tot}}$:</span> <strong id="hud-total-mass">0.346 kg</strong>
-            </div>
-            <button class="hud-collapse-btn" onclick="toggleHudCollapse()" title="Hide HUD overlay">&#10005;</button>
-          </div>
-          <button class="hud-restore-btn" id="hud-restore-btn" onclick="toggleHudCollapse()">&#128065; Show HUD</button>
-
-          <!-- Interactive Pluck Guide Banner -->
-          <div class="pluck-prompt-chip" id="pluck-guide-chip">
-            <div class="pluck-pulse-dot"></div>
-            <span>Click &amp; Drag Blade Tip or Click <strong>"Pluck Tip"</strong> to Oscillate</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Workbench Controls & Parameter Sliders -->
-      <div class="workbench-controls-card">
-        <div class="controls-card-title">
-          <span>&#9881; Specimen Geometry &amp; Oscillatory Parameters</span>
-          <span style="font-size: 0.72rem; color: var(--text-muted);">Euler-Bernoulli Mechanics</span>
-        </div>
-
-        <div class="sliders-dual-grid">
-          <!-- 1. Length Slider L -->
-          <div class="param-input-group">
-            <div class="param-label-row">
-              <span>Vibrating Length ($L$):</span>
-              <span class="param-value-tag" id="val-length">50.0 cm</span>
-            </div>
-            <input type="range" id="slider-length" class="styled-slider" min="20.0" max="100.0" step="1.0" value="50.0" oninput="onLengthChange(this.value)">
-            <div class="slider-scale-legend">
-              <span>20.0 cm</span>
-              <span>60.0 cm</span>
-              <span>100.0 cm</span>
-            </div>
-          </div>
-
-          <!-- 2. Tip Mass M -->
-          <div class="param-input-group">
-            <div class="param-label-row">
-              <span>Attached Tip Mass ($M$):</span>
-              <span class="param-value-tag" id="val-mass">300 g</span>
-            </div>
-            <input type="range" id="slider-mass" class="styled-slider" min="0.0" max="1.0" step="0.05" value="0.30" oninput="onTipMassChange(this.value)">
-            <div class="slider-scale-legend">
-              <span>0 g (Bare Blade)</span>
-              <span>500 g</span>
-              <span>1000 g</span>
-            </div>
-          </div>
-
-          <!-- 3. Blade Width b -->
-          <div class="param-input-group">
-            <div class="param-label-row">
-              <span>Blade Breadth ($b$):</span>
-              <span class="param-value-tag" id="val-breadth">25.0 mm</span>
-            </div>
-            <input type="range" id="slider-breadth" class="styled-slider" min="10.0" max="40.0" step="0.5" value="25.0" oninput="onBreadthChange(this.value)">
-            <div class="slider-scale-legend">
-              <span>10.0 mm</span>
-              <span>25.0 mm</span>
-              <span>40.0 mm</span>
-            </div>
-          </div>
-
-          <!-- 4. Blade Thickness d -->
-          <div class="param-input-group">
-            <div class="param-label-row">
-              <span>Blade Thickness ($d$):</span>
-              <span class="param-value-tag" id="val-depth">2.0 mm</span>
-            </div>
-            <input type="range" id="slider-depth" class="styled-slider" min="1.0" max="5.0" step="0.1" value="2.0" oninput="onDepthChange(this.value)">
-            <div class="slider-scale-legend">
-              <span>1.0 mm</span>
-              <span>3.0 mm</span>
-              <span>5.0 mm</span>
-            </div>
-          </div>
-
-          <!-- 5. Young's Modulus Y -->
-          <div class="param-input-group">
-            <div class="param-label-row">
-              <span>Young's Modulus ($Y$):</span>
-              <span class="param-value-tag" id="val-ym">200.0 GPa</span>
-            </div>
-            <input type="range" id="slider-ym" class="styled-slider" min="2.0" max="300.0" step="1.0" value="200.0" oninput="onYoungsModulusChange(this.value)">
-            <div class="slider-scale-legend">
-              <span>2.0 GPa (Polymer)</span>
-              <span>150 GPa</span>
-              <span>300 GPa (Alloy)</span>
-            </div>
-          </div>
-
-          <!-- 6. Damping Ratio Zeta -->
-          <div class="param-input-group">
-            <div class="param-label-row">
-              <span>Damping Ratio ($\zeta$):</span>
-              <span class="param-value-tag" id="val-damping">0.005</span>
-            </div>
-            <input type="range" id="slider-damping" class="styled-slider" min="0.001" max="0.040" step="0.001" value="0.005" oninput="onDampingChange(this.value)">
-            <div class="slider-scale-legend">
-              <span>0.001 (Underdamped)</span>
-              <span>0.020</span>
-              <span>0.040 (Heavy Ring)</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="action-buttons-row">
-          <button class="btn-primary-action" onclick="pluckAndRelease()">
-            <span>&#9654;</span> Pluck &amp; Release Tip (15 mm)
-          </button>
-          <button class="btn-secondary-action" onclick="startPhotogateCycleRun()">
-            <span>&#9201;</span> Start 20-Cycle Timer
-          </button>
-          <button class="btn-secondary-action" onclick="logCurrentTrial()">
-            <span>&#128221;</span> Log to Table
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════════════════════════════════════════════════════════════════
-         RIGHT PANE: Precision Analytical HUD & Dynamic Graphs Suite (46%)
-         ══════════════════════════════════════════════════════════════════════════ -->
-    <section class="right-analytics-pane">
-      
-      <!-- Telemetry Dashboard -->
-      <div class="telemetry-dashboard-card">
-        <div class="telemetry-grid">
-          <div class="gauge-tile accent-cyan">
-            <span class="gauge-label">Oscillation Period ($T$)</span>
-            <span class="gauge-value" id="gauge-period">0.592 s</span>
-            <span class="gauge-sub">Theoretical: $T = 2\pi\sqrt{M_{\text{tot}}/k}$</span>
-          </div>
-          <div class="gauge-tile accent-emerald">
-            <span class="gauge-label">Natural Freq ($f$)</span>
-            <span class="gauge-value" id="gauge-freq">1.688 Hz</span>
-            <span class="gauge-sub">$\omega_n = 10.61\text{ rad/s}$</span>
-          </div>
-          <div class="gauge-tile accent-amber">
-            <span class="gauge-label">Bending Stiffness ($k$)</span>
-            <span class="gauge-value" id="gauge-stiffness">33.75 N/m</span>
-            <span class="gauge-sub">$k = Y b d^3 / (4 L^3)$</span>
-          </div>
-          <div class="gauge-tile accent-magenta">
-            <span class="gauge-label">Photogate Timer ($t_{20}$)</span>
-            <span class="gauge-value" id="gauge-timer">0.000 s</span>
-            <span class="gauge-sub" id="gauge-timer-status">Armed: 0/20 Cycles</span>
-          </div>
-          <div class="gauge-tile accent-purple">
-            <span class="gauge-label">Rayleigh Mass ($m_{\text{eff}}$)</span>
-            <span class="gauge-value" id="gauge-rayleigh">46.3 g</span>
-            <span class="gauge-sub">$m_{\text{eff}} = \frac{33}{140} m_{\text{beam}}$</span>
-          </div>
-          <div class="gauge-tile">
-            <span class="gauge-label">Static Deflection ($\delta$)</span>
-            <span class="gauge-value" id="gauge-deflection">87.2 mm</span>
-            <span class="gauge-sub">$\delta = M g / k$</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Real-Time Digital Oscilloscope Trace -->
-      <div class="oscilloscope-card">
-        <div class="scope-header">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span>&#128200;</span>
-            <span>Real-Time Tip Displacement Waveform $y(t)$</span>
-          </div>
-          <div class="scope-led">
-            <div class="scope-led-dot"></div>
-            <span>60 FPS Waveform Tracking</span>
-          </div>
-        </div>
-        <div class="scope-canvas-stage">
-          <canvas id="oscilloscope-canvas" width="600" height="120"></canvas>
-        </div>
-      </div>
-
-      <!-- Dynamic Graphs Suite (Multi-Tab) -->
-      <div class="graphs-suite-card">
-        <div class="graph-tab-row">
-          <div class="graph-tab-buttons">
-            <button class="btn-graph-tab active" id="tab-graph-1" onclick="switchGraphTab(1)">
-              $T^2$ vs. Mass $M$ (Effective Mass)
-            </button>
-            <button class="btn-graph-tab" id="tab-graph-2" onclick="switchGraphTab(2)">
-              $T^2$ vs. Length $L^3$ (Cubic Law)
-            </button>
-            <button class="btn-graph-tab" id="tab-graph-3" onclick="switchGraphTab(3)">
-              Damping Ring ($\ln y_n$ vs. $n$)
-            </button>
-          </div>
-          <span style="font-size:0.72rem; color:var(--text-subtle); font-family:var(--font-mono);">
-            Linear Least-Squares
-          </span>
-        </div>
-
-        <div class="graph-canvas-container">
-          <canvas id="analytics-canvas" width="600" height="250"></canvas>
-        </div>
-
-        <!-- Analytical Verification & Young's Modulus Extraction Card -->
-        <div class="youngs-modulus-card">
-          <div class="ym-header">
-            <span>&#9889; Linear Regression &amp; Material Property Extraction</span>
-            <span id="ym-fit-quality">$R^2 = 0.9999$</span>
-          </div>
-          <div class="ym-row">
-            <div class="ym-box">
-              <span class="ym-label">Regression Slope ($S_M$):</span>
-              <div class="ym-val" id="ym-slope-val">0.7802 s²/kg</div>
-            </div>
-            <div class="ym-box">
-              <span class="ym-label">Experimental $Y$:</span>
-              <div class="ym-val" id="ym-extracted-val" style="color:var(--cyan);">202.4 GPa</div>
-            </div>
-            <div class="ym-box">
-              <span class="ym-label">Rayleigh Mass ($m_{\text{eff}}$):</span>
-              <div class="ym-val" id="ym-intercept-val" style="color:var(--emerald);">0.0463 kg</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </section>
-  </main>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════════
-       OBSERVATION NOTEBOOK & DATA TABLES SECTION
-       ═══════════════════════════════════════════════════════════════════════════ -->
-  <section class="observation-notebook-section" id="notebook-section">
-    <div class="notebook-header-row">
-      <div class="notebook-title">
-        <span>&#128211;</span>
-        <span>Laboratory Observation Notebook — Table A: $T^2$ vs. Tip Load ($M$)</span>
-      </div>
-      <div class="table-action-btns">
-        <button class="btn-table-opt" onclick="runAutoSweepTableA()">&#9654; Auto Sweep Run (Table A)</button>
-        <button class="btn-table-opt" onclick="clearObservationTable()">&#128465; Clear Rows</button>
-        <button class="btn-table-opt" onclick="exportTableToCSV()">&#128190; Export CSV</button>
-      </div>
-    </div>
-
-    <div style="overflow-x: auto;">
-      <table class="styled-data-table" id="observation-table">
-        <thead>
-          <tr>
-            <th>Trial #</th>
-            <th>Tip Mass $M$ (kg)</th>
-            <th>Length $L$ (m)</th>
-            <th>Breadth $b$ (mm)</th>
-            <th>Thickness $d$ (mm)</th>
-            <th>Time for 20 Osc $t_{20}$ (s)</th>
-            <th>Period $T$ (s)</th>
-            <th>$T^2$ (s²)</th>
-            <th>Frequency $f$ (Hz)</th>
-            <th>Effective Mass $m_{\text{eff}}$ (g)</th>
-          </tr>
-        </thead>
-        <tbody id="table-body">
-          <!-- Populated dynamically via JS -->
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════════
-       VIVA VOCE INTERACTIVE QUIZ SECTION
-       ═══════════════════════════════════════════════════════════════════════════ -->
-  <section class="viva-quiz-section" id="quiz-section">
-    <h3 class="viva-title">&#128218; Interactive Viva Voce &amp; Concept Validation Quiz</h3>
-    <div class="quiz-container" id="quiz-container">
-      <!-- Generated via JS -->
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════════
-       THEORY & FORMULA ACCORDION (EXHAUSTIVE SYLLABUS MAPPING)
-       ═══════════════════════════════════════════════════════════════════════════ -->
-  <section class="theory-manual-section" id="theory-section">
-    <h3 style="color:#fff; margin-bottom:16px; font-size:1.15rem; font-weight:700;">
-      &#128214; Comprehensive Theory, Structural Mechanics &amp; Syllabus Reference
-    </h3>
-
-    <div class="manual-accordion-item">
-      <details open>
-        <summary class="manual-accordion-summary">1. Euler-Bernoulli Beam Bending &amp; Cantilever Stiffness ($k$)</summary>
-        <div class="manual-accordion-content">
-          <p>
-            An ideal cantilever is a horizontal prismatic elastic beam rigidly clamped at one end ($x=0$, encastre) and free at the other ($x=L$). Under an applied transverse downward concentrated load $F = Mg$ at the tip, the differential equation governing the neutral elastic curvature is given by Euler-Bernoulli beam theory:
-          </p>
-          <div class="formula-highlight-box">
-            $$Y I_g \frac{d^2 y}{dx^2} = M_{\text{bending}}(x) = F (L - x)$$
-          </div>
-          <p>
-            Integrating twice with fixed boundary conditions $y(0) = 0$ and $\left.\frac{dy}{dx}\right|_{x=0} = 0$ yields the deflection profile:
-          </p>
-          <div class="formula-highlight-box">
-            $$y(x) = \frac{M g}{6 Y I_g} \left( 3 L x^2 - x^3 \right)$$
-          </div>
-          <p>
-            For a rectangular cross-section of breadth $b$ and depth/thickness $d$, the second moment of area about the neutral axis is $I_g = \frac{b d^3}{12}$. Evaluating maximum tip deflection $\delta = y(L)$:
-          </p>
-          <div class="formula-highlight-box">
-            $$\delta = \frac{M g L^3}{3 Y I_g} = \frac{4 M g L^3}{Y b d^3} \implies k = \frac{F}{\delta} = \frac{Y b d^3}{4 L^3} \quad (\text{N/m})$$
-          </div>
-        </div>
-      </details>
-    </div>
-
-    <div class="manual-accordion-item">
-      <details>
-        <summary class="manual-accordion-summary">2. Rayleigh's Distributed Mass Correction &amp; Effective Tip Mass ($m_{\text{eff}}$)</summary>
-        <div class="manual-accordion-content">
-          <p>
-            A physical metal blade has a distributed mass $m_{\text{beam}} = \rho b d L$. Because sections near the clamp remain nearly stationary while sections near the tip oscillate at full amplitude, the distributed mass cannot be simply added directly to $M$.
-          </p>
-          <p>
-            Using Lord Rayleigh's kinetic energy equivalence method, the total kinetic energy of the vibrating continuous beam is equated to an equivalent lumped mass $m_{\text{eff}}$ concentrated at the free tip:
-          </p>
-          <div class="formula-highlight-box">
-            $$T_{\text{kinetic}} = \frac{1}{2} \int_0^L \left(\frac{m_{\text{beam}}}{L}\right) \dot{y}^2(x) \, dx = \frac{1}{2} m_{\text{eff}} \dot{y}_{\text{tip}}^2$$
-          </div>
-          <p>
-            Substituting the Euler-Bernoulli static shape mode $y(x) = y_{\text{tip}} \left( \frac{3 L x^2 - x^3}{2 L^3} \right)$ and evaluating the definite integral yields the exact Rayleigh factor:
-          </p>
-          <div class="formula-highlight-box">
-            $$m_{\text{eff}} = \frac{33}{140} \cdot m_{\text{beam}} \approx 0.235714 \cdot m_{\text{beam}}$$
-          </div>
-          <p>
-            The total effective vibrating mass of the cantilever oscillator is therefore $M_{\text{total}} = M + \frac{33}{140} m_{\text{beam}}$.
-          </p>
-        </div>
-      </details>
-    </div>
-
-    <div class="manual-accordion-item">
-      <details>
-        <summary class="manual-accordion-summary">3. Frequency ($f$), Period ($T$), and Linearized Determination of Young's Modulus ($Y$)</summary>
-        <div class="manual-accordion-content">
-          <p>
-            The angular natural frequency of transverse flexural oscillation is:
-          </p>
-          <div class="formula-highlight-box">
-            $$\omega_n = \sqrt{\frac{k}{M_{\text{total}}}} = \sqrt{\frac{Y b d^3}{4 L^3 \left( M + \frac{33}{140} m_{\text{beam}} \right)}}$$
-          </div>
-          <p>
-            The natural period of oscillation $T$ is:
-          </p>
-          <div class="formula-highlight-box">
-            $$T = 2\pi \sqrt{\frac{M + \frac{33}{140} m_{\text{beam}}}{k}} = 2\pi \sqrt{\frac{4 L^3 \left( M + \frac{33}{140} m_{\text{beam}} \right)}{Y b d^3}}$$
-          </div>
-          <p>
-            Squaring both sides linearizes the relationship with respect to the concentrated tip load $M$:
-          </p>
-          <div class="formula-highlight-box">
-            $$T^2 = \left( \frac{16 \pi^2 L^3}{Y b d^3} \right) M + \left( \frac{16 \pi^2 L^3}{Y b d^3} \cdot \frac{33}{140} m_{\text{beam}} \right)$$
-          </div>
-          <p>
-            A plot of $T^2$ on the vertical axis against $M$ on the horizontal axis yields a straight line with slope $S_M$ and negative X-intercept:
-          </p>
-          <div class="formula-highlight-box">
-            $$\text{Slope } S_M = \frac{16 \pi^2 L^3}{Y b d^3} \implies \mathbf{Y = \frac{16 \pi^2 L^3}{b d^3 S_M}}$$
-            $$\text{Negative X-Intercept: } -M_{\text{intercept}} = \frac{33}{140} m_{\text{beam}} = m_{\text{eff}}$$
-          </div>
-        </div>
-      </details>
-    </div>
-
-    <div class="manual-accordion-item">
-      <details>
-        <summary class="manual-accordion-summary">4. Damped Oscillation Equation &amp; Runge-Kutta 4th Order (RK4) Solution</summary>
-        <div class="manual-accordion-content">
-          <p>
-            The real physical system experiences both atmospheric drag and internal viscoelastic hysteresis, modeled as a 2nd-order damped harmonic oscillator:
-          </p>
-          <div class="formula-highlight-box">
-            $$\frac{d^2 y}{dt^2} + 2 \zeta \omega_n \frac{dy}{dt} + \omega_n^2 y = 0$$
-          </div>
-          <p>
-            Where $\zeta < 1.0$ is the dimensionless damping ratio. The damped circular frequency is $\omega_d = \omega_n \sqrt{1 - \zeta^2}$, and consecutive peak displacement amplitudes decay logarithmically:
-          </p>
-          <div class="formula-highlight-box">
-            $$\Lambda = \ln\left( \frac{y_n}{y_{n+1}} \right) = \frac{2\pi \zeta}{\sqrt{1 - \zeta^2}}$$
-          </div>
-          <p>
-            Our simulation integrates this equation continuously using a 4th-Order Runge-Kutta (RK4) numerical scheme with sub-millisecond timesteps ($\Delta t = 0.001\text{ s}$) to prevent numerical energy divergence.
-          </p>
-        </div>
-      </details>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════════
-       3D APPARATUS MODEL WRAPPER (V2 EMBED)
-       ═══════════════════════════════════════════════════════════════════════════ -->
-  <div id="model3d-wrapper" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h3 style="color:#fff; margin:0; font-size:1.15rem; font-weight:700;">
-        &#128269; 3D Interactive Cantilever Apparatus Model
-      </h3>
-      <button class="btn-canvas-action" onclick="switchMainView('sim')">&#10005; Back to Simulation</button>
-    </div>
-    <div class="three-viewer-container" id="three-canvas-container"></div>
-    <div style="margin-top:16px;">
-      <h4 style="color:#cbd5e1; font-size:0.85rem; margin-bottom:8px;">Apparatus Sub-Assemblies (Click to Inspect):</h4>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
-        <div class="btn-secondary-action" onclick="focus3DComponent('RigidGClampBenchMountBase')">
-          <span>&#128297;</span> Cast-Iron Rigid G-Clamp
-        </div>
-        <div class="btn-secondary-action" onclick="focus3DComponent('UniformFlexibleSteelCantileverBlade')">
-          <span>&#128207;</span> Flexible Rectangular Strip
-        </div>
-        <div class="btn-secondary-action" onclick="focus3DComponent('DeadWeightLoadingPanAtFreeEnd')">
-          <span>&#9878;</span> Slotted Tip Weight Pan
-        </div>
-        <div class="btn-secondary-action" onclick="focus3DComponent('OpticalVibrationSensorGate')">
-          <span>&#128161;</span> Optical Photogate &amp; Flag
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Shared Sidebar Script -->
-  <script src="../../shared/sidebar/sidebar.js"></script>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════════
-       SIMULATION JAVASCRIPT ENGINE (PHYSICS, RK4, SOUND, CHARTS & TABLES)
-       ═══════════════════════════════════════════════════════════════════════════ -->
-  <script>
-    /* =========================================================================
-       1. GLOBAL STATE & CONSTANTS
-       ========================================================================= */
-    const G_ACCEL = 9.80665; // m/s^2
-
-    // Material library
-    const MATERIALS = {
-      steel:    { name: 'Mild Steel',    Y: 200.0e9, rho: 7850, zeta: 0.005, color: '#94a3b8', specular: '#e2e8f0' },
-      brass:    { name: 'Yellow Brass',  Y: 100.0e9, rho: 8500, zeta: 0.008, color: '#eab308', specular: '#fef08a' },
-      aluminum: { name: 'Aluminum Alloy',Y:  70.0e9, rho: 2700, zeta: 0.004, color: '#38bdf8', specular: '#bae6fd' },
-      copper:   { name: 'Pure Copper',   Y: 110.0e9, rho: 8960, zeta: 0.010, color: '#f97316', specular: '#fed7aa' },
-      acrylic:  { name: 'Acrylic PMMA',  Y:   3.2e9, rho: 1190, zeta: 0.035, color: '#a855f7', specular: '#e9d5ff' },
-      custom:   { name: 'Custom Specimen',Y: 200.0e9, rho: 7850, zeta: 0.005, color: '#38bdf8', specular: '#ffffff' }
-    };
-
-    let simState = {
-      // Beam Geometry
-      L: 0.50,          // m (20 cm to 100 cm)
-      b: 0.025,         // m (10 mm to 40 mm)
-      d: 0.002,         // m (1.0 mm to 5.0 mm)
-      materialKey: 'steel',
-      Y: 200.0e9,       // Pa
-      rho: 7850,        // kg/m^3
-      zeta: 0.005,      // damping ratio
-
-      // Loading
-      M: 0.30,          // kg (concentrated tip mass)
-
-      // Derived Physical Properties
-      m_beam: 0,        // kg
-      m_eff: 0,         // kg (Rayleigh tip mass: 33/140 * m_beam)
-      M_tot: 0,         // kg
-      I_g: 0,           // m^4
-      k: 0,             // N/m
-      omega_n: 0,       // rad/s
-      omega_d: 0,       // rad/s
-      f_n: 0,           // Hz
-      T_n: 0,           // s
-      delta_static: 0,  // m
-
-      // Dynamic RK4 State Variables (SI Units)
-      y: 0,             // m (instantaneous tip displacement from equilibrium)
-      v: 0,             // m/s (instantaneous tip velocity)
-      isOscillating: false,
-      isDraggingTip: false,
-
-      // Optical Photogate & Cycle Counter
-      targetCycles: 20,
-      cycleCount: 0,
-      zeroCrossings: 0,
-      photogateActive: false,
-      timerStartTime: 0,
-      measuredTime: 0,
-      lastZeroCrossingDir: 0,
-
-      // UI View State
-      currentMainView: 'sim',
-      currentGraphTab: 1,
-      audioEnabled: true,
-      zoom: 1.0,
-      panX: 0,
-      panY: 0,
-
-      // Oscilloscope Rolling History
-      waveHistory: [], // array of { t, y }
-      maxHistoryPoints: 240,
-
-      // Observation Table Data Points
-      tableData: []
-    };
-
-    /* =========================================================================
-       2. WEB AUDIO SYNTHESIZER (METALLIC TWANG & LEAD-SCREW CLICKS)
-       ========================================================================= */
-    let audioCtx = null;
-
-    function getAudioContext() {
-      if (!audioCtx) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          audioCtx = new AudioContextClass();
-        }
-      }
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-      return audioCtx;
-    }
-
-    function toggleAudio() {
-      simState.audioEnabled = !simState.audioEnabled;
-      const btn = document.getElementById('audio-toggle-btn');
-      const icon = document.getElementById('audio-icon');
-      if (simState.audioEnabled) {
-        icon.innerHTML = '&#128266;';
-        btn.style.color = 'var(--text-main)';
-        playMechanicalClick(800, 0.05);
-      } else {
-        icon.innerHTML = '&#128263;';
-        btn.style.color = 'var(--text-subtle)';
-      }
-    }
-
-    function playMechanicalClick(freq = 900, duration = 0.04) {
-      if (!simState.audioEnabled) return;
-      try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + duration);
-
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + duration);
-      } catch (e) {
-        console.warn('Audio click error:', e);
-      }
-    }
-
-    function playCantileverReleaseTwang(frequency = 40, damping = 0.005) {
-      if (!simState.audioEnabled) return;
-      try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
-
-        // Fundamental tone clamped to audible spectrum for human ears
-        const baseFreq = Math.max(45, Math.min(650, frequency * 25));
-
-        // Create fundamental + harmonic overtones for metallic sound
-        const overtones = [1.0, 2.76, 5.4, 8.9];
-        const overtoneGains = [0.22, 0.08, 0.03, 0.01];
-
-        overtones.forEach((factor, idx) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          osc.type = idx === 0 ? 'sine' : 'triangle';
-          osc.frequency.setValueAtTime(baseFreq * factor, ctx.currentTime);
-
-          const decayTime = Math.max(0.25, Math.min(3.5, 0.05 / damping));
-          gain.gain.setValueAtTime(overtoneGains[idx], ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
-
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start();
-          osc.stop(ctx.currentTime + decayTime);
-        });
-      } catch (e) {
-        console.warn('Audio twang error:', e);
-      }
-    }
-
-    /* =========================================================================
-       3. KEY MATHEMATICAL & STRUCTURAL MECHANICS ENGINE
-       ========================================================================= */
-    function recomputePhysics() {
-      // 1. Beam distributed mass & second moment of area
-      simState.m_beam = simState.rho * simState.b * simState.d * simState.L;
-      simState.I_g = (simState.b * Math.pow(simState.d, 3)) / 12.0;
-
-      // 2. Rayleigh effective mass: 33/140 * m_beam
-      simState.m_eff = (33.0 / 140.0) * simState.m_beam;
-      simState.M_tot = simState.M + simState.m_eff;
-
-      // 3. Beam spring stiffness: k = (3 Y I_g) / L^3 = (Y b d^3) / (4 L^3)
-      simState.k = (3.0 * simState.Y * simState.I_g) / Math.pow(simState.L, 3);
-
-      // 4. Undamped Natural frequency & Period
-      simState.omega_n = Math.sqrt(simState.k / Math.max(0.0001, simState.M_tot));
-      simState.f_n = simState.omega_n / (2.0 * Math.PI);
-      simState.T_n = (2.0 * Math.PI) / Math.max(0.001, simState.omega_n);
-
-      // 5. Damped frequency & Period
-      const underDampedFactor = Math.max(0.0, 1.0 - Math.pow(simState.zeta, 2));
-      simState.omega_d = simState.omega_n * Math.sqrt(underDampedFactor);
-      simState.f_d = simState.omega_d / (2.0 * Math.PI);
-      simState.T_d = (2.0 * Math.PI) / Math.max(0.001, simState.omega_d);
-
-      // 6. Static tip deflection delta = (M * g) / k
-      simState.delta_static = (simState.M * G_ACCEL) / Math.max(0.001, simState.k);
-
-      // Refresh HUD & UI Readouts
-      updateTelemetryUI();
-    }
-
-    function updateTelemetryUI() {
-      // Gauges
-      document.getElementById('gauge-period').innerText = simState.T_n.toFixed(3) + ' s';
-      document.getElementById('gauge-freq').innerText = simState.f_n.toFixed(3) + ' Hz';
-      document.getElementById('gauge-stiffness').innerText = simState.k.toFixed(2) + ' N/m';
-      document.getElementById('gauge-rayleigh').innerText = (simState.m_eff * 1000.0).toFixed(1) + ' g';
-      document.getElementById('gauge-deflection').innerText = (simState.delta_static * 1000.0).toFixed(1) + ' mm';
-
-      // Top-Left HUD
-      document.getElementById('hud-tip-y').innerText = (simState.y * 1000.0).toFixed(2) + ' mm';
-      document.getElementById('hud-stiffness').innerText = simState.k.toFixed(2) + ' N/m';
-      document.getElementById('hud-period').innerText = simState.T_n.toFixed(3) + ' s';
-      document.getElementById('hud-total-mass').innerText = simState.M_tot.toFixed(3) + ' kg';
-
-      // Status badge
-      const badge = document.getElementById('oscillation-state-badge');
-      if (simState.isDraggingTip) {
-        badge.innerText = 'Tip Plucked (Ready)';
-        badge.style.background = 'rgba(245, 158, 11, 0.2)';
-        badge.style.color = 'var(--amber)';
-        badge.style.borderColor = 'var(--amber)';
-      } else if (simState.isOscillating) {
-        badge.innerText = 'Vibrating (RK4)';
-        badge.style.background = 'rgba(56, 189, 248, 0.2)';
-        badge.style.color = 'var(--cyan)';
-        badge.style.borderColor = 'var(--cyan)';
-      } else {
-        badge.innerText = 'Equilibrium';
-        badge.style.background = 'rgba(16, 185, 129, 0.2)';
-        badge.style.color = 'var(--emerald)';
-        badge.style.borderColor = 'var(--emerald)';
-      }
-    }
-
-    /* =========================================================================
-       4. RK4 NUMERICAL INTEGRATOR (DAMPED HARMONIC VIBRATION)
-       ========================================================================= */
-    // Acceleration function: a = -2*zeta*omega_n*v - omega_n^2*y
-    function computeAccel(y, v) {
-      return -2.0 * simState.zeta * simState.omega_n * v - Math.pow(simState.omega_n, 2) * y;
-    }
-
-    function stepRK4(dt) {
-      const y0 = simState.y;
-      const v0 = simState.v;
-
-      // k1
-      const k1_v = v0;
-      const k1_a = computeAccel(y0, v0);
-
-      // k2
-      const y1 = y0 + 0.5 * dt * k1_v;
-      const v1 = v0 + 0.5 * dt * k1_a;
-      const k2_v = v1;
-      const k2_a = computeAccel(y1, v1);
-
-      // k3
-      const y2 = y0 + 0.5 * dt * k2_v;
-      const v2 = v0 + 0.5 * dt * k2_a;
-      const k3_v = v2;
-      const k3_a = computeAccel(y2, v2);
-
-      // k4
-      const y3 = y0 + dt * k3_v;
-      const v3 = v0 + dt * k3_a;
-      const k4_v = v3;
-      const k4_a = computeAccel(y3, v3);
-
-      // Update state
-      const next_y = y0 + (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v);
-      const next_v = v0 + (dt / 6.0) * (k1_a + 2.0 * k2_a + 2.0 * k3_a + k4_a);
-
-      // Zero-crossing check for photogate period accumulator
-      if (simState.photogateActive) {
-        if ((y0 <= 0 && next_y > 0) || (y0 >= 0 && next_y < 0)) {
-          simState.zeroCrossings++;
-          // 2 zero crossings = 1 complete cycle
-          simState.cycleCount = Math.floor(simState.zeroCrossings / 2);
-
-          const timerElem = document.getElementById('gauge-timer');
-          const statusElem = document.getElementById('gauge-timer-status');
-          const elapsed = (performance.now() - simState.timerStartTime) / 1000.0;
-          timerElem.innerText = elapsed.toFixed(3) + ' s';
-          statusElem.innerText = `Counting: ${simState.cycleCount}/${simState.targetCycles} Cycles`;
-
-          if (simState.cycleCount >= simState.targetCycles) {
-            simState.photogateActive = false;
-            simState.measuredTime = elapsed;
-            const singlePeriod = elapsed / simState.targetCycles;
-            statusElem.innerText = `Complete! T = ${singlePeriod.toFixed(4)} s`;
-            statusElem.style.color = 'var(--emerald)';
-            playMechanicalClick(1200, 0.1);
+    // Check downward zero crossing
+    if (state.v > 0) {
+      SoundFX.playGateBeep();
+      if (state.isRunningPhotogate) {
+        state.cycleCount++;
+        document.getElementById('photogate-cycles').textContent = `${state.cycleCount} / 20`;
+        
+        if (state.cycleCount >= 20) {
+          const totalElapsed = (performance.now() - state.runStartTime) / 1000;
+          state.isRunningPhotogate = false;
+          state.measuredPeriod = totalElapsed / 20;
+          document.getElementById('photogate-elapsed').textContent = `${totalElapsed.toFixed(2)} s`;
+          document.getElementById('photogate-measured-t').textContent = `${state.measuredPeriod.toFixed(3)} s`;
+          const runBtn = document.getElementById('start-photogate-run-btn');
+          if (runBtn) {
+            runBtn.textContent = '▶ Start 20-Cycle Run';
+            runBtn.classList.remove('active');
           }
         }
       }
-
-      simState.y = next_y;
-      simState.v = next_v;
-
-      // Stop condition when amplitude becomes imperceptible
-      if (Math.abs(simState.y) < 0.00005 && Math.abs(simState.v) < 0.0001) {
-        simState.y = 0;
-        simState.v = 0;
-        simState.isOscillating = false;
-        updateTelemetryUI();
-      }
     }
-
-    /* =========================================================================
-       5. PHYSICAL APPARATUS RENDERING ON CANVAS 2D
-       ========================================================================= */
-    const canvas = document.getElementById('cantilever-canvas');
-    const ctx = canvas.getContext('2d');
-
-    function renderCantileverBench() {
-      const W = canvas.width;
-      const H = canvas.height;
-
-      ctx.save();
-      ctx.clearRect(0, 0, W, H);
-
-      // Apply Pan & Zoom
-      ctx.translate(simState.panX + W * 0.5 * (1 - simState.zoom), simState.panY + H * 0.5 * (1 - simState.zoom));
-      ctx.scale(simState.zoom, simState.zoom);
-
-      // 1. Laboratory Wooden Tabletop Base
-      renderLaboratoryBench(W, H);
-
-      // 2. Heavy Cast-Iron G-Clamp at x = 120
-      const clampX = 130;
-      const benchSurfaceY = 220;
-      renderCastIronGClamp(clampX, benchSurfaceY);
-
-      // 3. The Vibrating Cantilever Blade
-      const bladeStartX = clampX;
-      // Scale length 20 cm - 100 cm to pixels (300px to 620px)
-      const pixelLength = 260 + (simState.L - 0.20) * 440;
-      const tipX = bladeStartX + pixelLength;
-
-      // Vertical deflection in pixels: 1 mm deflection = 3.5 px
-      const tipDeflectionPx = simState.y * 3500.0;
-      const currentTipY = benchSurfaceY + tipDeflectionPx;
-
-      renderFlexibleBlade(bladeStartX, benchSurfaceY, pixelLength, tipDeflectionPx);
-
-      // 4. Optical Photogate Sensor
-      renderOpticalPhotogate(tipX - 15, benchSurfaceY, currentTipY);
-
-      // 5. Slotted Weight Hanger at Free Tip
-      renderWeightHanger(tipX, currentTipY);
-
-      // 6. Manual Pluck Interaction Handle
-      renderPluckHandle(tipX, currentTipY);
-
-      ctx.restore();
+  } else if (!isBlocked && state.photogateState === 'blocked') {
+    state.photogateState = 'clear';
+    if (badge) {
+      badge.textContent = '● Optical Gate: BEAM CLEAR';
+      badge.style.color = 'var(--green)';
     }
+  }
+}
 
-    function renderLaboratoryBench(W, H) {
-      // Wood tabletop
-      const tableY = 220;
-      const grad = ctx.createLinearGradient(0, tableY, 0, H);
-      grad.addColorStop(0, '#1e293b');
-      grad.addColorStop(0.06, '#0f172a');
-      grad.addColorStop(1, '#070c18');
+// ── 2D Cantilever Canvas Drawing ───────────────────────────────────────────
+const cCanvas = document.getElementById('cantilever-canvas');
+const cCtx = cCanvas ? cCanvas.getContext('2d') : null;
 
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, tableY, W, H - tableY);
-
-      // Surface bevel line
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, tableY);
-      ctx.lineTo(W, tableY);
-      ctx.stroke();
-
-      // Metric Measurement Ruler along top edge of table
-      ctx.fillStyle = '#64748b';
-      ctx.font = '9px JetBrains Mono, monospace';
-      for (let rx = 130; rx < W - 40; rx += 20) {
-        const cm = Math.round((rx - 130) / 4.4);
-        ctx.beginPath();
-        ctx.moveTo(rx, tableY);
-        ctx.lineTo(rx, tableY + (cm % 10 === 0 ? 10 : 5));
-        ctx.stroke();
-        if (cm % 10 === 0 && cm > 0) {
-          ctx.fillText(cm + 'cm', rx - 8, tableY + 22);
-        }
-      }
+function renderCantileverBoard() {
+  if (!cCtx || !cCanvas) return;
+  const w = cCanvas.width;
+  const h = cCanvas.height;
+  
+  cCtx.clearRect(0, 0, w, h);
+  
+  // Background grid
+  if (state.showGrid) {
+    cCtx.strokeStyle = 'rgba(30, 58, 71, 0.4)';
+    cCtx.lineWidth = 1;
+    for (let x = 0; x < w; x += 40) {
+      cCtx.beginPath();
+      cCtx.moveTo(x, 0);
+      cCtx.lineTo(x, h);
+      cCtx.stroke();
     }
-
-    function renderCastIronGClamp(cx, cy) {
-      // Clamping Jaw (Rigid encastre mount)
-      ctx.save();
-      const clampWidth = 44;
-      const clampHeight = 110;
-
-      // Clamp body gradient (cast iron metallic)
-      const grad = ctx.createLinearGradient(cx - clampWidth, cy - 50, cx, cy + 60);
-      grad.addColorStop(0, '#475569');
-      grad.addColorStop(0.5, '#1e293b');
-      grad.addColorStop(1, '#0f172a');
-
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = '#64748b';
-      ctx.lineWidth = 2;
-
-      // Heavy C-frame
-      ctx.beginPath();
-      ctx.roundRect(cx - clampWidth, cy - 40, clampWidth, clampHeight, 6);
-      ctx.fill();
-      ctx.stroke();
-
-      // Vice anvil top clamp block
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(cx - 10, cy - 14, 20, 14);
-
-      // Lead screw thread
-      ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(cx - clampWidth / 2, cy - 40);
-      ctx.lineTo(cx - clampWidth / 2, cy - 65);
-      ctx.stroke();
-
-      // Screw Tommy bar handle
-      ctx.fillStyle = '#cbd5e1';
-      ctx.beginPath();
-      ctx.roundRect(cx - clampWidth / 2 - 18, cy - 68, 36, 6, 3);
-      ctx.fill();
-
-      // Clamp pressure plate on cantilever
-      ctx.fillStyle = '#0284c7';
-      ctx.fillRect(cx - 2, cy - 8, 12, 8);
-
-      ctx.restore();
+    for (let y = 0; y < h; y += 40) {
+      cCtx.beginPath();
+      cCtx.moveTo(0, y);
+      cCtx.lineTo(w, y);
+      cCtx.stroke();
     }
+  }
+  
+  const clampX = 140;
+  const baseY = 200;
+  const pxPerMeter = 550; // Scale factor
+  const tipX = clampX + state.L * pxPerMeter;
+  const tipDeflectionPx = state.y * pxPerMeter;
+  const currentTipY = baseY + tipDeflectionPx;
+  
+  // 1. Draw Rigid Clamp & Bench Mount at Left
+  cCtx.fillStyle = '#1e293b';
+  cCtx.fillRect(0, baseY - 40, clampX, 160);
+  
+  // Wood Clamp blocks
+  cCtx.fillStyle = '#78350f';
+  cCtx.fillRect(clampX - 35, baseY - 25, 35, 20);
+  cCtx.fillRect(clampX - 35, baseY + 5, 35, 20);
+  
+  // Heavy Metal G-Clamp Screw
+  cCtx.fillStyle = '#94a3b8';
+  cCtx.fillRect(clampX - 22, baseY - 55, 10, 30);
+  cCtx.fillRect(clampX - 32, baseY - 62, 30, 8);
+  
+  // Clamp Label
+  cCtx.fillStyle = '#94a3b8';
+  cCtx.font = 'bold 11px sans-serif';
+  cCtx.fillText('Rigid G-Clamp', clampX - 85, baseY - 32);
+  cCtx.fillText('Fixed Clamp (x = 0)', clampX - 110, baseY + 45);
+  
+  // 2. Draw Deflected Cantilever Blade using Euler-Bernoulli Cubic Spline
+  // y(x) = (delta_tip / (2 * L^3)) * (3*L*x^2 - x^3)
+  const segments = 40;
+  const bladePoints = [];
+  for (let i = 0; i <= segments; i++) {
+    const fraction = i / segments;
+    const xPos = clampX + fraction * (tipX - clampX);
+    // Normalized Euler-Bernoulli shape function: 0.5 * (3*f^2 - f^3)
+    const shape = 0.5 * (3 * Math.pow(fraction, 2) - Math.pow(fraction, 3));
+    const yPos = baseY + tipDeflectionPx * shape;
+    bladePoints.push({ x: xPos, y: yPos });
+  }
+  
+  // Draw Blade Body
+  const mat = MATERIALS[state.materialKey];
+  const bladeThicknessPx = Math.max(3, state.d * 1800);
+  
+  cCtx.save();
+  cCtx.beginPath();
+  cCtx.moveTo(bladePoints[0].x, bladePoints[0].y);
+  for (let i = 1; i < bladePoints.length; i++) {
+    cCtx.lineTo(bladePoints[i].x, bladePoints[i].y);
+  }
+  cCtx.strokeStyle = mat.color;
+  cCtx.lineWidth = bladeThicknessPx;
+  cCtx.lineCap = 'round';
+  cCtx.stroke();
+  
+  // Blade Upper Highlight Sheen
+  cCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  cCtx.lineWidth = 1.5;
+  cCtx.stroke();
+  cCtx.restore();
+  
+  // 3. Draw Optical Photogate U-Sensor Gate
+  if (state.photogateEnabled) {
+    const gateX = tipX - 25;
+    const gateY = baseY + state.yStatic * pxPerMeter;
+    
+    // Photogate bracket
+    cCtx.fillStyle = '#0f172a';
+    cCtx.strokeStyle = 'var(--border)';
+    cCtx.lineWidth = 1.5;
+    cCtx.fillRect(gateX - 8, gateY - 35, 16, 12);
+    cCtx.fillRect(gateX - 8, gateY + 25, 16, 12);
+    cCtx.fillRect(gateX - 16, gateY - 35, 8, 72);
+    
+    // Infrared Beam Line
+    cCtx.save();
+    cCtx.setLineDash([4, 3]);
+    cCtx.strokeStyle = state.photogateState === 'blocked' ? '#ef4444' : '#3ddc84';
+    cCtx.lineWidth = 2;
+    cCtx.beginPath();
+    cCtx.moveTo(gateX, gateY - 25);
+    cCtx.lineTo(gateX, gateY + 25);
+    cCtx.stroke();
+    cCtx.restore();
+    
+    // Photogate Label
+    cCtx.fillStyle = 'var(--accent)';
+    cCtx.font = '10px sans-serif';
+    cCtx.fillText('Photogate Sensor', gateX - 40, gateY - 42);
+  }
+  
+  // 4. Draw Weight Hanger & Slotted Discs at Tip
+  const tipP = bladePoints[bladePoints.length - 1];
+  
+  // Tip Pointer Pin
+  cCtx.fillStyle = '#ef4444';
+  cCtx.beginPath();
+  cCtx.arc(tipP.x, tipP.y, 4, 0, Math.PI * 2);
+  cCtx.fill();
+  
+  // Hanger Wire
+  cCtx.strokeStyle = '#cbd5e1';
+  cCtx.lineWidth = 2;
+  cCtx.beginPath();
+  cCtx.moveTo(tipP.x, tipP.y);
+  cCtx.lineTo(tipP.x, tipP.y + 40);
+  cCtx.stroke();
+  
+  // Weight Pan Base
+  cCtx.fillStyle = '#eab308';
+  cCtx.fillRect(tipP.x - 18, tipP.y + 40, 36, 6);
+  
+  // Stacked Slotted Weights (50g discs)
+  const numDiscs = Math.floor((state.M * 1000) / 50);
+  for (let d = 0; d < numDiscs; d++) {
+    const discY = tipP.y + 34 - d * 7;
+    cCtx.fillStyle = '#f59e0b';
+    cCtx.strokeStyle = '#b45309';
+    cCtx.lineWidth = 1;
+    cCtx.fillRect(tipP.x - 15, discY, 30, 6);
+    cCtx.strokeRect(tipP.x - 15, discY, 30, 6);
+  }
+  
+  // Weight Label
+  cCtx.fillStyle = '#fff';
+  cCtx.font = 'bold 11px sans-serif';
+  cCtx.fillText(`${(state.M * 1000).toFixed(0)} g Load`, tipP.x - 24, tipP.y + 62);
+  
+  // 5. Length Dimension Ruler
+  cCtx.strokeStyle = 'var(--text-dim)';
+  cCtx.lineWidth = 1;
+  cCtx.beginPath();
+  cCtx.moveTo(clampX, baseY - 65);
+  cCtx.lineTo(tipX, baseY - 65);
+  cCtx.stroke();
+  
+  // Arrow heads
+  cCtx.fillStyle = 'var(--text-dim)';
+  cCtx.fillText(`Length L = ${(state.L * 100).toFixed(1)} cm`, (clampX + tipX) / 2 - 45, baseY - 72);
+}
 
-    function renderFlexibleBlade(startX, startY, lenPx, tipDeflectionPx) {
-      const mat = MATERIALS[simState.materialKey];
+// ── Oscilloscope Canvas Drawing ───────────────────────────────────────────
+const oCanvas = document.getElementById('oscilloscope-canvas');
+const oCtx = oCanvas ? oCanvas.getContext('2d') : null;
 
-      ctx.save();
-
-      // Compute Euler-Bernoulli cubic spline curve points
-      const numSegments = 60;
-      const points = [];
-
-      for (let i = 0; i <= numSegments; i++) {
-        const s = i / numSegments; // normalized 0 to 1
-        // Euler-Bernoulli shape function: phi(s) = (3*s^2 - s^3)/2
-        const phi = (3.0 * Math.pow(s, 2) - Math.pow(s, 3)) / 2.0;
-        const px = startX + s * lenPx;
-        const py = startY + phi * tipDeflectionPx;
-        points.push({ x: px, y: py, s: s });
-      }
-
-      // 1. Dynamic Motion Blur Streamers if rapidly vibrating
-      if (simState.isOscillating && Math.abs(simState.v) > 0.05) {
-        ctx.strokeStyle = mat.color;
-        ctx.globalAlpha = 0.18;
-        ctx.lineWidth = Math.max(3, simState.d * 1800);
-        ctx.beginPath();
-        points.forEach((pt, idx) => {
-          const trailY = pt.y - (pt.s * simState.v * 12.0);
-          if (idx === 0) ctx.moveTo(pt.x, trailY);
-          else ctx.lineTo(pt.x, trailY);
-        });
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-      }
-
-      // 2. Render Main Metallic Blade
-      const bladeThicknessPx = Math.max(3.5, Math.min(12, simState.d * 2200));
-      ctx.lineWidth = bladeThicknessPx;
-
-      // Metallic sheen gradient
-      const bladeGrad = ctx.createLinearGradient(startX, startY, startX + lenPx, startY + tipDeflectionPx);
-      bladeGrad.addColorStop(0, mat.color);
-      bladeGrad.addColorStop(0.5, mat.specular);
-      bladeGrad.addColorStop(1, mat.color);
-
-      ctx.strokeStyle = bladeGrad;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      ctx.beginPath();
-      points.forEach((pt, idx) => {
-        if (idx === 0) ctx.moveTo(pt.x, pt.y);
-        else ctx.lineTo(pt.x, pt.y);
-      });
-      ctx.stroke();
-
-      // 3. High-Stress Bending Color Shader near clamp (x=0)
-      if (Math.abs(tipDeflectionPx) > 1.0) {
-        const stressIntensity = Math.min(1.0, Math.abs(tipDeflectionPx) / 60.0);
-        ctx.strokeStyle = tipDeflectionPx > 0 ? `rgba(239, 68, 68, ${stressIntensity * 0.7})` : `rgba(56, 189, 248, ${stressIntensity * 0.7})`;
-        ctx.lineWidth = bladeThicknessPx + 2;
-        ctx.beginPath();
-        for (let i = 0; i <= 15; i++) {
-          const pt = points[i];
-          if (i === 0) ctx.moveTo(pt.x, pt.y);
-          else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.stroke();
-      }
-
-      ctx.restore();
+function renderOscilloscope() {
+  if (!oCtx || !oCanvas) return;
+  const w = oCanvas.width;
+  const h = oCanvas.height;
+  
+  // Push current displacement into buffer
+  state.scopeBuffer.push(state.y - state.yStatic);
+  if (state.scopeBuffer.length > state.maxScopePoints) {
+    state.scopeBuffer.shift();
+  }
+  
+  oCtx.fillStyle = '#001016';
+  oCtx.fillRect(0, 0, w, h);
+  
+  // Center line (equilibrium)
+  oCtx.strokeStyle = 'rgba(0, 229, 255, 0.2)';
+  oCtx.lineWidth = 1;
+  oCtx.beginPath();
+  oCtx.moveTo(0, h / 2);
+  oCtx.lineTo(w, h / 2);
+  oCtx.stroke();
+  
+  // Waveform
+  if (state.scopeBuffer.length > 1) {
+    oCtx.strokeStyle = '#00e5ff';
+    oCtx.lineWidth = 2;
+    oCtx.beginPath();
+    
+    const scaleY = 1800; // Scaling for mm range
+    const dx = w / state.maxScopePoints;
+    
+    for (let i = 0; i < state.scopeBuffer.length; i++) {
+      const x = i * dx;
+      const y = h / 2 + state.scopeBuffer[i] * scaleY;
+      if (i === 0) oCtx.moveTo(x, y);
+      else oCtx.lineTo(x, y);
     }
+    oCtx.stroke();
+  }
+}
 
-    function renderOpticalPhotogate(gx, baseY, currentY) {
-      ctx.save();
-      // Photogate U-Shaped Bracket mounted to bench
-      ctx.fillStyle = '#1e293b';
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 1.5;
+function clearScope() {
+  state.scopeBuffer = [];
+}
 
-      // Base post
-      ctx.fillRect(gx - 4, baseY + 10, 8, 40);
+// ── Animation Loop ────────────────────────────────────────────────────────
+let lastTimestamp = performance.now();
 
-      // U-Bracket straddling the equilibrium plane
-      ctx.beginPath();
-      ctx.roundRect(gx - 10, baseY - 35, 20, 70, 4);
-      ctx.fill();
-      ctx.stroke();
+function mainLoop(currentTimestamp) {
+  const dt = Math.min(0.033, (currentTimestamp - lastTimestamp) / 1000);
+  lastTimestamp = currentTimestamp;
+  
+  // Physics step
+  rk4Step(dt);
+  
+  // Render views
+  renderCantileverBoard();
+  renderOscilloscope();
+  
+  requestAnimationFrame(mainLoop);
+}
 
-      // Cutout inside U
-      ctx.fillStyle = '#060a14';
-      ctx.fillRect(gx - 6, baseY - 22, 12, 44);
+// ── User Interaction (Drag / Pluck Beam) ───────────────────────────────────
+if (cCanvas) {
+  const getCanvasCoords = (e) => {
+    const rect = cCanvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) * (cCanvas.width / rect.width),
+      y: (clientY - rect.top) * (cCanvas.height / rect.height)
+    };
+  };
 
-      // Infrared Beam Line
-      const isInterrupted = Math.abs(currentY - baseY) < 8.0;
-      ctx.strokeStyle = isInterrupted ? '#ef4444' : 'rgba(239, 68, 68, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([2, 2]);
-      ctx.beginPath();
-      ctx.moveTo(gx - 6, baseY);
-      ctx.lineTo(gx + 6, baseY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Infrared Indicator LED
-      ctx.fillStyle = isInterrupted ? '#ef4444' : '#10b981';
-      ctx.shadowColor = isInterrupted ? '#ef4444' : '#10b981';
-      ctx.shadowBlur = isInterrupted ? 8 : 4;
-      ctx.beginPath();
-      ctx.arc(gx, baseY - 28, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
+  const handleStart = (e) => {
+    const coords = getCanvasCoords(e);
+    const clampX = 140;
+    const pxPerMeter = 550;
+    const tipX = clampX + state.L * pxPerMeter;
+    const baseY = 200;
+    const currentTipY = baseY + state.y * pxPerMeter;
+    
+    // Check if clicked near tip
+    if (Math.hypot(coords.x - tipX, coords.y - currentTipY) < 50) {
+      state.isDragging = true;
+      state.dragStartY = coords.y;
+      state.initialTipY = state.y;
+      state.v = 0;
+      e.preventDefault();
     }
+  };
 
-    function renderWeightHanger(tx, ty) {
-      ctx.save();
+  const handleMove = (e) => {
+    if (!state.isDragging) return;
+    const coords = getCanvasCoords(e);
+    const pxPerMeter = 550;
+    const dy = (coords.y - state.dragStartY) / pxPerMeter;
+    state.y = state.initialTipY + dy;
+    e.preventDefault();
+  };
 
-      // Tip pin connection
-      ctx.fillStyle = '#64748b';
-      ctx.beginPath();
-      ctx.arc(tx, ty, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Thin suspension rod extending downward
-      const rodLength = 65;
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.lineTo(tx, ty + rodLength);
-      ctx.stroke();
-
-      // Bottom support disc
-      ctx.fillStyle = '#d97706';
-      ctx.beginPath();
-      ctx.roundRect(tx - 16, ty + rodLength - 4, 32, 5, 2);
-      ctx.fill();
-
-      // Slotted disc weights stack based on tip mass M
-      if (simState.M > 0.001) {
-        const numWeights = Math.min(8, Math.max(1, Math.round(simState.M / 0.10)));
-        const discHeight = 7;
-        for (let i = 0; i < numWeights; i++) {
-          const discY = ty + rodLength - 6 - (i * (discHeight + 1));
-
-          // Brass slotted disc
-          const discGrad = ctx.createLinearGradient(tx - 18, discY, tx + 18, discY);
-          discGrad.addColorStop(0, '#d97706');
-          discGrad.addColorStop(0.5, '#fef08a');
-          discGrad.addColorStop(1, '#b45309');
-
-          ctx.fillStyle = discGrad;
-          ctx.strokeStyle = '#78350f';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.roundRect(tx - 18, discY, 36, discHeight, 2);
-          ctx.fill();
-          ctx.stroke();
-
-          // Slot notch
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(tx + 4, discY + 1, 4, discHeight - 2);
-        }
-
-        // Mass label tag
-        ctx.fillStyle = '#f8fafc';
-        ctx.font = '10px JetBrains Mono, monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(Math.round(simState.M * 1000) + 'g', tx, ty + rodLength + 16);
-      }
-
-      ctx.restore();
+  const handleEnd = () => {
+    if (state.isDragging) {
+      state.isDragging = false;
+      state.v = 0;
+      SoundFX.playPluck(1 / state.period);
     }
-
-    function renderPluckHandle(tx, ty) {
-      ctx.save();
-      // Interactive pluck grab target
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
-      ctx.strokeStyle = 'var(--cyan)';
-      ctx.lineWidth = 1.5;
-
-      ctx.beginPath();
-      ctx.arc(tx, ty, 14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Center crosshair
-      ctx.fillStyle = '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(tx, ty, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    }
-
-    /* =========================================================================
-       6. DIGITAL OSCILLOSCOPE REAL-TIME WAVEFORM TRACE
-       ========================================================================= */
-    const scopeCanvas = document.getElementById('oscilloscope-canvas');
-    const scopeCtx = scopeCanvas.getContext('2d');
-
-    function updateOscilloscope() {
-      // Append current point to history
-      simState.waveHistory.push({
-        t: performance.now(),
-        y: simState.y
-      });
-
-      if (simState.waveHistory.length > simState.maxHistoryPoints) {
-        simState.waveHistory.shift();
-      }
-
-      renderOscilloscope();
-    }
-
-    function renderOscilloscope() {
-      const W = scopeCanvas.width;
-      const H = scopeCanvas.height;
-      const midY = H * 0.5;
-
-      scopeCtx.clearRect(0, 0, W, H);
-
-      // Grid Lines
-      scopeCtx.strokeStyle = 'rgba(30, 41, 59, 0.8)';
-      scopeCtx.lineWidth = 1;
-      scopeCtx.beginPath();
-      // Horizontal grid
-      for (let gy = 20; gy < H; gy += 20) {
-        scopeCtx.moveTo(0, gy);
-        scopeCtx.lineTo(W, gy);
-      }
-      // Vertical grid
-      for (let gx = 40; gx < W; gx += 40) {
-        scopeCtx.moveTo(gx, 0);
-        scopeCtx.lineTo(gx, H);
-      }
-      scopeCtx.stroke();
-
-      // Zero Equilibrium Centerline
-      scopeCtx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-      scopeCtx.setLineDash([4, 4]);
-      scopeCtx.beginPath();
-      scopeCtx.moveTo(0, midY);
-      scopeCtx.lineTo(W, midY);
-      scopeCtx.stroke();
-      scopeCtx.setLineDash([]);
-
-      // Draw Waveform Trace
-      if (simState.waveHistory.length < 2) return;
-
-      scopeCtx.strokeStyle = '#38bdf8';
-      scopeCtx.lineWidth = 2;
-      scopeCtx.shadowColor = '#38bdf8';
-      scopeCtx.shadowBlur = 6;
-
-      scopeCtx.beginPath();
-      const stepX = W / (simState.maxHistoryPoints - 1);
-
-      // Scale factor: 10 mm deflection = 38 px
-      const scaleFactor = 3800.0;
-
-      simState.waveHistory.forEach((pt, idx) => {
-        const px = idx * stepX;
-        const py = midY + (pt.y * scaleFactor);
-        if (idx === 0) scopeCtx.moveTo(px, py);
-        else scopeCtx.lineTo(px, py);
-      });
-      scopeCtx.stroke();
-
-      scopeCtx.shadowBlur = 0;
-    }
-
-    /* =========================================================================
-       7. MULTI-TAB HIGH-PRECISION DYNAMIC ANALYTICAL GRAPHS
-       ========================================================================= */
-    const analyticsCanvas = document.getElementById('analytics-canvas');
-    const graphCtx = analyticsCanvas.getContext('2d');
-
-    function switchGraphTab(tabIndex) {
-      simState.currentGraphTab = tabIndex;
-      for (let i = 1; i <= 3; i++) {
-        const btn = document.getElementById(`tab-graph-${i}`);
-        if (btn) btn.classList.toggle('active', i === tabIndex);
-      }
-      playMechanicalClick(950, 0.03);
-      renderDynamicGraph();
-    }
-
-    function renderDynamicGraph() {
-      const W = analyticsCanvas.width;
-      const H = analyticsCanvas.height;
-
-      graphCtx.clearRect(0, 0, W, H);
-
-      switch (simState.currentGraphTab) {
-        case 1:
-          renderT2VsMassPlot(W, H);
-          break;
-        case 2:
-          renderT2VsLengthCubedPlot(W, H);
-          break;
-        case 3:
-          renderDampingDecayPlot(W, H);
-          break;
-      }
-    }
-
-    // Tab 1: T^2 vs Mass M (with Linear Best Fit, Slope SM -> Y, and Negative Intercept -meff)
-    function renderT2VsMassPlot(W, H) {
-      const padLeft = 60, padRight = 30, padTop = 30, padBottom = 40;
-      const plotW = W - padLeft - padRight;
-      const plotH = H - padTop - padBottom;
-
-      // Draw Axes
-      drawGraphAxes(padLeft, padTop, plotW, plotH, 'Tip Mass M (kg)', 'Period Squared T² (s²)');
-
-      // Theoretical Data Generator across range M = 0.0 to 0.8 kg
-      const fixedL = simState.L;
-      const dataPoints = [];
-      const mVals = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
-
-      mVals.forEach(m => {
-        const mTot = m + simState.m_eff;
-        const T = 2.0 * Math.PI * Math.sqrt(mTot / simState.k);
-        dataPoints.push({ x: m, y: Math.pow(T, 2) });
-      });
-
-      // Linear Regression calculation
-      const reg = linearRegression(dataPoints);
-
-      // Axis Scales
-      const minX = -0.15; // include negative intercept to show Rayleigh mass
-      const maxX = 0.80;
-      const minY = 0.0;
-      const maxY = 0.70;
-
-      function toScreenX(xVal) {
-        return padLeft + ((xVal - minX) / (maxX - minX)) * plotW;
-      }
-      function toScreenY(yVal) {
-        return padTop + plotH - ((yVal - minY) / (maxY - minY)) * plotH;
-      }
-
-      // Draw zero axis line for mass x=0
-      const xZeroScreen = toScreenX(0.0);
-      graphCtx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
-      graphCtx.setLineDash([3, 3]);
-      graphCtx.beginPath();
-      graphCtx.moveTo(xZeroScreen, padTop);
-      graphCtx.lineTo(xZeroScreen, padTop + plotH);
-      graphCtx.stroke();
-      graphCtx.setLineDash([]);
-
-      // Regression Trendline
-      const lineX1 = minX;
-      const lineY1 = reg.slope * lineX1 + reg.intercept;
-      const lineX2 = maxX;
-      const lineY2 = reg.slope * lineX2 + reg.intercept;
-
-      graphCtx.strokeStyle = '#38bdf8';
-      graphCtx.lineWidth = 2;
-      graphCtx.beginPath();
-      graphCtx.moveTo(toScreenX(lineX1), toScreenY(lineY1));
-      graphCtx.lineTo(toScreenX(lineX2), toScreenY(lineY2));
-      graphCtx.stroke();
-
-      // Negative X-Intercept Dot (Rayleigh effective mass: -meff)
-      const xIntercept = -reg.intercept / reg.slope;
-      const interceptScreenX = toScreenX(xIntercept);
-      const interceptScreenY = toScreenY(0.0);
-
-      graphCtx.fillStyle = '#10b981';
-      graphCtx.beginPath();
-      graphCtx.arc(interceptScreenX, interceptScreenY, 6, 0, Math.PI * 2);
-      graphCtx.fill();
-
-      graphCtx.fillStyle = '#6ee7b7';
-      graphCtx.font = '10px JetBrains Mono, monospace';
-      graphCtx.fillText(`-m_eff = ${(xIntercept * 1000).toFixed(1)}g`, interceptScreenX - 30, interceptScreenY - 10);
-
-      // Scatter Points
-      dataPoints.forEach(pt => {
-        graphCtx.fillStyle = '#f59e0b';
-        graphCtx.strokeStyle = '#fff';
-        graphCtx.lineWidth = 1.5;
-        graphCtx.beginPath();
-        graphCtx.arc(toScreenX(pt.x), toScreenY(pt.y), 4.5, 0, Math.PI * 2);
-        graphCtx.fill();
-        graphCtx.stroke();
-      });
-
-      // Highlight Current Operating Point
-      const currT2 = Math.pow(simState.T_n, 2);
-      graphCtx.fillStyle = '#e040fb';
-      graphCtx.beginPath();
-      graphCtx.arc(toScreenX(simState.M), toScreenY(currT2), 7, 0, Math.PI * 2);
-      graphCtx.fill();
-
-      // Update Card
-      const Y_extracted = (16.0 * Math.pow(Math.PI, 2) * Math.pow(simState.L, 3)) / (simState.b * Math.pow(simState.d, 3) * reg.slope);
-      document.getElementById('ym-slope-val').innerText = reg.slope.toFixed(4) + ' s²/kg';
-      document.getElementById('ym-extracted-val').innerText = (Y_extracted / 1e9).toFixed(1) + ' GPa';
-      document.getElementById('ym-intercept-val').innerText = Math.abs(xIntercept).toFixed(4) + ' kg';
-      document.getElementById('ym-fit-quality').innerText = `R² = ${reg.r2.toFixed(4)}`;
-    }
-
-    // Tab 2: T^2 vs Length Cubed L^3 (Proving Cubic Scaling Law)
-    function renderT2VsLengthCubedPlot(W, H) {
-      const padLeft = 60, padRight = 30, padTop = 30, padBottom = 40;
-      const plotW = W - padLeft - padRight;
-      const plotH = H - padTop - padBottom;
-
-      drawGraphAxes(padLeft, padTop, plotW, plotH, 'Length Cubed L³ (m³)', 'Period Squared T² (s²)');
-
-      // Generate points across L = 0.25 to 0.85 m
-      const points = [];
-      const lVals = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80];
-
-      lVals.forEach(len => {
-        const mBeam = simState.rho * simState.b * simState.d * len;
-        const mEff = (33.0 / 140.0) * mBeam;
-        const mTot = simState.M + mEff;
-        const kLen = (3.0 * simState.Y * simState.I_g) / Math.pow(len, 3);
-        const T = 2.0 * Math.PI * Math.sqrt(mTot / kLen);
-        points.push({ x: Math.pow(len, 3), y: Math.pow(T, 2) });
-      });
-
-      const reg = linearRegression(points);
-
-      const minX = 0.0, maxX = 0.60;
-      const minY = 0.0, maxY = 0.80;
-
-      function toScreenX(xVal) { return padLeft + ((xVal - minX) / (maxX - minX)) * plotW; }
-      function toScreenY(yVal) { return padTop + plotH - ((yVal - minY) / (maxY - minY)) * plotH; }
-
-      // Regression Line
-      graphCtx.strokeStyle = '#10b981';
-      graphCtx.lineWidth = 2;
-      graphCtx.beginPath();
-      graphCtx.moveTo(toScreenX(0), toScreenY(reg.intercept));
-      graphCtx.lineTo(toScreenX(maxX), toScreenY(reg.slope * maxX + reg.intercept));
-      graphCtx.stroke();
-
-      // Points
-      points.forEach(pt => {
-        graphCtx.fillStyle = '#38bdf8';
-        graphCtx.beginPath();
-        graphCtx.arc(toScreenX(pt.x), toScreenY(pt.y), 4.5, 0, Math.PI * 2);
-        graphCtx.fill();
-      });
-
-      // Label
-      graphCtx.fillStyle = '#6ee7b7';
-      graphCtx.font = '11px JetBrains Mono, monospace';
-      graphCtx.fillText(`T² ∝ L³ (Cubic Dependency Verified)`, padLeft + 15, padTop + 25);
-    }
-
-    // Tab 3: Damping & Logarithmic Decrement
-    function renderDampingDecayPlot(W, H) {
-      const padLeft = 60, padRight = 30, padTop = 30, padBottom = 40;
-      const plotW = W - padLeft - padRight;
-      const plotH = H - padTop - padBottom;
-
-      drawGraphAxes(padLeft, padTop, plotW, plotH, 'Oscillation Cycle Number (n)', 'Log Peak Amplitude ln(y_n)');
-
-      const points = [];
-      const logDec = (2.0 * Math.PI * simState.zeta) / Math.sqrt(1.0 - Math.pow(simState.zeta, 2));
-      const initialAmp = 15.0; // mm
-
-      for (let n = 0; n <= 10; n++) {
-        const amp = initialAmp * Math.exp(-n * logDec);
-        points.push({ x: n, y: Math.log(amp) });
-      }
-
-      const minX = 0, maxX = 10;
-      const minY = 1.0, maxY = 3.0;
-
-      function toScreenX(xVal) { return padLeft + ((xVal - minX) / (maxX - minX)) * plotW; }
-      function toScreenY(yVal) { return padTop + plotH - ((yVal - minY) / (maxY - minY)) * plotH; }
-
-      // Line
-      graphCtx.strokeStyle = '#e040fb';
-      graphCtx.lineWidth = 2;
-      graphCtx.beginPath();
-      graphCtx.moveTo(toScreenX(points[0].x), toScreenY(points[0].y));
-      for (let i = 1; i < points.length; i++) {
-        graphCtx.lineTo(toScreenX(points[i].x), toScreenY(points[i].y));
-      }
-      graphCtx.stroke();
-
-      // Points
-      points.forEach(pt => {
-        graphCtx.fillStyle = '#f59e0b';
-        graphCtx.beginPath();
-        graphCtx.arc(toScreenX(pt.x), toScreenY(pt.y), 4.5, 0, Math.PI * 2);
-        graphCtx.fill();
-      });
-
-      graphCtx.fillStyle = '#fbcfe8';
-      graphCtx.font = '11px JetBrains Mono, monospace';
-      graphCtx.fillText(`Log Decrement Λ = ${logDec.toFixed(4)} | ζ = ${simState.zeta.toFixed(4)}`, padLeft + 15, padTop + 25);
-    }
-
-    function drawGraphAxes(x, y, w, h, xLabel, yLabel) {
-      graphCtx.strokeStyle = '#1e293b';
-      graphCtx.lineWidth = 1;
-
-      // Background grid
-      graphCtx.beginPath();
-      for (let gx = x; gx <= x + w; gx += w / 6) {
-        graphCtx.moveTo(gx, y);
-        graphCtx.lineTo(gx, y + h);
-      }
-      for (let gy = y; gy <= y + h; gy += h / 5) {
-        graphCtx.moveTo(x, gy);
-        graphCtx.lineTo(x + w, gy);
-      }
-      graphCtx.stroke();
-
-      // Axes borders
-      graphCtx.strokeStyle = '#475569';
-      graphCtx.lineWidth = 1.5;
-      graphCtx.beginPath();
-      graphCtx.moveTo(x, y);
-      graphCtx.lineTo(x, y + h);
-      graphCtx.lineTo(x + w, y + h);
-      graphCtx.stroke();
-
-      // Labels
-      graphCtx.fillStyle = '#94a3b8';
-      graphCtx.font = '10px Inter, sans-serif';
-      graphCtx.textAlign = 'center';
-      graphCtx.fillText(xLabel, x + w / 2, y + h + 30);
-
-      graphCtx.save();
-      graphCtx.translate(x - 42, y + h / 2);
-      graphCtx.rotate(-Math.PI / 2);
-      graphCtx.fillText(yLabel, 0, 0);
-      graphCtx.restore();
-    }
-
-    function linearRegression(points) {
-      const n = points.length;
-      if (n === 0) return { slope: 0, intercept: 0, r2: 1 };
-
-      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
-      points.forEach(p => {
-        sumX += p.x;
-        sumY += p.y;
-        sumXY += p.x * p.y;
-        sumX2 += p.x * p.x;
-        sumY2 += p.y * p.y;
-      });
-
-      const denom = (n * sumX2 - sumX * sumX);
-      const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
-      const intercept = (sumY - slope * sumX) / n;
-
-      // R^2
-      const numR = n * sumXY - sumX * sumY;
-      const denR = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-      const r2 = denR !== 0 ? Math.pow(numR / denR, 2) : 1;
-
-      return { slope, intercept, r2 };
-    }
-
-    /* =========================================================================
-       8. USER INTERACTION & LABORATORY CONTROLS
-       ========================================================================= */
-    function onLengthChange(val) {
-      simState.L = parseFloat(val) / 100.0;
-      document.getElementById('val-length').innerText = parseFloat(val).toFixed(1) + ' cm';
-      playMechanicalClick(600 + val * 4, 0.02);
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function onTipMassChange(val) {
-      simState.M = parseFloat(val);
-      document.getElementById('val-mass').innerText = Math.round(simState.M * 1000) + ' g';
-      playMechanicalClick(400 + val * 500, 0.02);
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function onBreadthChange(val) {
-      simState.b = parseFloat(val) / 1000.0;
-      document.getElementById('val-breadth').innerText = parseFloat(val).toFixed(1) + ' mm';
-      playMechanicalClick(700, 0.02);
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function onDepthChange(val) {
-      simState.d = parseFloat(val) / 1000.0;
-      document.getElementById('val-depth').innerText = parseFloat(val).toFixed(1) + ' mm';
-      playMechanicalClick(800, 0.02);
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function onYoungsModulusChange(val) {
-      simState.Y = parseFloat(val) * 1e9;
-      document.getElementById('val-ym').innerText = parseFloat(val).toFixed(1) + ' GPa';
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function onDampingChange(val) {
-      simState.zeta = parseFloat(val);
-      document.getElementById('val-damping').innerText = parseFloat(val).toFixed(3);
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function applyMaterialPreset(key) {
-      const mat = MATERIALS[key];
-      if (!mat) return;
-
-      simState.materialKey = key;
-      simState.Y = mat.Y;
-      simState.rho = mat.rho;
-      simState.zeta = mat.zeta;
-
-      // Update Slider positions
-      document.getElementById('slider-ym').value = (mat.Y / 1e9).toFixed(0);
-      document.getElementById('val-ym').innerText = (mat.Y / 1e9).toFixed(1) + ' GPa';
-
-      document.getElementById('slider-damping').value = mat.zeta.toFixed(3);
-      document.getElementById('val-damping').innerText = mat.zeta.toFixed(3);
-
-      // Update Chip Active Classes
-      document.querySelectorAll('.preset-chip').forEach(chip => {
-        chip.classList.toggle('active', chip.innerText.toLowerCase().includes(key));
-      });
-
-      playMechanicalClick(850, 0.04);
-      recomputePhysics();
-      renderDynamicGraph();
-    }
-
-    function pluckAndRelease() {
-      // Set initial displacement 15 mm = 0.015 m
-      simState.y = 0.015;
-      simState.v = 0.0;
-      simState.isOscillating = true;
-      simState.isDraggingTip = false;
-
-      // Trigger Web Audio metallic twang
-      playCantileverReleaseTwang(simState.f_n, simState.zeta);
-
-      updateTelemetryUI();
-    }
-
-    function resetToEquilibrium() {
-      simState.y = 0.0;
-      simState.v = 0.0;
-      simState.isOscillating = false;
-      simState.isDraggingTip = false;
-      simState.photogateActive = false;
-      updateTelemetryUI();
-      playMechanicalClick(300, 0.05);
-    }
-
-    function startPhotogateCycleRun() {
-      pluckAndRelease();
-      simState.photogateActive = true;
-      simState.zeroCrossings = 0;
-      simState.cycleCount = 0;
-      simState.timerStartTime = performance.now();
-
-      const timerElem = document.getElementById('gauge-timer');
-      const statusElem = document.getElementById('gauge-timer-status');
-      timerElem.innerText = '0.000 s';
-      statusElem.innerText = `Counting 0/${simState.targetCycles} Cycles`;
-      statusElem.style.color = 'var(--cyan)';
-    }
-
-    function zoomBench(factor) {
-      simState.zoom = Math.max(0.7, Math.min(2.2, simState.zoom * factor));
-      playMechanicalClick(750, 0.02);
-    }
-
-    function resetBenchView() {
-      simState.zoom = 1.0;
-      simState.panX = 0;
-      simState.panY = 0;
-      playMechanicalClick(500, 0.03);
-    }
-
-    function toggleHudCollapse() {
-      const hud = document.getElementById('top-left-hud');
-      const restoreBtn = document.getElementById('hud-restore-btn');
-      hud.classList.toggle('is-collapsed');
-      restoreBtn.classList.toggle('is-visible');
-    }
-
-    /* =========================================================================
-       9. MOUSE & TOUCH INTERACTION (DRAG TO PLUCK TIP)
-       ========================================================================= */
-    let isMouseDown = false;
-    let dragStartY = 0;
-
-    canvas.addEventListener('mousedown', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left) / simState.zoom - simState.panX;
-      const mouseY = (e.clientY - rect.top) / simState.zoom - simState.panY;
-
-      // Check proximity to tip handle
-      const clampX = 130;
-      const pixelLength = 260 + (simState.L - 0.20) * 440;
-      const tipX = clampX + pixelLength;
-      const benchSurfaceY = 220;
-      const currentTipY = benchSurfaceY + simState.y * 3500.0;
-
-      const dist = Math.hypot(mouseX - tipX, mouseY - currentTipY);
-      if (dist < 35) {
-        isMouseDown = true;
-        simState.isDraggingTip = true;
-        simState.isOscillating = false;
-        dragStartY = mouseY;
-        updateTelemetryUI();
-      }
+  };
+
+  cCanvas.addEventListener('mousedown', handleStart);
+  window.addEventListener('mousemove', handleMove);
+  window.addEventListener('mouseup', handleEnd);
+
+  cCanvas.addEventListener('touchstart', handleStart, { passive: false });
+  window.addEventListener('touchmove', handleMove, { passive: false });
+  window.addEventListener('touchend', handleEnd);
+}
+
+function pluckBeam(displacementMm = 25) {
+  state.y = state.yStatic + displacementMm / 1000;
+  state.v = 0;
+  SoundFX.playPluck(1 / state.period);
+}
+
+function dampOscillations() {
+  state.y = state.yStatic;
+  state.v = 0;
+}
+
+function addTipMassQuick(amountG) {
+  state.M = Math.min(0.500, state.M + amountG / 1000);
+  document.getElementById('slider-mass').value = Math.round(state.M * 1000);
+  document.getElementById('val-mass').textContent = `${Math.round(state.M * 1000)} g`;
+  computePhysics();
+}
+
+function resetDefaults() {
+  state.L = 0.60;
+  state.M = 0.150;
+  state.b = 0.025;
+  state.d = 0.0018;
+  state.damping = 0.015;
+  state.materialKey = 'steel';
+  
+  document.getElementById('slider-length').value = 60;
+  document.getElementById('slider-mass').value = 150;
+  document.getElementById('slider-breadth').value = 2.5;
+  document.getElementById('slider-thickness').value = 1.8;
+  document.getElementById('slider-damping').value = 0.015;
+  
+  document.querySelectorAll('.material-pill').forEach(p => p.classList.remove('active'));
+  const steelPill = document.querySelector('.material-pill[data-mat="steel"]');
+  if (steelPill) steelPill.classList.add('active');
+  
+  updateBeamParams();
+  dampOscillations();
+}
+
+function togglePhotogate() {
+  state.photogateEnabled = !state.photogateEnabled;
+  const btn = document.getElementById('toggle-photogate-btn');
+  if (btn) {
+    btn.textContent = state.photogateEnabled ? '⚡ Photogate: ON' : '⚡ Photogate: OFF';
+    btn.classList.toggle('active', state.photogateEnabled);
+  }
+}
+
+function toggleGrid() {
+  state.showGrid = !state.showGrid;
+  const btn = document.getElementById('toggle-grid-btn');
+  if (btn) btn.classList.toggle('active', state.showGrid);
+}
+
+function startPhotogateRun() {
+  state.isRunningPhotogate = true;
+  state.cycleCount = 0;
+  state.runStartTime = performance.now();
+  document.getElementById('photogate-cycles').textContent = '0 / 20';
+  document.getElementById('photogate-elapsed').textContent = '0.00 s';
+  document.getElementById('photogate-measured-t').textContent = 'Measuring...';
+  
+  const btn = document.getElementById('start-photogate-run-btn');
+  if (btn) {
+    btn.textContent = '⏳ Counting 20 cycles...';
+    btn.classList.add('active');
+  }
+  
+  // Pluck beam if stationary
+  if (Math.abs(state.y - state.yStatic) < 0.005) {
+    pluckBeam(25);
+  }
+}
+
+function setMaterial(key) {
+  if (!MATERIALS[key]) return;
+  state.materialKey = key;
+  document.querySelectorAll('.material-pill').forEach(p => {
+    p.classList.toggle('active', p.getAttribute('data-mat') === key);
+  });
+  computePhysics();
+}
+
+function updateBeamParams() {
+  state.L = parseFloat(document.getElementById('slider-length').value) / 100;
+  state.M = parseFloat(document.getElementById('slider-mass').value) / 1000;
+  state.b = parseFloat(document.getElementById('slider-breadth').value) / 100;
+  state.d = parseFloat(document.getElementById('slider-thickness').value) / 1000;
+  state.damping = parseFloat(document.getElementById('slider-damping').value);
+  
+  document.getElementById('val-length').textContent = `${(state.L * 100).toFixed(1)} cm`;
+  document.getElementById('val-mass').textContent = `${(state.M * 1000).toFixed(0)} g`;
+  document.getElementById('val-breadth').textContent = `${(state.b * 100).toFixed(1)} cm`;
+  document.getElementById('val-thickness').textContent = `${(state.d * 1000).toFixed(1)} mm`;
+  document.getElementById('val-damping').textContent = `${state.damping.toFixed(3)}`;
+  
+  computePhysics();
+}
+
+// ── Procedure Stepper ──────────────────────────────────────────────────────
+function setLabStep(stepNum) {
+  state.activeStep = stepNum;
+  document.querySelectorAll('.lab-step').forEach((el, idx) => {
+    el.classList.toggle('active', idx + 1 === stepNum);
+  });
+  
+  const textEl = document.getElementById('step-instruction-text');
+  if (!textEl) return;
+  
+  if (stepNum === 1) {
+    textEl.innerHTML = '<strong>Step 1: Blade Geometry &amp; Specimen Selection.</strong> Select material preset (e.g. Mild Steel), set vibrating length $L$, breadth $b$, and thickness $d$. Notice how stiffness $k = \\frac{Y b d^3}{4 L^3}$ updates in real-time.';
+  } else if (stepNum === 2) {
+    textEl.innerHTML = '<strong>Step 2: Tip Load $M$ &amp; Pluck/Deflect.</strong> Add mass $M$ to the tip hanger. Click <strong>"⚡ Pluck Beam"</strong> or drag the tip downwards with your mouse to excite transverse flexural oscillations.';
+  } else if (stepNum === 3) {
+    textEl.innerHTML = '<strong>Step 3: Photogate Oscillations Timing.</strong> Click <strong>"▶ Start 20-Cycle Run"</strong>. The optical infrared sensor measures $t_{20}$ and automatically computes the experimental period $T = t_{20}/20$.';
+  } else if (stepNum === 4) {
+    textEl.innerHTML = '<strong>Step 4: Regress &amp; Extract $Y$.</strong> Record multiple loads into Table A or run <strong>"⚡ Auto-Sweep (6 Loads)"</strong>. Switch to the <strong>"📊 Scaling Graphs"</strong> tab to observe the $T^2$ vs. $M$ linear regression and extract Young\'s Modulus.';
+  }
+  
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    window.MathJax.typesetPromise([textEl]);
+  }
+}
+
+// ── Observation Table & Data Collection ────────────────────────────────────
+function recordCurrentObservation() {
+  const measuredT = state.measuredPeriod || state.period;
+  const t20 = measuredT * 20;
+  const record = {
+    L: state.L,
+    M: state.M,
+    mb: state.beamMass,
+    mEff: state.mEff,
+    mTot: state.M + state.mEff,
+    t20: t20,
+    T: measuredT,
+    T2: Math.pow(measuredT, 2)
+  };
+  
+  state.observations.push(record);
+  renderObservationTable();
+  renderRegressionGraph();
+}
+
+function autoPopulateMassSweep() {
+  state.observations = [];
+  const loads = [0, 0.050, 0.100, 0.150, 0.200, 0.250];
+  const Y = MATERIALS[state.materialKey].Y;
+  const k = (Y * state.b * Math.pow(state.d, 3)) / (4 * Math.pow(state.L, 3));
+  
+  loads.forEach(m => {
+    const mTot = m + state.mEff;
+    const exactT = 2 * Math.PI * Math.sqrt(mTot / k);
+    // Add small realistic sensor noise (+/- 0.3%)
+    const noise = 1 + (Math.random() - 0.5) * 0.006;
+    const measuredT = exactT * noise;
+    state.observations.push({
+      L: state.L,
+      M: m,
+      mb: state.beamMass,
+      mEff: state.mEff,
+      mTot: mTot,
+      t20: measuredT * 20,
+      T: measuredT,
+      T2: Math.pow(measuredT, 2)
     });
+  });
+  
+  renderObservationTable();
+  renderRegressionGraph();
+}
 
-    window.addEventListener('mousemove', (e) => {
-      if (!isMouseDown) return;
-      const rect = canvas.getBoundingClientRect();
-      const mouseY = (e.clientY - rect.top) / simState.zoom - simState.panY;
-      const benchSurfaceY = 220;
+function renderObservationTable() {
+  const tbody = document.getElementById('obs-table-body');
+  if (!tbody) return;
+  
+  if (state.observations.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align:center; color:var(--text-dim); padding:16px;">
+          No observations recorded yet. Click <strong>"Record into Table A"</strong> from the workbench or click <strong>"⚡ Auto-Sweep (6 Loads)"</strong>.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  tbody.innerHTML = state.observations.map((obs, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${(obs.L * 100).toFixed(1)}</td>
+      <td>${(obs.M * 1000).toFixed(0)}</td>
+      <td>${(obs.mb * 1000).toFixed(1)}</td>
+      <td>${(obs.mEff * 1000).toFixed(1)}</td>
+      <td>${(obs.mTot * 1000).toFixed(1)}</td>
+      <td>${obs.t20.toFixed(2)}</td>
+      <td>${obs.T.toFixed(3)}</td>
+      <td>${obs.T2.toFixed(4)}</td>
+      <td><button class="tool-overlay-pill" onclick="deleteObservation(${i})" style="color:var(--red); padding:2px 8px;">✕</button></td>
+    </tr>
+  `).join('');
+}
 
-      // Deflection in meters: max pluck +/- 35 mm
-      const deflPx = mouseY - benchSurfaceY;
-      simState.y = Math.max(-0.035, Math.min(0.035, deflPx / 3500.0));
-      simState.v = 0.0;
-      updateTelemetryUI();
-    });
+function deleteObservation(idx) {
+  state.observations.splice(idx, 1);
+  renderObservationTable();
+  renderRegressionGraph();
+}
 
-    window.addEventListener('mouseup', () => {
-      if (isMouseDown) {
-        isMouseDown = false;
-        simState.isDraggingTip = false;
-        if (Math.abs(simState.y) > 0.001) {
-          simState.isOscillating = true;
-          playCantileverReleaseTwang(simState.f_n, simState.zeta);
-        }
-        updateTelemetryUI();
-      }
-    });
+function clearObservations() {
+  state.observations = [];
+  renderObservationTable();
+  renderRegressionGraph();
+}
 
-    /* =========================================================================
-       10. OBSERVATION NOTEBOOK & DATA LOGGING
-       ========================================================================= */
-    function logCurrentTrial() {
-      const trialNum = simState.tableData.length + 1;
-      const t2 = Math.pow(simState.T_n, 2);
+function exportTableCSV() {
+  if (state.observations.length === 0) {
+    alert("No data to export. Record some observations first!");
+    return;
+  }
+  let csv = "Obs,Length_cm,TipMass_g,BeamMass_g,EffectiveMass_g,TotalMass_g,Time20_s,Period_s,PeriodSquared_s2\n";
+  state.observations.forEach((o, idx) => {
+    csv += `${idx + 1},${(o.L*100).toFixed(1)},${(o.M*1000).toFixed(0)},${(o.mb*1000).toFixed(1)},${(o.mEff*1000).toFixed(1)},${(o.mTot*1000).toFixed(1)},${o.t20.toFixed(2)},${o.T.toFixed(3)},${o.T2.toFixed(4)}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cantilever_vibration_data_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
-      const row = {
-        trial: trialNum,
-        M: simState.M,
-        L: simState.L,
-        b: simState.b * 1000.0,
-        d: simState.d * 1000.0,
-        t20: simState.T_n * 20.0,
-        T: simState.T_n,
-        T2: t2,
-        f: simState.f_n,
-        m_eff: simState.m_eff * 1000.0
-      };
+// ── Graph & Regression Engine ──────────────────────────────────────────────
+const regCanvas = document.getElementById('regression-canvas');
+const regCtx = regCanvas ? regCanvas.getContext('2d') : null;
 
-      simState.tableData.push(row);
-      renderObservationTable();
-      playMechanicalClick(1000, 0.04);
+function switchGraphMode(mode) {
+  state.graphMode = mode;
+  document.querySelectorAll('#graph-sub-tabs .pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(mode));
+  });
+  renderRegressionGraph();
+}
+
+function renderRegressionGraph() {
+  if (!regCtx || !regCanvas) return;
+  const w = regCanvas.width;
+  const h = regCanvas.height;
+  
+  regCtx.fillStyle = '#00131a';
+  regCtx.fillRect(0, 0, w, h);
+  
+  const padLeft = 60;
+  const padRight = 30;
+  const padTop = 30;
+  const padBottom = 50;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+  
+  // Axes
+  regCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+  regCtx.lineWidth = 1;
+  regCtx.beginPath();
+  regCtx.moveTo(padLeft, padTop);
+  regCtx.lineTo(padLeft, padTop + plotH);
+  regCtx.lineTo(padLeft + plotW, padTop + plotH);
+  regCtx.stroke();
+  
+  if (state.observations.length < 2) {
+    regCtx.fillStyle = 'var(--text-dim)';
+    regCtx.font = '13px sans-serif';
+    regCtx.textAlign = 'center';
+    regCtx.fillText('Need at least 2 observations to generate regression plot.', w / 2, h / 2);
+    return;
+  }
+  
+  // Extract X and Y data depending on active mode
+  let xVals = [], yVals = [], xLabel = '', yLabel = '';
+  if (state.graphMode === 'T2_M') {
+    xVals = state.observations.map(o => o.M);
+    yVals = state.observations.map(o => o.T2);
+    xLabel = 'Added Tip Mass M (kg)';
+    yLabel = 'Period Squared T² (s²)';
+  } else if (state.graphMode === 'T2_L3') {
+    xVals = state.observations.map(o => Math.pow(o.L, 3));
+    yVals = state.observations.map(o => o.T2);
+    xLabel = 'Vibrating Length Cubed L³ (m³)';
+    yLabel = 'Period Squared T² (s²)';
+  } else {
+    // Damping envelope demo
+    xVals = [0, 1, 2, 3, 4, 5];
+    yVals = xVals.map(n => Math.exp(-state.damping * state.omegaN * n * state.period));
+    xLabel = 'Cycle Number (n)';
+    yLabel = 'Normalized Tip Amplitude';
+  }
+  
+  // Linear Regression y = mx + c
+  const n = xVals.length;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0, sumYY = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += xVals[i];
+    sumY += yVals[i];
+    sumXY += xVals[i] * yVals[i];
+    sumXX += xVals[i] * xVals[i];
+    sumYY += yVals[i] * yVals[i];
+  }
+  
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  
+  // Pearson R^2
+  const rNum = n * sumXY - sumX * sumY;
+  const rDen = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+  const r2 = rDen !== 0 ? Math.pow(rNum / rDen, 2) : 1;
+  
+  // Bounds
+  const maxX = Math.max(...xVals) * 1.15;
+  const maxY = Math.max(...yVals) * 1.2;
+  
+  // Grid Lines & Ticks
+  regCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  for (let i = 1; i <= 5; i++) {
+    const gx = padLeft + (i / 5) * plotW;
+    const gy = padTop + plotH - (i / 5) * plotH;
+    regCtx.beginPath();
+    regCtx.moveTo(gx, padTop);
+    regCtx.lineTo(gx, padTop + plotH);
+    regCtx.moveTo(padLeft, gy);
+    regCtx.lineTo(padLeft + plotW, gy);
+    regCtx.stroke();
+    
+    // Labels
+    regCtx.fillStyle = 'var(--text-dim)';
+    regCtx.font = '10px sans-serif';
+    regCtx.textAlign = 'center';
+    regCtx.fillText(((i / 5) * maxX).toFixed(2), gx, padTop + plotH + 16);
+    regCtx.textAlign = 'right';
+    regCtx.fillText(((i / 5) * maxY).toFixed(2), padLeft - 8, gy + 3);
+  }
+  
+  // Regression Line
+  regCtx.strokeStyle = 'var(--accent)';
+  regCtx.lineWidth = 2;
+  regCtx.beginPath();
+  const x0_px = padLeft;
+  const y0_px = padTop + plotH - (intercept / maxY) * plotH;
+  const x1_px = padLeft + (maxX / maxX) * plotW;
+  const y1_px = padTop + plotH - ((slope * maxX + intercept) / maxY) * plotH;
+  regCtx.moveTo(x0_px, y0_px);
+  regCtx.lineTo(x1_px, y1_px);
+  regCtx.stroke();
+  
+  // Scatter Points
+  xVals.forEach((x, i) => {
+    const px = padLeft + (x / maxX) * plotW;
+    const py = padTop + plotH - (yVals[i] / maxY) * plotH;
+    
+    regCtx.fillStyle = '#f59e0b';
+    regCtx.beginPath();
+    regCtx.arc(px, py, 5, 0, Math.PI * 2);
+    regCtx.fill();
+    regCtx.strokeStyle = '#fff';
+    regCtx.lineWidth = 1.5;
+    regCtx.stroke();
+  });
+  
+  // Axis titles
+  regCtx.fillStyle = '#dde3f0';
+  regCtx.font = 'bold 11px sans-serif';
+  regCtx.textAlign = 'center';
+  regCtx.fillText(xLabel, padLeft + plotW / 2, h - 12);
+  
+  regCtx.save();
+  regCtx.translate(16, padTop + plotH / 2);
+  regCtx.rotate(-Math.PI / 2);
+  regCtx.fillText(yLabel, 0, 0);
+  regCtx.restore();
+  
+  // Update Regression Telemetry Card
+  if (state.graphMode === 'T2_M') {
+    const Y_calc = (16 * Math.pow(Math.PI, 2) * Math.pow(state.L, 3)) / (state.b * Math.pow(state.d, 3) * slope);
+    const Y_theo = MATERIALS[state.materialKey].Y;
+    const relError = Math.abs((Y_calc - Y_theo) / Y_theo) * 100;
+    const negXInt = intercept / slope; // in kg
+    
+    document.getElementById('reg-slope').textContent = `${slope.toFixed(4)} s²/kg`;
+    document.getElementById('reg-intercept').textContent = `${intercept.toFixed(4)} s²`;
+    document.getElementById('reg-x-int').textContent = `${(negXInt * 1000).toFixed(1)} g`;
+    document.getElementById('reg-y-calc').textContent = `${(Y_calc / 1e9).toFixed(1)} GPa`;
+    document.getElementById('reg-y-theo').textContent = `${(Y_theo / 1e9).toFixed(1)} GPa`;
+    document.getElementById('reg-error').textContent = `${relError.toFixed(2)} %`;
+    document.getElementById('reg-r2').textContent = `${r2.toFixed(4)}`;
+  }
+}
+
+// ── Three.js 3D WebGL Apparatus Scene ─────────────────────────────────────
+let threeScene, threeCamera, threeRenderer, threeControls;
+let threeApparatusGroup;
+
+function init3DScene() {
+  const container = document.getElementById('three-container');
+  if (!container || threeRenderer) return;
+  
+  const w = container.clientWidth || 640;
+  const h = 460;
+  
+  threeScene = new THREE.Scene();
+  threeScene.background = new THREE.Color(0x001720);
+  
+  threeCamera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+  threeCamera.position.set(22, 16, 28);
+  
+  threeRenderer = new THREE.WebGLRenderer({ antialias: true });
+  threeRenderer.setSize(w, h);
+  threeRenderer.shadowMap.enabled = true;
+  container.appendChild(threeRenderer.domElement);
+  
+  threeControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
+  threeControls.enableDamping = true;
+  threeControls.target.set(6, 2, 0);
+  
+  // Lighting
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  threeScene.add(ambient);
+  
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  dirLight.position.set(20, 30, 20);
+  dirLight.castShadow = true;
+  threeScene.add(dirLight);
+  
+  const blueRim = new THREE.DirectionalLight(0x00e5ff, 0.5);
+  blueRim.position.set(-20, 10, -10);
+  threeScene.add(blueRim);
+  
+  // Laboratory Workbench Table
+  const tableGeo = new THREE.BoxGeometry(40, 1.5, 24);
+  const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f2b38, roughness: 0.7 });
+  const tableMesh = new THREE.Mesh(tableGeo, tableMat);
+  tableMesh.position.set(0, -0.75, 0);
+  threeScene.add(tableMesh);
+  
+  threeApparatusGroup = new THREE.Group();
+  threeScene.add(threeApparatusGroup);
+  
+  // Try loading GLTF 3D Model
+  const loader = new THREE.GLTFLoader();
+  const modelUrl = '../../../frontend/models/cantilever_vibration_frequency_period.glb';
+  
+  loader.load(
+    modelUrl,
+    (gltf) => {
+      gltf.scene.position.set(0, 0, 0);
+      gltf.scene.scale.set(4, 4, 4);
+      threeApparatusGroup.add(gltf.scene);
+    },
+    undefined,
+    () => {
+      // Fallback: Build Procedural 3D Cantilever Apparatus
+      buildProcedural3DApparatus();
     }
+  );
+  
+  const animate = () => {
+    requestAnimationFrame(animate);
+    threeControls.update();
+    threeRenderer.render(threeScene, threeCamera);
+  };
+  animate();
+}
 
-    function runAutoSweepTableA() {
-      simState.tableData = [];
-      const masses = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60];
+function buildProcedural3DApparatus() {
+  // G-Clamp Mount
+  const clampG = new THREE.Group();
+  clampG.name = 'mount';
+  
+  const clampBaseGeo = new THREE.BoxGeometry(7, 4, 6);
+  const clampBaseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 });
+  const clampBase = new THREE.Mesh(clampBaseGeo, clampBaseMat);
+  clampBase.position.set(-6, 2, 0);
+  clampG.add(clampBase);
+  
+  // Wood blocks
+  const woodGeo = new THREE.BoxGeometry(5, 0.8, 4);
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.8 });
+  const wood1 = new THREE.Mesh(woodGeo, woodMat);
+  wood1.position.set(-5, 2.8, 0);
+  clampG.add(wood1);
+  const wood2 = new THREE.Mesh(woodGeo, woodMat);
+  wood2.position.set(-5, 1.2, 0);
+  clampG.add(wood2);
+  
+  // Tightening screw
+  const screwGeo = new THREE.CylinderGeometry(0.3, 0.3, 4, 16);
+  const screwMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 });
+  const screw = new THREE.Mesh(screwGeo, screwMat);
+  screw.position.set(-5, 5, 0);
+  clampG.add(screw);
+  
+  threeApparatusGroup.add(clampG);
+  
+  // Cantilever Steel Blade
+  const bladeG = new THREE.Group();
+  bladeG.name = 'blade';
+  const bladeGeo = new THREE.BoxGeometry(20, 0.25, 2.2);
+  const bladeMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.25 });
+  const bladeMesh = new THREE.Mesh(bladeGeo, bladeMat);
+  bladeMesh.position.set(5, 2, 0);
+  bladeG.add(bladeMesh);
+  threeApparatusGroup.add(bladeG);
+  
+  // Tip Mass Hanger & Slotted Discs
+  const panG = new THREE.Group();
+  panG.name = 'pan';
+  const wireGeo = new THREE.CylinderGeometry(0.06, 0.06, 4, 16);
+  const wireMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9 });
+  const wire = new THREE.Mesh(wireGeo, wireMat);
+  wire.position.set(14.8, 0, 0);
+  panG.add(wire);
+  
+  const panBaseGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 32);
+  const panMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.6, roughness: 0.3 });
+  const panBase = new THREE.Mesh(panBaseGeo, panMat);
+  panBase.position.set(14.8, -2, 0);
+  panG.add(panBase);
+  
+  // Slotted discs
+  for (let d = 0; d < 3; d++) {
+    const discGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.3, 32);
+    const disc = new THREE.Mesh(discGeo, panMat);
+    disc.position.set(14.8, -1.7 + d * 0.35, 0);
+    panG.add(disc);
+  }
+  threeApparatusGroup.add(panG);
+  
+  // Optical Sensor Gate
+  const sensorG = new THREE.Group();
+  sensorG.name = 'sensor';
+  const gateGeo = new THREE.BoxGeometry(1.2, 3.5, 3.6);
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5 });
+  const gate = new THREE.Mesh(gateGeo, gateMat);
+  gate.position.set(13.5, 2, 0);
+  sensorG.add(gate);
+  
+  threeApparatusGroup.add(sensorG);
+}
 
-      masses.forEach((mVal, idx) => {
-        const mTot = mVal + simState.m_eff;
-        const T = 2.0 * Math.PI * Math.sqrt(mTot / simState.k);
-        simState.tableData.push({
-          trial: idx + 1,
-          M: mVal,
-          L: simState.L,
-          b: simState.b * 1000.0,
-          d: simState.d * 1000.0,
-          t20: T * 20.0,
-          T: T,
-          T2: Math.pow(T, 2),
-          f: 1.0 / T,
-          m_eff: simState.m_eff * 1000.0
-        });
-      });
+function focus3DComponent(comp) {
+  document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+  if (event && event.currentTarget) event.currentTarget.classList.add('active');
+  
+  if (!threeControls || !threeCamera) return;
+  
+  if (comp === 'mount') {
+    threeCamera.position.set(-6, 8, 12);
+    threeControls.target.set(-5, 2, 0);
+  } else if (comp === 'blade') {
+    threeCamera.position.set(5, 12, 18);
+    threeControls.target.set(5, 2, 0);
+  } else if (comp === 'pan') {
+    threeCamera.position.set(15, 4, 8);
+    threeControls.target.set(14.8, 0, 0);
+  } else if (comp === 'sensor') {
+    threeCamera.position.set(13, 5, 8);
+    threeControls.target.set(13.5, 2, 0);
+  }
+}
 
-      renderObservationTable();
-      renderDynamicGraph();
-      playMechanicalClick(1100, 0.08);
+// ── Interactive Viva Voce Quiz Engine ─────────────────────────────────────
+const quizQuestions = [
+  {
+    q: "1. What is Rayleigh's effective mass correction (\\(m_{\\text{eff}}\\)) for a uniform vibrating cantilever beam?",
+    options: [
+      "\\(m_{\\text{eff}} = \\frac{1}{2} m_{\\text{beam}}\\)",
+      "\\(m_{\\text{eff}} = \\frac{33}{140} m_{\\text{beam}} \\approx 0.2357 m_{\\text{beam}}\\)",
+      "\\(m_{\\text{eff}} = \\frac{1}{3} m_{\\text{beam}}\\)",
+      "\\(m_{\\text{eff}} = \\frac{3}{8} m_{\\text{beam}}\\)"
+    ],
+    correct: 1,
+    expl: "By integrating the kinetic energy over the dynamic Euler-Bernoulli deflection profile \\(y(x) \\propto 3Lx^2 - x^3\\), Rayleigh's energy method proves that precisely 33/140 of the beam's mass participates in flexural vibration."
+  },
+  {
+    q: "2. In the plot of \\(T^2\\) (Y-axis) versus added tip mass \\(M\\) (X-axis), what does the negative X-intercept represent?",
+    options: [
+      "Zero error of the stopwatch.",
+      "The Young's Modulus \\(Y\\).",
+      "The negative Rayleigh effective mass of the beam: \\(-m_{\\text{eff}}\\).",
+      "The static tip deflection \\(\\delta\\)."
+    ],
+    correct: 2,
+    expl: "Setting \\(T^2 = 0\\) in \\(T^2 = S_M (M + m_{\\text{eff}})\\) yields \\(M = -m_{\\text{eff}}\\). Thus, the negative X-intercept directly gives the effective mass \\(m_{\\text{eff}} = \\frac{33}{140} m_{\\text{beam}}\\)."
+  },
+  {
+    q: "3. How does the flexural period \\(T\\) scale with the vibrating free length \\(L\\) of the cantilever?",
+    options: [
+      "\\(T \\propto L\\)",
+      "\\(T \\propto L^2\\)",
+      "\\(T \\propto L^{3/2}\\) (i.e. \\(T^2 \\propto L^3\\))",
+      "\\(T \\propto \\sqrt{L}\\)"
+    ],
+    correct: 2,
+    expl: "Since bending stiffness \\(k \\propto L^{-3}\\), the period \\(T = 2\\pi\\sqrt{M/k} \\propto \\sqrt{L^3} = L^{3/2}\\). Consequently, \\(T^2\\) is strictly proportional to \\(L^3\\)."
+  },
+  {
+    q: "4. Why is the measurement of blade thickness \\(d\\) far more sensitive than breadth \\(b\\) in determining Young's Modulus?",
+    options: [
+      "Because thickness \\(d\\) is measured with a screw gauge.",
+      "Because thickness appears cubed (\\(d^3\\)) in the formula for Young's Modulus: \\(Y \\propto d^{-3}\\).",
+      "Because the blade does not bend across its breadth.",
+      "Because \\(b\\) cancels out in the stiffness formula."
+    ],
+    correct: 1,
+    expl: "In \\(Y = \\frac{16\\pi^2 L^3}{b d^3 S_M}\\), \\(d\\) is raised to the third power. By fractional error propagation \\(\\frac{\\Delta Y}{Y} = 3\\frac{\\Delta d}{d}\\), a 1% error in thickness causes a 3% error in Young's Modulus."
+  },
+  {
+    q: "5. What is the effect on the measured period \\(T\\) if the fixed clamp slips slightly or is not rigidly tightened?",
+    options: [
+      "The period decreases because stiffness increases.",
+      "The period increases because clamp compliance adds flexibility, reducing effective system stiffness.",
+      "There is no change in period.",
+      "The amplitude stays perfectly constant without damping."
+    ],
+    correct: 1,
+    expl: "A loose clamp acts like an additional compliant spring in series, lowering the overall stiffness \\(k_{\\text{eff}}\\) and resulting in a longer period \\(T\\), which leads to an underestimated Young's Modulus \\(Y\\)."
+  }
+];
+
+let userScore = 0;
+const answeredQuestions = {};
+
+function initQuiz() {
+  const container = document.getElementById('quiz-container');
+  if (!container) return;
+  
+  container.innerHTML = quizQuestions.map((item, idx) => `
+    <div class="guide-formula-box" style="margin:0; background:var(--surface);" id="quiz-card-${idx}">
+      <p style="font-weight:600; color:#fff; font-size:0.95rem; margin-bottom:10px;">${item.q}</p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${item.options.map((opt, optIdx) => `
+          <button class="tool-overlay-pill" style="text-align:left; padding:8px 14px; font-size:0.85rem;" onclick="answerQuiz(${idx}, ${optIdx})">
+            ${opt}
+          </button>
+        `).join('')}
+      </div>
+      <div id="quiz-expl-${idx}" style="display:none; margin-top:10px; font-size:0.8rem; line-height:1.5; padding:8px 12px; border-radius:6px;"></div>
+    </div>
+  `).join('');
+  
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    window.MathJax.typesetPromise([container]);
+  }
+}
+
+function answerQuiz(qIdx, selectedOpt) {
+  if (answeredQuestions[qIdx]) return;
+  answeredQuestions[qIdx] = true;
+  
+  const q = quizQuestions[qIdx];
+  const card = document.getElementById(`quiz-card-${qIdx}`);
+  const buttons = card.querySelectorAll('button');
+  const explDiv = document.getElementById(`quiz-expl-${qIdx}`);
+  
+  const isCorrect = selectedOpt === q.correct;
+  if (isCorrect) {
+    userScore++;
+    document.getElementById('quiz-score').textContent = userScore;
+  }
+  
+  buttons.forEach((btn, idx) => {
+    btn.disabled = true;
+    if (idx === q.correct) {
+      btn.style.background = 'rgba(61, 220, 132, 0.25)';
+      btn.style.borderColor = 'var(--green)';
+      btn.style.color = 'var(--green)';
+    } else if (idx === selectedOpt && !isCorrect) {
+      btn.style.background = 'rgba(255, 85, 85, 0.25)';
+      btn.style.borderColor = 'var(--red)';
+      btn.style.color = 'var(--red)';
     }
-
-    function renderObservationTable() {
-      const tbody = document.getElementById('table-body');
-      tbody.innerHTML = '';
-
-      simState.tableData.forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${row.trial}</td>
-          <td><strong>${row.M.toFixed(3)}</strong></td>
-          <td>${row.L.toFixed(2)}</td>
-          <td>${row.b.toFixed(1)}</td>
-          <td>${row.d.toFixed(1)}</td>
-          <td>${row.t20.toFixed(3)}</td>
-          <td style="color:var(--cyan); font-weight:700;">${row.T.toFixed(4)}</td>
-          <td style="color:var(--amber); font-weight:700;">${row.T2.toFixed(4)}</td>
-          <td>${row.f.toFixed(3)}</td>
-          <td>${row.m_eff.toFixed(1)}</td>
-        `;
-        tbody.appendChild(tr);
-      });
+  });
+  
+  if (explDiv) {
+    explDiv.style.display = 'block';
+    explDiv.style.background = isCorrect ? 'rgba(61, 220, 132, 0.1)' : 'rgba(255, 85, 85, 0.1)';
+    explDiv.style.border = `1px solid ${isCorrect ? 'var(--green)' : 'var(--red)'}`;
+    explDiv.innerHTML = `<strong>${isCorrect ? '✔ Correct!' : '✖ Incorrect.'}</strong> ${q.expl}`;
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise([explDiv]);
     }
+  }
+}
 
-    function clearObservationTable() {
-      simState.tableData = [];
-      renderObservationTable();
-      playMechanicalClick(450, 0.03);
+// ── Tab Navigation & Hash Management ──────────────────────────────────────
+function switchMode(mode) {
+  document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+  });
+  
+  document.getElementById('section-sim').style.display = (mode === 'sim') ? 'block' : 'none';
+  document.getElementById('section-graphs').style.display = (mode === 'graphs') ? 'block' : 'none';
+  document.getElementById('section-3d').style.display = (mode === '3d') ? 'block' : 'none';
+  document.getElementById('section-theory').style.display = (mode === 'theory') ? 'block' : 'none';
+  document.getElementById('section-quiz').style.display = (mode === 'quiz') ? 'block' : 'none';
+  
+  if (mode === '3d') {
+    setTimeout(() => init3DScene(), 50);
+  } else if (mode === 'graphs') {
+    setTimeout(() => renderRegressionGraph(), 50);
+  } else if (mode === 'theory') {
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise();
     }
+  }
+}
 
-    function exportTableToCSV() {
-      if (simState.tableData.length === 0) {
-        alert('Please record or auto-sweep data rows before exporting.');
-        return;
-      }
+// Handle Pill clicks
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.getAttribute('data-mode');
+    switchMode(mode);
+  });
+});
 
-      let csv = 'Trial,Tip Mass M (kg),Length L (m),Breadth b (mm),Thickness d (mm),Time for 20 Osc t20 (s),Period T (s),Period Squared T2 (s2),Frequency f (Hz),Rayleigh Mass m_eff (g)\n';
-      simState.tableData.forEach(r => {
-        csv += `${r.trial},${r.M},${r.L},${r.b},${r.d},${r.t20.toFixed(3)},${r.T.toFixed(4)},${r.T2.toFixed(4)},${r.f.toFixed(3)},${r.m_eff.toFixed(1)}\n`;
-      });
+// Check URL Hash for #theory-section
+function checkUrlHash() {
+  const hash = window.location.hash;
+  if (hash === '#theory-section' || hash === '#section-theory') {
+    switchMode('theory');
+    const el = document.getElementById('theory-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }
+}
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `cantilever_vibration_experiment_report_${Date.now()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+// ── Initialization ────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  computePhysics();
+  initQuiz();
+  checkUrlHash();
+  requestAnimationFrame(mainLoop);
+});
 
-    /* =========================================================================
-       11. VIVA VOCE QUIZ DATA & CONTROLLER
-       ========================================================================= */
-    const QUIZ_DATA = [
-      {
-        q: "1. According to Rayleigh's energy method, what fraction of the continuous distributed beam mass acts as an effective lumped mass at the vibrating tip?",
-        opts: [
-          "A) Exactly 1/2 of the total mass",
-          "B) 33/140 (~0.2357) of the total mass",
-          "C) 1/3 (~0.3333) of the total mass",
-          "D) 9/10 of the total mass"
-        ],
-        ans: 1,
-        exp: "Correct! Integrating kinetic energy over the Euler-Bernoulli static mode shape phi(x) = (3Lx^2 - x^3)/(2L^3) yields the Rayleigh factor 33/140 (~0.2357)."
-      },
-      {
-        q: "2. If the thickness (d) of the cantilever blade is doubled while keeping length and width constant, how does the bending stiffness (k) change?",
-        opts: [
-          "A) Doubles (2x)",
-          "B) Increases four-fold (4x)",
-          "C) Increases eight-fold (8x = 2^3)",
-          "D) Decreases by half (1/2x)"
-        ],
-        ans: 2,
-        exp: "Correct! Bending stiffness k = (Y * b * d^3) / (4 L^3). Because k is proportional to d^3, doubling thickness yields 2^3 = 8 times greater stiffness."
-      },
-      {
-        q: "3. On a plot of T^2 on the Y-axis against concentrated tip load M on the X-axis, what physical property does the negative X-intercept represent?",
-        opts: [
-          "A) Zero friction point",
-          "B) The Rayleigh effective mass of the beam (-m_eff)",
-          "C) Dynamic shear modulus",
-          "D) Breaking load limit"
-        ],
-        ans: 1,
-        exp: "Correct! Since T^2 = S_M * (M + m_eff), setting T^2 = 0 yields M = -m_eff = -(33/140) m_beam, providing an experimental measure of the beam's effective inertia."
-      },
-      {
-        q: "4. How does the oscillation period T scale with vibrating length L under a constant tip load?",
-        opts: [
-          "A) T is directly proportional to L",
-          "B) T is proportional to L^(3/2) (since T^2 proportional to L^3)",
-          "C) T is inversely proportional to L",
-          "D) T is independent of beam length"
-        ],
-        ans: 1,
-        exp: "Correct! Because stiffness k is proportional to 1/L^3, period T = 2*pi*sqrt(M/k) is proportional to sqrt(L^3) = L^(3/2)."
-      },
-      {
-        q: "5. What is the SI unit of Young's Modulus (Y)?",
-        opts: [
-          "A) Joules (J)",
-          "B) Pascal (Pa) or N/m²",
-          "C) N * m",
-          "D) dimensionless"
-        ],
-        ans: 1,
-        exp: "Correct! Young's Modulus is stress divided by strain. Since strain is dimensionless, Y has units of stress: Pascals (Pa) or N/m² (commonly expressed in GPa = 10^9 N/m²)."
-      }
-    ];
+window.addEventListener('hashchange', checkUrlHash);
+</script>
 
-    function renderQuiz() {
-      const container = document.getElementById('quiz-container');
-      container.innerHTML = '';
-
-      QUIZ_DATA.forEach((item, qIdx) => {
-        const card = document.createElement('div');
-        card.className = 'quiz-card';
-        card.innerHTML = `
-          <div class="quiz-question">${item.q}</div>
-          <div class="quiz-options-grid">
-            ${item.opts.map((opt, optIdx) => `
-              <button class="quiz-opt-btn" onclick="answerQuiz(${qIdx}, ${optIdx}, this)">${opt}</button>
-            `).join('')}
-          </div>
-          <div class="quiz-feedback" id="quiz-fb-${qIdx}">${item.exp}</div>
-        `;
-        container.appendChild(card);
-      });
-    }
-
-    function answerQuiz(qIdx, selectedOptIdx, btnElem) {
-      const q = QUIZ_DATA[qIdx];
-      const parent = btnElem.parentElement;
-      const buttons = parent.querySelectorAll('.quiz-opt-btn');
-      const fb = document.getElementById(`quiz-fb-${qIdx}`);
-
-      buttons.forEach(b => b.disabled = true);
-
-      if (selectedOptIdx === q.ans) {
-        btnElem.classList.add('correct');
-        fb.className = 'quiz-feedback show-correct';
-        playMechanicalClick(1200, 0.08);
-      } else {
-        btnElem.classList.add('wrong');
-        buttons[q.ans].classList.add('correct');
-        fb.className = 'quiz-feedback show-wrong';
-        playMechanicalClick(300, 0.1);
-      }
-    }
-
-    /* =========================================================================
-       12. THREE.JS 3D APPARATUS VIEWER
-       ========================================================================= */
-    let scene3D, camera3D, renderer3D, controls3D, modelGroup3D;
-
-    function switchMainView(mode) {
-      simState.currentMainView = mode;
-      document.getElementById('mode-sim-btn').classList.toggle('active', mode === 'sim');
-      document.getElementById('mode-3d-btn').classList.toggle('active', mode === '3d');
-      document.getElementById('mode-explore-btn').classList.toggle('active', mode === 'explore');
-
-      document.getElementById('sim-main-stage').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('notebook-section').style.display = (mode === 'sim') ? 'block' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-
-      if (mode === 'explore') {
-        document.getElementById('sim-main-stage').style.display = 'grid';
-        document.getElementById('notebook-section').style.display = 'block';
-        window.location.hash = '#theory-section';
-      }
-
-      if (mode === '3d') {
-        if (!renderer3D) init3DApparatus();
-      }
-      playMechanicalClick(800, 0.03);
-    }
-
-    function init3DApparatus() {
-      const container = document.getElementById('three-canvas-container');
-      const W = container.clientWidth;
-      const H = container.clientHeight;
-
-      scene3D = new THREE.Scene();
-      scene3D.background = new THREE.Color(0x030712);
-
-      camera3D = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
-      camera3D.position.set(2.5, 1.8, 3.2);
-
-      renderer3D = new THREE.WebGLRenderer({ antialias: true });
-      renderer3D.setSize(W, H);
-      renderer3D.setPixelRatio(window.devicePixelRatio);
-      container.appendChild(renderer3D.domElement);
-
-      controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
-      controls3D.enableDamping = true;
-
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 1.4);
-      scene3D.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-      dirLight.position.set(6, 12, 8);
-      scene3D.add(dirLight);
-
-      // Load GLB model from /frontend/models/
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/cantilever_vibration_frequency_period.glb', function(gltf) {
-        modelGroup3D = gltf.scene;
-        scene3D.add(modelGroup3D);
-        animate3D();
-      }, undefined, function() {
-        console.warn('Fallback procedural 3D model generated');
-        modelGroup3D = new THREE.Group();
-
-        // Heavy bench clamp
-        const clampGeo = new THREE.BoxGeometry(0.5, 0.8, 0.5);
-        const clampMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
-        const clampMesh = new THREE.Mesh(clampGeo, clampMat);
-        clampMesh.position.set(-1.2, 0, 0);
-        clampMesh.name = 'RigidGClampBenchMountBase';
-        modelGroup3D.add(clampMesh);
-
-        // Steel Blade
-        const bladeGeo = new THREE.BoxGeometry(2.2, 0.04, 0.25);
-        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.8, roughness: 0.2 });
-        const bladeMesh = new THREE.Mesh(bladeGeo, bladeMat);
-        bladeMesh.position.set(0.0, 0.2, 0);
-        bladeMesh.name = 'UniformFlexibleSteelCantileverBlade';
-        modelGroup3D.add(bladeMesh);
-
-        // Tip Weight Hanger
-        const panGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 32);
-        const panMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.7, roughness: 0.3 });
-        const panMesh = new THREE.Mesh(panGeo, panMat);
-        panMesh.position.set(1.1, -0.1, 0);
-        panMesh.name = 'DeadWeightLoadingPanAtFreeEnd';
-        modelGroup3D.add(panMesh);
-
-        // Optical photogate
-        const gateGeo = new THREE.BoxGeometry(0.2, 0.6, 0.4);
-        const gateMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
-        const gateMesh = new THREE.Mesh(gateGeo, gateMat);
-        gateMesh.position.set(0.9, 0.2, 0);
-        gateMesh.name = 'OpticalVibrationSensorGate';
-        modelGroup3D.add(gateMesh);
-
-        scene3D.add(modelGroup3D);
-        animate3D();
-      });
-
-      window.addEventListener('resize', () => {
-        if (!container || !renderer3D || !camera3D) return;
-        camera3D.aspect = container.clientWidth / container.clientHeight;
-        camera3D.updateProjectionMatrix();
-        renderer3D.setSize(container.clientWidth, container.clientHeight);
-      });
-    }
-
-    function animate3D() {
-      requestAnimationFrame(animate3D);
-      if (controls3D) controls3D.update();
-      if (renderer3D && scene3D && camera3D) {
-        renderer3D.render(scene3D, camera3D);
-      }
-    }
-
-    function focus3DComponent(compName) {
-      if (!modelGroup3D) return;
-      modelGroup3D.traverse(child => {
-        if (child.isMesh) {
-          if (child.name === compName) {
-            child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.8;
-          } else {
-            child.material.emissive = new THREE.Color(0x000000);
-          }
-        }
-      });
-      playMechanicalClick(900, 0.03);
-    }
-
-    /* =========================================================================
-       13. MAIN ANIMATION & SIMULATION LOOP
-       ========================================================================= */
-    let lastTime = performance.now();
-
-    function mainAnimationLoop(now) {
-      requestAnimationFrame(mainAnimationLoop);
-
-      const dt = Math.min(0.033, (now - lastTime) / 1000.0);
-      lastTime = now;
-
-      // Integrate RK4 sub-steps if oscillating
-      if (simState.isOscillating && !simState.isDraggingTip) {
-        const subSteps = 8;
-        const subDt = dt / subSteps;
-        for (let s = 0; s < subSteps; s++) {
-          stepRK4(subDt);
-        }
-      }
-
-      // Update Renderings
-      renderCantileverBench();
-      updateOscilloscope();
-    }
-
-    /* =========================================================================
-       14. INITIALIZATION ON WINDOW LOAD
-       ========================================================================= */
-    window.addEventListener('load', () => {
-      recomputePhysics();
-      renderQuiz();
-      runAutoSweepTableA();
-      requestAnimationFrame(mainAnimationLoop);
-    });
-  </script>
 </body>
 </html>
