@@ -51,19 +51,22 @@ if [ -f "docker-compose.bluegreen.yml" ]; then
 fi
 
 if [ "$USE_BLUE_GREEN" = true ]; then
+    BLUE_PORT="${VLAB_BLUE_PORT:-8083}"
+    GREEN_PORT="${VLAB_GREEN_PORT:-8085}"
+
     echo -e "\n${BOLD}[2/6] Detecting active Blue-Green deployment slots...${NC}"
 
-    # Check port 8081 (Blue), port 8083 (Green), and port 8080 (Prod)
+    # Check port ${BLUE_PORT} (Blue), port ${GREEN_PORT} (Green), and port 8080 (Prod)
     BLUE_HEALTHY=false
     GREEN_HEALTHY=false
     PROD_HEALTHY=false
 
-    if curl -s -f --noproxy "*" -m 2 http://127.0.0.1:8081/api/health >/dev/null 2>&1 || \
+    if curl -s -f --noproxy "*" -m 2 "http://127.0.0.1:${BLUE_PORT}/api/health" >/dev/null 2>&1 || \
        docker exec vlab-simulators-blue curl -s -f http://localhost:8080/api/health >/dev/null 2>&1; then
         BLUE_HEALTHY=true
     fi
 
-    if curl -s -f --noproxy "*" -m 2 http://127.0.0.1:8083/api/health >/dev/null 2>&1 || \
+    if curl -s -f --noproxy "*" -m 2 "http://127.0.0.1:${GREEN_PORT}/api/health" >/dev/null 2>&1 || \
        docker exec vlab-simulators-green curl -s -f http://localhost:8080/api/health >/dev/null 2>&1; then
         GREEN_HEALTHY=true
     fi
@@ -76,24 +79,24 @@ if [ "$USE_BLUE_GREEN" = true ]; then
     # Select target (inactive) slot
     if [ "$BLUE_HEALTHY" = true ] && [ "$GREEN_HEALTHY" = false ]; then
         ACTIVE_SLOT="blue"
-        ACTIVE_PORT=8081
+        ACTIVE_PORT="${BLUE_PORT}"
         TARGET_SLOT="green"
-        TARGET_PORT=8083
+        TARGET_PORT="${GREEN_PORT}"
         TARGET_SERVICE="vlab-green"
         ACTIVE_SERVICE="vlab-blue"
     elif [ "$GREEN_HEALTHY" = true ] && [ "$BLUE_HEALTHY" = false ]; then
         ACTIVE_SLOT="green"
-        ACTIVE_PORT=8083
+        ACTIVE_PORT="${GREEN_PORT}"
         TARGET_SLOT="blue"
-        TARGET_PORT=8081
+        TARGET_PORT="${BLUE_PORT}"
         TARGET_SERVICE="vlab-blue"
         ACTIVE_SERVICE="vlab-green"
     elif [ "$BLUE_HEALTHY" = true ] && [ "$GREEN_HEALTHY" = true ]; then
         # Both are healthy. Cycle green first.
         ACTIVE_SLOT="blue"
-        ACTIVE_PORT=8081
+        ACTIVE_PORT="${BLUE_PORT}"
         TARGET_SLOT="green"
-        TARGET_PORT=8083
+        TARGET_PORT="${GREEN_PORT}"
         TARGET_SERVICE="vlab-green"
         ACTIVE_SERVICE="vlab-blue"
     else
@@ -108,7 +111,7 @@ if [ "$USE_BLUE_GREEN" = true ]; then
             ACTIVE_SERVICE=""
         fi
         TARGET_SLOT="blue"
-        TARGET_PORT=8081
+        TARGET_PORT="${BLUE_PORT}"
         TARGET_SERVICE="vlab-blue"
     fi
 
