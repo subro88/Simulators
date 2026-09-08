@@ -161,10 +161,22 @@ if [ "$USE_BLUE_GREEN" = true ]; then
     if [ "$HEALTH_PASSED" = true ]; then
         echo -e "${GREEN}${BOLD}✓ New slot (${TARGET_SLOT}) is 100% healthy and verified!${NC}"
 
+        # Sync updated Nginx configuration if vlab.nhit.in.conf exists on host
+        if [ -f "/etc/nginx/sites-available/vlab.nhit.in.conf" ]; then
+            echo -e "  • Updating /etc/nginx/sites-available/vlab.nhit.in.conf upstream..."
+            sudo cp scripts/nginx/vlab.nhit.in.conf /etc/nginx/sites-available/vlab.nhit.in.conf >/dev/null 2>&1 || true
+        fi
+
         # Reload Nginx gracefully if running on host
         if command -v nginx &>/dev/null && [ -f /etc/nginx/nginx.conf ]; then
             echo -e "  • Triggering graceful Nginx configuration reload..."
             sudo nginx -t >/dev/null 2>&1 && sudo systemctl reload nginx || true
+        fi
+
+        # Also refresh the primary port 8080 container with the new image so both 8080 & 8083 have latest code
+        if docker ps --format '{{.Names}}' | grep -q "vlab-simulators-prod"; then
+            echo -e "  • Synchronizing primary container on port 8080 with updated image..."
+            docker compose -f docker-compose.prod.yml up -d --no-build >/dev/null 2>&1 || true
         fi
 
         # Grace period for existing in-flight connections on old slot
