@@ -3,376 +3,2506 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Single Purchase Crab Winch Lab — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
-  <meta name="description" content="ES102/ES104 Engineering Mechanics: Single Purchase Crab Winch VR = (2R/d)(T2/T1), MA = W/P & Efficiency eta">
-  <link rel="stylesheet" href="../../css/style.css">
-  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <title>Single &amp; Double Purchase Crab Winch Virtual Lab | NHIT Visual Lab</title>
+  <meta name="description" content="ES102/ES104 Engineering Mechanics: Dual-regime single and double purchase compound gear train crab winch simulation. Velocity Ratio, Mechanical Advantage, Efficiency, Law of Machine (P=mW+C), and Self-Locking dynamics.">
+  
+  <!-- Fonts & MathJax -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- Three.js & OrbitControls for 3D Viewport -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <style>
-    :root { --accent: #ffd600; }
-    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
-    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
-    .site-nav a { color: #94a3b8; text-decoration: none; }
-    .site-nav a:hover { color: var(--accent); }
-    .site-nav span { color: #475569; }
-    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
-    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
-    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
-    .mode-bar { display: flex; gap: 8px; align-items: center; }
-    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
-    .guide-link-btn:hover { background: #475569; }
-    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
-    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
-    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-    .control-group { margin-bottom: 14px; }
-    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
-    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
-    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
-    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
-    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
-    .diag-table td:first-child { color: #94a3b8; }
-    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
-    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
-    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
-    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
-    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
-    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
-    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
-    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
-    .seo-article h2, .seo-article h3 { color: #f8fafc; }
-    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
-  </style>
+
+  <!-- Canonical Stylesheets -->
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science</a>
-    <span>&rsaquo;</span>
-    <span style="color:#f8fafc;">Single Purchase Crab Winch Lab</span>
-  </nav>
 
-  <header class="tool-header">
-    <div>
-      <span class="tool-badge">ES102 / ES104</span>
-      <h1 class="tool-title">Single Purchase Crab Winch Lab</h1>
-      <p class="tool-subtitle">ES102/ES104 Engineering Mechanics: Single Purchase Crab Winch VR = (2R/d)(T2/T1), MA = W/P & Efficiency eta</p>
-    </div>
-    <div class="mode-bar">
-      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
-      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
-      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
-      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
-    </div>
-  </header>
+  <!-- ── Fixed Brand Logo ────────────────────────────────────────────────── -->
+  <a href="/nhitvisuallab/index.html" class="logo-fixed" title="NHIT Visual Lab Home">
+    <img src="../../brand/logo.png" alt="NHIT Logo" onerror="this.src='/nhitvisuallab/brand/logo.png'; this.onerror=function(){this.src='/brand/logo.png'};">
+  </a>
 
-  <main class="main-container">
-    <div id="sim-wrapper" class="sim-grid">
-      <div class="controls-col">
-        <div class="panel">
-          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
-          
-              <div class="control-group">
-                <label for="load_lifted_w_kg">Load Lifted W (kg):</label>
-                <input type="number" id="load_lifted_w_kg" min="10.0" max="500.0" step="5.0" value="60.0" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="effort_applied_p_kg">Effort Applied P (kg):</label>
-                <input type="number" id="effort_applied_p_kg" min="0.5" max="50.0" step="0.5" value="4.5" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="effort_wheel_diameter_2r_cm">Effort Handle Diam 2R (cm):</label>
-                <input type="number" id="effort_wheel_diameter_2r_cm" min="15.0" max="100.0" step="5.0" value="40.0" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="load_drum_diameter_d_cm">Load Drum Diam d (cm):</label>
-                <input type="number" id="load_drum_diameter_d_cm" min="5.0" max="40.0" step="1.0" value="15.0" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="teeth_pinion_t1">Teeth on Pinion T1:</label>
-                <input type="number" id="teeth_pinion_t1" min="10" max="50" step="1" value="20" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="teeth_spur_gear_t2">Teeth on Spur Gear T2:</label>
-                <input type="number" id="teeth_spur_gear_t2" min="30" max="150" step="5" value="60" class="form-control" oninput="runSim()" />
-              </div>
-          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+  <main id="app">
+    <!-- ── Breadcrumb Navigation ─────────────────────────────────────────── -->
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+      <span class="sep">&rsaquo;</span>
+      <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science</a>
+      <span class="sep">&rsaquo;</span>
+      <span class="current">Single &amp; Double Purchase Crab Winch Virtual Lab</span>
+    </nav>
+
+    <!-- ── Tool Header ───────────────────────────────────────────────────── -->
+    <header class="tool-header">
+      <div class="header-left">
+        <div class="header-badges">
+          <span class="badge badge-curriculum">ES102 / ES104</span>
+          <span class="badge badge-subject">Engineering Mechanics</span>
+          <span class="badge badge-model" id="header-regime-badge">Single &amp; Compound Gear Train</span>
+        </div>
+        <h1 class="tool-title">Single &amp; Double Purchase Crab Winch Virtual Lab</h1>
+        <p class="tool-subtitle">
+          Experimental determination of Velocity Ratio (\(VR\)), Mechanical Advantage (\(MA\)), Efficiency (\(\eta\)), 
+          and linear Law of the Machine (\(P = mW + C\)) across simple and compound reduction regimes with irreversible self-locking verification.
+        </p>
+      </div>
+      <div class="mode-bar">
+        <button class="mode-btn active" id="btn-mode-sim" onclick="switchMode('sim')">&#9881; Simulation</button>
+        <button class="mode-btn" id="btn-mode-graphs" onclick="switchMode('graphs')">&#128200; Scaling Graphs</button>
+        <button class="mode-btn" id="btn-mode-3d" onclick="switchMode('3d')">&#128269; 3D Apparatus</button>
+        <button class="mode-btn" id="btn-mode-theory" onclick="switchMode('theory')">&#128214; Theory</button>
+        <button class="mode-btn" id="btn-mode-quiz" onclick="switchMode('quiz')">&#10067; Viva Quiz</button>
+        <a href="#user-guide" class="guide-link-btn">&#128218; SOP Manual</a>
+      </div>
+    </header>
+
+    <!-- ── Stage Workflow Stepper ────────────────────────────────────────── -->
+    <div class="stage-workflow-bar">
+      <div class="stage-step active" id="step-1" onclick="setWorkflowStep(1)">
+        <div class="step-num">1</div>
+        <div class="step-info">
+          <span class="step-title">Kinematic Calibration</span>
+          <span class="step-desc">Measure \(R, D_{\text{eff}}\) &amp; count teeth \(T_1..T_4\)</span>
         </div>
       </div>
-      <div class="display-col">
-        <div class="canvas-card">
-          <canvas id="sim-canvas" width="800" height="420"></canvas>
+      <div class="stage-step" id="step-2" onclick="setWorkflowStep(2)">
+        <div class="step-num">2</div>
+        <div class="step-info">
+          <span class="step-title">Load &amp; Effort Balance</span>
+          <span class="step-desc">Apply load \(W\) &amp; determine lifting effort \(P\)</span>
         </div>
-        <div class="panel" style="margin-top:20px;">
-          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
-          <table class="diag-table">
-            <tbody>
-              
-          <tr>
-            <td>Velocity Ratio VR</td>
-            <td id="out_vr" class="out-val">8.00</td>
-          </tr>
-          <tr>
-            <td>Mechanical Advantage MA</td>
-            <td id="out_ma" class="out-val">13.33</td>
-          </tr>
-          <tr>
-            <td>Mechanical Efficiency eta</td>
-            <td id="out_eta" class="out-val">166.67 %</td>
-          </tr>
-          <tr>
-            <td>Effort Lost in Friction Pf</td>
-            <td id="out_pf" class="out-val">-3.000 kg</td>
-          </tr>
-          <tr>
-            <td>Lifting Machine Verdict</td>
-            <td id="out_status" class="out-val">WINCH VERIFIED: Velocity Ratio VR = 8.00</td>
-          </tr>
+      </div>
+      <div class="stage-step" id="step-3" onclick="setWorkflowStep(3)">
+        <div class="step-num">3</div>
+        <div class="step-info">
+          <span class="step-title">Dual-Regime Sweep</span>
+          <span class="step-desc">Shift clutch between Single &amp; Double gear trains</span>
+        </div>
+      </div>
+      <div class="stage-step" id="step-4" onclick="setWorkflowStep(4)">
+        <div class="step-num">4</div>
+        <div class="step-info">
+          <span class="step-title">Law of the Machine</span>
+          <span class="step-desc">Extract \(m, C, MA_{\text{max}}, \eta_{\text{max}}\) &amp; reversibility</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: INTERACTIVE SIMULATION (DUAL VIEWPORT)                      -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="sim-wrapper">
+      <!-- ── TOP ROW: 2D Canvas (Ratio 3) & Real-Time Curves (Ratio 2) ── -->
+      <div class="sim-top-row">
+        <!-- 2D Interactive Winch Workbench Canvas with Pan & Zoom (Ratio 3fr) -->
+        <div class="canvas-card" style="margin-bottom: 0;">
+          <div class="canvas-toolbar">
+            <div class="canvas-status">
+              <span class="status-dot active" id="canvas-status-dot"></span>
+              <span id="canvas-status-label">Rig in Static Equilibrium</span>
+            </div>
+            <div class="canvas-controls-bar">
+              <span class="canvas-hint">&#128430; Drag to Pan &bull; &#128432; Scroll to Zoom</span>
+              <div class="zoom-btn-group">
+                <button class="btn-canvas-ctrl" onclick="zoomIn()" title="Zoom In">&#xFF0B;</button>
+                <span class="val-badge" id="zoom-readout">100%</span>
+                <button class="btn-canvas-ctrl" onclick="zoomOut()" title="Zoom Out">&#xFF0D;</button>
+                <button class="btn-canvas-ctrl" onclick="resetCanvasView()" title="Reset Pan & Zoom">&#8634; Reset View</button>
+              </div>
+              <button class="btn-action btn-outline" style="padding:4px 8px; font-size:11px;" onclick="toggleAnimation()">
+                &#9646;&#9646; Pause / Play
+              </button>
+              <button class="btn-action btn-outline" style="padding:4px 8px; font-size:11px;" onclick="switchMode('3d')" title="Switch to 3D Digital Twin Apparatus">
+                &#128269; 3D Twin
+              </button>
+            </div>
+          </div>
+          <canvas id="sim-canvas" width="860" height="420" style="cursor: grab;"></canvas>
+        </div>
+
+        <!-- 📊 Real-Time Analytical Scaling Curves (Ratio 2fr) -->
+        <div class="panel" style="margin-bottom: 0; display: flex; flex-direction: column;">
+          <div class="panel-title">
+            <span class="panel-title-left">&#128202; Real-Time Analytical Scaling Curves</span>
+            <span class="val-badge" id="graph-tab-badge">Tab 1: P vs. W</span>
+          </div>
+          <div class="sub-tabs">
+            <button class="sub-tab-btn active" onclick="switchGraphTab(1, this)">Tab 1: Law of Machine</button>
+            <button class="sub-tab-btn" onclick="switchGraphTab(2, this)">Tab 2: MA Curve</button>
+            <button class="sub-tab-btn" onclick="switchGraphTab(3, this)">Tab 3: Efficiency &amp; 50%</button>
+            <button class="sub-tab-btn" onclick="switchGraphTab(4, this)">Tab 4: Friction</button>
+          </div>
+          <div class="graph-canvas-container" style="flex: 1; display: flex; align-items: center; justify-content: center;">
+            <canvas id="graph-canvas" class="graph-canvas" width="560" height="300"></canvas>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--text-dim); flex-wrap:wrap; gap:6px; margin-top: 6px;">
+            <span id="graph-legend-left"><span style="color:#38bdf8;">&#9679; Single</span> | <span style="color:#f59e0b;">&#9679; Double</span> | <span style="color:#10b981;">&#9679; Point</span></span>
+            <span id="graph-legend-right">50% Self-Locking (Red Dashed)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── FULL-WIDTH PANEL 1: ⚖ Load & Effort Trays ─────────────────────── -->
+      <div class="panel" style="margin-top: 20px;">
+        <div class="panel-title">
+          <span class="panel-title-left">&#9878; Load &amp; Effort Trays</span>
+          <span class="val-badge" id="hud-total-applied">W=10 kgf | P=0.72 kgf</span>
+        </div>
+
+        <div class="tray-grid">
+          <!-- Suspended Load Hanger (W) -->
+          <div class="weight-tray" style="margin-bottom: 0;">
+            <div class="weight-tray-header">
+              <span class="weight-tray-title">&#128230; Suspended Load Hanger (\(W\))</span>
+              <span class="weight-tray-total" id="label-w-total">10.0 kgf</span>
+            </div>
+            <div class="weight-pill-grid">
+              <button class="weight-btn" onclick="addLoad(1)">+1 kg</button>
+              <button class="weight-btn" onclick="addLoad(2)">+2 kg</button>
+              <button class="weight-btn" onclick="addLoad(5)">+5 kg</button>
+              <button class="weight-btn" onclick="addLoad(10)">+10 kg</button>
+              <button class="weight-btn" onclick="addLoad(20)">+20 kg</button>
+              <button class="weight-btn" onclick="addLoad(50)">+50 kg</button>
+              <button class="weight-btn weight-btn-remove" onclick="removeLoad()">&#10005; Reset W</button>
+            </div>
+            <div class="control-label-row" style="margin-top: 10px;">
+              <span class="control-label" style="font-size:11px;">Manual Load Input (kgf):</span>
+            </div>
+            <input type="number" id="input-load-w" class="form-control" min="1.0" max="120.0" step="1.0" value="10.0" oninput="setLoadDirect(this.value)" />
+          </div>
+
+          <!-- Suspended Effort Pan (P) -->
+          <div class="weight-tray" style="margin-bottom: 0;">
+            <div class="weight-tray-header">
+              <span class="weight-tray-title">&#9878; Effort Pan (\(P\)) [incl. 50g pan]</span>
+              <span class="weight-tray-total" id="label-p-total">0.720 kgf</span>
+            </div>
+            <div class="weight-pill-grid">
+              <button class="weight-btn" onclick="addEffort(0.01)">+10 g</button>
+              <button class="weight-btn" onclick="addEffort(0.02)">+20 g</button>
+              <button class="weight-btn" onclick="addEffort(0.05)">+50 g</button>
+              <button class="weight-btn" onclick="addEffort(0.10)">+100 g</button>
+              <button class="weight-btn" onclick="addEffort(0.20)">+200 g</button>
+              <button class="weight-btn" onclick="addEffort(0.50)">+500 g</button>
+              <button class="weight-btn" onclick="addEffort(1.00)">+1.0 kg</button>
+              <button class="weight-btn weight-btn-remove" onclick="resetEffort()">&#10005; Reset P</button>
+            </div>
+            <div class="control-label-row" style="margin-top: 10px;">
+              <span class="control-label" style="font-size:11px;">Manual Effort Input (kgf):</span>
+            </div>
+            <input type="number" id="input-effort-p" class="form-control" min="0.05" max="25.0" step="0.005" value="0.72" oninput="setEffortDirect(this.value)" />
+          </div>
+        </div>
+
+        <!-- Primary Operational Triggers (Span full width beneath trays) -->
+        <div class="tray-actions-grid">
+          <button class="btn-action btn-primary" id="btn-hoist" onclick="triggerHoist()">
+            &#9654; Release Brake / Hoist
+          </button>
+          <button class="btn-action btn-amber" onclick="autoBalanceEffort()">
+            &#9878; Auto-Balance Effort
+          </button>
+          <button class="btn-action btn-outline" onclick="inspectSelfLocking()">
+            &#128269; Test Self-Locking (Drop P)
+          </button>
+          <button class="btn-action btn-outline" onclick="resetApparatus()">
+            &#8634; Reset Rig to Zero
+          </button>
+        </div>
+      </div>
+
+      <!-- ── FULL-WIDTH PANEL 2: ⚙ Transmission Configuration ──────────────── -->
+      <div class="panel" style="margin-top: 20px;">
+        <div class="panel-title">
+          <span class="panel-title-left">&#9881; Transmission Configuration</span>
+          <span class="val-badge" id="hud-regime-pill">SINGLE PURCHASE</span>
+        </div>
+
+        <div class="transmission-grid">
+          <!-- Left Column: Regime Switch, Dog Clutch, Presets & Safety Audit -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div class="regime-card" style="margin-bottom: 0;">
+              <div class="regime-header">
+                <span class="regime-label">Select Gear Reduction Regime</span>
+              </div>
+              <div class="regime-buttons">
+                <button class="regime-btn active-single" id="btn-regime-single" onclick="setRegime('single')">
+                  <strong>Single Purchase</strong>
+                  <span>Direct Mesh (\(T_1 \to T_4\))</span>
+                </button>
+                <button class="regime-btn" id="btn-regime-double" onclick="setRegime('double')">
+                  <strong>Double Purchase</strong>
+                  <span>Compound Mesh (\(T_1 \to T_2, T_3 \to T_4\))</span>
+                </button>
+              </div>
+              <div class="clutch-lever-row">
+                <div class="clutch-status">
+                  <span class="status-dot active" id="clutch-dot"></span>
+                  <span id="clutch-status-text">Pinion 1 engaged with Spur 2</span>
+                </div>
+                <button class="clutch-shift-btn" onclick="toggleClutch()">&#8646; Shift Dog Clutch</button>
+              </div>
+            </div>
+
+            <!-- Machine Specification Preset -->
+            <div class="control-group" style="margin-bottom: 0;">
+              <label class="control-label-row" for="machine-preset">
+                <span class="control-label">Machine Specification Preset:</span>
+              </label>
+              <select id="machine-preset" class="form-select" onchange="applyPreset(this.value)">
+                <option value="standard" selected>Standard Lab Model (R=35cm, VR=28 / 112)</option>
+                <option value="heavy">Heavy Industrial Model (R=40cm, VR=27 / 137)</option>
+                <option value="small">Laboratory Bench Model (R=30cm, VR=28.85)</option>
+                <option value="custom">Custom Winch Geometry</option>
+              </select>
+            </div>
+
+            <!-- Safety Reversibility Audit Card -->
+            <div class="audit-card" id="audit-card" style="margin-bottom: 0;">
+              <div class="audit-text">
+                <strong>Safety Reversibility Audit:</strong> 
+                <span id="audit-explanation">Efficiency \(\eta = 49.54\% < 50\%\). The winch is strictly self-locking; internal bearing and meshing friction prevent accidental drop if effort is removed.</span>
+              </div>
+              <div class="audit-badge self-locking" id="audit-badge" style="margin-top: 6px;">
+                &#128274; Strictly Self-Locking (\(\eta < 50\%\))
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Apparatus Geometry & Gear Teeth Specification -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Apparatus Geometry Sliders -->
+            <div class="control-group" style="margin-bottom: 0;">
+              <div class="control-label-row">
+                <span class="control-label">Effort Handle Radius (\(R\)):</span>
+                <span class="val-badge" id="val-r-cm">35.0 cm</span>
+              </div>
+              <input type="range" id="input-r-cm" class="form-range" min="20.0" max="50.0" step="1.0" value="35.0" oninput="updateGeometry()" />
+            </div>
+
+            <div class="control-group" style="margin-bottom: 0;">
+              <div class="control-label-row">
+                <span class="control-label">Drum Diameter (\(D_{\text{drum}}\)):</span>
+                <span class="val-badge" id="val-drum-cm">15.0 cm</span>
+              </div>
+              <input type="range" id="input-drum-cm" class="form-range" min="8.0" max="25.0" step="0.5" value="15.0" oninput="updateGeometry()" />
+            </div>
+
+            <div class="control-group" style="margin-bottom: 0;">
+              <div class="control-label-row">
+                <span class="control-label">Rope Thickness (\(d_{\text{rope}}\)):</span>
+                <span class="val-badge" id="val-rope-cm">0.6 cm</span>
+              </div>
+              <input type="range" id="input-rope-cm" class="form-range" min="0.2" max="1.5" step="0.1" value="0.6" oninput="updateGeometry()" />
+            </div>
+
+            <!-- Gear Teeth Section Header & 4-Column Teeth Grid -->
+            <div>
+              <div class="control-label-row" style="margin-bottom: 6px;">
+                <span class="control-label" style="font-weight: 700; color: var(--text-main);">Gear Teeth Specification (\(T_1, T_2, T_3, T_4\)):</span>
+              </div>
+              <div class="teeth-grid">
+                <div class="control-group" style="margin-bottom: 0;">
+                  <div class="control-label-row">
+                    <span class="control-label">Pinion 1 (\(T_1\)):</span>
+                    <span class="val-badge" id="val-t1">16</span>
+                  </div>
+                  <input type="number" id="input-t1" class="form-control" min="12" max="24" step="1" value="16" oninput="updateGeometry()" />
+                </div>
+                <div class="control-group" style="margin-bottom: 0;">
+                  <div class="control-label-row">
+                    <span class="control-label">Spur 1 (\(T_2\)):</span>
+                    <span class="val-badge" id="val-t2">80</span>
+                  </div>
+                  <input type="number" id="input-t2" class="form-control" min="60" max="120" step="2" value="80" oninput="updateGeometry()" />
+                </div>
+                <div class="control-group" style="margin-bottom: 0;">
+                  <div class="control-label-row">
+                    <span class="control-label">Pinion 2 (\(T_3\)):</span>
+                    <span class="val-badge" id="val-t3">20</span>
+                  </div>
+                  <input type="number" id="input-t3" class="form-control" min="14" max="28" step="1" value="20" oninput="updateGeometry()" />
+                </div>
+                <div class="control-group" style="margin-bottom: 0;">
+                  <div class="control-label-row">
+                    <span class="control-label">Spur 2 (\(T_4\)):</span>
+                    <span class="val-badge" id="val-t4">100</span>
+                  </div>
+                  <input type="number" id="input-t4" class="form-control" min="80" max="140" step="2" value="100" oninput="updateGeometry()" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── THIRD ROW: Diagnostic Telemetry HUD ── -->
+      <div class="hud-grid" style="margin-top: 20px;">
+        <div class="hud-card">
+          <span class="hud-label">Velocity Ratio (\(VR\))</span>
+          <span class="hud-val" id="hud-vr">28.04</span>
+          <span class="hud-sub" id="hud-vr-formula">\((2R/D_{\text{eff}}) \cdot (T_4/T_1)\)</span>
+        </div>
+        <div class="hud-card hud-amber">
+          <span class="hud-label">Mechanical Advantage (\(MA\))</span>
+          <span class="hud-val" id="hud-ma">13.89</span>
+          <span class="hud-sub">\(W / P\) ratio</span>
+        </div>
+        <div class="hud-card hud-emerald">
+          <span class="hud-label">Mechanical Efficiency (\(\eta\))</span>
+          <span class="hud-val" id="hud-eta">49.54%</span>
+          <span class="hud-sub">\((MA / VR) \times 100\%\)</span>
+        </div>
+        <div class="hud-card hud-purple">
+          <span class="hud-label">Frictional Losses (\(P_f\))</span>
+          <span class="hud-val" id="hud-pf">0.363 kgf</span>
+          <span class="hud-sub" id="hud-ideal-p">Ideal \(P_i = 0.357\) kgf</span>
+        </div>
+      </div>
+
+      <!-- ── OBSERVATION NOTEBOOK & DATA TABLE ─────────────────────────────────── -->
+      <section class="obs-card" style="margin-top: 24px;">
+        <div class="obs-toolbar">
+          <div>
+            <h3 style="margin:0 0 4px 0; color:var(--text-main); font-size:16px;">
+              &#128221; Standard Laboratory Observation Notebook &amp; Comparative Ledger
+            </h3>
+            <p style="margin:0; font-size:12px; color:var(--text-muted);">
+              Log multi-load experimental trials across Single and Double Purchase regimes to formulate the empirical Law of the Machine.
+            </p>
+          </div>
+          <div class="obs-btn-group">
+            <button class="btn-action btn-primary" onclick="logCurrentTrial()">
+              &#10010; Log Current Reading
+            </button>
+            <button class="btn-action btn-amber" onclick="runAutoSweep()">
+              &#9889; Auto Sweep Standard Range (10 to 100 kgf)
+            </button>
+            <button class="btn-action btn-outline" onclick="exportTableCSV()">
+              &#128190; Export CSV
+            </button>
+            <button class="btn-action btn-danger" onclick="clearObsTable()">
+              &#128465; Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="obs-table-container">
+          <table class="obs-table" id="obs-table">
+            <thead>
+              <tr>
+                <th>Trial #</th>
+                <th>Regime Mode</th>
+                <th>Load Lifted \(W\) (kgf)</th>
+                <th>Effort Applied \(P\) (kgf)</th>
+                <th>Ideal Effort \(P_i = \frac{W}{VR}\) (kgf)</th>
+                <th>Friction Loss \(P_f\) (kgf)</th>
+                <th>Mech. Advantage \(MA\)</th>
+                <th>Efficiency \(\eta\) (%)</th>
+                <th>Machine State</th>
+              </tr>
+            </thead>
+            <tbody id="obs-tbody">
+              <!-- Dynamically populated rows -->
             </tbody>
           </table>
         </div>
+
+        <!-- Linear Regression & Law of Machine Card -->
+        <div class="regression-card" id="regression-card">
+          <div class="reg-item">
+            <span class="reg-title">Single Purchase Law:</span>
+            <span class="reg-value" id="reg-single-eqn">\(P = 0.0560 \cdot W + 0.160\)</span>
+          </div>
+          <div class="reg-item">
+            <span class="reg-title">Double Purchase Law:</span>
+            <span class="reg-value" id="reg-double-eqn" style="color:var(--amber);">\(P = 0.0150 \cdot W + 0.150\)</span>
+          </div>
+          <div class="reg-item">
+            <span class="reg-title">Single Max MA &amp; \(\eta_{\text{max}}\):</span>
+            <span class="reg-value" id="reg-single-max">\(MA_{\text{max}} = 17.86\) | \(\eta_{\text{max}} = 63.7\%\)</span>
+          </div>
+          <div class="reg-item">
+            <span class="reg-title">Double Max MA &amp; \(\eta_{\text{max}}\):</span>
+            <span class="reg-value" id="reg-double-max" style="color:var(--amber);">\(MA_{\text{max}} = 66.67\) | \(\eta_{\text{max}} = 59.4\%\)</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3: 3D INTERACTIVE APPARATUS MODEL STUDIO (AT CANVAS PLACE)     -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-3d" class="view-section" style="display:none; margin-top: 20px;">
+      <div id="model3d-wrapper" data-v2-inline="1">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div>
+            <span class="panel-title-left">&#128269; 3D Interactive Apparatus Model Studio</span>
+            <span class="val-badge" id="model3d-status-badge" style="margin-left:8px;">Three.js WebGL Engine</span>
+          </div>
+          <button class="btn-action btn-outline" style="padding:4px 10px; font-size:12px;" onclick="switchMode('sim')">
+            &#9881; Back to 2D Simulation
+          </button>
+        </div>
+        <section id="sim3d-section">
+          <div id="sim3d-canvas-container">
+            <canvas id="sim3d-canvas"></canvas>
+          </div>
+          <aside id="sim3d-components">
+            <h4 class="comp-list-title">Apparatus Components (Click to Inspect)</h4>
+            
+            <div class="comp-card" onclick="focus3DComponent('CastIronFrame')">
+              <h4>&#9670; Cast-Iron A-Frame Standards</h4>
+              <p>Twin triangular side-plates anchored to a heavy cast base with slotted bearing blocks.</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('EffortHandle')">
+              <h4>&#9670; Effort Crank Handle &amp; Shaft 1</h4>
+              <p>Hand lever arm of effective radius \(R\) driving the primary small pinion \(T_1\).</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('IntermediateGears')">
+              <h4>&#9670; Intermediate Compound Axle (Shaft 2)</h4>
+              <p>Carries large driven spur wheel \(T_2\) keyed rigidly to small driving pinion \(T_3\).</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('SpurWheelT4')">
+              <h4>&#9670; Driven Spur Wheel 2 (\(T_4\))</h4>
+              <p>Large cast gear wheel keyed to the drum axle receiving the final torque reduction.</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('LoadDrum')">
+              <h4>&#9670; Flanged Cylindrical Load Drum</h4>
+              <p>Helically grooved rope drum of effective diameter \(D_{\text{eff}} = D_{\text{drum}} + d_{\text{rope}}\).</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('SlidingClutch')">
+              <h4>&#9670; Sliding Dog-Clutch / Pinion Shifter</h4>
+              <p>Mechanically slides Shaft 1 to toggle between single and compound gear reduction.</p>
+            </div>
+          </aside>
+        </section>
       </div>
     </div>
 
-    <div id="model3d-wrapper" style="display:none;">
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: DEDICATED ANALYTICAL SCALING GRAPHS FULL VIEW                -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-graphs" style="display:none; margin-top:20px;">
       <div class="panel">
-        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
-        <div id="three-canvas-container"></div>
-        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
-        <div class="comp-grid">
-          
-          <div class="comp-card" onclick="focusComponent('CastIronSupportingSideFrames')">
-            <h4>Cast Iron Side Frames</h4>
-            <p>Twin cast iron housing standards supporting the pinion and drum bearing shafts.</p>
+        <div class="panel-title">
+          <span class="panel-title-left">&#128200; Analytical Performance Curves &amp; Comparative Sweeps</span>
+          <span class="val-badge">Full Multi-Plot Studio</span>
+        </div>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:0;">
+          Comparative multi-regime plots demonstrating the fundamental trade-off of lifting machines:
+          Double Purchase provides a 4x reduction in required effort at the expense of 4x more handle revolutions per meter of lift.
+        </p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+          <div class="graph-canvas-container">
+            <h4 style="margin:0 0 10px 0; color:var(--cyan); font-size:13px;">Law of the Machine: \(P\) vs. \(W\) Dual Regressions</h4>
+            <canvas id="full-graph-pw" class="graph-canvas" width="600" height="300"></canvas>
           </div>
-          <div class="comp-card" onclick="focusComponent('EffortWheelHandleOperatingSpurPinion')">
-            <h4>Effort Handle & Pinion T1</h4>
-            <p>Hand crank effort handle of radius R driving small pinion of T1 teeth.</p>
+          <div class="graph-canvas-container">
+            <h4 style="margin:0 0 10px 0; color:var(--amber); font-size:13px;">Mechanical Advantage Asymptotes: \(MA\) vs. \(W\)</h4>
+            <canvas id="full-graph-ma" class="graph-canvas" width="600" height="300"></canvas>
           </div>
-          <div class="comp-card" onclick="focusComponent('LargeMainSpurGearWheelT2')">
-            <h4>Main Spur Gear T2</h4>
-            <p>Large spur gear wheel with T2 teeth keyed to the winding load drum shaft.</p>
+          <div class="graph-canvas-container">
+            <h4 style="margin:0 0 10px 0; color:var(--emerald); font-size:13px;">Efficiency &amp; Self-Locking Boundary (\(50\%\)): \(\eta\) vs. \(W\)</h4>
+            <canvas id="full-graph-eta" class="graph-canvas" width="600" height="300"></canvas>
           </div>
-          <div class="comp-card" onclick="focusComponent('LoadDrumWindingRopeAndWeight')">
-            <h4>Load Drum (Diameter d) & Load W</h4>
-            <p>Cylindrical grooved rope drum lifting heavy load W through mechanical advantage.</p>
+          <div class="graph-canvas-container">
+            <h4 style="margin:0 0 10px 0; color:var(--purple); font-size:13px;">Frictional Resistance &amp; Effort Losses: \(P_f\) vs. \(W\)</h4>
+            <canvas id="full-graph-pf" class="graph-canvas" width="600" height="300"></canvas>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="explore-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
-        <p>ES102/ES104 Engineering Mechanics: Single Purchase Crab Winch VR = (2R/d)(T2/T1), MA = W/P & Efficiency eta</p>
-        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
-          Calculate Mechanical Advantage: $MA = \frac{W}{P}$ and Efficiency: $$\eta = \frac{MA}{VR} \times 100\%$$
+
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: MATHEMATICAL THEORY & DERIVATIONS                             -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-theory" style="display:none; margin-top:20px;">
+      <article class="theory-card">
+        <h2>Mathematical Theory &amp; Engineering Kinematics</h2>
+        
+        <h3>1. Kinematic Velocity Ratio (\(VR\)) Formulations</h3>
+        <p>
+          The <strong>Velocity Ratio</strong> is defined as the distance moved by effort (\(y\)) divided by 
+          the distance moved by load (\(x\)) in the same time interval.
+        </p>
+
+        <div class="formula-box">
+          $$\text{Single Purchase Mode:} \quad VR_{\text{single}} = \left(\frac{2 R}{D_{\text{eff}}}\right) \cdot \left(\frac{T_4}{T_1}\right) = \left(\frac{R}{r}\right) \cdot \left(\frac{T_4}{T_1}\right)$$
         </div>
-        <p>Understand the mechanism of single gear reduction in simple lifting machines.</p>
-        <p>Establish the Law of Machine: $P = m W + C$ where $m$ is reciprocal of maximum mechanical advantage.</p>
+        <p>
+          In one complete turn of the effort handle (\(y = 2 \pi R\)), the pinion rotates once, causing the spur wheel 
+          to rotate \(\frac{T_1}{T_4}\) revolutions. The load drum of radius \(r\) lifts the load by 
+          \(x = \left(\frac{T_1}{T_4}\right) \cdot 2 \pi r\).
+        </p>
+
+        <div class="formula-box">
+          $$\text{Double Purchase Mode:} \quad VR_{\text{double}} = \left(\frac{2 R}{D_{\text{eff}}}\right) \cdot \left(\frac{T_2}{T_1}\right) \cdot \left(\frac{T_4}{T_3}\right) = \left(\frac{R}{r}\right) \cdot \left(\frac{\text{Product of Teeth of Driven Wheels}}{\text{Product of Teeth of Driver Wheels}}\right)$$
+        </div>
+
+        <h3>2. Statics, Mechanical Advantage &amp; Efficiency</h3>
+        <div class="formula-box">
+          $$MA = \frac{W}{P}, \qquad \eta = \frac{\text{Output Work}}{\text{Input Work}} = \frac{W \cdot x}{P \cdot y} = \frac{MA}{VR} \times 100\%$$
+        </div>
+        <p>
+          Ideal effort required to hoist the load in the absence of friction is \(P_{\text{ideal}} = \frac{W}{VR}\). 
+          The effort lost in overcoming machine friction is:
+        </p>
+        <div class="formula-box">
+          $$P_f = P - P_{\text{ideal}} = P - \frac{W}{VR}, \qquad F_f = (P \cdot VR) - W$$
+        </div>
+
+        <h3>3. The Law of the Machine (\(P = mW + C\))</h3>
+        <p>
+          Empirical experimental observation confirms that effort \(P\) relates linearly to load \(W\):
+        </p>
+        <div class="formula-box">
+          $$P = m \cdot W + C$$
+        </div>
+        <ul>
+          <li><strong>Slope \(m\):</strong> Rate of effort increase per unit load (\(m = \frac{dP}{dW}\)).</li>
+          <li><strong>Intercept \(C\):</strong> Zero-load friction effort required to overcome initial bearing stiction, gear teeth rubbing, and rope stiffness.</li>
+        </ul>
+        <p>From the Law of the Machine, the theoretical maximum limits are obtained as load \(W \to \infty\):</p>
+        <div class="formula-box">
+          $$MA_{\text{max}} = \lim_{W \to \infty} \left(\frac{W}{mW + C}\right) = \frac{1}{m}, \qquad \eta_{\text{max}} = \frac{MA_{\text{max}}}{VR} = \frac{1}{m \cdot VR} \times 100\%$$
+        </div>
+
+        <h3>4. The Self-Locking Condition (\(\eta < 50\%\))</h3>
+        <p>
+          A lifting machine is <strong>Self-Locking</strong> if it does not spontaneously overhaul or reverse when effort is removed. 
+          When \(P = 0\), the work done by the descending load must be insufficient to overcome internal machine friction, leading directly to the universal mechanical theorem:
+        </p>
+        <div class="formula-box">
+          $$\eta < 50\% \implies \text{Self-Locking (Safe)}; \qquad \eta > 50\% \implies \text{Overhauling (Back-driving)}$$
+        </div>
+      </article>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 5: INTERACTIVE VIVA VOCE QUIZ                                   -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-quiz" style="display:none; margin-top:20px;">
+      <div class="quiz-card">
+        <h2>Interactive Viva Voce &amp; Conceptual Knowledge Check</h2>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
+          Test your conceptual understanding of gear trains, velocity ratios, mechanical advantage, and the law of lifting machines.
+        </p>
+
+        <!-- Q1 -->
+        <div class="quiz-question" id="quiz-q1">
+          <div class="quiz-q-title">1. Why is the Velocity Ratio (\(VR\)) of a crab winch considered a purely geometric constant?</div>
+          <div class="quiz-options">
+            <button class="quiz-opt" onclick="checkQuiz(1, 0, false)">A. Because it depends heavily on bearing friction and lubrication.</button>
+            <button class="quiz-opt" onclick="checkQuiz(1, 1, true)">B. Because it depends strictly on handle radius, drum radius, and gear teeth counts, independent of load and friction.</button>
+            <button class="quiz-opt" onclick="checkQuiz(1, 2, false)">C. Because it increases linearly as more load is placed on the hanger.</button>
+            <button class="quiz-opt" onclick="checkQuiz(1, 3, false)">D. Because it is always equal to the Mechanical Advantage.</button>
+          </div>
+          <div class="quiz-feedback" id="quiz-fb-1"></div>
+        </div>
+
+        <!-- Q2 -->
+        <div class="quiz-question" id="quiz-q2">
+          <div class="quiz-q-title">2. In a Double Purchase Crab Winch, why is the friction intercept \(C\) larger than in Single Purchase mode?</div>
+          <div class="quiz-options">
+            <button class="quiz-opt" onclick="checkQuiz(2, 0, false)">A. The rope becomes heavier in double purchase.</button>
+            <button class="quiz-opt" onclick="checkQuiz(2, 1, false)">B. The crank handle radius is artificially reduced.</button>
+            <button class="quiz-opt" onclick="checkQuiz(2, 2, true)">C. The inclusion of the intermediate shaft introduces an extra pair of journal bearings and a second meshing gear contact point.</button>
+            <button class="quiz-opt" onclick="checkQuiz(2, 3, false)">D. Double purchase violates the law of conservation of energy.</button>
+          </div>
+          <div class="quiz-feedback" id="quiz-fb-2"></div>
+        </div>
+
+        <!-- Q3 -->
+        <div class="quiz-question" id="quiz-q3">
+          <div class="quiz-q-title">3. What is the fundamental physical criterion for a lifting machine to be self-locking?</div>
+          <div class="quiz-options">
+            <button class="quiz-opt" onclick="checkQuiz(3, 0, true)">A. Mechanical Efficiency \(\eta < 50\%\).</button>
+            <button class="quiz-opt" onclick="checkQuiz(3, 1, false)">B. Mechanical Efficiency \(\eta > 50\%\).</button>
+            <button class="quiz-opt" onclick="checkQuiz(3, 2, false)">C. Mechanical Advantage \(MA = VR\).</button>
+            <button class="quiz-opt" onclick="checkQuiz(3, 3, false)">D. Zero-load friction intercept \(C = 0\).</button>
+          </div>
+          <div class="quiz-feedback" id="quiz-fb-3"></div>
+        </div>
+
+        <!-- Q4 -->
+        <div class="quiz-question" id="quiz-q4">
+          <div class="quiz-q-title">4. If the empirical Law of the Machine is \(P = 0.050 \cdot W + 0.20\), what is the maximum achievable Mechanical Advantage (\(MA_{\text{max}}\))?</div>
+          <div class="quiz-options">
+            <button class="quiz-opt" onclick="checkQuiz(4, 0, false)">A. \(MA_{\text{max}} = 5.0\)</button>
+            <button class="quiz-opt" onclick="checkQuiz(4, 1, true)">B. \(MA_{\text{max}} = \frac{1}{0.050} = 20.0\)</button>
+            <button class="quiz-opt" onclick="checkQuiz(4, 2, false)">C. \(MA_{\text{max}} = \frac{1}{0.20} = 5.0\)</button>
+            <button class="quiz-opt" onclick="checkQuiz(4, 3, false)">D. \(MA_{\text{max}} = 0.050 \times 20 = 1.0\)</button>
+          </div>
+          <div class="quiz-feedback" id="quiz-fb-4"></div>
+        </div>
+
+        <!-- Q5 -->
+        <div class="quiz-question" id="quiz-q5">
+          <div class="quiz-q-title">5. What is the key engineering trade-off when shifting from Single Purchase to Double Purchase?</div>
+          <div class="quiz-options">
+            <button class="quiz-opt" onclick="checkQuiz(5, 0, false)">A. Hoisting speed increases while lifting effort increases.</button>
+            <button class="quiz-opt" onclick="checkQuiz(5, 1, true)">B. Required lifting effort drops significantly (huge torque amplification), but hoisting speed is substantially slower per turn of the crank.</button>
+            <button class="quiz-opt" onclick="checkQuiz(5, 2, false)">C. Mechanical efficiency becomes 100%.</button>
+            <button class="quiz-opt" onclick="checkQuiz(5, 3, false)">D. The machine stops experiencing any bearing friction.</button>
+          </div>
+          <div class="quiz-feedback" id="quiz-fb-5"></div>
+        </div>
       </div>
     </div>
 
-    <!-- ════ User Guide Section ════ -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- COMPREHENSIVE USER GUIDE & SOP MANUAL                                  -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
     <section class="user-guide" id="user-guide">
-      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <h3>&#128218; Comprehensive User Guide &amp; Standard Operating Procedure (SOP)</h3>
       <details open>
-        <summary>1. Overview &amp; Physical Principles</summary>
-        <div><p>Understand the mechanism of single gear reduction in simple lifting machines.</p></div>
+        <summary>1. Apparatus Overview &amp; Mechanical Principle</summary>
+        <div>
+          <p>
+            A <strong>Crab Winch</strong> is a heavy-duty hoisting machine utilizing toothed spur gear reductions 
+            to lift massive structural and industrial loads with modest human manual effort. In <strong>Single Purchase</strong>, 
+            a single pinion meshes directly with a large spur gear keyed to the load drum. In <strong>Double Purchase</strong>, 
+            an intermediate axle carrying a compound spur wheel and pinion is engaged, providing two-stage gear reduction 
+            and massive velocity ratios (\(VR > 100\)).
+          </p>
+        </div>
       </details>
       <details>
-        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
-        <div><p>Evaluate Velocity Ratio: $$VR = \frac{\text{Distance moved by Effort}}{\text{Distance moved by Load}} = \frac{2R}{d} \cdot \frac{T_2}{T_1}$$</p></div>
+        <summary>2. Apparatus Calibration &amp; Metrology</summary>
+        <div>
+          <ol>
+            <li>Count the teeth on all gears: Driver Pinion 1 (\(T_1\)), Driven Spur 1 (\(T_2\)), Driver Pinion 2 (\(T_3\)), Driven Spur 2 (\(T_4\)).</li>
+            <li>Measure the handle radius \(R\) with a steel rule from the axis of Shaft 1 to the handle grip.</li>
+            <li>Measure the diameter of the cylindrical load drum \(D_{\text{drum}}\) and cord thickness \(d_{\text{rope}}\) using vernier calipers.</li>
+            <li>Compute the effective diameter \(D_{\text{eff}} = D_{\text{drum}} + d_{\text{rope}}\) and theoretical \(VR\).</li>
+          </ol>
+        </div>
       </details>
       <details>
-        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
-        <div><p>Calculate Mechanical Advantage: $MA = \frac{W}{P}$ and Efficiency: $$\eta = \frac{MA}{VR} \times 100\%$$</p></div>
+        <summary>3. Experimental Execution &amp; Progressive Loading</summary>
+        <div>
+          <ol>
+            <li>Hang a base test load (e.g., \(W = 10\text{ kgf}\)) onto the load hook.</li>
+            <li>Incrementally add fractional brass weights to the effort pan until the winch begins to turn smoothly and lift the load at uniform speed without jerking.</li>
+            <li>Record total effort applied \(P\) (sum of weights plus 50g pan mass).</li>
+            <li>Calculate Mechanical Advantage \(MA = W/P\) and Efficiency \(\eta = (MA/VR) \times 100\%\).</li>
+            <li>Repeat for increasing loads (\(20, 30, 50, 80, 100\text{ kgf}\)) and log into the Observation Ledger.</li>
+          </ol>
+        </div>
       </details>
       <details>
-        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
-        <div><p>Establish the Law of Machine: $P = m W + C$ where $m$ is reciprocal of maximum mechanical advantage.</p></div>
+        <summary>4. Dog-Clutch Shifting Procedure</summary>
+        <div>
+          <p>
+            To shift from Single Purchase to Double Purchase, click the <strong>"Shift Dog Clutch"</strong> lever. 
+            The effort axle slides axially, disengaging the direct mesh and bringing Pinion 1 into mesh with Spur 1 (\(T_2\)), 
+            while Pinion 2 (\(T_3\)) meshes with Spur 2 (\(T_4\)). Notice that the effort required to lift the exact same 
+            \(10\text{ kgf}\) load drops by more than half.
+          </p>
+        </div>
       </details>
       <details>
-        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
-        <div><p>Evaluate maximum mechanical efficiency $\eta_{max} = \frac{1}{m \cdot VR}$.</p></div>
+        <summary>5. Graphical Analysis &amp; Extraction of Constants</summary>
+        <div>
+          <p>
+            Plot effort \(P\) against load \(W\). Perform linear regression to obtain the slope \(m\) and zero-load intercept \(C\).
+            Compute the maximum theoretical mechanical advantage \(MA_{\text{max}} = 1/m\) and maximum efficiency \(\eta_{\text{max}} = \frac{1}{m \cdot VR} \times 100\%\).
+          </p>
+        </div>
       </details>
       <details>
-        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
-        <div><p>Reference: WBSCTE Engineering Mechanics Lab (ES102/ES104).</p></div>
+        <summary>6. Safety Audit: Self-Locking vs. Overhauling</summary>
+        <div>
+          <p>
+            Click the <strong>"Test Self-Locking (Drop Effort)"</strong> button while a heavy load is suspended. 
+            If the machine efficiency is below \(50\%\), internal bearing and tooth friction prevent back-driving, ensuring 
+            the load remains stationary in mid-air.
+          </p>
+        </div>
       </details>
     </section>
 
-    <!-- ════ SEO Technical Article ════ -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SEO TECHNICAL ARTICLE & CURRICULUM STANDARDS                            -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
     <section class="seo-article">
-      <h2>Engineering Reference &amp; Laboratory Standards: Single Purchase Crab Winch Lab</h2>
-      <p>ES102/ES104 Engineering Mechanics: Single Purchase Crab Winch VR = (2R/d)(T2/T1), MA = W/P & Efficiency eta</p>
-      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
-      <p>Understand the mechanism of single gear reduction in simple lifting machines. Evaluate Velocity Ratio: $$VR = \frac{\text{Distance moved by Effort}}{\text{Distance moved by Load}} = \frac{2R}{d} \cdot \frac{T_2}{T_1}$$</p>
-      <h3>Governing Equations &amp; Analytical Formulations</h3>
-      <p>Calculate Mechanical Advantage: $MA = \frac{W}{P}$ and Efficiency: $$\eta = \frac{MA}{VR} \times 100\%$$ Establish the Law of Machine: $P = m W + C$ where $m$ is reciprocal of maximum mechanical advantage.</p>
-      <h3>Industrial &amp; Engineering Applications</h3>
-      <p>Evaluate maximum mechanical efficiency $\eta_{max} = \frac{1}{m \cdot VR}$. Designed in strict alignment with Reference: WBSCTE Engineering Mechanics Lab (ES102/ES104)..</p>
+      <h2>Engineering Science Standards: Single &amp; Double Purchase Crab Winch Virtual Lab</h2>
+      <p>
+        Strictly compliant with <strong>WBSCTE Diploma Engineering Mechanics Syllabus (ES102 / ES104)</strong> and 
+        AICTE model curriculum guidelines for Mechanical, Civil, and Electrical engineering disciplines.
+      </p>
+      <h3>Apparatus Mechanics &amp; Gear Train Theory</h3>
+      <p>
+        Lifting machines are mechanical devices designed to elevate heavy loads through the strategic application of 
+        comparatively smaller effort forces. In a single purchase crab winch, mechanical advantage is achieved via a single-stage 
+        involute spur gear pair and an effort crank radius greater than the winding drum radius. In double purchase systems, 
+        compound reduction distributes the high torque across an intermediate countershaft, enabling safe elevation of multi-ton loads.
+      </p>
+      <h3>The Universal Law of the Machine</h3>
+      <p>
+        Across all empirical regimes, the total applied effort satisfies \(P = mW + C\), where \(mW\) represents the effort 
+        required to lift the ideal mechanical load and overcome load-proportional contact friction, while \(C\) represents the 
+        stiction and viscous drag of journal bearings at zero load.
+      </p>
     </section>
   </main>
 
-  <script src="../../shared/sidebar/sidebar.js"></script>
+  <!-- ── Inline 3D Carousel Manifest (Prevents 404 Component JSON Lookups) ── -->
   <script>
-    let scene, camera, renderer, controls, modelGroup;
-    const canvas = document.getElementById('sim-canvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+    window.V2_COMPONENTS = [
+      { label: "Single Purchase Crab Winch Rig", url: "/models/single_purchase_crab_winch.glb" },
+      { label: "Double Purchase Compound Winch Rig", url: "/models/double_purchase_crab_winch.glb" }
+    ];
+  </script>
 
-    function drawSim(arg1, arg2, arg3, arg4) {
+  <!-- ── Core Simulation Engine & Kinematics Script ───────────────────────── -->
+  <script>
+    /* ==========================================================================
+       SIMULATION STATE & KINEMATICS ENGINE
+       ========================================================================== */
+    const STATE = {
+      regime: 'single', // 'single' | 'double'
+      R: 35.0, // handle radius (cm)
+      D_drum: 15.0, // drum diameter (cm)
+      d_rope: 0.6, // rope thickness (cm)
+      T1: 16, // driver pinion 1
+      T2: 80, // intermediate spur 1
+      T3: 20, // intermediate pinion 2
+      T4: 100, // drum spur 2
+      W: 10.0, // load lifted (kgf)
+      P: 0.720, // effort applied (kgf)
+      pan_mass: 0.050, // 50g brass pan
+
+      // Canvas Pan & Zoom
+      zoom: 1.0,
+      panX: 0,
+      panY: 0,
+      isDragging: false,
+      dragStartX: 0,
+      dragStartY: 0,
       
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, width, height);
-
-            // Small Pinion T1
-            ctx.strokeStyle = '#ffd600';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.arc(width/2 - 60, 200, 35, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Large Spur Gear T2
-            ctx.strokeStyle = '#38bdf8';
-            ctx.beginPath();
-            ctx.arc(width/2 + 60, 200, 80, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Load Drum
-            ctx.fillStyle = '#64748b';
-            ctx.beginPath();
-            ctx.arc(width/2 + 60, 200, 25, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Hanging W
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(width/2 + 85, 200); ctx.lineTo(width/2 + 85, 300);
-            ctx.stroke();
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(width/2 + 70, 300, 30, 35);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '13px Inter';
-            ctx.fillText('Velocity Ratio VR = ' + arg1.toFixed(2) + ' | MA = ' + arg2.toFixed(2), width/2 - 130, 60);
-            ctx.fillText('Mechanical Efficiency η = ' + arg3.toFixed(1) + ' %', width/2 - 110, 90);
-        
-    }
-
-    function runSim() {
+      // Dynamic Motion Physics
+      crank_angle: 0,
+      drum_angle: 0,
+      inter_angle: 0,
+      is_hoisting: false,
+      is_overhauling: false,
+      anim_id: null,
+      hoist_speed: 0,
       
-            const w = parseFloat(document.getElementById('load_lifted_w_kg').value);
-            const p = parseFloat(document.getElementById('effort_applied_p_kg').value);
-            const diam_2r = parseFloat(document.getElementById('effort_wheel_diameter_2r_cm').value);
-            const d_drum = parseFloat(document.getElementById('load_drum_diameter_d_cm').value);
-            const t1 = parseFloat(document.getElementById('teeth_pinion_t1').value);
-            const t2 = parseFloat(document.getElementById('teeth_spur_gear_t2').value);
+      // Active Graph Tab
+      graph_tab: 1,
+      
+      // Observation Ledger
+      trials: []
+    };
 
-            const vr = (diam_2r / d_drum) * (t2 / t1);
-            const ma = w / p;
-            const eta = (ma / vr) * 100.0;
-            const p_ideal = w / vr;
-            const p_fric = p - p_ideal;
-
-            document.getElementById('out_vr').innerText = vr.toFixed(2);
-            document.getElementById('out_ma').innerText = ma.toFixed(2);
-            document.getElementById('out_eta').innerText = eta.toFixed(2) + " %";
-            document.getElementById('out_pf').innerText = p_fric.toFixed(3) + " kg";
-            document.getElementById('out_status').innerText = "WINCH VERIFIED: Velocity Ratio VR = " + vr.toFixed(2) + ", Efficiency η = " + eta.toFixed(1) + "%";
-            drawSim(vr, ma, eta, w);
-        
-    }
-
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
-
-      if (mode === '3d' && !renderer) {
-        initThree();
+    // Web Audio Synthesizer
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
     }
 
-    function initThree() {
-      const container = document.getElementById('three-canvas-container');
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x020617);
+    function playGearClick(freq = 240, duration = 0.03) {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
 
-      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-      camera.position.set(2, 1.5, 3);
+    function playClutchClunk() {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(45, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      } catch (e) {}
+    }
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-      container.appendChild(renderer.domElement);
+    function playWeightClank() {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+      } catch (e) {}
+    }
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+    /* ── Kinematic Calculations ───────────────────────────────────────────── */
+    function calcMetrics() {
+      const D_eff = STATE.D_drum + STATE.d_rope;
+      const r = D_eff / 2.0;
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
-      scene.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
+      let VR = 0;
+      let m = 0;
+      let C = 0;
 
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/single_purchase_crab_winch.glb', function(gltf) {
-        modelGroup = gltf.scene;
-        scene.add(modelGroup);
-        animate();
-      }, undefined, function(err) {
-        console.warn('Fallback 3D geometry loaded');
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-        const mat = new THREE.MeshStandardMaterial({ color: '#ffd600', roughness: 0.3 });
-        modelGroup = new THREE.Mesh(geo, mat);
-        scene.add(modelGroup);
-        animate();
+      if (STATE.regime === 'single') {
+        // VR = (2R / D_eff) * (T4 / T1)
+        VR = (2.0 * STATE.R / D_eff) * (STATE.T4 / STATE.T1);
+        m = 0.0560;
+        C = 0.160;
+      } else {
+        // VR = (2R / D_eff) * (T2 / T1) * (T4 / T3)
+        VR = (2.0 * STATE.R / D_eff) * (STATE.T2 / STATE.T1) * (STATE.T4 / STATE.T3);
+        m = 0.0150;
+        C = 0.150; // extra shaft bearing friction
+      }
+
+      const MA = STATE.W / (STATE.P > 0 ? STATE.P : 0.0001);
+      const eta = (MA / VR) * 100.0;
+      const P_ideal = STATE.W / VR;
+      const Pf = STATE.P - P_ideal;
+      const Ff = (STATE.P * VR) - STATE.W;
+      const P_req = m * STATE.W + C;
+      const is_self_locking = eta < 50.0;
+
+      return { D_eff, r, VR, m, C, MA, eta, P_ideal, Pf, Ff, P_req, is_self_locking };
+    }
+
+    /* ── DOM & Telemetry Updates ─────────────────────────────────────────── */
+    function updateUI() {
+      const m = calcMetrics();
+
+      // Sliders & inputs
+      document.getElementById('val-r-cm').innerText = STATE.R.toFixed(1) + " cm";
+      document.getElementById('input-r-cm').value = STATE.R;
+      document.getElementById('val-drum-cm').innerText = STATE.D_drum.toFixed(1) + " cm";
+      document.getElementById('input-drum-cm').value = STATE.D_drum;
+      document.getElementById('val-rope-cm').innerText = STATE.d_rope.toFixed(1) + " cm";
+      document.getElementById('input-rope-cm').value = STATE.d_rope;
+
+      document.getElementById('val-t1').innerText = STATE.T1;
+      document.getElementById('input-t1').value = STATE.T1;
+      document.getElementById('val-t2').innerText = STATE.T2;
+      document.getElementById('input-t2').value = STATE.T2;
+      document.getElementById('val-t3').innerText = STATE.T3;
+      document.getElementById('input-t3').value = STATE.T3;
+      document.getElementById('val-t4').innerText = STATE.T4;
+      document.getElementById('input-t4').value = STATE.T4;
+
+      // Weights & trays
+      document.getElementById('label-w-total').innerText = STATE.W.toFixed(1) + " kgf";
+      document.getElementById('input-load-w').value = STATE.W.toFixed(1);
+      document.getElementById('label-p-total').innerText = STATE.P.toFixed(3) + " kgf";
+      document.getElementById('input-effort-p').value = STATE.P.toFixed(3);
+      document.getElementById('hud-total-applied').innerText = `W=${STATE.W.toFixed(1)} kgf | P=${STATE.P.toFixed(3)} kgf`;
+
+      // Telemetry HUD
+      document.getElementById('hud-vr').innerText = m.VR.toFixed(2);
+      document.getElementById('hud-ma').innerText = m.MA.toFixed(2);
+      document.getElementById('hud-eta').innerText = m.eta.toFixed(2) + "%";
+      document.getElementById('hud-pf').innerText = m.Pf.toFixed(3) + " kgf";
+      document.getElementById('hud-ideal-p').innerText = "Ideal Pi = " + m.P_ideal.toFixed(3) + " kgf";
+
+      if (STATE.regime === 'single') {
+        document.getElementById('hud-vr-formula').innerHTML = `\\((2R/D_{\\text{eff}}) \\cdot (T_4/T_1)\\)`;
+        document.getElementById('hud-regime-pill').innerText = "SINGLE PURCHASE";
+      } else {
+        document.getElementById('hud-vr-formula').innerHTML = `\\((2R/D_{\\text{eff}}) \\cdot (T_2/T_1) \\cdot (T_4/T_3)\\)`;
+        document.getElementById('hud-regime-pill').innerText = "DOUBLE PURCHASE";
+      }
+
+      // Reversibility Audit Card
+      const auditBadge = document.getElementById('audit-badge');
+      const auditExpl = document.getElementById('audit-explanation');
+      if (m.is_self_locking) {
+        auditBadge.className = "audit-badge self-locking";
+        auditBadge.innerHTML = "&#128274; Strictly Self-Locking (\\(\\eta < 50\\%\\))";
+        auditExpl.innerHTML = `Mechanical efficiency \\(\\eta = ${m.eta.toFixed(1)}\\% < 50\\%\\). Machine will hold load safely without dropping if effort is released.`;
+      } else {
+        auditBadge.className = "audit-badge overhauling";
+        auditBadge.innerHTML = "&#9888; Overhauling / Reversible (\\(\\eta > 50\\%\\))";
+        auditExpl.innerHTML = `Mechanical efficiency \\(\\eta = ${m.eta.toFixed(1)}\\% > 50\\%\\). High-efficiency hazard: releasing effort will cause the load to drop and back-drive the handle.`;
+      }
+
+      // Clutch state
+      const clutchDot = document.getElementById('clutch-dot');
+      const clutchText = document.getElementById('clutch-status-text');
+      if (STATE.regime === 'single') {
+        clutchDot.style.background = "var(--cyan)";
+        clutchDot.style.boxShadow = "0 0 6px var(--cyan)";
+        clutchText.innerText = "Pinion 1 engaged directly with Spur 2";
+      } else {
+        clutchDot.style.background = "var(--amber)";
+        clutchDot.style.boxShadow = "0 0 6px var(--amber)";
+        clutchText.innerText = "Pinion 1 engaged with Compound Intermediate Shaft";
+      }
+
+      // Repaint canvases
+      drawWorkbench();
+      drawCurrentGraph();
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise();
+      }
+    }
+
+    /* ── Regime & Clutch Controls ────────────────────────────────────────── */
+    function setRegime(regime) {
+      if (STATE.regime === regime) return;
+      STATE.regime = regime;
+      playClutchClunk();
+
+      const btnSingle = document.getElementById('btn-regime-single');
+      const btnDouble = document.getElementById('btn-regime-double');
+      const headerBadge = document.getElementById('header-regime-badge');
+
+      if (regime === 'single') {
+        btnSingle.className = "regime-btn active-single";
+        btnDouble.className = "regime-btn";
+        headerBadge.innerText = "Single Purchase Mode";
+        headerBadge.className = "badge badge-model";
+      } else {
+        btnSingle.className = "regime-btn";
+        btnDouble.className = "regime-btn active-double";
+        headerBadge.innerText = "Double Purchase Mode";
+        headerBadge.className = "badge badge-subject";
+      }
+
+      // Auto adjust effort to reasonable standard if needed
+      autoBalanceEffort();
+      updateUI();
+    }
+
+    function toggleClutch() {
+      setRegime(STATE.regime === 'single' ? 'double' : 'single');
+    }
+
+    /* ── Apparatus Geometry & Presets ────────────────────────────────────── */
+    function updateGeometry() {
+      STATE.R = parseFloat(document.getElementById('input-r-cm').value);
+      STATE.D_drum = parseFloat(document.getElementById('input-drum-cm').value);
+      STATE.d_rope = parseFloat(document.getElementById('input-rope-cm').value);
+      STATE.T1 = parseInt(document.getElementById('input-t1').value);
+      STATE.T2 = parseInt(document.getElementById('input-t2').value);
+      STATE.T3 = parseInt(document.getElementById('input-t3').value);
+      STATE.T4 = parseInt(document.getElementById('input-t4').value);
+      document.getElementById('machine-preset').value = 'custom';
+      updateUI();
+    }
+
+    function applyPreset(preset) {
+      if (preset === 'standard') {
+        STATE.R = 35.0;
+        STATE.D_drum = 15.0;
+        STATE.d_rope = 0.6;
+        STATE.T1 = 16;
+        STATE.T2 = 80;
+        STATE.T3 = 20;
+        STATE.T4 = 100;
+      } else if (preset === 'heavy') {
+        STATE.R = 40.0;
+        STATE.D_drum = 20.0;
+        STATE.d_rope = 1.0;
+        STATE.T1 = 15;
+        STATE.T2 = 90;
+        STATE.T3 = 18;
+        STATE.T4 = 108;
+      } else if (preset === 'small') {
+        STATE.R = 30.0;
+        STATE.D_drum = 10.0;
+        STATE.d_rope = 0.4;
+        STATE.T1 = 16;
+        STATE.T2 = 80;
+        STATE.T3 = 20;
+        STATE.T4 = 80;
+      }
+      autoBalanceEffort();
+      updateUI();
+    }
+
+    /* ── Weight Loading Actions ──────────────────────────────────────────── */
+    function addLoad(val) {
+      STATE.W = Math.min(120.0, STATE.W + val);
+      playWeightClank();
+      updateUI();
+    }
+
+    function setLoadDirect(val) {
+      STATE.W = Math.max(1.0, Math.min(120.0, parseFloat(val) || 1.0));
+      updateUI();
+    }
+
+    function removeLoad() {
+      STATE.W = 10.0;
+      playWeightClank();
+      updateUI();
+    }
+
+    function addEffort(val) {
+      STATE.P = Math.min(25.0, STATE.P + val);
+      playWeightClank();
+      updateUI();
+    }
+
+    function setEffortDirect(val) {
+      STATE.P = Math.max(0.05, Math.min(25.0, parseFloat(val) || 0.05));
+      updateUI();
+    }
+
+    function resetEffort() {
+      STATE.P = STATE.pan_mass;
+      playWeightClank();
+      updateUI();
+    }
+
+    function autoBalanceEffort() {
+      const m = calcMetrics();
+      // Apply exact required steady lifting effort
+      STATE.P = Math.round(m.P_req * 1000) / 1000;
+      playWeightClank();
+      updateUI();
+    }
+
+    function inspectSelfLocking() {
+      // Simulate dropping effort to test holding
+      const m = calcMetrics();
+      STATE.P = STATE.pan_mass; // only bare empty pan left
+      updateUI();
+
+      if (m.is_self_locking) {
+        alert(`SELF-LOCKING CONFIRMED!\n\nEfficiency was ${m.eta.toFixed(1)}% (< 50%).\nWith effort removed, static bearing & meshing friction holds the suspended load (W = ${STATE.W.toFixed(1)} kgf) stationary in mid-air.`);
+      } else {
+        alert(`OVERHAULING HAZARD!\n\nEfficiency was ${m.eta.toFixed(1)}% (> 50%).\nLoad overcomes internal friction, dropping and back-driving the winch!`);
+        startOverhaulingAnimation();
+      }
+    }
+
+    function triggerHoist() {
+      const m = calcMetrics();
+      if (STATE.P < m.P_req) {
+        alert(`INSUFFICIENT EFFORT!\n\nApplied Effort: P = ${STATE.P.toFixed(3)} kgf\nRequired Threshold: P_req = ${m.P_req.toFixed(3)} kgf (to overcome W = ${STATE.W.toFixed(1)} kgf and initial friction C = ${m.C.toFixed(3)} kgf).\n\nAdd more weights to effort pan or click 'Auto-Balance Effort'.`);
+        return;
+      }
+      startHoistingAnimation();
+    }
+
+    function resetApparatus() {
+      STATE.is_hoisting = false;
+      STATE.is_overhauling = false;
+      STATE.crank_angle = 0;
+      STATE.drum_angle = 0;
+      STATE.inter_angle = 0;
+      autoBalanceEffort();
+      updateUI();
+    }
+
+    /* ── 2D Interactive Winch Workbench Rendering ────────────────────────── */
+    const simCanvas = document.getElementById('sim-canvas');
+    const simCtx = simCanvas.getContext('2d');
+
+    function drawWorkbench() {
+      const w = simCanvas.width;
+      const h = simCanvas.height;
+
+      simCtx.clearRect(0, 0, w, h);
+
+      // Gradient industrial background
+      const bgGrad = simCtx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, '#040711');
+      bgGrad.addColorStop(1, '#091024');
+      simCtx.fillStyle = bgGrad;
+      simCtx.fillRect(0, 0, w, h);
+
+      // Apply Pan and Zoom Transform
+      simCtx.save();
+      simCtx.translate(STATE.panX, STATE.panY);
+      simCtx.scale(STATE.zoom, STATE.zoom);
+
+      // Ground / Bedplate
+      simCtx.fillStyle = '#1e293b';
+      simCtx.fillRect(60, h - 45, w - 120, 24);
+      simCtx.strokeStyle = '#334155';
+      simCtx.lineWidth = 2;
+      simCtx.strokeRect(60, h - 45, w - 120, 24);
+
+      // Heavy anchor bolts
+      simCtx.fillStyle = '#64748b';
+      for (let bx = 80; bx < w - 60; bx += 100) {
+        simCtx.beginPath();
+        simCtx.arc(bx, h - 33, 4, 0, Math.PI * 2);
+        simCtx.fill();
+      }
+
+      // Cast-Iron A-Frame Triangular Side Standards
+      const frameColor = '#1f2937';
+      const frameStroke = '#475569';
+
+      // Left A-Frame upright
+      simCtx.beginPath();
+      simCtx.moveTo(130, h - 45);
+      simCtx.lineTo(240, 90);
+      simCtx.lineTo(350, h - 45);
+      simCtx.closePath();
+      simCtx.fillStyle = frameColor;
+      simCtx.fill();
+      simCtx.strokeStyle = frameStroke;
+      simCtx.lineWidth = 4;
+      simCtx.stroke();
+
+      // Right A-Frame upright (cross-bracing view)
+      simCtx.beginPath();
+      simCtx.moveTo(270, h - 45);
+      simCtx.lineTo(380, 90);
+      simCtx.lineTo(490, h - 45);
+      simCtx.closePath();
+      simCtx.fillStyle = 'rgba(31, 41, 55, 0.7)';
+      simCtx.fill();
+      simCtx.stroke();
+
+      // Tie rods connecting the A-frames
+      simCtx.strokeStyle = '#94a3b8';
+      simCtx.lineWidth = 3;
+      simCtx.beginPath();
+      simCtx.moveTo(240, 90);
+      simCtx.lineTo(380, 90);
+      simCtx.moveTo(180, 260);
+      simCtx.lineTo(320, 260);
+      simCtx.stroke();
+
+      // Shaft Coordinates
+      // Shaft 1: Top (Effort Crank & Pinion 1)
+      const s1_x = 240;
+      const s1_y = 120;
+
+      // Shaft 2: Middle (Intermediate Spur 1 & Pinion 2)
+      const s2_x = 340;
+      const s2_y = 210;
+
+      // Shaft 3: Bottom (Drum Spur 2 & Drum)
+      const s3_x = 240;
+      const s3_y = 300;
+
+      // ── GEARS RENDERING ──
+      // 1. Drum Spur Wheel 2 (T4) on Shaft 3
+      const r_t4 = 85;
+      drawGear(s3_x, s3_y, r_t4, STATE.T4, STATE.drum_angle, '#38bdf8', 'Spur 2 (T4=' + STATE.T4 + ')');
+
+      // 2. Load Drum (coaxial with Shaft 3)
+      const drum_radius = Math.min(50, (STATE.D_drum / 2.0) * 3.2);
+      drawDrum(s3_x + 120, s3_y, drum_radius);
+
+      // 3. Intermediate Shaft (Shaft 2) - engaged in Double Purchase or idled in Single
+      if (STATE.regime === 'double') {
+        const r_t2 = 70;
+        const r_t3 = 30;
+        // Spur Wheel 1 (T2)
+        drawGear(s2_x, s2_y, r_t2, STATE.T2, STATE.inter_angle, '#f59e0b', 'Spur 1 (T2=' + STATE.T2 + ')');
+        // Pinion 2 (T3)
+        drawGear(s2_x + 35, s2_y, r_t3, STATE.T3, STATE.inter_angle, '#fbbf24', 'Pinion 2 (T3=' + STATE.T3 + ')');
+      } else {
+        // Idled intermediate shaft rendered semi-transparently
+        simCtx.save();
+        simCtx.globalAlpha = 0.25;
+        drawGear(s2_x, s2_y, 70, STATE.T2, 0, '#64748b', 'Disengaged Shaft 2');
+        simCtx.restore();
+      }
+
+      // 4. Pinion 1 (T1) on Shaft 1
+      const r_t1 = 28;
+      const t1_x = (STATE.regime === 'single') ? s1_x : s1_x + 40;
+      drawGear(t1_x, s1_y, r_t1, STATE.T1, STATE.crank_angle, '#10b981', 'Pinion 1 (T1=' + STATE.T1 + ')');
+
+      // ── EFFORT CRANK HANDLE & EFFORT PAN (P) ──
+      const handle_len = (STATE.R / 35.0) * 65;
+      const crank_end_x = s1_x + Math.cos(STATE.crank_angle) * handle_len;
+      const crank_end_y = s1_y + Math.sin(STATE.crank_angle) * handle_len;
+
+      // Crank Arm
+      simCtx.strokeStyle = '#e2e8f0';
+      simCtx.lineWidth = 6;
+      simCtx.lineCap = 'round';
+      simCtx.beginPath();
+      simCtx.moveTo(s1_x, s1_y);
+      simCtx.lineTo(crank_end_x, crank_end_y);
+      simCtx.stroke();
+
+      // Handle Grip
+      simCtx.fillStyle = '#f59e0b';
+      simCtx.beginPath();
+      simCtx.arc(crank_end_x, crank_end_y, 7, 0, Math.PI * 2);
+      simCtx.fill();
+
+      // Effort Rope drops from tangential pulley on Shaft 1 to Effort Pan
+      const effort_rope_x = 100;
+      simCtx.strokeStyle = '#cbd5e1';
+      simCtx.lineWidth = 2;
+      simCtx.beginPath();
+      simCtx.moveTo(s1_x - 20, s1_y);
+      simCtx.lineTo(effort_rope_x, s1_y);
+      simCtx.lineTo(effort_rope_x, 260 + Math.sin(STATE.crank_angle * 0.5) * 8);
+      simCtx.stroke();
+
+      // Guide Pulley
+      simCtx.fillStyle = '#475569';
+      simCtx.beginPath();
+      simCtx.arc(effort_rope_x, s1_y, 8, 0, Math.PI * 2);
+      simCtx.fill();
+
+      // Effort Pan & Weights
+      const pan_y = 260 + Math.sin(STATE.crank_angle * 0.5) * 8;
+      drawEffortPan(effort_rope_x, pan_y, STATE.P);
+
+      // ── LOAD ROPE & SUSPENDED LOAD (W) ──
+      const load_rope_x = s3_x + 120 + drum_radius;
+      const load_y = 270 - (STATE.drum_angle * 12) % 90;
+
+      // Load Rope dropping from drum
+      simCtx.strokeStyle = '#d97706';
+      simCtx.lineWidth = 4;
+      simCtx.beginPath();
+      simCtx.moveTo(load_rope_x, s3_y);
+      simCtx.lineTo(load_rope_x, 320);
+      simCtx.stroke();
+
+      // Hanging Load Carrier & Weights
+      drawLoadCarrier(load_rope_x, 320, STATE.W);
+
+      // ── DOG-CLUTCH SHIFTER VISUAL LEVER ──
+      drawClutchShifterLever(s1_x + 110, s1_y - 30);
+
+      // Restore transform for static HUD overlays
+      simCtx.restore();
+
+      // ── LIVE ON-CANVAS OVERLAYS (Fixed in Viewport Screen Space) ──
+      simCtx.fillStyle = '#f8fafc';
+      simCtx.font = 'bold 13px Inter, sans-serif';
+      simCtx.fillText(`Mode: ${STATE.regime.toUpperCase()} PURCHASE`, 20, 30);
+      simCtx.font = '12px Inter, sans-serif';
+      simCtx.fillStyle = '#94a3b8';
+      simCtx.fillText(`Kinematic VR = ${calcMetrics().VR.toFixed(2)} | MA = ${calcMetrics().MA.toFixed(2)}`, 20, 50);
+      simCtx.fillText(`Applied Torque Balance: τ_net = ${(STATE.P * STATE.R * 0.098 - STATE.W * 0.098 * (STATE.D_drum/200)/calcMetrics().VR).toFixed(2)} N·m`, 20, 70);
+    }
+
+    /* ── Canvas Pan & Zoom Control Handlers ──────────────────────────────── */
+    function zoomIn() {
+      setZoom(STATE.zoom * 1.15);
+    }
+
+    function zoomOut() {
+      setZoom(STATE.zoom / 1.15);
+    }
+
+    function resetCanvasView() {
+      STATE.zoom = 1.0;
+      STATE.panX = 0;
+      STATE.panY = 0;
+      updateZoomReadout();
+      drawWorkbench();
+    }
+
+    function setZoom(newZoom, centerX = simCanvas.width / 2, centerY = simCanvas.height / 2) {
+      newZoom = Math.min(3.0, Math.max(0.5, newZoom));
+      STATE.panX = centerX - (centerX - STATE.panX) * (newZoom / STATE.zoom);
+      STATE.panY = centerY - (centerY - STATE.panY) * (newZoom / STATE.zoom);
+      STATE.zoom = newZoom;
+      updateZoomReadout();
+      drawWorkbench();
+    }
+
+    function updateZoomReadout() {
+      const el = document.getElementById('zoom-readout');
+      if (el) el.innerText = Math.round(STATE.zoom * 100) + '%';
+    }
+
+    // Mouse Pan & Zoom Listeners on simCanvas:
+    simCanvas.addEventListener('mousedown', (e) => {
+      STATE.isDragging = true;
+      STATE.dragStartX = e.clientX - STATE.panX;
+      STATE.dragStartY = e.clientY - STATE.panY;
+      simCanvas.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!STATE.isDragging) return;
+      STATE.panX = e.clientX - STATE.dragStartX;
+      STATE.panY = e.clientY - STATE.dragStartY;
+      drawWorkbench();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (STATE.isDragging) {
+        STATE.isDragging = false;
+        simCanvas.style.cursor = 'grab';
+      }
+    });
+
+    simCanvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = simCanvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) * (simCanvas.width / rect.width);
+      const mouseY = (e.clientY - rect.top) * (simCanvas.height / rect.height);
+      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+      setZoom(STATE.zoom * zoomFactor, mouseX, mouseY);
+    }, { passive: false });
+
+    // Mobile / Touch Pan & Pinch-to-Zoom:
+    let touchStartDist = null;
+    let touchStartPanX = 0, touchStartPanY = 0;
+    let touchStartX = 0, touchStartY = 0;
+
+    simCanvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        STATE.isDragging = true;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartPanX = STATE.panX;
+        touchStartPanY = STATE.panY;
+      } else if (e.touches.length === 2) {
+        STATE.isDragging = false;
+        touchStartDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    });
+
+    simCanvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && STATE.isDragging) {
+        STATE.panX = touchStartPanX + (e.touches[0].clientX - touchStartX);
+        STATE.panY = touchStartPanY + (e.touches[0].clientY - touchStartY);
+        drawWorkbench();
+      } else if (e.touches.length === 2 && touchStartDist) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / touchStartDist;
+        touchStartDist = dist;
+        setZoom(STATE.zoom * factor);
+      }
+    });
+
+    simCanvas.addEventListener('touchend', () => {
+      STATE.isDragging = false;
+      touchStartDist = null;
+    });
+
+    // Helper: Draw toothed gear with pitch circle
+    function drawGear(cx, cy, radius, teeth, angle, color, label) {
+      simCtx.save();
+      simCtx.translate(cx, cy);
+      simCtx.rotate(angle);
+
+      // Gear body
+      simCtx.fillStyle = color;
+      simCtx.globalAlpha = 0.85;
+      simCtx.beginPath();
+      simCtx.arc(0, 0, radius - 4, 0, Math.PI * 2);
+      simCtx.fill();
+
+      // Gear teeth
+      simCtx.fillStyle = color;
+      const toothStep = (Math.PI * 2) / teeth;
+      for (let i = 0; i < teeth; i++) {
+        const a = i * toothStep;
+        const tx = Math.cos(a) * (radius + 3);
+        const ty = Math.sin(a) * (radius + 3);
+        simCtx.fillRect(tx - 2, ty - 2, 4, 4);
+      }
+
+      // Inner hub & keyway
+      simCtx.globalAlpha = 1.0;
+      simCtx.fillStyle = '#0f172a';
+      simCtx.beginPath();
+      simCtx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+      simCtx.fill();
+      simCtx.strokeStyle = '#ffffff';
+      simCtx.lineWidth = 1.5;
+      simCtx.stroke();
+
+      // Spoke cutouts
+      simCtx.fillStyle = '#091024';
+      for (let s = 0; s < 4; s++) {
+        const sa = (s * Math.PI) / 2;
+        simCtx.beginPath();
+        simCtx.arc(Math.cos(sa) * radius * 0.6, Math.sin(sa) * radius * 0.6, radius * 0.15, 0, Math.PI * 2);
+        simCtx.fill();
+      }
+
+      simCtx.restore();
+
+      // Gear label
+      simCtx.fillStyle = '#cbd5e1';
+      simCtx.font = '10.5px Inter, sans-serif';
+      simCtx.textAlign = 'center';
+      simCtx.fillText(label, cx, cy + radius + 14);
+      simCtx.textAlign = 'left';
+    }
+
+    // Helper: Draw grooved load drum with rope wraps
+    function drawDrum(cx, cy, radius) {
+      // Drum cylinder
+      simCtx.fillStyle = '#475569';
+      simCtx.fillRect(cx - radius, cy - radius * 0.7, radius * 2, radius * 1.4);
+      simCtx.strokeStyle = '#64748b';
+      simCtx.lineWidth = 2;
+      simCtx.strokeRect(cx - radius, cy - radius * 0.7, radius * 2, radius * 1.4);
+
+      // Flanges
+      simCtx.fillStyle = '#334155';
+      simCtx.fillRect(cx - radius - 6, cy - radius * 0.85, 6, radius * 1.7);
+      simCtx.fillRect(cx + radius, cy - radius * 0.85, 6, radius * 1.7);
+
+      // Helical rope wraps
+      simCtx.strokeStyle = '#d97706';
+      simCtx.lineWidth = 3;
+      for (let rx = cx - radius + 4; rx < cx + radius; rx += 8) {
+        simCtx.beginPath();
+        simCtx.moveTo(rx, cy - radius * 0.7);
+        simCtx.lineTo(rx + 4, cy + radius * 0.7);
+        simCtx.stroke();
+      }
+
+      // Drum shaft
+      simCtx.fillStyle = '#94a3b8';
+      simCtx.beginPath();
+      simCtx.arc(cx, cy, 6, 0, Math.PI * 2);
+      simCtx.fill();
+    }
+
+    // Helper: Draw Effort Pan and stacked weights
+    function drawEffortPan(x, y, p_val) {
+      // Suspension cord
+      simCtx.strokeStyle = '#94a3b8';
+      simCtx.lineWidth = 1.5;
+      simCtx.beginPath();
+      simCtx.moveTo(x, y - 24);
+      simCtx.lineTo(x - 18, y);
+      simCtx.moveTo(x, y - 24);
+      simCtx.lineTo(x + 18, y);
+      simCtx.stroke();
+
+      // Brass Pan
+      simCtx.fillStyle = '#eab308';
+      simCtx.beginPath();
+      simCtx.ellipse(x, y, 22, 6, 0, 0, Math.PI * 2);
+      simCtx.fill();
+      simCtx.strokeStyle = '#ca8a04';
+      simCtx.stroke();
+
+      // Slotted weights stacked on pan
+      const count = Math.min(6, Math.max(1, Math.floor(p_val * 3)));
+      for (let i = 0; i < count; i++) {
+        simCtx.fillStyle = '#fde047';
+        simCtx.fillRect(x - 14, y - 6 - (i * 5), 28, 4);
+        simCtx.strokeStyle = '#a16207';
+        simCtx.strokeRect(x - 14, y - 6 - (i * 5), 28, 4);
+      }
+
+      // Weight label
+      simCtx.fillStyle = '#f8fafc';
+      simCtx.font = 'bold 11px JetBrains Mono, monospace';
+      simCtx.textAlign = 'center';
+      simCtx.fillText(`P = ${p_val.toFixed(3)} kgf`, x, y + 20);
+      simCtx.textAlign = 'left';
+    }
+
+    // Helper: Draw Load Carrier and stacked weights
+    function drawLoadCarrier(x, y, w_val) {
+      // Hanger hook
+      simCtx.strokeStyle = '#94a3b8';
+      simCtx.lineWidth = 3;
+      simCtx.beginPath();
+      simCtx.arc(x, y - 10, 6, 0, Math.PI);
+      simCtx.lineTo(x, y);
+      simCtx.stroke();
+
+      // Cast iron disc weights
+      const discs = Math.min(8, Math.max(1, Math.floor(w_val / 10)));
+      for (let i = 0; i < discs; i++) {
+        simCtx.fillStyle = '#475569';
+        simCtx.fillRect(x - 24, y + (i * 8), 48, 7);
+        simCtx.strokeStyle = '#64748b';
+        simCtx.strokeRect(x - 24, y + (i * 8), 48, 7);
+      }
+
+      // Bottom retainer nut
+      simCtx.fillStyle = '#cbd5e1';
+      simCtx.fillRect(x - 10, y + (discs * 8), 20, 6);
+
+      // Load label
+      simCtx.fillStyle = '#f8fafc';
+      simCtx.font = 'bold 11px JetBrains Mono, monospace';
+      simCtx.textAlign = 'center';
+      simCtx.fillText(`W = ${w_val.toFixed(1)} kgf`, x, y + (discs * 8) + 20);
+      simCtx.textAlign = 'left';
+    }
+
+    // Helper: Draw Shifter Lever
+    function drawClutchShifterLever(lx, ly) {
+      simCtx.save();
+      simCtx.fillStyle = '#334155';
+      simCtx.fillRect(lx, ly, 30, 8);
+
+      const lever_angle = (STATE.regime === 'single') ? -0.4 : 0.4;
+      simCtx.translate(lx + 15, ly + 4);
+      simCtx.rotate(lever_angle);
+
+      // Lever arm
+      simCtx.strokeStyle = '#e2e8f0';
+      simCtx.lineWidth = 4;
+      simCtx.beginPath();
+      simCtx.moveTo(0, 0);
+      simCtx.lineTo(0, -32);
+      simCtx.stroke();
+
+      // Knob
+      simCtx.fillStyle = (STATE.regime === 'single') ? '#38bdf8' : '#f59e0b';
+      simCtx.beginPath();
+      simCtx.arc(0, -34, 7, 0, Math.PI * 2);
+      simCtx.fill();
+
+      simCtx.restore();
+    }
+
+    /* ── Physics Animation Engine ────────────────────────────────────────── */
+    function startHoistingAnimation() {
+      if (STATE.is_hoisting) return;
+      STATE.is_hoisting = true;
+      STATE.is_overhauling = false;
+      document.getElementById('canvas-status-label').innerText = "Winch Hoisting Steady Load";
+      document.getElementById('canvas-status-dot').className = "status-dot active";
+
+      let frames = 0;
+      function step() {
+        if (!STATE.is_hoisting) return;
+
+        // Speed governed by gear ratio
+        const crank_speed = 0.06;
+        STATE.crank_angle += crank_speed;
+
+        if (STATE.regime === 'single') {
+          STATE.drum_angle -= crank_speed * (STATE.T1 / STATE.T4);
+        } else {
+          STATE.inter_angle -= crank_speed * (STATE.T1 / STATE.T2);
+          STATE.drum_angle += crank_speed * (STATE.T1 / STATE.T2) * (STATE.T3 / STATE.T4);
+        }
+
+        frames++;
+        if (frames % 12 === 0) {
+          playGearClick(260 + (frames % 4) * 20);
+        }
+
+        drawWorkbench();
+        STATE.anim_id = requestAnimationFrame(step);
+
+        if (frames > 180) { // run smooth 3-second demo lift
+          STATE.is_hoisting = false;
+          document.getElementById('canvas-status-label').innerText = "Load Elevated & Locked";
+        }
+      }
+      STATE.anim_id = requestAnimationFrame(step);
+    }
+
+    function startOverhaulingAnimation() {
+      STATE.is_hoisting = false;
+      STATE.is_overhauling = true;
+      document.getElementById('canvas-status-label').innerText = "WARNING: Overhauling Runaway!";
+      document.getElementById('canvas-status-dot').style.background = "var(--red)";
+
+      let speed = 0.02;
+      let frames = 0;
+      function step() {
+        if (!STATE.is_overhauling) return;
+        speed += 0.003;
+        STATE.crank_angle -= speed;
+        STATE.drum_angle += speed * 0.2;
+
+        frames++;
+        if (frames % 6 === 0) {
+          playGearClick(180, 0.02);
+        }
+
+        drawWorkbench();
+        if (frames < 120) {
+          requestAnimationFrame(step);
+        } else {
+          STATE.is_overhauling = false;
+          document.getElementById('canvas-status-label').innerText = "Overhaul Complete (Load Reached Base)";
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    function toggleAnimation() {
+      if (STATE.is_hoisting) {
+        STATE.is_hoisting = false;
+        document.getElementById('canvas-status-label').innerText = "Simulation Paused";
+      } else {
+        startHoistingAnimation();
+      }
+    }
+
+    /* ── Multi-Tab Real-Time Dynamic Graph Canvas ────────────────────────── */
+    const graphCanvas = document.getElementById('graph-canvas');
+    const graphCtx = graphCanvas.getContext('2d');
+
+    function switchGraphTab(tabIndex, btn) {
+      STATE.graph_tab = tabIndex;
+      document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      const titles = [
+        "Tab 1: P vs. W",
+        "Tab 2: MA vs. W",
+        "Tab 3: Efficiency & 50% Limit",
+        "Tab 4: Friction Losses"
+      ];
+      document.getElementById('graph-tab-badge').innerText = titles[tabIndex - 1];
+      drawCurrentGraph();
+    }
+
+    function drawCurrentGraph() {
+      const w = graphCanvas.width;
+      const h = graphCanvas.height;
+      graphCtx.clearRect(0, 0, w, h);
+
+      // Background
+      graphCtx.fillStyle = '#040711';
+      graphCtx.fillRect(0, 0, w, h);
+
+      // Margins
+      const padL = 60;
+      const padR = 30;
+      const padT = 30;
+      const padB = 45;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      // Draw Grid
+      graphCtx.strokeStyle = '#1e293b';
+      graphCtx.lineWidth = 1;
+      for (let gx = 0; gx <= 5; gx++) {
+        const x = padL + (gx / 5) * plotW;
+        graphCtx.beginPath();
+        graphCtx.moveTo(x, padT);
+        graphCtx.lineTo(x, padT + plotH);
+        graphCtx.stroke();
+      }
+      for (let gy = 0; gy <= 4; gy++) {
+        const y = padT + (gy / 4) * plotH;
+        graphCtx.beginPath();
+        graphCtx.moveTo(padL, y);
+        graphCtx.lineTo(padL + plotW, y);
+        graphCtx.stroke();
+      }
+
+      // Axes
+      graphCtx.strokeStyle = '#475569';
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      graphCtx.moveTo(padL, padT);
+      graphCtx.lineTo(padL, padT + plotH);
+      graphCtx.lineTo(padL + plotW, padT + plotH);
+      graphCtx.stroke();
+
+      const m = calcMetrics();
+
+      if (STATE.graph_tab === 1) {
+        // Tab 1: Law of Machine (P vs W)
+        drawPlotTab1(padL, padT, plotW, plotH, m);
+      } else if (STATE.graph_tab === 2) {
+        // Tab 2: MA vs W
+        drawPlotTab2(padL, padT, plotW, plotH, m);
+      } else if (STATE.graph_tab === 3) {
+        // Tab 3: Efficiency & 50% boundary
+        drawPlotTab3(padL, padT, plotW, plotH, m);
+      } else if (STATE.graph_tab === 4) {
+        // Tab 4: Friction Losses
+        drawPlotTab4(padL, padT, plotW, plotH, m);
+      }
+    }
+
+    function drawPlotTab1(padL, padT, plotW, plotH, m) {
+      // Max range W: 0 to 120 kgf, P: 0 to 8 kgf
+      const maxW = 120;
+      const maxP = 8.0;
+
+      // Labels
+      graphCtx.fillStyle = '#94a3b8';
+      graphCtx.font = '11px Inter, sans-serif';
+      graphCtx.textAlign = 'center';
+      graphCtx.fillText("Load Lifted W (kgf)", padL + plotW / 2, padT + plotH + 35);
+      graphCtx.save();
+      graphCtx.translate(padL - 35, padT + plotH / 2);
+      graphCtx.rotate(-Math.PI / 2);
+      graphCtx.fillText("Effort Applied P (kgf)", 0, 0);
+      graphCtx.restore();
+
+      // Axis Tick marks
+      for (let val = 0; val <= maxW; val += 20) {
+        const x = padL + (val / maxW) * plotW;
+        graphCtx.fillText(val, x, padT + plotH + 16);
+      }
+      for (let pval = 0; pval <= maxP; pval += 2) {
+        const y = padT + plotH - (pval / maxP) * plotH;
+        graphCtx.textAlign = 'right';
+        graphCtx.fillText(pval.toFixed(1), padL - 8, y + 4);
+      }
+
+      // Single Purchase Line (Cyan): P = 0.0560*W + 0.160
+      graphCtx.strokeStyle = '#38bdf8';
+      graphCtx.lineWidth = 2.5;
+      graphCtx.beginPath();
+      for (let w = 0; w <= maxW; w += 2) {
+        const p = 0.0560 * w + 0.160;
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (p / maxP) * plotH;
+        if (w === 0) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Double Purchase Line (Amber): P = 0.0150*W + 0.150
+      graphCtx.strokeStyle = '#f59e0b';
+      graphCtx.lineWidth = 2.5;
+      graphCtx.beginPath();
+      for (let w = 0; w <= maxW; w += 2) {
+        const p = 0.0150 * w + 0.150;
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (p / maxP) * plotH;
+        if (w === 0) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Current Operating Point
+      const curX = padL + (STATE.W / maxW) * plotW;
+      const curY = padT + plotH - (STATE.P / maxP) * plotH;
+      graphCtx.fillStyle = '#10b981';
+      graphCtx.beginPath();
+      graphCtx.arc(curX, curY, 6, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.strokeStyle = '#ffffff';
+      graphCtx.lineWidth = 1.5;
+      graphCtx.stroke();
+    }
+
+    function drawPlotTab2(padL, padT, plotW, plotH, m) {
+      // Max range W: 0 to 120, MA: 0 to 80
+      const maxW = 120;
+      const maxMA = 80;
+
+      // Labels
+      graphCtx.fillStyle = '#94a3b8';
+      graphCtx.font = '11px Inter, sans-serif';
+      graphCtx.textAlign = 'center';
+      graphCtx.fillText("Load Lifted W (kgf)", padL + plotW / 2, padT + plotH + 35);
+      graphCtx.save();
+      graphCtx.translate(padL - 35, padT + plotH / 2);
+      graphCtx.rotate(-Math.PI / 2);
+      graphCtx.fillText("Mechanical Advantage MA", 0, 0);
+      graphCtx.restore();
+
+      // Ticks
+      for (let val = 0; val <= maxW; val += 20) {
+        const x = padL + (val / maxW) * plotW;
+        graphCtx.fillText(val, x, padT + plotH + 16);
+      }
+      for (let ma = 0; ma <= maxMA; ma += 20) {
+        const y = padT + plotH - (ma / maxMA) * plotH;
+        graphCtx.textAlign = 'right';
+        graphCtx.fillText(ma, padL - 8, y + 4);
+      }
+
+      // Single Purchase MA curve: W / (0.0560*W + 0.160) -> Asymptote MA_max = 17.86
+      graphCtx.strokeStyle = '#38bdf8';
+      graphCtx.lineWidth = 2.5;
+      graphCtx.beginPath();
+      for (let w = 1; w <= maxW; w += 2) {
+        const ma = w / (0.0560 * w + 0.160);
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (ma / maxMA) * plotH;
+        if (w === 1) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Double Purchase MA curve: W / (0.0150*W + 0.150) -> Asymptote MA_max = 66.67
+      graphCtx.strokeStyle = '#f59e0b';
+      graphCtx.lineWidth = 2.5;
+      graphCtx.beginPath();
+      for (let w = 1; w <= maxW; w += 2) {
+        const ma = w / (0.0150 * w + 0.150);
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (ma / maxMA) * plotH;
+        if (w === 1) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Current Point
+      const curX = padL + (STATE.W / maxW) * plotW;
+      const curY = padT + plotH - (m.MA / maxMA) * plotH;
+      graphCtx.fillStyle = '#10b981';
+      graphCtx.beginPath();
+      graphCtx.arc(curX, curY, 6, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.strokeStyle = '#ffffff';
+      graphCtx.stroke();
+    }
+
+    function drawPlotTab3(padL, padT, plotW, plotH, m) {
+      // Max range W: 0 to 120, Efficiency: 0 to 100%
+      const maxW = 120;
+      const maxEta = 100;
+
+      // 50% Self-Locking Shaded Region
+      const y50 = padT + plotH - (50 / maxEta) * plotH;
+      graphCtx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+      graphCtx.fillRect(padL, y50, plotW, padT + plotH - y50);
+
+      // Red dashed line at 50%
+      graphCtx.strokeStyle = '#ef4444';
+      graphCtx.setLineDash([5, 5]);
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      graphCtx.moveTo(padL, y50);
+      graphCtx.lineTo(padL + plotW, y50);
+      graphCtx.stroke();
+      graphCtx.setLineDash([]);
+
+      graphCtx.fillStyle = '#ef4444';
+      graphCtx.font = '10px Inter, sans-serif';
+      graphCtx.textAlign = 'right';
+      graphCtx.fillText("50% Self-Locking Threshold", padL + plotW - 10, y50 - 6);
+
+      // Labels
+      graphCtx.fillStyle = '#94a3b8';
+      graphCtx.font = '11px Inter, sans-serif';
+      graphCtx.textAlign = 'center';
+      graphCtx.fillText("Load Lifted W (kgf)", padL + plotW / 2, padT + plotH + 35);
+      graphCtx.save();
+      graphCtx.translate(padL - 35, padT + plotH / 2);
+      graphCtx.rotate(-Math.PI / 2);
+      graphCtx.fillText("Mechanical Efficiency η (%)", 0, 0);
+      graphCtx.restore();
+
+      // Ticks
+      for (let val = 0; val <= maxW; val += 20) {
+        const x = padL + (val / maxW) * plotW;
+        graphCtx.fillText(val, x, padT + plotH + 16);
+      }
+      for (let eta = 0; eta <= maxEta; eta += 20) {
+        const y = padT + plotH - (eta / maxEta) * plotH;
+        graphCtx.textAlign = 'right';
+        graphCtx.fillText(eta + "%", padL - 8, y + 4);
+      }
+
+      // Single Purchase Eta Curve
+      graphCtx.strokeStyle = '#38bdf8';
+      graphCtx.lineWidth = 2.5;
+      graphCtx.beginPath();
+      const vr_s = 28.04;
+      for (let w = 1; w <= maxW; w += 2) {
+        const ma = w / (0.0560 * w + 0.160);
+        const eta = (ma / vr_s) * 100.0;
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (eta / maxEta) * plotH;
+        if (w === 1) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Double Purchase Eta Curve
+      graphCtx.strokeStyle = '#f59e0b';
+      graphCtx.lineWidth = 2.5;
+      graphCtx.beginPath();
+      const vr_d = 112.18;
+      for (let w = 1; w <= maxW; w += 2) {
+        const ma = w / (0.0150 * w + 0.150);
+        const eta = (ma / vr_d) * 100.0;
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (eta / maxEta) * plotH;
+        if (w === 1) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Current Point
+      const curX = padL + (STATE.W / maxW) * plotW;
+      const curY = padT + plotH - (Math.min(100, m.eta) / maxEta) * plotH;
+      graphCtx.fillStyle = '#10b981';
+      graphCtx.beginPath();
+      graphCtx.arc(curX, curY, 6, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.strokeStyle = '#ffffff';
+      graphCtx.stroke();
+    }
+
+    function drawPlotTab4(padL, padT, plotW, plotH, m) {
+      // Max range W: 0 to 120, Pf: 0 to 5 kgf
+      const maxW = 120;
+      const maxPf = 5.0;
+
+      // Labels
+      graphCtx.fillStyle = '#94a3b8';
+      graphCtx.font = '11px Inter, sans-serif';
+      graphCtx.textAlign = 'center';
+      graphCtx.fillText("Load Lifted W (kgf)", padL + plotW / 2, padT + plotH + 35);
+      graphCtx.save();
+      graphCtx.translate(padL - 35, padT + plotH / 2);
+      graphCtx.rotate(-Math.PI / 2);
+      graphCtx.fillText("Frictional Loss Pf (kgf)", 0, 0);
+      graphCtx.restore();
+
+      // Ticks
+      for (let val = 0; val <= maxW; val += 20) {
+        const x = padL + (val / maxW) * plotW;
+        graphCtx.fillText(val, x, padT + plotH + 16);
+      }
+      for (let pf = 0; pf <= maxPf; pf += 1) {
+        const y = padT + plotH - (pf / maxPf) * plotH;
+        graphCtx.textAlign = 'right';
+        graphCtx.fillText(pf.toFixed(1), padL - 8, y + 4);
+      }
+
+      // Single Pf
+      graphCtx.strokeStyle = '#38bdf8';
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      for (let w = 0; w <= maxW; w += 2) {
+        const p = 0.0560 * w + 0.160;
+        const pf = p - (w / 28.04);
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (pf / maxPf) * plotH;
+        if (w === 0) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Double Pf
+      graphCtx.strokeStyle = '#f59e0b';
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      for (let w = 0; w <= maxW; w += 2) {
+        const p = 0.0150 * w + 0.150;
+        const pf = p - (w / 112.18);
+        const px = padL + (w / maxW) * plotW;
+        const py = padT + plotH - (pf / maxPf) * plotH;
+        if (w === 0) graphCtx.moveTo(px, py);
+        else graphCtx.lineTo(px, py);
+      }
+      graphCtx.stroke();
+
+      // Current Point
+      const curX = padL + (STATE.W / maxW) * plotW;
+      const curY = padT + plotH - (Math.max(0, m.Pf) / maxPf) * plotH;
+      graphCtx.fillStyle = '#a855f7';
+      graphCtx.beginPath();
+      graphCtx.arc(curX, curY, 6, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.strokeStyle = '#ffffff';
+      graphCtx.stroke();
+    }
+
+    /* ── Observation Ledger & Auto-Sweep ─────────────────────────────────── */
+    function logCurrentTrial() {
+      const m = calcMetrics();
+      const trial = {
+        id: STATE.trials.length + 1,
+        regime: STATE.regime === 'single' ? 'Single Purchase' : 'Double Purchase',
+        W: STATE.W,
+        P: STATE.P,
+        Pi: m.P_ideal,
+        Pf: m.Pf,
+        MA: m.MA,
+        eta: m.eta,
+        selfLock: m.is_self_locking ? 'Self-Locking' : 'Overhauling'
+      };
+      STATE.trials.push(trial);
+      renderObsTable();
+      updateRegressionSummary();
+    }
+
+    function renderObsTable() {
+      const tbody = document.getElementById('obs-tbody');
+      tbody.innerHTML = '';
+
+      STATE.trials.forEach(t => {
+        const tr = document.createElement('tr');
+        const tagClass = (t.regime === 'Single Purchase') ? 'obs-tag-single' : 'obs-tag-double';
+        tr.innerHTML = `
+          <td>${t.id}</td>
+          <td><span class="${tagClass}">${t.regime}</span></td>
+          <td>${t.W.toFixed(1)}</td>
+          <td>${t.P.toFixed(3)}</td>
+          <td>${t.Pi.toFixed(3)}</td>
+          <td>${t.Pf.toFixed(3)}</td>
+          <td>${t.MA.toFixed(2)}</td>
+          <td>${t.eta.toFixed(2)}%</td>
+          <td style="color:${t.selfLock === 'Self-Locking' ? 'var(--emerald)' : 'var(--amber)'};">${t.selfLock}</td>
+        `;
+        tbody.appendChild(tr);
       });
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
+    function runAutoSweep() {
+      STATE.trials = [];
+      const originalRegime = STATE.regime;
+      const originalW = STATE.W;
+      const originalP = STATE.P;
+
+      // Sweep Single Purchase across 10, 20, 30, 50 kgf
+      STATE.regime = 'single';
+      [10, 20, 30, 50].forEach(w => {
+        STATE.W = w;
+        const m = calcMetrics();
+        STATE.P = Math.round((0.0560 * w + 0.160) * 1000) / 1000;
+        logCurrentTrial();
+      });
+
+      // Sweep Double Purchase across 30, 50, 80, 100 kgf
+      STATE.regime = 'double';
+      [30, 50, 80, 100].forEach(w => {
+        STATE.W = w;
+        const m = calcMetrics();
+        STATE.P = Math.round((0.0150 * w + 0.150) * 1000) / 1000;
+        logCurrentTrial();
+      });
+
+      // Restore
+      STATE.regime = originalRegime;
+      STATE.W = originalW;
+      STATE.P = originalP;
+      updateUI();
     }
 
-    function focusComponent(name) {
-      if (!modelGroup) return;
-      modelGroup.traverse(function(child) {
+    function clearObsTable() {
+      STATE.trials = [];
+      renderObsTable();
+      updateRegressionSummary();
+    }
+
+    function exportTableCSV() {
+      if (STATE.trials.length === 0) {
+        alert("No trial data to export. Log readings or run auto sweep first.");
+        return;
+      }
+      let csv = "Trial,Regime,Load_W_kgf,Effort_P_kgf,Ideal_Pi_kgf,Friction_Pf_kgf,MA,Efficiency_percent,State\n";
+      STATE.trials.forEach(t => {
+        csv += `${t.id},"${t.regime}",${t.W},${t.P},${t.Pi.toFixed(3)},${t.Pf.toFixed(3)},${t.MA.toFixed(2)},${t.eta.toFixed(2)},"${t.selfLock}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `crab_winch_lab_trials_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function updateRegressionSummary() {
+      // Fit linear regressions if trials exist
+      const singleTrials = STATE.trials.filter(t => t.regime === 'Single Purchase');
+      const doubleTrials = STATE.trials.filter(t => t.regime === 'Double Purchase');
+
+      if (singleTrials.length >= 2) {
+        const fit = linearRegression(singleTrials.map(t => t.W), singleTrials.map(t => t.P));
+        const ma_max = 1 / fit.m;
+        const eta_max = (ma_max / 28.04) * 100;
+        document.getElementById('reg-single-eqn').innerHTML = `\\(P = ${fit.m.toFixed(4)} \\cdot W + ${fit.c.toFixed(3)}\\)`;
+        document.getElementById('reg-single-max').innerHTML = `\\(MA_{\\text{max}} = ${ma_max.toFixed(2)}\\) | \\(\\eta_{\\text{max}} = ${eta_max.toFixed(1)}\\%\\)`;
+      }
+
+      if (doubleTrials.length >= 2) {
+        const fit = linearRegression(doubleTrials.map(t => t.W), doubleTrials.map(t => t.P));
+        const ma_max = 1 / fit.m;
+        const eta_max = (ma_max / 112.18) * 100;
+        document.getElementById('reg-double-eqn').innerHTML = `\\(P = ${fit.m.toFixed(4)} \\cdot W + ${fit.c.toFixed(3)}\\)`;
+        document.getElementById('reg-double-max').innerHTML = `\\(MA_{\\text{max}} = ${ma_max.toFixed(2)}\\) | \\(\\eta_{\\text{max}} = ${eta_max.toFixed(1)}\\%\\)`;
+      }
+    }
+
+    function linearRegression(xArr, yArr) {
+      const n = xArr.length;
+      let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+      for (let i = 0; i < n; i++) {
+        sumX += xArr[i];
+        sumY += yArr[i];
+        sumXY += xArr[i] * yArr[i];
+        sumXX += xArr[i] * xArr[i];
+      }
+      const m = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+      const c = (sumY - m * sumX) / n;
+      return { m, c };
+    }
+
+    /* ── Mode Switching & Dedicated Tabs ─────────────────────────────────── */
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-mode-${mode}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const simWrapper = document.getElementById('sim-wrapper');
+      const sec3d = document.getElementById('section-3d');
+      const secGraphs = document.getElementById('section-graphs');
+      const secTheory = document.getElementById('section-theory');
+      const secQuiz = document.getElementById('section-quiz');
+
+      if (mode === 'sim') {
+        simWrapper.style.display = 'block';
+        if (sec3d) sec3d.style.display = 'none';
+        if (secGraphs) secGraphs.style.display = 'none';
+        if (secTheory) secTheory.style.display = 'none';
+        if (secQuiz) secQuiz.style.display = 'none';
+        simWrapper.scrollIntoView({ behavior: 'smooth' });
+      } else if (mode === '3d') {
+        simWrapper.style.display = 'none';
+        if (secGraphs) secGraphs.style.display = 'none';
+        if (secTheory) secTheory.style.display = 'none';
+        if (secQuiz) secQuiz.style.display = 'none';
+        if (sec3d) {
+          sec3d.style.display = 'block';
+          init3DViewport();
+          window.dispatchEvent(new Event('resize'));
+          sec3d.scrollIntoView({ behavior: 'smooth' });
+        }
+      } else if (mode === 'graphs') {
+        simWrapper.style.display = 'none';
+        if (sec3d) sec3d.style.display = 'none';
+        if (secTheory) secTheory.style.display = 'none';
+        if (secQuiz) secQuiz.style.display = 'none';
+        if (secGraphs) {
+          secGraphs.style.display = 'block';
+          drawAllFullGraphs();
+          secGraphs.scrollIntoView({ behavior: 'smooth' });
+        }
+      } else if (mode === 'theory') {
+        simWrapper.style.display = 'none';
+        if (sec3d) sec3d.style.display = 'none';
+        if (secGraphs) secGraphs.style.display = 'none';
+        if (secQuiz) secQuiz.style.display = 'none';
+        if (secTheory) {
+          secTheory.style.display = 'block';
+          secTheory.scrollIntoView({ behavior: 'smooth' });
+        }
+      } else if (mode === 'quiz') {
+        simWrapper.style.display = 'none';
+        if (sec3d) sec3d.style.display = 'none';
+        if (secGraphs) secGraphs.style.display = 'none';
+        if (secTheory) secTheory.style.display = 'none';
+        if (secQuiz) {
+          secQuiz.style.display = 'block';
+          secQuiz.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+    }
+
+    function setWorkflowStep(stepNum) {
+      document.querySelectorAll('.stage-step').forEach((s, idx) => {
+        s.classList.remove('active');
+        if (idx + 1 === stepNum) s.classList.add('active');
+        if (idx + 1 < stepNum) s.classList.add('completed');
+      });
+
+      if (stepNum === 1) {
+        switchMode('sim');
+      } else if (stepNum === 2) {
+        switchMode('sim');
+        autoBalanceEffort();
+      } else if (stepNum === 3) {
+        switchMode('sim');
+        toggleClutch();
+      } else if (stepNum === 4) {
+        switchMode('graphs');
+      }
+    }
+
+    function drawAllFullGraphs() {
+      // Draw 4 distinct full-view scaling canvases
+      const m = calcMetrics();
+      const canvases = [
+        { id: 'full-graph-pw', fn: drawPlotTab1 },
+        { id: 'full-graph-ma', fn: drawPlotTab2 },
+        { id: 'full-graph-eta', fn: drawPlotTab3 },
+        { id: 'full-graph-pf', fn: drawPlotTab4 }
+      ];
+
+      canvases.forEach(item => {
+        const c = document.getElementById(item.id);
+        if (!c) return;
+        const ctx = c.getContext('2d');
+        const w = c.width;
+        const h = c.height;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#040711';
+        ctx.fillRect(0, 0, w, h);
+
+        const padL = 50, padR = 20, padT = 20, padB = 40;
+        const plotW = w - padL - padR;
+        const plotH = h - padT - padB;
+
+        // Grid
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        for (let gx = 0; gx <= 5; gx++) {
+          const x = padL + (gx / 5) * plotW;
+          ctx.beginPath();
+          ctx.moveTo(x, padT);
+          ctx.lineTo(x, padT + plotH);
+          ctx.stroke();
+        }
+        for (let gy = 0; gy <= 4; gy++) {
+          const y = padT + (gy / 4) * plotH;
+          ctx.beginPath();
+          ctx.moveTo(padL, y);
+          ctx.lineTo(padL + plotW, y);
+          ctx.stroke();
+        }
+
+        // Axes
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(padL, padT);
+        ctx.lineTo(padL, padT + plotH);
+        ctx.lineTo(padL + plotW, padT + plotH);
+        ctx.stroke();
+
+        // Call individual draw fn
+        const oldCtx = graphCtx;
+        window.graphCtx = ctx;
+        item.fn(padL, padT, plotW, plotH, m);
+        window.graphCtx = oldCtx;
+      });
+    }
+
+    /* ── 3D Viewport Implementation ──────────────────────────────────────── */
+    let renderer3d, scene3d, camera3d, controls3d, modelGroup3d;
+
+    function init3DViewport() {
+      const container = document.getElementById('sim3d-canvas-container');
+      const canvas = document.getElementById('sim3d-canvas');
+      if (!container || !canvas) return;
+      if (container.clientWidth === 0) return; // hidden, will initialize once section-3d is active
+
+      if (renderer3d) {
+        camera3d.aspect = container.clientWidth / container.clientHeight;
+        camera3d.updateProjectionMatrix();
+        renderer3d.setSize(container.clientWidth, container.clientHeight);
+        return;
+      }
+
+      scene3d = new THREE.Scene();
+      scene3d.background = new THREE.Color(0x020617);
+
+      camera3d = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera3d.position.set(2.4, 1.8, 2.8);
+
+      renderer3d = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      renderer3d.setSize(container.clientWidth, container.clientHeight);
+      renderer3d.setPixelRatio(window.devicePixelRatio);
+
+      controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+      controls3d.enableDamping = true;
+
+      // Studio Lighting
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 1.2);
+      scene3d.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+      dirLight.position.set(5, 10, 7);
+      scene3d.add(dirLight);
+
+      const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.8);
+      fillLight.position.set(-5, -2, -4);
+      scene3d.add(fillLight);
+
+      // Load GLTF model
+      const loader = new THREE.GLTFLoader();
+      const modelUrl = '/models/single_purchase_crab_winch.glb';
+
+      loader.load(modelUrl, function(gltf) {
+        modelGroup3d = gltf.scene;
+        // Center & scale model
+        const box = new THREE.Box3().setFromObject(modelGroup3d);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 1.8 / maxDim;
+        modelGroup3d.scale.set(scale, scale, scale);
+        modelGroup3d.position.sub(center.multiplyScalar(scale));
+        modelGroup3d.position.y += 0.2;
+
+        scene3d.add(modelGroup3d);
+        animate3D();
+        document.getElementById('model3d-status-badge').innerText = "GLTF Apparatus Loaded (3D Orbit Active)";
+      }, undefined, function(err) {
+        console.warn("Using procedural 3D rig geometry fallback:", err);
+        // Fallback procedural winch rig
+        modelGroup3d = new THREE.Group();
+        // Base plate
+        const baseGeo = new THREE.BoxGeometry(2, 0.1, 1.2);
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
+        modelGroup3d.add(new THREE.Mesh(baseGeo, baseMat));
+
+        // Side frames
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.4 });
+        const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.4, 0.8), frameMat);
+        f1.position.set(-0.7, 0.7, 0);
+        modelGroup3d.add(f1);
+        const f2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.4, 0.8), frameMat);
+        f2.position.set(0.7, 0.7, 0);
+        modelGroup3d.add(f2);
+
+        // Drum
+        const drumGeo = new THREE.CylinderGeometry(0.25, 0.25, 1.2, 32);
+        const drumMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
+        const drumMesh = new THREE.Mesh(drumGeo, drumMat);
+        drumMesh.rotation.z = Math.PI / 2;
+        drumMesh.position.set(0, 0.5, 0);
+        drumMesh.name = "LoadDrum";
+        modelGroup3d.add(drumMesh);
+
+        // Large Spur Gear T4
+        const gearGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.08, 48);
+        const gearMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.9, roughness: 0.2 });
+        const gearMesh = new THREE.Mesh(gearGeo, gearMat);
+        gearMesh.rotation.z = Math.PI / 2;
+        gearMesh.position.set(-0.6, 0.5, 0);
+        gearMesh.name = "SpurWheelT4";
+        modelGroup3d.add(gearMesh);
+
+        // Small Pinion T1
+        const pinGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 24);
+        const pinMat = new THREE.MeshStandardMaterial({ color: 0x10b981, metalness: 0.9, roughness: 0.2 });
+        const pinMesh = new THREE.Mesh(pinGeo, pinMat);
+        pinMesh.rotation.z = Math.PI / 2;
+        pinMesh.position.set(-0.6, 1.1, 0);
+        pinMesh.name = "EffortHandle";
+        modelGroup3d.add(pinMesh);
+
+        scene3d.add(modelGroup3d);
+        animate3D();
+        document.getElementById('model3d-status-badge').innerText = "Procedural Winch Rig Active";
+      });
+    }
+
+    function animate3D() {
+      requestAnimationFrame(animate3D);
+      if (controls3d) controls3d.update();
+      if (renderer3d && scene3d && camera3d) {
+        renderer3d.render(scene3d, camera3d);
+      }
+    }
+
+    function focus3DComponent(partName) {
+      if (!modelGroup3d) return;
+      playWeightClank();
+      modelGroup3d.traverse(child => {
         if (child.isMesh) {
-          if (child.name === name) {
+          if (child.name && child.name.toLowerCase().includes(partName.toLowerCase())) {
             child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.6;
+            child.material.emissiveIntensity = 0.8;
           } else {
-            child.material.emissive = new THREE.Color(0x000000);
+            if (child.material && child.material.emissive) {
+              child.material.emissive = new THREE.Color(0x000000);
+            }
           }
         }
       });
     }
 
+    /* ── Viva Voce Interactive Quiz Check ────────────────────────────────── */
+    function checkQuiz(qNum, optIdx, isCorrect) {
+      const qCard = document.getElementById(`quiz-q${qNum}`);
+      const fb = document.getElementById(`quiz-fb-${qNum}`);
+      const opts = qCard.querySelectorAll('.quiz-opt');
+
+      opts.forEach(b => {
+        b.classList.remove('correct', 'incorrect');
+      });
+
+      fb.style.display = 'block';
+      if (isCorrect) {
+        opts[optIdx].classList.add('correct');
+        fb.style.background = "rgba(16, 185, 129, 0.15)";
+        fb.style.color = "var(--emerald)";
+        fb.style.border = "1px solid var(--emerald)";
+        fb.innerHTML = "&#10004; Correct! Excellent conceptual understanding.";
+        playWeightClank();
+      } else {
+        opts[optIdx].classList.add('incorrect');
+        fb.style.background = "rgba(239, 68, 68, 0.15)";
+        fb.style.color = "var(--red)";
+        fb.style.border = "1px solid var(--red)";
+        fb.innerHTML = "&#10008; Incorrect. Please review the theory section and try again.";
+        playGearClick(140, 0.08);
+      }
+    }
+
+    // Window Load Initialization
     window.addEventListener('load', () => {
-      runSim();
+      autoBalanceEffort();
+      updateUI();
+      // Pre-seed table with initial reading
+      logCurrentTrial();
+      // Initialize 3D Apparatus Studio
+      init3DViewport();
+    });
+
+    // Resize Handling
+    window.addEventListener('resize', () => {
+      if (renderer3d && camera3d) {
+        const container = document.getElementById('sim3d-canvas-container');
+        camera3d.aspect = container.clientWidth / container.clientHeight;
+        camera3d.updateProjectionMatrix();
+        renderer3d.setSize(container.clientWidth, container.clientHeight);
+      }
     });
   </script>
+
+  <!-- ── Global Sidebar Integration Script ───────────────────────────────── -->
+  <script src="../../shared/sidebar/sidebar.js"></script>
 </body>
 </html>

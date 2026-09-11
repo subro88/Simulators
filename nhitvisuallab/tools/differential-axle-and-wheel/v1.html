@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Differential Axle and Wheel Lab — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="ES102/ES104 Engineering Mechanics: Differential Axle & Wheel VR = 2D / (d1 - d2), MA = W/P & Efficiency eta">
+  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    :root { --accent: #00e676; }
+    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
+    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
+    .site-nav a { color: #94a3b8; text-decoration: none; }
+    .site-nav a:hover { color: var(--accent); }
+    .site-nav span { color: #475569; }
+    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
+    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
+    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
+    .mode-bar { display: flex; gap: 8px; align-items: center; }
+    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
+    .guide-link-btn:hover { background: #475569; }
+    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
+    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
+    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
+    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
+    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
+    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    .diag-table td:first-child { color: #94a3b8; }
+    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
+    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
+    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
+    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
+    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
+    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
+    .seo-article h2, .seo-article h3 { color: #f8fafc; }
+    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+    <span>&rsaquo;</span>
+    <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science</a>
+    <span>&rsaquo;</span>
+    <span style="color:#f8fafc;">Differential Axle and Wheel Lab</span>
+  </nav>
+
+  <header class="tool-header">
+    <div>
+      <span class="tool-badge">ES102 / ES104</span>
+      <h1 class="tool-title">Differential Axle and Wheel Lab</h1>
+      <p class="tool-subtitle">ES102/ES104 Engineering Mechanics: Differential Axle & Wheel VR = 2D / (d1 - d2), MA = W/P & Efficiency eta</p>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
+      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div id="sim-wrapper" class="sim-grid">
+      <div class="controls-col">
+        <div class="panel">
+          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+          
+              <div class="control-group">
+                <label for="load_lifted_w_kg">Load Lifted W (kg):</label>
+                <input type="number" id="load_lifted_w_kg" min="10.0" max="500.0" step="10.0" value="100.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="effort_applied_p_kg">Effort Applied P (kg):</label>
+                <input type="number" id="effort_applied_p_kg" min="0.5" max="50.0" step="0.5" value="8.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="effort_wheel_diameter_d_cm">Effort Wheel Diam D (cm):</label>
+                <input type="number" id="effort_wheel_diameter_d_cm" min="20.0" max="80.0" step="2.0" value="40.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="larger_axle_diameter_d1_cm">Larger Axle Diam d1 (cm):</label>
+                <input type="number" id="larger_axle_diameter_d1_cm" min="10.0" max="40.0" step="1.0" value="20.0" class="form-control" oninput="runSim()" />
+              </div>
+              <div class="control-group">
+                <label for="smaller_axle_diameter_d2_cm">Smaller Axle Diam d2 (cm):</label>
+                <input type="number" id="smaller_axle_diameter_d2_cm" min="5.0" max="35.0" step="1.0" value="15.0" class="form-control" oninput="runSim()" />
+              </div>
+          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+        </div>
+      </div>
+      <div class="display-col">
+        <div class="canvas-card">
+          <canvas id="sim-canvas" width="800" height="420"></canvas>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
+          <table class="diag-table">
+            <tbody>
+              
+          <tr>
+            <td>Velocity Ratio VR</td>
+            <td id="out_vr" class="out-val">16.00</td>
+          </tr>
+          <tr>
+            <td>Mechanical Advantage MA</td>
+            <td id="out_ma" class="out-val">12.50</td>
+          </tr>
+          <tr>
+            <td>Mechanical Efficiency eta</td>
+            <td id="out_eta" class="out-val">78.13 %</td>
+          </tr>
+          <tr>
+            <td>Ideal Effort Pi</td>
+            <td id="out_pi" class="out-val">6.25 kg</td>
+          </tr>
+          <tr>
+            <td>Machine Analysis Verdict</td>
+            <td id="out_status" class="out-val">DIFFERENTIAL AXLE VERIFIED: VR = 16.00, Efficiency η = 78.1%</td>
+          </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="model3d-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
+        <div id="three-canvas-container"></div>
+        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
+        <div class="comp-grid">
+          
+          <div class="comp-card" onclick="focusComponent('EffortWheelLargeDiameterD')">
+            <h4>Large Effort Wheel (Diam D)</h4>
+            <p>Main effort wheel of diameter D driving two stepped coaxial axles.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('LargerDifferentialAxleDiameterD1')">
+            <h4>Larger Axle Step (Diam d1)</h4>
+            <p>First stepped axle winding the rope upward during clockwise effort.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('SmallerDifferentialAxleDiameterD2')">
+            <h4>Smaller Axle Step (Diam d2)</h4>
+            <p>Second stepped axle unwinding rope downward simultaneously.</p>
+          </div>
+          <div class="comp-card" onclick="focusComponent('SuspendedSnatchBlockPulleyWithLoad')">
+            <h4>Movable Snatch Block & Load W</h4>
+            <p>Floating snatch block pulley suspended by rope loop carrying load W.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="explore-wrapper" style="display:none;">
+      <div class="panel">
+        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
+        <p>ES102/ES104 Engineering Mechanics: Differential Axle & Wheel VR = 2D / (d1 - d2), MA = W/P & Efficiency eta</p>
+        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
+          Calculate Mechanical Advantage: $MA = \frac{W}{P}$ and Efficiency: $\eta = \frac{MA}{VR} \times 100\%$.
+        </div>
+        <p>Understand the differential principle where the net rope uptake in one revolution is $\pi(d_1 - d_2)$.</p>
+        <p>Determine the effect of minimizing difference $(d_1 - d_2)$ to attain extreme mechanical advantage.</p>
+      </div>
+    </div>
+
+    <!-- ════ User Guide Section ════ -->
+    <section class="user-guide" id="user-guide">
+      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
+      <details open>
+        <summary>1. Overview &amp; Physical Principles</summary>
+        <div><p>Understand the differential principle where the net rope uptake in one revolution is $\pi(d_1 - d_2)$.</p></div>
+      </details>
+      <details>
+        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
+        <div><p>Evaluate Velocity Ratio: $$VR = \frac{\pi D}{\frac{1}{2}\pi(d_1 - d_2)} = \frac{2 D}{d_1 - d_2}$$</p></div>
+      </details>
+      <details>
+        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
+        <div><p>Calculate Mechanical Advantage: $MA = \frac{W}{P}$ and Efficiency: $\eta = \frac{MA}{VR} \times 100\%$.</p></div>
+      </details>
+      <details>
+        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
+        <div><p>Determine the effect of minimizing difference $(d_1 - d_2)$ to attain extreme mechanical advantage.</p></div>
+      </details>
+      <details>
+        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
+        <div><p>Practice differential chain hoists (Weston differential pulley) in rigging engineering.</p></div>
+      </details>
+      <details>
+        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
+        <div><p>Reference: WBSCTE Engineering Mechanics Lab (ES102/ES104).</p></div>
+      </details>
+    </section>
+
+    <!-- ════ SEO Technical Article ════ -->
+    <section class="seo-article">
+      <h2>Engineering Reference &amp; Laboratory Standards: Differential Axle and Wheel Lab</h2>
+      <p>ES102/ES104 Engineering Mechanics: Differential Axle & Wheel VR = 2D / (d1 - d2), MA = W/P & Efficiency eta</p>
+      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
+      <p>Understand the differential principle where the net rope uptake in one revolution is $\pi(d_1 - d_2)$. Evaluate Velocity Ratio: $$VR = \frac{\pi D}{\frac{1}{2}\pi(d_1 - d_2)} = \frac{2 D}{d_1 - d_2}$$</p>
+      <h3>Governing Equations &amp; Analytical Formulations</h3>
+      <p>Calculate Mechanical Advantage: $MA = \frac{W}{P}$ and Efficiency: $\eta = \frac{MA}{VR} \times 100\%$. Determine the effect of minimizing difference $(d_1 - d_2)$ to attain extreme mechanical advantage.</p>
+      <h3>Industrial &amp; Engineering Applications</h3>
+      <p>Practice differential chain hoists (Weston differential pulley) in rigging engineering. Designed in strict alignment with Reference: WBSCTE Engineering Mechanics Lab (ES102/ES104)..</p>
+    </section>
+  </main>
+
+  <script src="../../shared/sidebar/sidebar.js"></script>
+  <script>
+    let scene, camera, renderer, controls, modelGroup;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function drawSim(arg1, arg2, arg3, arg4) {
+      
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Wheel & Stepped Axles
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(width/2 - 60, 160, 80, 0, Math.PI * 2); ctx.stroke(); // Wheel D
+
+            ctx.strokeStyle = '#ffd600';
+            ctx.beginPath(); ctx.arc(width/2 + 40, 160, 45, 0, Math.PI * 2); ctx.stroke(); // Axle d1
+
+            ctx.strokeStyle = '#f59e0b';
+            ctx.beginPath(); ctx.arc(width/2 + 100, 160, 30, 0, Math.PI * 2); ctx.stroke(); // Axle d2
+
+            // Movable Pulley & Load
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(width/2 + 85, 160); ctx.lineTo(width/2 + 70, 270);
+            ctx.arc(width/2 + 70, 270, 15, 0, Math.PI);
+            ctx.lineTo(width/2 + 130, 160);
+            ctx.stroke();
+
+            ctx.fillStyle = '#00e676';
+            ctx.fillRect(width/2 + 55, 290, 30, 35);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px Inter';
+            ctx.fillText('Velocity Ratio VR = 2D / (d1 - d2) = ' + arg1.toFixed(2), width/2 - 130, 50);
+            ctx.fillText('Mechanical Efficiency η = ' + arg3.toFixed(2) + ' %', width/2 - 100, 80);
+        
+    }
+
+    function runSim() {
+      
+            const w = parseFloat(document.getElementById('load_lifted_w_kg').value);
+            const p = parseFloat(document.getElementById('effort_applied_p_kg').value);
+            const d = parseFloat(document.getElementById('effort_wheel_diameter_d_cm').value);
+            const d1 = parseFloat(document.getElementById('larger_axle_diameter_d1_cm').value);
+            const d2 = parseFloat(document.getElementById('smaller_axle_diameter_d2_cm').value);
+
+            const vr = (2.0 * d) / Math.max(0.5, d1 - d2);
+            const ma = w / p;
+            const eta = (ma / vr) * 100.0;
+            const p_ideal = w / vr;
+
+            document.getElementById('out_vr').innerText = vr.toFixed(2);
+            document.getElementById('out_ma').innerText = ma.toFixed(2);
+            document.getElementById('out_eta').innerText = eta.toFixed(2) + " %";
+            document.getElementById('out_pi').innerText = p_ideal.toFixed(2) + " kg";
+            document.getElementById('out_status').innerText = "DIFFERENTIAL AXLE VERIFIED: VR = " + vr.toFixed(2) + ", Efficiency η = " + eta.toFixed(1) + "%";
+            drawSim(vr, ma, eta);
+        
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
+
+      if (mode === '3d' && !renderer) {
+        initThree();
+      }
+    }
+
+    function initThree() {
+      const container = document.getElementById('three-canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(2, 1.5, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
+      scene.add(hemiLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      const loader = new THREE.GLTFLoader();
+      loader.load('/frontend/models/differential_axle_and_wheel.glb', function(gltf) {
+        modelGroup = gltf.scene;
+        scene.add(modelGroup);
+        animate();
+      }, undefined, function(err) {
+        console.warn('Fallback 3D geometry loaded');
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+        const mat = new THREE.MeshStandardMaterial({ color: '#00e676', roughness: 0.3 });
+        modelGroup = new THREE.Mesh(geo, mat);
+        scene.add(modelGroup);
+        animate();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function focusComponent(name) {
+      if (!modelGroup) return;
+      modelGroup.traverse(function(child) {
+        if (child.isMesh) {
+          if (child.name === name) {
+            child.material.emissive = new THREE.Color(0x38bdf8);
+            child.material.emissiveIntensity = 0.6;
+          } else {
+            child.material.emissive = new THREE.Color(0x000000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      runSim();
+    });
+  </script>
+</body>
+</html>

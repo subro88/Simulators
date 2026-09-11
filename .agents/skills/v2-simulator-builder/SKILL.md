@@ -315,6 +315,14 @@ leftover native `#sim3d-canvas` height rule.
 9. **GLB sanity**: a valid glTF binary starts with magic `glTF` and version `2`; `GLTFLoader` r128
    handles Draco only if `DRACOLoader` is attached (done). If a model fails to load, the viewer shows
    "3D model unavailable" and keeps the V1 sim working.
+10. **Multi-tab V2 pages (`#section-3d`) must use `data-v2-inline="1"` on `#model3d-wrapper`.**
+    If `#model3d-wrapper` lacks `data-v2-inline="1"` and the page uses modern `.mode-bar#mode-tabs`
+    instead of the legacy `.controls-bar`, `v2_model_embed.js` will assume no native tab bar exists
+    and dynamically reparent `#app` into `#v2-sim-pane` / `#v2-model-pane`, injecting an unwanted
+    duplicate "Simulate / 3D Model" bar at the bottom. Adding `data-v2-inline="1"` instructs
+    `v2_model_embed.js` to leave the DOM hierarchy completely untouched and render the 3D canvas inline
+    inside `#section-3d`. On switching to the 3D tab, dispatch `window.dispatchEvent(new Event('resize'))`
+    to ensure the camera aspect ratio and canvas bounds update immediately.
 
 ---
 
@@ -427,4 +435,100 @@ To prevent downtime and `502 Bad Gateway` errors during production updates:
   - `proxy_next_upstream error timeout http_502 http_503 http_504 non_idempotent;` ensures zero dropped client requests even during container restarts.
 - **Automated Deployment Runner (`scripts/zero_downtime_deploy.sh`)**:
   - Automated by GitHub Actions CI/CD (`.github/workflows/ci-cd.yml`) and executable manually via `./scripts/deploy.sh`.
+
+---
+
+## 12. Flagship Virtual Lab Page Architecture (V2 Abel/Cantilever Standard)
+
+The reference implementation for all flagship V2 lab simulators is established by:
+- `nhitvisuallab/tools/flash-fire-point-abel-apparatus/index.html` (Applied Chemistry / Thermodynamics)
+- `nhitvisuallab/tools/cantilever-vibration-frequency-period/index.html` (Applied Physics / Structural Dynamics)
+
+### 12.1 Canonical 10-Component Section Anatomy
+
+Every flagship simulator page must follow this strict hierarchical section blueprint:
+
+1. **Fixed Brand Logo (`.logo-fixed`)**:
+   Pinned at `top: 14px; left: 16px; z-index: 1000;` with glassmorphic background (`backdrop-filter: blur(8px)`), linking to `/nhitvisuallab/index.html` with hover scale animation.
+2. **Page Main Container (`main#app`)**:
+   Max-width 1440px centered, padded `16px 20px 60px 72px` to accommodate the top-left logo and the persistent sliding sidebar drawer.
+3. **Curriculum Breadcrumbs (`.site-nav`)**:
+   `NHIT Visual Lab > Semester Category > Tool Title` with accessible anchor links.
+4. **Tool Header Card (`.tool-header`)**:
+   - Left: Syllabus metadata badge row (`.badge-code` subject code, `.badge-topic` curriculum unit, `.badge-wbscte` testing standard).
+   - `<h1>` Title and descriptive subtitle detailing governing laws and numerical models.
+   - Right: Action buttons (`.btn-action`) for Quick Self-Quiz, Theory & Equations, and Lab Manual.
+5. **5-Pill Navigation Mode Bar (`.mode-bar#mode-tabs`)**:
+   - `🧪 Interactive Bench` (`data-mode="sim"`, active by default)
+   - `📈 Analytical Scaling Graphs` (`data-mode="graphs"`)
+   - `🧊 3D Apparatus Twin` (`data-mode="3d"`, `data-value="3d-model"`)
+   - `📖 Theory & Formulas` (`data-mode="theory"`)
+   - `✅ Interactive Quiz` (`data-mode="quiz"`)
+6. **Multi-Phase Workflow Stepper (`.stage-workflow-bar`)**:
+   - Step pills (`.stage-stepper > .stage-step > .stage-num`) tracking 4 to 5 standard lab phases (Setup & Calibration $\to$ Primary Sweep $\to$ Secondary Law $\to$ Damping/Decay $\to$ Constants Extraction).
+   - Dynamic prompt text (`#workflow-desc-text`) instructing the student what action to perform in the active phase.
+7. **Dual-Viewport Laboratory Workbench (`.sim-grid`)**:
+   - **Left Pane (54%)**:
+     - Apparatus Canvas Card (`.canvas-card`): Toolbar (100% Reset, Zoom In/Out, Audio toggle) + High-DPI Vector Canvas (`#sim-canvas`) + Translucent floating badges (`.overlay-badge`) + Pluck/Drag guide.
+     - Controls & Parameters Tray (`#ctrl-panel`): Material preset chips, optional custom parameters drawer, sliders with unit badges (`.val-badge`), action buttons (Pluck/Trigger, Freeze, Equilibrium, Multi-Cycle Timer).
+   - **Right Pane (46%)**:
+     - Telemetry Metric Cards (`.hud-grid > .hud-card`): Primary computed outputs ($T, f, k, m_{\text{eff}}, \delta$).
+     - Real-Time Digital Oscilloscope (`.oscilloscope-box`): Rolling rolling waveform trace with grid lines, envelope, and sweep rate readout.
+     - Multi-Tab Analytical Plots (`.sub-tabs > .sub-tab`): Live scatter plots, trendlines, and curve fitting.
+     - Experimental Verification Card (`.safety-card`): Extracted parameters vs standard literature values, discrepancy error percentage, and verification status badge.
+8. **Standard Laboratory Observation Notebook & Data Table**:
+   - Table displaying multi-trial readings (e.g. Mass, Length, Time for 20 Osc, Period, $T^2$, Derived $Y$).
+   - Action buttons: `➕ Record Trial`, `⚡ Auto Sweep Run`, `📥 Export CSV`, and `🗑️ Clear Table`.
+9. **Dedicated Full-Page Mode Sections**:
+   - `#section-graphs`: Large-format multi-variable scaling studio with dual analytical plots.
+   - `#section-3d`: 3D WebGL Digital Twin embed using Three.js OrbitControls, component carousel, fullscreen button, and height drag handle.
+   - `#section-theory`: In-depth derivations, Euler-Bernoulli & Rayleigh formulas, and reference materials table rendered via MathJax 3.
+   - `#section-quiz`: 5-question interactive viva voce self-assessment with instant feedback, explanations, and scoring.
+   - `#user-guide`: Standard Operating Procedure manual at the bottom of `#app`.
+10. **Shared Navigation Sidebar**:
+    `<script src="../../shared/sidebar/sidebar.js"></script>` loaded at the very end of `<body>`.
+
+### 12.2 Canonical 3D Embed Placement in Modern Multi-Tab Layouts
+
+When embedding the 3D model into pages with `#section-3d`:
+```html
+<div id="section-3d" class="view-section" style="display:none;">
+  <!-- V2_3D_EMBED -->
+  <div id="model3d-wrapper" data-v2-inline="1">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Model — <span id="sim3d-title">{TOOL_TITLE}</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of this apparatus. Pick a component on the right, then drag to rotate · scroll to zoom · right-drag to pan.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+</div>
+```
+```html
+<script>
+  window.$ = window.$ || function(id) { return document.getElementById(id); };
+  window.V2_TOOL_ID = "{slug}";
+  window.V2_MODEL = "{slug_underscored}";
+  window.V2_COMPONENTS_URL = "/models/{slug_underscored}_components.json";
+  window.V2_COMPONENTS = [
+    { label: "{Primary Component}", url: "/models/{slug_underscored}.glb" }
+  ];
+</script>
+<script src="/js/v2_model_embed.js"></script>
+```
+- **`data-v2-inline="1"`** is mandatory to prevent `v2_model_embed.js` from wrapping `#app` in `#v2-sim-pane` and creating duplicate controls bars.
+- In `switchMode(modeKey)`:
+  ```javascript
+  if (modeKey === '3d') {
+    const wrapper = document.getElementById('model3d-wrapper');
+    if (wrapper) wrapper.classList.remove('hidden');
+    window.dispatchEvent(new Event('resize'));
+  }
+  ```
+
 
