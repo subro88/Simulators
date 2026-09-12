@@ -4,350 +4,2812 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lami's Theorem & Coplanar Forces Lab — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
-  <meta name="description" content="ES102/ES104 Engineering Mechanics: Lami's Theorem P/sin(alpha) = Q/sin(beta) = R/sin(gamma) & Coplanar Concurrent Equilibrium">
+  <meta name="description" content="ES102/ES104 Engineering Mechanics: Verify Lami's Theorem P/sin(alpha) = Q/sin(beta) = R/sin(gamma), construct closed vector triangles of forces, resolve orthogonal Cartesian components, and simulate Gravesande's Apparatus with dynamic 2D knot relaxation.">
+
+  <!-- Core Stylesheets -->
   <link rel="stylesheet" href="../../css/style.css">
   <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 & Loaders for Canonical V2 3D Model Studio -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <style>
-    :root { --accent: #ffd600; }
-    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
-    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
-    .site-nav a { color: #94a3b8; text-decoration: none; }
-    .site-nav a:hover { color: var(--accent); }
-    .site-nav span { color: #475569; }
-    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
-    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
-    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
-    .mode-bar { display: flex; gap: 8px; align-items: center; }
-    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
-    .guide-link-btn:hover { background: #475569; }
-    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
-    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
-    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-    .control-group { margin-bottom: 14px; }
-    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
-    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
-    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
-    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
-    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
-    .diag-table td:first-child { color: #94a3b8; }
-    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
-    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
-    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
-    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
-    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
-    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
-    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
-    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
-    .seo-article h2, .seo-article h3 { color: #f8fafc; }
-    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+
+  <!-- MathJax 3 Configuration (§6) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
 </head>
 <body>
-  <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science</a>
-    <span>&rsaquo;</span>
-    <span style="color:#f8fafc;">Lami's Theorem & Coplanar Forces Lab</span>
-  </nav>
 
-  <header class="tool-header">
-    <div>
-      <span class="tool-badge">ES102 / ES104</span>
-      <h1 class="tool-title">Lami's Theorem & Coplanar Forces Lab</h1>
-      <p class="tool-subtitle">ES102/ES104 Engineering Mechanics: Lami's Theorem P/sin(alpha) = Q/sin(beta) = R/sin(gamma) & Coplanar Concurrent Equilibrium</p>
-    </div>
-    <div class="mode-bar">
-      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
-      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
-      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
-      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
-    </div>
-  </header>
+  <!-- ── Fixed Brand Logo (§12.1 #1) ────────────────────────────────────── -->
+  <a href="/nhitvisuallab/index.html" class="logo-fixed" title="Return to NHIT VisualLab Hub">
+    <img src="../../brand/logo.png" alt="NHIT Logo" onerror="this.src='/nhitvisuallab/brand/logo.png'; this.onerror=function(){this.src='/images/nhit-logo.png'; this.onerror=null;};">
+  </a>
 
-  <main class="main-container">
-    <div id="sim-wrapper" class="sim-grid">
-      <div class="controls-col">
-        <div class="panel">
-          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
-          
-              <div class="control-group">
-                <label for="force_p_newtons">Force P (Newtons):</label>
-                <input type="number" id="force_p_newtons" min="10.0" max="1000.0" step="10.0" value="100.0" class="form-control" oninput="runSim()" />
-              </div>
-              <div class="control-group">
-                <label for="angle_alpha_deg">Angle α between Q & R (°): <span id="angle_alpha_deg_val" class="val-badge">120.0</span></label>
-                <input type="range" id="angle_alpha_deg" min="60.0" max="170.0" step="1.0" value="120.0" class="form-range" oninput="document.getElementById('angle_alpha_deg_val').innerText=this.value; runSim();" />
-              </div>
-              <div class="control-group">
-                <label for="angle_beta_deg">Angle β between P & R (°): <span id="angle_beta_deg_val" class="val-badge">135.0</span></label>
-                <input type="range" id="angle_beta_deg" min="60.0" max="170.0" step="1.0" value="135.0" class="form-range" oninput="document.getElementById('angle_beta_deg_val').innerText=this.value; runSim();" />
-              </div>
-          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+  <!-- ── Main Application Container (§12.1 #2) ───────────────────────────── -->
+  <main id="app">
+
+    <!-- ── Breadcrumbs Navigation (§12.1 #3) ─────────────────────────────── -->
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+      <span class="sep">&rsaquo;</span>
+      <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science (Sem 2)</a>
+      <span class="sep">&rsaquo;</span>
+      <span class="current">Lami's Theorem &amp; Coplanar Forces</span>
+    </nav>
+
+    <!-- ── Tool Header Card (§12.1 #4) ───────────────────────────────────── -->
+    <header class="tool-header">
+      <div class="tool-header-left">
+        <div class="badge-row">
+          <span class="badge-code">ES102 / ES104</span>
+          <span class="badge-topic">Engineering Mechanics &bull; Statics</span>
+          <span class="badge-wbscte">Gravesande's Force Table &bull; WBSCTE Lab</span>
+        </div>
+        <h1>Lami's Theorem &amp; Coplanar Concurrent Forces Lab</h1>
+        <p>
+          Model the static equilibrium of three concurrent coplanar tensile forces acting at a central ring
+          using <strong>Gravesande's Apparatus</strong>. Verify Lami's Theorem
+          \(\frac{P}{\sin\alpha} = \frac{Q}{\sin\beta} = \frac{R}{\sin\gamma}\), construct closed vector triangles
+          of forces, resolve orthogonal components (\(\sum F_x = 0, \sum F_y = 0\)), and measure inter-force angles
+          using an interactive \(360^\circ\) protractor.
+        </p>
+      </div>
+      <div class="tool-header-actions">
+        <button class="mode-btn active" id="btn-mode-sim" onclick="switchMode('sim')">&#9881; Simulation</button>
+        <button class="mode-btn" id="btn-mode-graphs" onclick="switchMode('graphs')">&#128200; Scaling Graphs</button>
+        <button class="mode-btn" id="btn-mode-3d" onclick="switchMode('3d')">&#128269; 3D Apparatus</button>
+        <button class="mode-btn" id="btn-mode-theory" onclick="switchMode('theory')">&#128214; Theory</button>
+        <button class="mode-btn" id="btn-mode-quiz" onclick="switchMode('quiz')">&#10067; Viva Quiz</button>
+        <a href="#user-guide" class="guide-link-btn">&#128218; SOP Manual</a>
+      </div>
+    </header>
+
+    <!-- ── Stage Workflow Stepper (§12.1 #6) ──────────────────────────────── -->
+    <div class="stage-workflow-bar">
+      <div class="stage-step active" id="step-1" onclick="setWorkflowStep(1)">
+        <div class="step-num">1</div>
+        <div class="step-info">
+          <span class="step-title">Setup &amp; Loading</span>
+          <span class="step-desc">Clamp pulleys, suspend slotted masses P, Q, R</span>
         </div>
       </div>
-      <div class="display-col">
-        <div class="canvas-card">
-          <canvas id="sim-canvas" width="800" height="420"></canvas>
+      <div class="stage-step" id="step-2" onclick="setWorkflowStep(2)">
+        <div class="step-num">2</div>
+        <div class="step-info">
+          <span class="step-title">Knot Settling</span>
+          <span class="step-desc">Observe 2D damped harmonic settling to equilibrium</span>
         </div>
-        <div class="panel" style="margin-top:20px;">
-          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
-          <table class="diag-table">
-            <tbody>
-              
-          <tr>
-            <td>Opposite Angle gamma (between P & Q)</td>
-            <td id="out_gamma" class="out-val">105.0°</td>
-          </tr>
-          <tr>
-            <td>Equilibrium Force Q</td>
-            <td id="out_q" class="out-val">81.65 N</td>
-          </tr>
-          <tr>
-            <td>Equilibrium Force R</td>
-            <td id="out_r" class="out-val">111.54 N</td>
-          </tr>
-          <tr>
-            <td>Coplanar Equilibrium Status</td>
-            <td id="out_status" class="out-val">LAMI'S THEOREM VERIFIED: Q = 81.65 N, R = 111.54 N</td>
-          </tr>
+      </div>
+      <div class="stage-step" id="step-3" onclick="setWorkflowStep(3)">
+        <div class="step-num">3</div>
+        <div class="step-info">
+          <span class="step-title">Ray Tracing</span>
+          <span class="step-desc">Use mirror strip, mark dots, project force rays</span>
+        </div>
+      </div>
+      <div class="stage-step" id="step-4" onclick="setWorkflowStep(4)">
+        <div class="step-num">4</div>
+        <div class="step-info">
+          <span class="step-title">Lami's Ratios</span>
+          <span class="step-desc">Measure \(\alpha,\beta,\gamma\) and verify constant ratios</span>
+        </div>
+      </div>
+      <div class="stage-step" id="step-5" onclick="setWorkflowStep(5)">
+        <div class="step-num">5</div>
+        <div class="step-info">
+          <span class="step-title">Force Triangle</span>
+          <span class="step-desc">Plot vector loop \(\vec{P}\to\vec{Q}\to\vec{R}\), check closure</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: INTERACTIVE SIMULATION (DUAL VIEWPORT)                      -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="sim-wrapper">
+      <!-- ── TOP ROW: 2D Canvas (Ratio 3) & Real-Time Analytical HUD (Ratio 2) ── -->
+      <div class="sim-top-row">
+        
+        <!-- 2D Interactive Gravesande Board Canvas Card (Ratio 3fr) -->
+        <div class="canvas-card" style="margin-bottom: 0;">
+          <div class="canvas-toolbar">
+            <div class="canvas-status">
+              <span class="status-dot active" id="canvas-status-dot"></span>
+              <span id="canvas-status-label">Knot Settled in Static Equilibrium</span>
+            </div>
+            <div class="canvas-controls-bar">
+              <span class="canvas-hint">&#128430; Drag Background to Pan &bull; &#128432; Scroll to Zoom</span>
+              <div class="zoom-btn-group">
+                <button class="btn-canvas-ctrl" onclick="zoomIn()" title="Zoom In">&#xFF0B;</button>
+                <span class="val-badge" id="zoom-readout">100%</span>
+                <button class="btn-canvas-ctrl" onclick="zoomOut()" title="Zoom Out">&#xFF0D;</button>
+                <button class="btn-canvas-ctrl" onclick="resetCanvasView()" title="Reset Pan &amp; Zoom">&#8634; Reset</button>
+              </div>
+              <button class="btn-canvas-ctrl" id="btn-hud-toggle" onclick="toggleHudOverlay()" title="Toggle On-Canvas HUD">&#128065; HUD</button>
+              <button class="btn-canvas-ctrl" id="btn-audio-toggle" onclick="toggleAudio()" title="Sound Effects">&#128266; Audio</button>
+              <button class="btn-canvas-ctrl" id="btn-protractor-toggle" onclick="toggleProtractor()" title="Toggle 360° Protractor">&#128208; Protractor</button>
+              <button class="btn-canvas-ctrl" id="btn-rays-toggle" onclick="toggleRays()" title="Toggle Drawn Rays">&#9999; Rays</button>
+              <button class="btn-canvas-ctrl" id="btn-mirror-toggle" onclick="toggleMirror()" title="Toggle Virtual Mirror Strip">&#129694; Mirror</button>
+              <button class="btn-action btn-outline" style="padding:4px 8px; font-size:11px;" onclick="tapBoard()" title="Tap Board to Dislodge Axle Stiction">
+                &#128243; Tap Board
+              </button>
+            </div>
+          </div>
+
+          <div style="position: relative;">
+            <!-- Non-Obstructive Translucent HUD Overlay (§8) -->
+            <div class="canvas-hud-overlay" id="canvas-hud">
+              <div class="canvas-hud-badge">
+                <span>Left \(P\):</span>
+                <strong id="hud-p-val" style="color:var(--red);">50 gf</strong>
+              </div>
+              <div class="canvas-hud-badge">
+                <span>Right \(Q\):</span>
+                <strong id="hud-q-val" style="color:var(--cyan);">60 gf</strong>
+              </div>
+              <div class="canvas-hud-badge">
+                <span>Center \(R\):</span>
+                <strong id="hud-r-val" style="color:var(--emerald);">70 gf</strong>
+              </div>
+              <div class="canvas-hud-badge">
+                <span>\(\alpha\) (\(\angle QOR\)):</span>
+                <strong id="hud-alpha-val">135.5&deg;</strong>
+              </div>
+              <div class="canvas-hud-badge">
+                <span>\(\beta\) (\(\angle POR\)):</span>
+                <strong id="hud-beta-val">124.2&deg;</strong>
+              </div>
+              <div class="canvas-hud-badge">
+                <span>\(\gamma\) (\(\angle POQ\)):</span>
+                <strong id="hud-gamma-val">100.3&deg;</strong>
+              </div>
+              <div class="canvas-hud-badge">
+                <span>Unbalanced \(R_{\text{res}}\):</span>
+                <strong id="hud-res-val">0.00 gf</strong>
+              </div>
+            </div>
+
+            <!-- Canvas Element -->
+            <canvas id="sim-canvas" width="860" height="520"></canvas>
+          </div>
+        </div>
+
+        <!-- ── RIGHT STACK COLUMN (Ratio 1): Pulley Geometry (Ratio 1) & Analytical HUD (Ratio 2) ── -->
+        <div class="sim-right-col">
+
+          <!-- ⚙ TOP (Ratio 1): Pulley Geometry & Board Configuration -->
+          <div class="panel panel-pulley-config">
+            <div class="panel-title" style="margin-bottom: 8px; padding-bottom: 6px;">
+              <span class="panel-title-left" style="font-size: 13.5px;">&#9881; Pulley Geometry &amp; Board Configuration</span>
+              <span class="val-badge" id="pulley-status-badge" style="font-size: 10px;">LOW-FRICTION</span>
+            </div>
+
+            <!-- Pulley Angles Controls Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+              <div>
+                <div class="control-label-row" style="margin-bottom: 2px;">
+                  <span class="control-label" style="font-size: 11.5px;">&#128308; Pulley 1 (\(\theta_{P1}\)):</span>
+                  <span class="val-badge" id="badge-pulley1-angle" style="font-size: 10.5px; padding: 1px 4px;">140.0&deg;</span>
+                </div>
+                <input type="range" id="slider-pulley1-angle" class="form-range" min="100" max="170" step="1" value="140" oninput="setPulley1Angle(this.value)" />
+              </div>
+
+              <div>
+                <div class="control-label-row" style="margin-bottom: 2px;">
+                  <span class="control-label" style="font-size: 11.5px;">&#128309; Pulley 2 (\(\theta_{P2}\)):</span>
+                  <span class="val-badge" id="badge-pulley2-angle" style="font-size: 10.5px; padding: 1px 4px;">40.0&deg;</span>
+                </div>
+                <input type="range" id="slider-pulley2-angle" class="form-range" min="10" max="80" step="1" value="40" oninput="setPulley2Angle(this.value)" />
+              </div>
+            </div>
+
+            <!-- Friction Toggle & Action Buttons -->
+            <div style="display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+              <button class="btn-action btn-outline" id="btn-toggle-friction" style="padding: 4px 6px; font-size: 10.5px; flex: 1; white-space: nowrap;" onclick="toggleFriction()">
+                Friction: <strong id="friction-state-label" style="color:var(--emerald);">OFF</strong>
+              </button>
+              <button class="btn-action btn-outline" style="padding: 4px 6px; font-size: 10.5px; flex: 1; white-space: nowrap;" onclick="displaceKnot()" title="Gently Displace Knot">
+                &#9888; Displace Knot
+              </button>
+              <button class="btn-action" style="padding: 4px 6px; font-size: 10.5px; flex: 1; white-space: nowrap;" onclick="tapBoard()" title="Tap Board to Dislodge Axle Stiction">
+                &#128243; Tap Board
+              </button>
+            </div>
+          </div>
+
+          <!-- 📊 BOTTOM (Ratio 2): Real-Time Analytical HUD & Graphical Verification Suite -->
+          <div class="panel panel-analytical-hud">
+            <div class="panel-title" style="margin-bottom: 8px; padding-bottom: 6px;">
+              <span class="panel-title-left" style="font-size: 13.5px;">&#128202; Analytical HUD &amp; Verification Suite</span>
+              <span class="val-badge" id="hud-subtab-badge" style="font-size: 10px;">Tab 1: Lami Ratios</span>
+            </div>
+            
+            <div class="sub-tabs">
+              <button class="sub-tab-btn active" onclick="switchSubTab('lami', this)">Ratios</button>
+              <button class="sub-tab-btn" onclick="switchSubTab('triangle', this)">Triangle</button>
+              <button class="sub-tab-btn" onclick="switchSubTab('ledger', this)">Resolution</button>
+              <button class="sub-tab-btn" onclick="switchSubTab('protractor', this)">Protractor</button>
+            </div>
+
+            <!-- TAB 1: Lami's Theorem Ratios -->
+            <div id="subtab-lami" class="analytical-tab-pane active">
+              <div class="ratio-card-grid">
+                <div class="ratio-box p-box">
+                  <div class="ratio-formula">\(\frac{P}{\sin\alpha}\) (Left)</div>
+                  <div class="ratio-val" id="ratio-p-val">71.32</div>
+                  <div class="ratio-unit">gf / unit sine</div>
+                </div>
+                <div class="ratio-box q-box">
+                  <div class="ratio-formula">\(\frac{Q}{\sin\beta}\) (Right)</div>
+                  <div class="ratio-val" id="ratio-q-val">72.54</div>
+                  <div class="ratio-unit">gf / unit sine</div>
+                </div>
+                <div class="ratio-box r-box">
+                  <div class="ratio-formula">\(\frac{R}{\sin\gamma}\) (Center)</div>
+                  <div class="ratio-val" id="ratio-r-val">71.15</div>
+                  <div class="ratio-unit">gf / unit sine</div>
+                </div>
+              </div>
+
+              <div class="concordance-banner" id="concordance-banner">
+                <div>
+                  <strong>Discrepancy Error:</strong> <span id="lami-disc-val">0.98%</span>
+                  <span style="font-size:11px; color:var(--text-dim); margin-left:8px;">(Tolerance: &lt; 1.5%)</span>
+                </div>
+                <span class="val-badge success" id="lami-status-badge">LAMI'S THEOREM VERIFIED</span>
+              </div>
+
+              <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:10px 14px; font-size:12px; color:var(--text-muted); line-height:1.6;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <span>Evaluated Constant \(k = \frac{F}{\sin\theta}\):</span>
+                  <strong id="lami-k-val" style="color:var(--cyan);">71.67 gf (0.703 N)</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <span>Total Inter-Force Angle Sum (\(\alpha+\beta+\gamma\)):</span>
+                  <strong id="lami-angle-sum" style="color:var(--text-main);">360.0&deg;</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span>Equilibrium State:</span>
+                  <strong id="lami-state-desc" style="color:var(--emerald);">Static 3-Force Coplanar Balance</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: Closed Force Triangle Canvas -->
+            <div id="subtab-triangle" class="analytical-tab-pane">
+              <div class="triangle-container">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:11.5px; color:var(--text-muted);">
+                  <span>Head-to-Tail Polygon: \(\vec{P}\to\vec{Q}\to\vec{R}\)</span>
+                  <div>
+                    Scale: 
+                    <select id="select-triangle-scale" onchange="updateTriangleCanvas()" style="background:var(--bg-card-alt); border:1px solid var(--border-color); color:var(--text-main); font-size:11px; border-radius:4px; padding:2px 6px;">
+                      <option value="1.0">1.0 cm = 10 gf</option>
+                      <option value="0.75">1.0 cm = 15 gf</option>
+                      <option value="0.5">1.0 cm = 20 gf</option>
+                    </select>
+                  </div>
+                </div>
+                <canvas id="triangle-canvas" width="400" height="200"></canvas>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:11px; color:var(--text-dim);">
+                  <span><span style="color:var(--red);">&#9679; \(\vec{P}\)</span> &rarr; <span style="color:var(--cyan);">&#9679; \(\vec{Q}\)</span> &rarr; <span style="color:var(--emerald);">&#9679; \(\vec{R}\)</span></span>
+                  <span>Closure Error: <strong id="triangle-closure-error" style="color:var(--emerald);">0.00 mm (0.00%)</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 3: Component Resolution -->
+            <div id="subtab-ledger" class="analytical-tab-pane">
+              <div class="res-bar-container">
+                <div class="res-bar-label">
+                  <span>Horizontal Sum \(\sum F_x = P_x + Q_x + R_x\)</span>
+                  <span id="fx-sum-val" class="val-badge">0.000 gf</span>
+                </div>
+                <div class="res-bar-track">
+                  <div class="res-bar-center-mark"></div>
+                  <div class="res-bar-fill" id="fx-bar-fill" style="left:50%; width:0%;"></div>
+                </div>
+              </div>
+
+              <div class="res-bar-container">
+                <div class="res-bar-label">
+                  <span>Vertical Sum \(\sum F_y = P_y + Q_y - R\)</span>
+                  <span id="fy-sum-val" class="val-badge">0.000 gf</span>
+                </div>
+                <div class="res-bar-track">
+                  <div class="res-bar-center-mark"></div>
+                  <div class="res-bar-fill" id="fy-bar-fill" style="left:50%; width:0%; background:var(--emerald);"></div>
+                </div>
+              </div>
+
+              <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:10px 12px; font-size:11.5px; color:var(--text-muted); line-height:1.5; margin-top:8px;">
+                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                  <thead>
+                    <tr style="color:var(--text-dim); border-bottom:1px solid var(--border-color);">
+                      <th>Force</th>
+                      <th>Magnitude</th>
+                      <th>Polar Angle \(\theta\)</th>
+                      <th>\(F_x = F\cos\theta\)</th>
+                      <th>\(F_y = F\sin\theta\)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="component-table-body">
+                    <tr>
+                      <td style="color:var(--red); font-weight:700;">\(\vec{P}\)</td>
+                      <td id="table-p-mag">50.0 gf</td>
+                      <td id="table-p-theta">144.5&deg;</td>
+                      <td id="table-p-fx">-40.70 gf</td>
+                      <td id="table-p-fy">+29.04 gf</td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--cyan); font-weight:700;">\(\vec{Q}\)</td>
+                      <td id="table-q-mag">60.0 gf</td>
+                      <td id="table-q-theta">47.3&deg;</td>
+                      <td id="table-q-fx">+40.70 gf</td>
+                      <td id="table-q-fy">+44.06 gf</td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--emerald); font-weight:700;">\(\vec{R}\)</td>
+                      <td id="table-r-mag">70.0 gf</td>
+                      <td id="table-r-theta">270.0&deg;</td>
+                      <td id="table-r-fx">0.00 gf</td>
+                      <td id="table-r-fy">-70.00 gf</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- TAB 4: Protractor & Angle Sighting -->
+            <div id="subtab-protractor" class="analytical-tab-pane">
+              <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:12px; font-size:12px; color:var(--text-muted);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <span style="font-weight:700; color:var(--text-main);">Protractor Overlay Controls</span>
+                  <button class="btn-action btn-outline" style="padding:3px 8px; font-size:11px;" onclick="centerProtractorOnKnot()">
+                    &#8982; Snap to Knot Center
+                  </button>
+                </div>
+
+                <div class="control-group">
+                  <div class="control-label-row">
+                    <span>Protractor Rotation:</span>
+                    <span class="val-badge" id="val-protractor-rot">0.0&deg;</span>
+                  </div>
+                  <input type="range" id="input-protractor-rot" class="form-range" min="0" max="360" step="0.5" value="0" oninput="setProtractorRotation(this.value)" />
+                </div>
+
+                <div class="control-group">
+                  <div class="control-label-row">
+                    <span>Protractor Opacity:</span>
+                    <span class="val-badge" id="val-protractor-opacity">70%</span>
+                  </div>
+                  <input type="range" id="input-protractor-opacity" class="form-range" min="20" max="100" step="5" value="70" oninput="setProtractorOpacity(this.value)" />
+                </div>
+
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                  <button class="btn-action" style="flex:1; padding:6px; font-size:11px;" onclick="autoReadAngles()">
+                    &#128065; Auto-Read Exact Angles
+                  </button>
+                  <button class="btn-action btn-outline" style="flex:1; padding:6px; font-size:11px;" onclick="resetProtractor()">
+                    &#8634; Reset Protractor
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── FULL-WIDTH PANEL: ⚖ Slotted Masses & Load Hangers (Load Trays First) ── -->
+      <div class="panel">
+        <div class="panel-title">
+          <span class="panel-title-left">&#9878; Slotted Masses &amp; Load Hangers (\(P, Q, R\))</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="val-badge" id="badge-triangle-inequality">TRIANGLE INEQUALITY: VALID EQUILIBRIUM</span>
+          </div>
+        </div>
+
+        <div class="weights-grid">
+          <!-- Tray 1: Force P (Left Pulley) -->
+          <div class="weight-tray-card" style="border-top:3px solid var(--red);">
+            <div class="weight-tray-header">
+              <span style="color:var(--red);">&#9679; Force \(P\) (Left Pulley Cord)</span>
+              <span class="val-badge" id="badge-p-weight">50.0 gf (0.490 N)</span>
+            </div>
+            <div class="control-group" style="margin-bottom:6px;">
+              <input type="range" id="slider-force-p" class="form-range" min="20" max="200" step="5" value="50" oninput="setForceP(this.value)" />
+            </div>
+            <div class="weight-btn-row">
+              <span style="font-size:11px; color:var(--text-dim); align-self:center;">Add Discs:</span>
+              <button class="btn-weight" onclick="addWeight('p', 5)">+5g</button>
+              <button class="btn-weight" onclick="addWeight('p', 10)">+10g</button>
+              <button class="btn-weight" onclick="addWeight('p', 20)">+20g</button>
+              <button class="btn-weight" onclick="addWeight('p', 50)">+50g</button>
+              <button class="btn-weight reset" onclick="resetWeight('p')">Min 20g</button>
+            </div>
+          </div>
+
+          <!-- Tray 2: Force Q (Right Pulley) -->
+          <div class="weight-tray-card" style="border-top:3px solid var(--cyan);">
+            <div class="weight-tray-header">
+              <span style="color:var(--cyan);">&#9679; Force \(Q\) (Right Pulley Cord)</span>
+              <span class="val-badge" id="badge-q-weight">60.0 gf (0.588 N)</span>
+            </div>
+            <div class="control-group" style="margin-bottom:6px;">
+              <input type="range" id="slider-force-q" class="form-range" min="20" max="200" step="5" value="60" oninput="setForceQ(this.value)" />
+            </div>
+            <div class="weight-btn-row">
+              <span style="font-size:11px; color:var(--text-dim); align-self:center;">Add Discs:</span>
+              <button class="btn-weight" onclick="addWeight('q', 5)">+5g</button>
+              <button class="btn-weight" onclick="addWeight('q', 10)">+10g</button>
+              <button class="btn-weight" onclick="addWeight('q', 20)">+20g</button>
+              <button class="btn-weight" onclick="addWeight('q', 50)">+50g</button>
+              <button class="btn-weight reset" onclick="resetWeight('q')">Min 20g</button>
+            </div>
+          </div>
+
+          <!-- Tray 3: Force R (Center Hanging) -->
+          <div class="weight-tray-card" style="border-top:3px solid var(--emerald);">
+            <div class="weight-tray-header">
+              <span style="color:var(--emerald);">&#9679; Force \(R\) (Vertical Load)</span>
+              <span class="val-badge" id="badge-r-weight">70.0 gf (0.686 N)</span>
+            </div>
+            <div class="control-group" style="margin-bottom:6px;">
+              <input type="range" id="slider-force-r" class="form-range" min="20" max="200" step="5" value="70" oninput="setForceR(this.value)" />
+            </div>
+            <div class="weight-btn-row">
+              <span style="font-size:11px; color:var(--text-dim); align-self:center;">Add Discs:</span>
+              <button class="btn-weight" onclick="addWeight('r', 5)">+5g</button>
+              <button class="btn-weight" onclick="addWeight('r', 10)">+10g</button>
+              <button class="btn-weight" onclick="addWeight('r', 20)">+20g</button>
+              <button class="btn-weight" onclick="addWeight('r', 50)">+50g</button>
+              <button class="btn-weight reset" onclick="resetWeight('r')">Min 20g</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; color:var(--text-muted); background:var(--bg-card); padding:10px 14px; border-radius:var(--radius-md); border:1px solid var(--border-color);">
+          <div id="inequality-check-text">
+            <strong>Equilibrium Triangle Criterion:</strong> \(P + Q = 110.0\text{ gf} &gt; R = 70.0\text{ gf}\) &bull; \(Q + R = 130.0\text{ gf} &gt; P\) &bull; \(P + R = 120.0\text{ gf} &gt; Q\)
+          </div>
+          <div style="color:var(--text-dim); font-size:11px;">
+            \(g = 9.80665\text{ m/s}^2\) &bull; \(1\text{ gf} = 0.009807\text{ N}\)
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SECTION 3: Standard Laboratory Observation Notebook & Ledger ──── -->
+      <div class="panel">
+        <div class="panel-title">
+          <span class="panel-title-left">&#128221; Standard Laboratory Observation Notebook &amp; Comparative Ledger</span>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-action" onclick="recordCurrentTrial()">
+              &#10010; Record Current Trial
+            </button>
+            <button class="btn-action btn-outline" onclick="populateStandardRuns()">
+              &#9889; Auto-Populate 5 Standard Trials
+            </button>
+            <button class="btn-action btn-outline" onclick="clearLedger()">
+              &#128465; Clear Ledger
+            </button>
+            <button class="btn-action btn-outline" onclick="exportCSV()">
+              &#128229; Export CSV
+            </button>
+          </div>
+        </div>
+
+        <p style="font-size:12.5px; color:var(--text-muted); margin-top:0;">
+          Log multi-trial experimental runs across symmetric, Pythagorean, and arbitrary mass sets.
+          Compare calculated values of \(\frac{P}{\sin\alpha}, \frac{Q}{\sin\beta}, \frac{R}{\sin\gamma}\)
+          to verify concordance within experimental limits.
+        </p>
+
+        <div class="table-wrapper">
+          <table class="observation-table">
+            <thead>
+              <tr>
+                <th>Trial #</th>
+                <th>Force \(P\) (gf)</th>
+                <th>Force \(Q\) (gf)</th>
+                <th>Force \(R\) (gf)</th>
+                <th>Angle \(\alpha\) (&deg;)</th>
+                <th>Angle \(\beta\) (&deg;)</th>
+                <th>Angle \(\gamma\) (&deg;)</th>
+                <th>\(\frac{P}{\sin\alpha}\) (gf)</th>
+                <th>\(\frac{Q}{\sin\beta}\) (gf)</th>
+                <th>\(\frac{R}{\sin\gamma}\) (gf)</th>
+                <th>Discrepancy (%)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="observation-tbody">
+              <!-- Dynamically populated or filled via Auto-Populate -->
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <div id="model3d-wrapper" style="display:none;">
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3D: 3D INTERACTIVE APPARATUS MODEL STUDIO                     -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-3d" class="view-section" style="display:none; margin-top: 20px;">
+      <div id="model3d-wrapper" data-v2-inline="1">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div>
+            <span class="panel-title-left">&#128269; 3D Interactive Apparatus Model Studio</span>
+            <span class="val-badge" id="model3d-status-badge" style="margin-left:8px;">Gravesande's Force Table Digital Twin</span>
+          </div>
+          <button class="btn-action btn-outline" style="padding:4px 10px; font-size:12px;" onclick="switchMode('sim')">
+            &#9881; Back to 2D Simulation
+          </button>
+        </div>
+        <section id="sim3d-section">
+          <div id="sim3d-canvas-container">
+            <canvas id="sim3d-canvas"></canvas>
+            <div style="position:absolute; right:12px; bottom:10px; font-size:11px; color:var(--text-dim); background:rgba(0,0,0,0.5); padding:3px 8px; border-radius:4px; pointer-events:none;">
+              &#128430; Left-Drag: Rotate &bull; Scroll: Zoom &bull; Right-Drag: Pan
+            </div>
+          </div>
+          <aside id="sim3d-components">
+            <h4 class="comp-list-title">Apparatus Components (Click to Inspect)</h4>
+
+            <div class="comp-card" onclick="focus3DComponent('board')">
+              <h4>&#9670; Vertical Drawing Board</h4>
+              <p>Rigid wooden board carrying paper sheet with corner drawing pins.</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('pulleyLeft')">
+              <h4>&#9670; Left Clamped Pulley (\(P\))</h4>
+              <p>Frictionless, ball-bearing aluminum pulley mounted on perimeter screw clamp.</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('pulleyRight')">
+              <h4>&#9670; Right Clamped Pulley (\(Q\))</h4>
+              <p>Adjustable perimeter pulley guiding right tension cord to hanger \(Q\).</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('ring')">
+              <h4>&#9670; Central Knot / Ring (\(O\))</h4>
+              <p>Lightweight brass ring converging three inextensible braided cords.</p>
+            </div>
+
+            <div class="comp-card" onclick="focus3DComponent('hangers')">
+              <h4>&#9670; Slotted Mass Hangers</h4>
+              <p>Calibrated brass hangers loaded with slotted discs (\(5\text{g}\) to \(100\text{g}\)).</p>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: DEDICATED ANALYTICAL SCALING GRAPHS FULL VIEW                -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-graphs" style="display:none; margin-top:20px;">
       <div class="panel">
-        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
-        <div id="three-canvas-container"></div>
-        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
-        <div class="comp-grid">
-          
-          <div class="comp-card" onclick="focusComponent('VerticalDrawingBoardApparatus')">
-            <h4>Vertical Force Drawing Board</h4>
-            <p>Smooth vertical drawing board holding paper for tracing strings and force vectors.</p>
+        <div class="panel-title">
+          <span class="panel-title-left">&#128200; Analytical Performance Curves &amp; Comparative Sweeps</span>
+          <span class="val-badge">Full Multi-Plot Studio</span>
+        </div>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:0;">
+          Comparative engineering plots demonstrating the constancy of Lami's ratio \(\frac{F}{\sin\theta} = \text{const}\),
+          orthogonal force equilibrium, and vector polygon closure across multi-trial parameter sweeps.
+        </p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+          <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px;">
+            <h4 style="margin:0 0 10px 0; color:var(--cyan); font-size:13px;">Plot 1: Lami Ratios \(\frac{P}{\sin\alpha}, \frac{Q}{\sin\beta}, \frac{R}{\sin\gamma}\) vs Trial #</h4>
+            <canvas id="full-graph-ratios" width="560" height="260" style="width:100%; height:260px; background:#080e1b; border-radius:6px;"></canvas>
           </div>
-          <div class="comp-card" onclick="focusComponent('CentralEquilibriumKnotNode')">
-            <h4>Central Concurrent Knot (O)</h4>
-            <p>Zero datum knot where three concurrent coplanar tensile forces meet in equilibrium.</p>
+          <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px;">
+            <h4 style="margin:0 0 10px 0; color:var(--emerald); font-size:13px;">Plot 2: Force \(F\) vs \(\sin(\theta_{\text{opp}})\) Linear Regression</h4>
+            <canvas id="full-graph-linear" width="560" height="260" style="width:100%; height:260px; background:#080e1b; border-radius:6px;"></canvas>
           </div>
-          <div class="comp-card" onclick="focusComponent('SuspendedWeightPansAndPulleys')">
-            <h4>Frictionless Pulleys & Pans</h4>
-            <p>Light ball-bearing pulleys supporting weights P, Q, and R in equilibrium.</p>
+          <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px;">
+            <h4 style="margin:0 0 10px 0; color:var(--amber); font-size:13px;">Plot 3: Orthogonal Resultant Residual \(R_{\text{res}}\) vs Knot Displacement</h4>
+            <canvas id="full-graph-residual" width="560" height="260" style="width:100%; height:260px; background:#080e1b; border-radius:6px;"></canvas>
           </div>
-          <div class="comp-card" onclick="focusComponent('ForceVectorsPolygonGraphSheet')">
-            <h4>Force Triangle & Polygon Sheet</h4>
-            <p>Graphical vector sheet verifying closed triangle of forces vector sum = 0.</p>
+          <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px;">
+            <h4 style="margin:0 0 10px 0; color:var(--purple); font-size:13px;">Plot 4: Vector Closure Error \(\delta_{\text{close}}\) vs Pulley Angle \(\theta_{P1}\)</h4>
+            <canvas id="full-graph-closure" width="560" height="260" style="width:100%; height:260px; background:#080e1b; border-radius:6px;"></canvas>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="explore-wrapper" style="display:none;">
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: IN-DEPTH THEORY & DERIVATIONS                                -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-theory" style="display:none; margin-top:20px;">
       <div class="panel">
-        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
-        <p>ES102/ES104 Engineering Mechanics: Lami's Theorem P/sin(alpha) = Q/sin(beta) = R/sin(gamma) & Coplanar Concurrent Equilibrium</p>
-        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
-          Verify the Triangle Law of Forces by drawing closed vector triangle $\vec{P} + \vec{Q} + \vec{R} = 0$.
+        <div class="panel-title">
+          <span class="panel-title-left">&#128214; Mechanical Principles &amp; Mathematical Derivations</span>
+          <span class="val-badge">Syllabus Reference ES102/ES104</span>
         </div>
-        <p>Understand Lami's Theorem for three coplanar, concurrent, and non-collinear forces in equilibrium.</p>
-        <p>Calculate unknown reactions in crane jibs, suspension cables, and truss joints.</p>
+
+        <div class="theory-content">
+          <h3>1. Statement of Lami’s Theorem</h3>
+          <p>
+            If three concurrent, coplanar forces acting at a common point (the central knot/ring \(O\)) are in static equilibrium,
+            each force is directly proportional to the sine of the angle subtended between the other two forces:
+          </p>
+          <div class="formula-box">
+            $$\mathbf{\frac{P}{\sin\alpha} = \frac{Q}{\sin\beta} = \frac{R}{\sin\gamma} = \text{Constant } k}$$
+          </div>
+          <p>
+            Where:
+          </p>
+          <ul>
+            <li>\(P, Q, R\): Magnitudes of the three concurrent tensile forces (in Newtons \(\text{N}\) or gram-force \(\text{gf}\)).</li>
+            <li>\(\alpha\): Angle between the lines of action of force \(Q\) and force \(R\).</li>
+            <li>\(\beta\): Angle between the lines of action of force \(P\) and force \(R\).</li>
+            <li>\(\gamma\): Angle between the lines of action of force \(P\) and force \(Q\).</li>
+            <li><strong>Geometric Invariant:</strong> \(\alpha + \beta + \gamma = 360^\circ = 2\pi\text{ rad}\).</li>
+          </ul>
+
+          <h3>2. Mathematical Derivation via Triangle Law &amp; Sine Rule</h3>
+          <p>
+            Consider three forces \(\vec{P}, \vec{Q}, \vec{R}\) acting in equilibrium at a point \(O\).
+            By the <strong>Triangle Law of Forces</strong>, if three concurrent coplanar forces are in equilibrium,
+            they can be represented in magnitude and direction by the three sides of a closed triangle taken in order:
+          </p>
+          <div class="formula-box">
+            $$\vec{P} + \vec{Q} + \vec{R} = \vec{0}$$
+          </div>
+          <p>
+            In this closed force triangle, the external angles between the sides correspond to the inter-force angles
+            \(\alpha, \beta, \gamma\). Consequently, the interior angles \(A, B, C\) opposite to sides \(P, Q, R\) are:
+          </p>
+          <div class="formula-box">
+            $$A = 180^\circ - \alpha, \quad B = 180^\circ - \beta, \quad C = 180^\circ - \gamma$$
+          </div>
+          <p>
+            Applying the <strong>Law of Sines</strong> to the force triangle:
+          </p>
+          <div class="formula-box">
+            $$\frac{P}{\sin A} = \frac{Q}{\sin B} = \frac{R}{\sin C}$$
+            $$\implies \frac{P}{\sin(180^\circ - \alpha)} = \frac{Q}{\sin(180^\circ - \beta)} = \frac{R}{\sin(180^\circ - \gamma)}$$
+          </div>
+          <p>
+            Since \(\sin(180^\circ - \theta) = \sin\theta\), we arrive directly at Lami's Theorem:
+          </p>
+          <div class="formula-box">
+            $$\mathbf{\frac{P}{\sin\alpha} = \frac{Q}{\sin\beta} = \frac{R}{\sin\gamma}}$$
+          </div>
+
+          <h3>3. Orthogonal Coordinate Resolution Method (\(\sum F_x = 0, \sum F_y = 0\))</h3>
+          <p>
+            Let each force \(\vec{F}_i\) act at an absolute polar angle \(\theta_i \in [0^\circ, 360^\circ)\) measured counter-clockwise from the horizontal positive \(x\)-axis:
+          </p>
+          <div class="formula-box">
+            $$\sum F_x = P \cos\theta_1 + Q \cos\theta_2 + R \cos\theta_3 = 0$$
+            $$\sum F_y = P \sin\theta_1 + Q \sin\theta_2 + R \sin\theta_3 = 0$$
+            $$R_{\text{res}} = \sqrt{(\sum F_x)^2 + (\sum F_y)^2} \equiv 0$$
+          </div>
+
+          <h3>4. Triangle Inequality Existence Condition</h3>
+          <p>
+            For a static equilibrium point to exist within the interior of the board, the three forces must be able to form
+            a closed triangle. This requires that the sum of any two forces must strictly exceed the third:
+          </p>
+          <div class="formula-box">
+            $$P + Q > R, \quad Q + R > P, \quad P + R > Q$$
+          </div>
+          <p>
+            If \(R \ge P + Q\), the vertical force \(R\) exceeds the maximum possible upward support from cords 1 and 2.
+            The knot accelerates downwards out of bounds, and no physical equilibrium position exists.
+          </p>
+        </div>
       </div>
     </div>
 
-    <!-- ════ User Guide Section ════ -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 5: INTERACTIVE VIVA QUIZ                                       -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-quiz" style="display:none; margin-top:20px;">
+      <div class="panel">
+        <div class="panel-title">
+          <span class="panel-title-left">&#10067; Interactive Viva-Voce &amp; Self-Assessment Quiz</span>
+          <span class="val-badge" id="quiz-score-badge">Score: 0 / 5</span>
+        </div>
+
+        <div id="quiz-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 6: STANDARD OPERATING PROCEDURE (SOP) USER GUIDE              -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
     <section class="user-guide" id="user-guide">
-      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
-      <details open>
-        <summary>1. Overview &amp; Physical Principles</summary>
-        <div><p>Understand Lami's Theorem for three coplanar, concurrent, and non-collinear forces in equilibrium.</p></div>
-      </details>
-      <details>
-        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
-        <div><p>State the theorem: $$\frac{P}{\sin\alpha} = \frac{Q}{\sin\beta} = \frac{R}{\sin\gamma}$$ where each angle is between the other two forces.</p></div>
-      </details>
-      <details>
-        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
-        <div><p>Verify the Triangle Law of Forces by drawing closed vector triangle $\vec{P} + \vec{Q} + \vec{R} = 0$.</p></div>
-      </details>
-      <details>
-        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
-        <div><p>Calculate unknown reactions in crane jibs, suspension cables, and truss joints.</p></div>
-      </details>
-      <details>
-        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
-        <div><p>Solve multi-force concurrent systems using the Polygon Law of Forces.</p></div>
-      </details>
-      <details>
-        <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
-        <div><p>Reference: WBSCTE Engineering Mechanics Lab (ES102/ES104).</p></div>
-      </details>
+      <div class="panel">
+        <div class="panel-title">
+          <span class="panel-title-left">&#128218; Standard Operating Procedure (SOP) &amp; Laboratory Manual</span>
+          <span class="val-badge">WBSCTE ES102 Lab</span>
+        </div>
+
+        <div class="sop-item open">
+          <div class="sop-header" onclick="toggleSop(this)">
+            <span>1. Apparatus Description &amp; Objective</span>
+            <span>&#9662;</span>
+          </div>
+          <div class="sop-body">
+            <strong>Apparatus:</strong> Gravesande's Apparatus (Vertical Force Table), two frictionless clamped pulleys,
+            three slotted weight hangers with calibrated disc masses, central brass ring/knot, sheet of white drawing paper,
+            drawing pins, virtual planar mirror strip, and \(360^\circ\) circular protractor.<br>
+            <strong>Objective:</strong> To experimentally verify Lami's Theorem and the Triangle Law of Forces for three
+            coplanar, concurrent forces in static equilibrium.
+          </div>
+        </div>
+
+        <div class="sop-item">
+          <div class="sop-header" onclick="toggleSop(this)">
+            <span>2. Step-by-Step Experimental Procedure</span>
+            <span>&#9662;</span>
+          </div>
+          <div class="sop-body">
+            <ol style="margin:0; padding-left:20px; line-height:1.7;">
+              <li>Secure a clean sheet of white drawing paper onto the vertical wooden board using corner drawing pins.</li>
+              <li>Position the left and right pulleys along the top frame rail at desired angles (e.g., \(140^\circ\) and \(40^\circ\)).</li>
+              <li>Load slotted weights onto the hangers: set \(P = 50\text{ gf}\), \(Q = 60\text{ gf}\), and \(R = 70\text{ gf}\).</li>
+              <li>Verify that the triangle inequality \(P + Q > R\) is satisfied before releasing the knot.</li>
+              <li>Gently displace the central ring and allow it to settle into its natural equilibrium position \(O\).</li>
+              <li>Tap the wooden board lightly to eliminate any minor axle friction or cord stiction.</li>
+              <li>Place the virtual mirror strip behind each cord. Align the cord with its image to mark two parallax-free pin dots on the paper.</li>
+              <li>Remove cords and project the lines of action through knot \(O\). Measure angles \(\alpha, \beta, \gamma\) using the protractor.</li>
+              <li>Calculate \(\frac{P}{\sin\alpha}, \frac{Q}{\sin\beta}, \frac{R}{\sin\gamma}\) and verify equality within experimental error (&lt; 1.5%).</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="sop-item">
+          <div class="sop-header" onclick="toggleSop(this)">
+            <span>3. Parallax Elimination &amp; Mirror Strip Technique</span>
+            <span>&#9662;</span>
+          </div>
+          <div class="sop-body">
+            When sighting cords on a vertical drawing board, line-of-sight misalignment introduces severe parallax error.
+            By positioning a flat plane mirror strip flat behind the cord, the student views the cord with one eye closed and
+            moves until the physical cord exactly covers its virtual reflection. Marking two points along this line ensures
+            that the pencil dots lie exactly on the true line of action of the tensile force.
+          </div>
+        </div>
+
+        <div class="sop-item">
+          <div class="sop-header" onclick="toggleSop(this)">
+            <span>4. Precautions &amp; Sources of Experimental Error</span>
+            <span>&#9662;</span>
+          </div>
+          <div class="sop-body">
+            <ul>
+              <li>Pulleys must be clean, frictionless, and lubricated to minimize cord drag.</li>
+              <li>The central ring should be lightweight so its own gravitational weight is negligible compared to suspended loads.</li>
+              <li>Cords must not rub against the drawing paper or board frame.</li>
+              <li>Tapping the board gently before taking readings eliminates microscopic pulley bearing stiction.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- ════ SEO Technical Article ════ -->
-    <section class="seo-article">
-      <h2>Engineering Reference &amp; Laboratory Standards: Lami's Theorem & Coplanar Forces Lab</h2>
-      <p>ES102/ES104 Engineering Mechanics: Lami's Theorem P/sin(alpha) = Q/sin(beta) = R/sin(gamma) & Coplanar Concurrent Equilibrium</p>
-      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
-      <p>Understand Lami's Theorem for three coplanar, concurrent, and non-collinear forces in equilibrium. State the theorem: $$\frac{P}{\sin\alpha} = \frac{Q}{\sin\beta} = \frac{R}{\sin\gamma}$$ where each angle is between the other two forces.</p>
-      <h3>Governing Equations &amp; Analytical Formulations</h3>
-      <p>Verify the Triangle Law of Forces by drawing closed vector triangle $\vec{P} + \vec{Q} + \vec{R} = 0$. Calculate unknown reactions in crane jibs, suspension cables, and truss joints.</p>
-      <h3>Industrial &amp; Engineering Applications</h3>
-      <p>Solve multi-force concurrent systems using the Polygon Law of Forces. Designed in strict alignment with Reference: WBSCTE Engineering Mechanics Lab (ES102/ES104)..</p>
-    </section>
   </main>
 
+  <!-- Global Sidebar Drawer Integration (§7) -->
   <script src="../../shared/sidebar/sidebar.js"></script>
+
+  <!-- Canonical Inline JavaScript Physics & Simulation Engine -->
   <script>
-    let scene, camera, renderer, controls, modelGroup;
-    const canvas = document.getElementById('sim-canvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+    /* ==========================================================================
+       Lami's Theorem & Coplanar Forces Lab — Physics & Simulation Engine
+       ========================================================================== */
 
-    function drawSim(arg1, arg2, arg3, arg4) {
+    // ── Global State Object ───────────────────────────────────────────────────
+    const STATE = {
+      // Forces (in gf)
+      P: 50.0,
+      Q: 60.0,
+      R: 70.0,
       
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, width, height);
-
-            const cx = width/2, cy = 200;
-            const scale = 0.9;
-
-            // P downwards
-            ctx.strokeStyle = '#ffd600';
-            ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + 90); ctx.stroke();
-            ctx.fillStyle = '#ffd600'; ctx.fillText('P = ' + arg1.toFixed(0) + ' N', cx + 10, cy + 80);
-
-            // Q force
-            ctx.strokeStyle = '#38bdf8';
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx - 90, cy - 60); ctx.stroke();
-            ctx.fillStyle = '#38bdf8'; ctx.fillText('Q = ' + arg2.toFixed(1) + ' N', cx - 140, cy - 60);
-
-            // R force
-            ctx.strokeStyle = '#00e676';
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + 90, cy - 50); ctx.stroke();
-            ctx.fillStyle = '#00e676'; ctx.fillText('R = ' + arg3.toFixed(1) + ' N', cx + 100, cy - 50);
-
-            // Central Node
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '13px Inter';
-            ctx.fillText('Lami Ratio: P/sin(α) = Q/sin(β) = R/sin(γ)', width/2 - 130, 50);
-        
-    }
-
-    function runSim() {
+      // Pulley Angles on arc (deg)
+      thetaP1: 140.0,
+      thetaP2: 40.0,
+      railRadius: 260.0,
       
-            const p = parseFloat(document.getElementById('force_p_newtons').value);
-            const alpha_deg = parseFloat(document.getElementById('angle_alpha_deg').value);
-            const beta_deg = parseFloat(document.getElementById('angle_beta_deg').value);
+      // Board dimensions & origin
+      boardW: 860,
+      boardH: 520,
+      centerX: 430,
+      centerY: 230,
+      
+      // Knot dynamic state (relaxation engine)
+      knotX: 430,
+      knotY: 230,
+      knotVx: 0,
+      knotVy: 0,
+      isDraggingKnot: false,
+      isDraggingP1: false,
+      isDraggingP2: false,
+      isPanning: false,
+      panStartX: 0,
+      panStartY: 0,
+      panX: 0,
+      panY: 0,
+      zoom: 1.0,
+      
+      // Settled theoretical equilibrium
+      eqX: 430,
+      eqY: 230,
+      isEquilibriumValid: true,
+      
+      // Measured Angles (deg)
+      alpha: 135.5, // between Q and R
+      beta: 124.2,  // between P and R
+      gamma: 100.3, // between P and Q
+      
+      // Polar Angles of forces (deg CCW from +x)
+      theta1: 144.5,
+      theta2: 47.3,
+      theta3: 270.0,
+      
+      // Friction & Tapping
+      hasFriction: false,
+      frictionMu: 0.04,
+      stictionStuck: false,
+      
+      // Visual Toggles
+      showProtractor: true,
+      protractorRot: 0.0,
+      protractorOpacity: 0.75,
+      protractorX: 430,
+      protractorY: 230,
+      isDraggingProtractor: false,
+      showRays: true,
+      showMirror: false,
+      audioEnabled: true,
+      hudVisible: true,
+      
+      // Active mode & subtabs
+      mode: 'sim',
+      subTab: 'lami',
+      workflowStep: 1,
+      
+      // Sighted dots along cords
+      dots: {
+        p: [{x:0, y:0}, {x:0, y:0}],
+        q: [{x:0, y:0}, {x:0, y:0}],
+        r: [{x:0, y:0}, {x:0, y:0}]
+      },
+      
+      // Observation Log
+      trials: []
+    };
 
-            const gamma_deg = 360.0 - (alpha_deg + beta_deg);
-            const alpha_rad = alpha_deg * Math.PI / 180.0;
-            const beta_rad = beta_deg * Math.PI / 180.0;
-            const gamma_rad = gamma_deg * Math.PI / 180.0;
+    // ── Audio Synthesizer (Web Audio API) ─────────────────────────────────────
+    let audioCtx = null;
 
-            const q = p * (Math.sin(beta_rad) / Math.sin(alpha_rad));
-            const r = p * (Math.sin(gamma_rad) / Math.sin(alpha_rad));
-
-            document.getElementById('out_gamma').innerText = gamma_deg.toFixed(1) + "°";
-            document.getElementById('out_q').innerText = q.toFixed(2) + " N";
-            document.getElementById('out_r').innerText = r.toFixed(2) + " N";
-            document.getElementById('out_status').innerText = "LAMI'S THEOREM VERIFIED: Q = " + q.toFixed(2) + " N, R = " + r.toFixed(2) + " N (γ = " + gamma_deg.toFixed(1) + "°)";
-            drawSim(p, q, r, alpha_deg, beta_deg, gamma_deg);
-        
-    }
-
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
-
-      if (mode === '3d' && !renderer) {
-        initThree();
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
     }
 
-    function initThree() {
-      const container = document.getElementById('three-canvas-container');
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x020617);
+    function playSound(type) {
+      if (!STATE.audioEnabled) return;
+      try {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
 
-      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-      camera.position.set(2, 1.5, 3);
+        if (type === 'clink') {
+          // Metallic brass clink when dropping slotted weight
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1400 + Math.random() * 300, now);
+          osc.frequency.exponentialRampToValueAtTime(3200, now + 0.08);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        } else if (type === 'tap') {
+          // Wooden board thump when tapping
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(45, now + 0.15);
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        } else if (type === 'snap') {
+          // Soft click for protractor snap or mode switch
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, now);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        }
+      } catch (e) {
+        console.warn('Audio play error:', e);
+      }
+    }
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-      container.appendChild(renderer.domElement);
+    function toggleAudio() {
+      STATE.audioEnabled = !STATE.audioEnabled;
+      const btn = document.getElementById('btn-audio-toggle');
+      if (STATE.audioEnabled) {
+        btn.classList.add('active');
+        btn.innerHTML = '&#128266; Audio';
+        playSound('snap');
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '&#128263; Audio';
+      }
+    }
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+    // ── Pulley & Apparatus Coordinate Solvers ──────────────────────────────────
+    function getPulleyCoords() {
+      // Circular top rail arc centered at (centerX, centerY) with railRadius
+      // thetaP1 in [100, 170] deg, thetaP2 in [10, 80] deg
+      const rad1 = (STATE.thetaP1 * Math.PI) / 180;
+      const rad2 = (STATE.thetaP2 * Math.PI) / 180;
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
-      scene.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
+      const p1x = STATE.centerX + STATE.railRadius * Math.cos(rad1);
+      const p1y = STATE.centerY - STATE.railRadius * Math.sin(rad1) + 40; // slight drop
 
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/lamis_theorem_coplanar_forces.glb', function(gltf) {
-        modelGroup = gltf.scene;
-        scene.add(modelGroup);
-        animate();
-      }, undefined, function(err) {
-        console.warn('Fallback 3D geometry loaded');
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-        const mat = new THREE.MeshStandardMaterial({ color: '#ffd600', roughness: 0.3 });
-        modelGroup = new THREE.Mesh(geo, mat);
-        scene.add(modelGroup);
-        animate();
+      const p2x = STATE.centerX + STATE.railRadius * Math.cos(rad2);
+      const p2y = STATE.centerY - STATE.railRadius * Math.sin(rad2) + 40;
+
+      return { p1x, p1y, p2x, p2y };
+    }
+
+    // Solve exact theoretical equilibrium & angles
+    function solveTheoreticalEquilibrium() {
+      const P = STATE.P;
+      const Q = STATE.Q;
+      const R = STATE.R;
+
+      // Triangle inequality condition: each force < sum of other two
+      const valid = (P + Q > R) && (Q + R > P) && (P + R > Q);
+      STATE.isEquilibriumValid = valid;
+
+      const statusDot = document.getElementById('canvas-status-dot');
+      const statusLabel = document.getElementById('canvas-status-label');
+      const badgeInequality = document.getElementById('badge-triangle-inequality');
+      const checkText = document.getElementById('inequality-check-text');
+
+      if (!valid) {
+        if (statusDot) statusDot.classList.add('unstable');
+        if (statusLabel) statusLabel.innerText = 'UNSTABLE: Triangle Inequality Violated (R ≥ P + Q)';
+        if (badgeInequality) {
+          badgeInequality.className = 'val-badge danger';
+          badgeInequality.innerText = 'UNSTABLE: NO EQUILIBRIUM POSSIBLE';
+        }
+        if (checkText) {
+          checkText.innerHTML = `<strong style="color:var(--red);">Violation:</strong> Mass condition violated: \(P + Q = ${(P+Q).toFixed(1)}\\text{ gf} \\le R = ${R.toFixed(1)}\\text{ gf}\). Knot drops to floor!`;
+        }
+        return false;
+      }
+
+      if (statusDot) statusDot.classList.remove('unstable');
+      if (statusLabel) statusLabel.innerText = 'Knot Settled in Static Equilibrium';
+      if (badgeInequality) {
+        badgeInequality.className = 'val-badge success';
+        badgeInequality.innerText = 'TRIANGLE INEQUALITY: VALID EQUILIBRIUM';
+      }
+      if (checkText) {
+        checkText.innerHTML = `<strong>Equilibrium Triangle Criterion:</strong> \(P + Q = ${(P+Q).toFixed(1)}\\text{ gf} &gt; R = ${R.toFixed(1)}\\text{ gf}\) &bull; \(Q + R = ${(Q+R).toFixed(1)}\\text{ gf} &gt; P\) &bull; \(P + R = ${(P+R).toFixed(1)}\\text{ gf} &gt; Q\)`;
+      }
+
+      // Law of cosines on force triangle to get internal angles:
+      // A (opposite P): cos A = (Q^2 + R^2 - P^2) / (2 Q R)
+      // B (opposite Q): cos B = (P^2 + R^2 - Q^2) / (2 P R)
+      // C (opposite R): cos C = (P^2 + Q^2 - R^2) / (2 P Q)
+      const cosA = Math.max(-1, Math.min(1, (Q*Q + R*R - P*P) / (2 * Q * R)));
+      const cosB = Math.max(-1, Math.min(1, (P*P + R*R - Q*Q) / (2 * P * R)));
+      const cosC = Math.max(-1, Math.min(1, (P*P + Q*Q - R*R) / (2 * P * Q)));
+
+      const A = Math.acos(cosA); // internal angle opp P
+      const B = Math.acos(cosB); // internal angle opp Q
+      const C = Math.acos(cosC); // internal angle opp R
+
+      // Inter-force angles (supplementary to internal angles):
+      // alpha is angle between Q and R = 180 - A
+      // beta is angle between P and R = 180 - B
+      // gamma is angle between P and Q = 180 - C
+      STATE.alpha = (180 - (A * 180 / Math.PI));
+      STATE.beta  = (180 - (B * 180 / Math.PI));
+      STATE.gamma = (180 - (C * 180 / Math.PI));
+
+      // Force R hangs vertically downwards -> theta3 = 270 deg (or -90 deg)
+      // Elevation angle of P above -x axis or elevation phi1:
+      // Beta is angle between P and downward vertical R.
+      // Thus, elevation of cord P above horizontal = 90 - (180 - beta) = beta - 90 deg.
+      // So polar angle theta1 = 180 - (beta - 90) = 270 - beta.
+      // Similarly for Q: angle between Q and downward vertical R is alpha.
+      // Elevation of cord Q above horizontal = alpha - 90 deg.
+      // Polar angle theta2 = alpha - 90 deg (or 270 + alpha in standard wrap).
+      const theta1Rad = (270 - STATE.beta) * Math.PI / 180;
+      const theta2Rad = (STATE.alpha - 90) * Math.PI / 180;
+
+      STATE.theta1 = (270 - STATE.beta);
+      STATE.theta2 = (STATE.alpha - 90);
+      STATE.theta3 = 270.0;
+
+      // Find intersection of line from Pulley 1 at direction -theta1
+      // and line from Pulley 2 at direction -(180 - theta2)
+      // Cord 1 line: starts at (p1x, p1y), direction vector (dx1, dy1) = (-cos(theta1), +sin(theta1) in screen y)
+      // In screen coords, +y is down!
+      // In screen coords: unit vector from knot to pulley 1 is (cos(theta1), -sin(theta1)).
+      // Let's compute line intersection:
+      const { p1x, p1y, p2x, p2y } = getPulleyCoords();
+
+      // Unit direction from pulley 1 towards knot:
+      // knot = p1 + s1 * v1, where v1 = (-cos(theta1Rad), sin(theta1Rad)) in math, in screen:
+      // knotX = p1x - s1 * cos(theta1Rad)
+      // knotY = p1y + s1 * sin(theta1Rad)
+      // Since cord 1 goes UP-LEFT from knot to pulley:
+      // From knot to P1: vector is (-L1*cos(phi1), -L1*sin(phi1)) where phi1 = beta - 90 deg.
+      const phi1 = (STATE.beta - 90) * Math.PI / 180;
+      const phi2 = (STATE.alpha - 90) * Math.PI / 180;
+
+      // From knot to P1: dx = -r1*cos(phi1), dy = -r1*sin(phi1) (upward)
+      // From knot to P2: dx = +r2*cos(phi2), dy = -r2*sin(phi2) (upward)
+      // Therefore:
+      // knotX + r2*cos(phi2) = p2x
+      // knotX - r1*cos(phi1) = p1x
+      // => r2*cos(phi2) + r1*cos(phi1) = p2x - p1x
+      // And knotY - r2*sin(phi2) = p2y
+      // knotY - r1*sin(phi1) = p1y
+      // => r1*sin(phi1) - r2*sin(phi2) = p2y - p1y
+      // Solve linear system for r1 and r2:
+      // [ cos(phi1)   cos(phi2) ] [ r1 ] = [ p2x - p1x ]
+      // [ sin(phi1)  -sin(phi2) ] [ r2 ]   [ p2y - p1y ]
+      const det = -Math.cos(phi1) * Math.sin(phi2) - Math.cos(phi2) * Math.sin(phi1);
+      // det = -sin(phi1 + phi2)
+      if (Math.abs(det) > 0.001) {
+        const dx = p2x - p1x;
+        const dy = p2y - p1y;
+        const r1 = (-Math.sin(phi2) * dx - Math.cos(phi2) * dy) / det;
+        const r2 = (-Math.sin(phi1) * dx + Math.cos(phi1) * dy) / det;
+
+        if (r1 > 10 && r2 > 10) {
+          STATE.eqX = p1x + r1 * Math.cos(phi1);
+          STATE.eqY = p1y + r1 * Math.sin(phi1);
+        }
+      }
+
+      return true;
+    }
+
+    // ── 2D Dynamic Relaxation Physics Loop (60 FPS) ───────────────────────────
+    function updateKnotPhysics(dt) {
+      if (!STATE.isEquilibriumValid) {
+        // Knot drops down out of bounds
+        STATE.knotVy += 980 * dt;
+        STATE.knotY += STATE.knotVy * dt;
+        if (STATE.knotY > STATE.boardH + 200) {
+          STATE.knotY = STATE.boardH + 200;
+          STATE.knotVy = 0;
+        }
+        return;
+      }
+
+      if (STATE.isDraggingKnot) {
+        // While student drags, knot matches pointer, velocity zero
+        STATE.knotVx = 0;
+        STATE.knotVy = 0;
+        return;
+      }
+
+      // Calculate instantaneous forces acting on knot
+      const { p1x, p1y, p2x, p2y } = getPulleyCoords();
+
+      // Vector 1 (to Pulley 1)
+      const d1x = p1x - STATE.knotX;
+      const d1y = p1y - STATE.knotY;
+      const dist1 = Math.hypot(d1x, d1y) || 1;
+      const u1x = d1x / dist1;
+      const u1y = d1y / dist1;
+
+      // Vector 2 (to Pulley 2)
+      const d2x = p2x - STATE.knotX;
+      const d2y = p2y - STATE.knotY;
+      const dist2 = Math.hypot(d2x, d2y) || 1;
+      const u2x = d2x / dist2;
+      const u2y = d2y / dist2;
+
+      // Tension magnitudes
+      const T1 = STATE.P;
+      const T2 = STATE.Q;
+      const T3 = STATE.R; // downwards (+y in screen)
+
+      // Net driving force in gf
+      let Fx = T1 * u1x + T2 * u2x;
+      let Fy = T1 * u1y + T2 * u2y + T3;
+
+      // If friction enabled and stuck
+      if (STATE.hasFriction && STATE.stictionStuck) {
+        const netF = Math.hypot(Fx, Fy);
+        const fThreshold = STATE.frictionMu * (T1 + T2);
+        if (netF <= fThreshold) {
+          STATE.knotVx = 0;
+          STATE.knotVy = 0;
+          return;
+        }
+      }
+
+      // Damped harmonic relaxation
+      const mass = 0.08; // virtual knot inertia
+      const ax = (Fx * 15) / mass;
+      const ay = (Fy * 15) / mass;
+
+      // Euler-Cromer integration with damping
+      const damping = STATE.hasFriction ? 0.82 : 0.90;
+      STATE.knotVx = (STATE.knotVx + ax * dt) * Math.pow(damping, dt * 60);
+      STATE.knotVy = (STATE.knotVy + ay * dt) * Math.pow(damping, dt * 60);
+
+      STATE.knotX += STATE.knotVx * dt;
+      STATE.knotY += STATE.knotVy * dt;
+
+      // Clamping within sensible bounds
+      STATE.knotX = Math.max(80, Math.min(STATE.boardW - 80, STATE.knotX));
+      STATE.knotY = Math.max(80, Math.min(STATE.boardH - 20, STATE.knotY));
+
+      // Sighted dot positions along strings
+      STATE.dots.p = [
+        { x: STATE.knotX + u1x * 40, y: STATE.knotY + u1y * 40 },
+        { x: STATE.knotX + u1x * 120, y: STATE.knotY + u1y * 120 }
+      ];
+      STATE.dots.q = [
+        { x: STATE.knotX + u2x * 40, y: STATE.knotY + u2y * 40 },
+        { x: STATE.knotX + u2x * 120, y: STATE.knotY + u2y * 120 }
+      ];
+      STATE.dots.r = [
+        { x: STATE.knotX, y: STATE.knotY + 40 },
+        { x: STATE.knotX, y: STATE.knotY + 120 }
+      ];
+    }
+
+    // ── Displace Knot / Tap Board ─────────────────────────────────────────────
+    function displaceKnot() {
+      STATE.knotVx += (Math.random() - 0.5) * 280;
+      STATE.knotVy += (Math.random() - 0.5) * 280;
+      if (STATE.hasFriction) STATE.stictionStuck = true;
+      playSound('clink');
+      setWorkflowStep(2);
+    }
+
+    function tapBoard() {
+      // Dislodge stiction, snap directly toward theoretical equilibrium
+      STATE.stictionStuck = false;
+      STATE.knotVx = (STATE.eqX - STATE.knotX) * 2.5;
+      STATE.knotVy = (STATE.eqY - STATE.knotY) * 2.5;
+      playSound('tap');
+
+      // Visual board vibration shake effect
+      const canvas = document.getElementById('sim-canvas');
+      if (canvas) {
+        canvas.style.transform = 'translate(2px, -2px)';
+        setTimeout(() => { canvas.style.transform = 'translate(-2px, 2px)'; }, 40);
+        setTimeout(() => { canvas.style.transform = 'translate(1px, -1px)'; }, 80);
+        setTimeout(() => { canvas.style.transform = 'none'; }, 120);
+      }
+      setWorkflowStep(2);
+    }
+
+    function toggleFriction() {
+      STATE.hasFriction = !STATE.hasFriction;
+      const label = document.getElementById('friction-state-label');
+      const badge = document.getElementById('pulley-status-badge');
+      if (STATE.hasFriction) {
+        label.style.color = 'var(--amber)';
+        label.innerText = 'ON (Stiction μ = 0.04)';
+        badge.innerText = 'REALISTIC AXLE STICTION ACTIVE';
+        badge.className = 'val-badge warning';
+      } else {
+        label.style.color = 'var(--emerald)';
+        label.innerText = 'OFF (Ideal)';
+        badge.innerText = 'LOW-FRICTION BALL BEARINGS';
+        badge.className = 'val-badge';
+      }
+      playSound('snap');
+    }
+
+    // ── Input & Parameter Handlers ────────────────────────────────────────────
+    function setForceP(val) {
+      STATE.P = parseFloat(val);
+      document.getElementById('badge-p-weight').innerText = `${STATE.P.toFixed(1)} gf (${(STATE.P * 0.00980665).toFixed(3)} N)`;
+      document.getElementById('slider-force-p').value = STATE.P;
+      solveTheoreticalEquilibrium();
+      updateAnalyticalReadouts();
+      playSound('clink');
+      setWorkflowStep(1);
+    }
+
+    function setForceQ(val) {
+      STATE.Q = parseFloat(val);
+      document.getElementById('badge-q-weight').innerText = `${STATE.Q.toFixed(1)} gf (${(STATE.Q * 0.00980665).toFixed(3)} N)`;
+      document.getElementById('slider-force-q').value = STATE.Q;
+      solveTheoreticalEquilibrium();
+      updateAnalyticalReadouts();
+      playSound('clink');
+      setWorkflowStep(1);
+    }
+
+    function setForceR(val) {
+      STATE.R = parseFloat(val);
+      document.getElementById('badge-r-weight').innerText = `${STATE.R.toFixed(1)} gf (${(STATE.R * 0.00980665).toFixed(3)} N)`;
+      document.getElementById('slider-force-r').value = STATE.R;
+      solveTheoreticalEquilibrium();
+      updateAnalyticalReadouts();
+      playSound('clink');
+      setWorkflowStep(1);
+    }
+
+    function addWeight(target, amount) {
+      if (target === 'p') setForceP(Math.min(200, STATE.P + amount));
+      if (target === 'q') setForceQ(Math.min(200, STATE.Q + amount));
+      if (target === 'r') setForceR(Math.min(200, STATE.R + amount));
+    }
+
+    function resetWeight(target) {
+      if (target === 'p') setForceP(20);
+      if (target === 'q') setForceQ(20);
+      if (target === 'r') setForceR(20);
+    }
+
+    function setPulley1Angle(val) {
+      STATE.thetaP1 = parseFloat(val);
+      document.getElementById('badge-pulley1-angle').innerText = `${STATE.thetaP1.toFixed(1)}°`;
+      document.getElementById('slider-pulley1-angle').value = STATE.thetaP1;
+      solveTheoreticalEquilibrium();
+      updateAnalyticalReadouts();
+    }
+
+    function setPulley2Angle(val) {
+      STATE.thetaP2 = parseFloat(val);
+      document.getElementById('badge-pulley2-angle').innerText = `${STATE.thetaP2.toFixed(1)}°`;
+      document.getElementById('slider-pulley2-angle').value = STATE.thetaP2;
+      solveTheoreticalEquilibrium();
+      updateAnalyticalReadouts();
+    }
+
+    // ── Protractor Controls ───────────────────────────────────────────────────
+    function toggleProtractor() {
+      STATE.showProtractor = !STATE.showProtractor;
+      const btn = document.getElementById('btn-protractor-toggle');
+      if (STATE.showProtractor) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+      playSound('snap');
+    }
+
+    function toggleRays() {
+      STATE.showRays = !STATE.showRays;
+      const btn = document.getElementById('btn-rays-toggle');
+      if (STATE.showRays) btn.classList.add('active');
+      else btn.classList.remove('active');
+      playSound('snap');
+      setWorkflowStep(3);
+    }
+
+    function toggleMirror() {
+      STATE.showMirror = !STATE.showMirror;
+      const btn = document.getElementById('btn-mirror-toggle');
+      if (STATE.showMirror) btn.classList.add('active');
+      else btn.classList.remove('active');
+      playSound('snap');
+      setWorkflowStep(3);
+    }
+
+    function toggleHudOverlay() {
+      STATE.hudVisible = !STATE.hudVisible;
+      const hud = document.getElementById('canvas-hud');
+      const btn = document.getElementById('btn-hud-toggle');
+      if (STATE.hudVisible) {
+        hud.classList.remove('is-collapsed');
+        btn.classList.add('active');
+      } else {
+        hud.classList.add('is-collapsed');
+        btn.classList.remove('active');
+      }
+      playSound('snap');
+    }
+
+    function centerProtractorOnKnot() {
+      STATE.protractorX = STATE.knotX;
+      STATE.protractorY = STATE.knotY;
+      playSound('snap');
+    }
+
+    function setProtractorRotation(val) {
+      STATE.protractorRot = parseFloat(val);
+      document.getElementById('val-protractor-rot').innerText = `${STATE.protractorRot.toFixed(1)}°`;
+    }
+
+    function setProtractorOpacity(val) {
+      STATE.protractorOpacity = parseFloat(val) / 100;
+      document.getElementById('val-protractor-opacity').innerText = `${val}%`;
+    }
+
+    function autoReadAngles() {
+      // Automatically snaps protractor to knot and updates angle readouts
+      centerProtractorOnKnot();
+      setWorkflowStep(4);
+      playSound('snap');
+    }
+
+    function resetProtractor() {
+      STATE.protractorRot = 0.0;
+      document.getElementById('input-protractor-rot').value = 0;
+      document.getElementById('val-protractor-rot').innerText = '0.0°';
+      centerProtractorOnKnot();
+      playSound('snap');
+    }
+
+    // ── Analytical Telemetry Updates ──────────────────────────────────────────
+    function updateAnalyticalReadouts() {
+      const alphaRad = (STATE.alpha * Math.PI) / 180;
+      const betaRad  = (STATE.beta * Math.PI) / 180;
+      const gammaRad = (STATE.gamma * Math.PI) / 180;
+
+      const sinA = Math.sin(alphaRad) || 0.001;
+      const sinB = Math.sin(betaRad) || 0.001;
+      const sinC = Math.sin(gammaRad) || 0.001;
+
+      const ratioP = STATE.P / sinA;
+      const ratioQ = STATE.Q / sinB;
+      const ratioR = STATE.R / sinC;
+
+      const meanRatio = (ratioP + ratioQ + ratioR) / 3;
+      const maxDiff = Math.max(Math.abs(ratioP - meanRatio), Math.abs(ratioQ - meanRatio), Math.abs(ratioR - meanRatio));
+      const discrepancyPct = (maxDiff / meanRatio) * 100;
+
+      // Update HUD elements
+      document.getElementById('hud-p-val').innerText = `${STATE.P.toFixed(1)} gf`;
+      document.getElementById('hud-q-val').innerText = `${STATE.Q.toFixed(1)} gf`;
+      document.getElementById('hud-r-val').innerText = `${STATE.R.toFixed(1)} gf`;
+      document.getElementById('hud-alpha-val').innerText = `${STATE.alpha.toFixed(1)}°`;
+      document.getElementById('hud-beta-val').innerText = `${STATE.beta.toFixed(1)}°`;
+      document.getElementById('hud-gamma-val').innerText = `${STATE.gamma.toFixed(1)}°`;
+
+      // Update Ratios
+      document.getElementById('ratio-p-val').innerText = ratioP.toFixed(2);
+      document.getElementById('ratio-q-val').innerText = ratioQ.toFixed(2);
+      document.getElementById('ratio-r-val').innerText = ratioR.toFixed(2);
+
+      const discElem = document.getElementById('lami-disc-val');
+      const banner = document.getElementById('concordance-banner');
+      const badge = document.getElementById('lami-status-badge');
+
+      discElem.innerText = `${discrepancyPct.toFixed(2)}%`;
+      if (discrepancyPct < 1.5) {
+        banner.className = 'concordance-banner';
+        badge.className = 'val-badge success';
+        badge.innerText = 'LAMI\'S THEOREM VERIFIED';
+      } else {
+        banner.className = 'concordance-banner warning';
+        badge.className = 'val-badge danger';
+        badge.innerText = 'DISCREPANCY ELEVATED';
+      }
+
+      document.getElementById('lami-k-val').innerText = `${meanRatio.toFixed(2)} gf (${(meanRatio * 0.00980665).toFixed(3)} N)`;
+      document.getElementById('lami-angle-sum').innerText = `${(STATE.alpha + STATE.beta + STATE.gamma).toFixed(1)}°`;
+
+      // Coordinate components
+      const th1 = (STATE.theta1 * Math.PI) / 180;
+      const th2 = (STATE.theta2 * Math.PI) / 180;
+      const th3 = (STATE.theta3 * Math.PI) / 180;
+
+      const px = STATE.P * Math.cos(th1);
+      const py = STATE.P * Math.sin(th1);
+      const qx = STATE.Q * Math.cos(th2);
+      const qy = STATE.Q * Math.sin(th2);
+      const rx = STATE.R * Math.cos(th3);
+      const ry = STATE.R * Math.sin(th3);
+
+      const sumFx = px + qx + rx;
+      const sumFy = py + qy + ry;
+      const resVal = Math.hypot(sumFx, sumFy);
+
+      document.getElementById('hud-res-val').innerText = `${resVal.toFixed(2)} gf`;
+      document.getElementById('fx-sum-val').innerText = `${sumFx.toFixed(3)} gf`;
+      document.getElementById('fy-sum-val').innerText = `${sumFy.toFixed(3)} gf`;
+
+      // Resolution bars (centered at 50%)
+      const barFx = document.getElementById('fx-bar-fill');
+      const barFy = document.getElementById('fy-bar-fill');
+      const offsetFx = Math.max(-45, Math.min(45, (sumFx / STATE.R) * 50));
+      const offsetFy = Math.max(-45, Math.min(45, (sumFy / STATE.R) * 50));
+
+      if (offsetFx >= 0) {
+        barFx.style.left = '50%';
+        barFx.style.width = `${offsetFx}%`;
+      } else {
+        barFx.style.left = `${50 + offsetFx}%`;
+        barFx.style.width = `${-offsetFx}%`;
+      }
+
+      if (offsetFy >= 0) {
+        barFy.style.left = '50%';
+        barFy.style.width = `${offsetFy}%`;
+      } else {
+        barFy.style.left = `${50 + offsetFy}%`;
+        barFy.style.width = `${-offsetFy}%`;
+      }
+
+      // Component table
+      document.getElementById('table-p-mag').innerText = `${STATE.P.toFixed(1)} gf`;
+      document.getElementById('table-p-theta').innerText = `${STATE.theta1.toFixed(1)}°`;
+      document.getElementById('table-p-fx').innerText = `${px >= 0 ? '+' : ''}${px.toFixed(2)} gf`;
+      document.getElementById('table-p-fy').innerText = `${py >= 0 ? '+' : ''}${py.toFixed(2)} gf`;
+
+      document.getElementById('table-q-mag').innerText = `${STATE.Q.toFixed(1)} gf`;
+      document.getElementById('table-q-theta').innerText = `${STATE.theta2.toFixed(1)}°`;
+      document.getElementById('table-q-fx').innerText = `${qx >= 0 ? '+' : ''}${qx.toFixed(2)} gf`;
+      document.getElementById('table-q-fy').innerText = `${qy >= 0 ? '+' : ''}${qy.toFixed(2)} gf`;
+
+      document.getElementById('table-r-mag').innerText = `${STATE.R.toFixed(1)} gf`;
+      document.getElementById('table-r-theta').innerText = `270.0°`;
+      document.getElementById('table-r-fx').innerText = `0.00 gf`;
+      document.getElementById('table-r-fy').innerText = `-${STATE.R.toFixed(2)} gf`;
+
+      updateTriangleCanvas();
+    }
+
+    // ── Closed Force Triangle Canvas Renderer ─────────────────────────────────
+    function updateTriangleCanvas() {
+      const cvs = document.getElementById('triangle-canvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid background
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 20) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 20) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      if (!STATE.isEquilibriumValid) {
+        ctx.fillStyle = '#ef4444';
+        ctx.font = '13px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Polygon Cannot Close (R ≥ P + Q)', w / 2, h / 2);
+        return;
+      }
+
+      // Draw vector head-to-tail polygon: P -> Q -> R
+      const scaleSelect = document.getElementById('select-triangle-scale');
+      const scaleMult = scaleSelect ? parseFloat(scaleSelect.value) : 1.0;
+      const scale = 1.1 * scaleMult; // px per gf
+
+      // Start origin centered
+      const ox = w / 2 - 40;
+      const oy = h / 2 + 50;
+
+      const th1 = (STATE.theta1 * Math.PI) / 180;
+      const th2 = (STATE.theta2 * Math.PI) / 180;
+
+      // Vector P: from (ox, oy) in direction theta1
+      // In math, theta1 is polar angle. In canvas screen: dx = P*cos(th1), dy = -P*sin(th1)
+      const pLen = STATE.P * scale;
+      const p1x = ox + pLen * Math.cos(th1);
+      const p1y = oy - pLen * Math.sin(th1);
+
+      // Vector Q: from (p1x, p1y) in direction theta2
+      const qLen = STATE.Q * scale;
+      const q2x = p1x + qLen * Math.cos(th2);
+      const q2y = p1y - qLen * Math.sin(th2);
+
+      // Vector R: from (q2x, q2y) straight down
+      const rLen = STATE.R * scale;
+      const r3x = q2x;
+      const r3y = q2y + rLen; // downwards
+
+      // Closure error
+      const closureErrPx = Math.hypot(r3x - ox, r3y - oy);
+      const closureErrGf = closureErrPx / scale;
+      const closureErrMm = (closureErrGf / 10).toFixed(2);
+      const closureErrPct = ((closureErrGf / STATE.R) * 100).toFixed(2);
+
+      const errLabel = document.getElementById('triangle-closure-error');
+      if (errLabel) {
+        errLabel.innerText = `${closureErrMm} mm (${closureErrPct}%)`;
+        if (closureErrGf < 1.0) errLabel.style.color = 'var(--emerald)';
+        else errLabel.style.color = 'var(--amber)';
+      }
+
+      // Helper function to draw arrow
+      function drawArrow(x0, y0, x1, y1, color, label) {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+
+        // Arrow head
+        const angle = Math.atan2(y1 - y0, x1 - x0);
+        const headLen = 8;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 - headLen * Math.cos(angle - Math.PI / 6), y1 - headLen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(x1 - headLen * Math.cos(angle + Math.PI / 6), y1 - headLen * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
+
+        // Label
+        const mx = (x0 + x1) / 2 + 10 * Math.cos(angle - Math.PI / 2);
+        const my = (y0 + y1) / 2 + 10 * Math.sin(angle - Math.PI / 2);
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillText(label, mx, my);
+      }
+
+      // Draw Vector P
+      drawArrow(ox, oy, p1x, p1y, '#ef4444', `P = ${STATE.P} gf`);
+      // Draw Vector Q
+      drawArrow(p1x, p1y, q2x, q2y, '#38bdf8', `Q = ${STATE.Q} gf`);
+      // Draw Vector R
+      drawArrow(q2x, q2y, r3x, r3y, '#10b981', `R = ${STATE.R} gf`);
+
+      // Closure dashed line if error > 1px
+      if (closureErrPx > 1.5) {
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(r3x, r3y);
+        ctx.lineTo(ox, oy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Origin point mark
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ox, oy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Main Simulation Canvas Drawing Routine ────────────────────────────────
+    function drawSimulationCanvas() {
+      const canvas = document.getElementById('sim-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.save();
+      ctx.clearRect(0, 0, w, h);
+
+      // Pan & Zoom transform
+      ctx.translate(STATE.panX, STATE.panY);
+      ctx.scale(STATE.zoom, STATE.zoom);
+
+      // 1. Vertical Wooden Board Backdrop (offset below top HUD strip)
+      const boardTop = 38;
+      ctx.fillStyle = '#1e160e';
+      ctx.fillRect(10, boardTop, w - 20, h - boardTop - 10);
+      
+      // Board border & frame
+      ctx.strokeStyle = '#3d2817';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(10, boardTop, w - 20, h - boardTop - 10);
+
+      // Wood grain lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+      ctx.lineWidth = 1;
+      for (let y = boardTop + 14; y < h - 20; y += 14) {
+        ctx.beginPath();
+        ctx.moveTo(15, y);
+        ctx.bezierCurveTo(w * 0.3, y + Math.sin(y) * 4, w * 0.7, y - Math.cos(y) * 4, w - 15, y);
+        ctx.stroke();
+      }
+
+      // 2. White Drawing Paper Sheet pinned to board
+      const paperX = 70;
+      const paperY = boardTop + 22;
+      const paperW = w - 140;
+      const paperH = h - boardTop - 54;
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(paperX, paperY, paperW, paperH);
+
+      // Subtle drop shadow around paper
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(paperX, paperY, paperW, paperH);
+
+      // Paper grid lines
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.lineWidth = 1;
+      for (let x = paperX + 20; x < paperX + paperW; x += 30) {
+        ctx.beginPath();
+        ctx.moveTo(x, paperY);
+        ctx.lineTo(x, paperY + paperH);
+        ctx.stroke();
+      }
+      for (let y = paperY + 20; y < paperY + paperH; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(paperX, y);
+        ctx.lineTo(paperX + paperW, y);
+        ctx.stroke();
+      }
+
+      // 4 Brass Thumbtacks in corners
+      const pins = [
+        { x: paperX + 16, y: paperY + 16 },
+        { x: paperX + paperW - 16, y: paperY + 16 },
+        { x: paperX + 16, y: paperY + paperH - 16 },
+        { x: paperX + paperW - 16, y: paperY + paperH - 16 }
+      ];
+      pins.forEach(pin => {
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(pin.x, pin.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       });
+
+      // 3. Top Rail Arc Guide for Pulleys
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(STATE.centerX, STATE.centerY + 40, STATE.railRadius, Math.PI * 0.95, Math.PI * 0.05, true);
+      ctx.stroke();
+
+      const { p1x, p1y, p2x, p2y } = getPulleyCoords();
+
+      // 4. Trace Rays on Paper (Colored Pencil Lines & Angles)
+      if (STATE.showRays) {
+        // Line P (Crimson)
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 3]);
+        ctx.beginPath();
+        ctx.moveTo(STATE.knotX, STATE.knotY);
+        ctx.lineTo(p1x, p1y);
+        ctx.stroke();
+
+        // Line Q (Royal Blue)
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+        ctx.beginPath();
+        ctx.moveTo(STATE.knotX, STATE.knotY);
+        ctx.lineTo(p2x, p2y);
+        ctx.stroke();
+
+        // Line R (Emerald Green)
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+        ctx.beginPath();
+        ctx.moveTo(STATE.knotX, STATE.knotY);
+        ctx.lineTo(STATE.knotX, paperY + paperH - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Angle arcs around Knot
+        const arcR = 36;
+        const th1 = (STATE.theta1 * Math.PI) / 180;
+        const th2 = (STATE.theta2 * Math.PI) / 180;
+        const th3 = (STATE.theta3 * Math.PI) / 180;
+
+        // Arc gamma (between P and Q)
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.9)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(STATE.knotX, STATE.knotY, arcR, -th1, -th2);
+        ctx.stroke();
+
+        // Arc alpha (between Q and R)
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.9)';
+        ctx.beginPath();
+        ctx.arc(STATE.knotX, STATE.knotY, arcR + 6, -th2, Math.PI / 2);
+        ctx.stroke();
+
+        // Arc beta (between P and R)
+        ctx.strokeStyle = 'rgba(236, 72, 153, 0.9)';
+        ctx.beginPath();
+        ctx.arc(STATE.knotX, STATE.knotY, arcR + 12, Math.PI / 2, -th1);
+        ctx.stroke();
+
+        // Angle Labels
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillStyle = '#7e22ce';
+        ctx.fillText(`γ = ${STATE.gamma.toFixed(1)}°`, STATE.knotX - 10, STATE.knotY - arcR - 10);
+        ctx.fillStyle = '#b45309';
+        ctx.fillText(`α = ${STATE.alpha.toFixed(1)}°`, STATE.knotX + arcR + 10, STATE.knotY + 20);
+        ctx.fillStyle = '#be185d';
+        ctx.fillText(`β = ${STATE.beta.toFixed(1)}°`, STATE.knotX - arcR - 45, STATE.knotY + 20);
+
+        // Pin dots along strings
+        const allDots = [...STATE.dots.p, ...STATE.dots.q, ...STATE.dots.r];
+        allDots.forEach(dot => {
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.arc(dot.x, dot.y, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        });
+      }
+
+      // 5. Virtual Mirror Strip (if active)
+      if (STATE.showMirror) {
+        const mirrorW = 28;
+        const mirrorH = 55;
+        // Draw mirror near cord P
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(STATE.dots.p[0].x - mirrorW / 2, STATE.dots.p[0].y - mirrorH / 2, mirrorW, mirrorH);
+        ctx.strokeRect(STATE.dots.p[0].x - mirrorW / 2, STATE.dots.p[0].y - mirrorH / 2, mirrorW, mirrorH);
+
+        // Mirror diagonal shine
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.beginPath();
+        ctx.moveTo(STATE.dots.p[0].x - 8, STATE.dots.p[0].y - 20);
+        ctx.lineTo(STATE.dots.p[0].x + 8, STATE.dots.p[0].y + 20);
+        ctx.stroke();
+
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillStyle = '#475569';
+        ctx.fillText('Mirror Strip (Zero Parallax)', STATE.dots.p[0].x - 60, STATE.dots.p[0].y - 32);
+      }
+
+      // 6. Interactive Full-Circle 360° Protractor Overlay
+      if (STATE.showProtractor) {
+        drawProtractor(ctx, STATE.protractorX, STATE.protractorY, STATE.protractorRot, STATE.protractorOpacity);
+      }
+
+      // 7. Cords under Tension (Braided strings)
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2.5;
+
+      // Cord 1: knot to left pulley, then hangs down with mass P
+      ctx.beginPath();
+      ctx.moveTo(STATE.knotX, STATE.knotY);
+      ctx.lineTo(p1x, p1y);
+      ctx.lineTo(p1x - 12, p1y);
+      ctx.lineTo(p1x - 12, p1y + 110);
+      ctx.stroke();
+
+      // Cord 2: knot to right pulley, then hangs down with mass Q
+      ctx.beginPath();
+      ctx.moveTo(STATE.knotX, STATE.knotY);
+      ctx.lineTo(p2x, p2y);
+      ctx.lineTo(p2x + 12, p2y);
+      ctx.lineTo(p2x + 12, p2y + 110);
+      ctx.stroke();
+
+      // Cord 3: knot straight down with mass R
+      ctx.beginPath();
+      ctx.moveTo(STATE.knotX, STATE.knotY);
+      ctx.lineTo(STATE.knotX, STATE.knotY + 110);
+      ctx.stroke();
+
+      // 8. Slotted Mass Hangers & Weights Stacks
+      drawMassHanger(ctx, p1x - 12, p1y + 110, STATE.P, '#ef4444', 'P');
+      drawMassHanger(ctx, p2x + 12, p2y + 110, STATE.Q, '#38bdf8', 'Q');
+      drawMassHanger(ctx, STATE.knotX, STATE.knotY + 110, STATE.R, '#10b981', 'R');
+
+      // 9. Movable Aluminum Pulleys & Clamps
+      drawPulley(ctx, p1x, p1y, '#ef4444', 'P1 (Left)');
+      drawPulley(ctx, p2x, p2y, '#38bdf8', 'P2 (Right)');
+
+      // 10. Central Brass Ring / Knot O
+      ctx.fillStyle = '#fbbf24';
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(STATE.knotX, STATE.knotY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Center hole
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(STATE.knotX, STATE.knotY, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Knot label O
+      ctx.font = 'bold 12px Inter, sans-serif';
+      ctx.fillStyle = '#000';
+      ctx.fillText('O', STATE.knotX + 12, STATE.knotY - 6);
+
+      ctx.restore();
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
+    // ── Protractor Drawing Function ───────────────────────────────────────────
+    function drawProtractor(ctx, cx, cy, rotDeg, opacity) {
+      const radius = 100;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((rotDeg * Math.PI) / 180);
+      ctx.globalAlpha = opacity;
+
+      // Outer glass disk
+      ctx.fillStyle = 'rgba(241, 245, 249, 0.35)';
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(30, 41, 59, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Degree graduations
+      for (let deg = 0; deg < 360; deg++) {
+        const rad = (deg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        let tickLen = 4;
+        if (deg % 10 === 0) tickLen = 10;
+        else if (deg % 5 === 0) tickLen = 7;
+
+        ctx.strokeStyle = (deg % 10 === 0) ? '#0f172a' : '#475569';
+        ctx.lineWidth = (deg % 10 === 0) ? 1.2 : 0.7;
+
+        ctx.beginPath();
+        ctx.moveTo(cos * (radius - tickLen), sin * (radius - tickLen));
+        ctx.lineTo(cos * radius, sin * radius);
+        ctx.stroke();
+
+        // Numerals every 30 degrees
+        if (deg % 30 === 0) {
+          ctx.save();
+          ctx.translate(cos * (radius - 18), sin * (radius - 18));
+          ctx.rotate(rad + Math.PI / 2);
+          ctx.font = '8px Inter, sans-serif';
+          ctx.fillStyle = '#0f172a';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${deg}°`, 0, 0);
+          ctx.restore();
+        }
+      }
+
+      // Crosshairs
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-radius + 15, 0);
+      ctx.lineTo(radius - 15, 0);
+      ctx.moveTo(0, -radius + 15);
+      ctx.lineTo(0, radius - 15);
+      ctx.stroke();
+
+      // Center pin
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rotation indicator handle on rim
+      ctx.fillStyle = '#38bdf8';
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(radius, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
     }
 
-    function focusComponent(name) {
-      if (!modelGroup) return;
-      modelGroup.traverse(function(child) {
-        if (child.isMesh) {
-          if (child.name === name) {
-            child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.6;
-          } else {
-            child.material.emissive = new THREE.Color(0x000000);
-          }
+    // ── Slotted Weights & Hanger Renderer ─────────────────────────────────────
+    function drawMassHanger(ctx, x, y, massGf, color, label) {
+      // Brass Hanger Rod
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 45);
+      ctx.stroke();
+
+      // Bottom Hanger Base Hook
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(x - 14, y + 45, 28, 5);
+
+      // Stacked Slotted Weights (discs of 50g, 20g, 10g, 5g)
+      let remaining = massGf;
+      let stackY = y + 42;
+      const discHeight = 6;
+
+      const denominations = [50, 20, 10, 5];
+      denominations.forEach(denom => {
+        while (remaining >= denom && stackY > y + 5) {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 1;
+          const discWidth = 14 + denom * 0.22;
+          ctx.fillRect(x - discWidth / 2, stackY - discHeight, discWidth, discHeight);
+          ctx.strokeRect(x - discWidth / 2, stackY - discHeight, discWidth, discHeight);
+
+          // Center slot cutout
+          ctx.fillStyle = '#64748b';
+          ctx.fillRect(x - 2, stackY - discHeight, 4, discHeight);
+
+          stackY -= (discHeight + 1);
+          remaining -= denom;
         }
       });
+
+      // Mass label pill
+      ctx.fillStyle = color;
+      ctx.font = 'bold 10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${label}: ${massGf}g`, x, y + 62);
     }
 
-    window.addEventListener('load', () => {
-      runSim();
+    // ── Pulley Renderer ───────────────────────────────────────────────────────
+    function drawPulley(ctx, x, y, color, label) {
+      // Clamp bracket
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x - 14, y - 20, 28, 8);
+
+      // Pulley wheel
+      ctx.fillStyle = '#94a3b8';
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Inner groove
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Center axle screw
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Canvas Interaction Handlers (Pan, Zoom, Knot & Pulley Drag) ───────────
+    function initCanvasInteractions() {
+      const canvas = document.getElementById('sim-canvas');
+      if (!canvas) return;
+
+      function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const rawX = (clientX - rect.left) * (canvas.width / rect.width);
+        const rawY = (clientY - rect.top) * (canvas.height / rect.height);
+        const worldX = (rawX - STATE.panX) / STATE.zoom;
+        const worldY = (rawY - STATE.panY) / STATE.zoom;
+        return { worldX, worldY, rawX, rawY };
+      }
+
+      canvas.addEventListener('mousedown', (e) => {
+        const { worldX, worldY, rawX, rawY } = getMousePos(e);
+        const { p1x, p1y, p2x, p2y } = getPulleyCoords();
+
+        // 1. Check Knot Click
+        if (Math.hypot(worldX - STATE.knotX, worldY - STATE.knotY) < 22) {
+          STATE.isDraggingKnot = true;
+          canvas.style.cursor = 'grabbing';
+          setWorkflowStep(2);
+          return;
+        }
+
+        // 2. Check Pulley 1 Click
+        if (Math.hypot(worldX - p1x, worldY - p1y) < 22) {
+          STATE.isDraggingP1 = true;
+          canvas.style.cursor = 'ew-resize';
+          return;
+        }
+
+        // 3. Check Pulley 2 Click
+        if (Math.hypot(worldX - p2x, worldY - p2y) < 22) {
+          STATE.isDraggingP2 = true;
+          canvas.style.cursor = 'ew-resize';
+          return;
+        }
+
+        // 4. Check Protractor Click
+        if (STATE.showProtractor && Math.hypot(worldX - STATE.protractorX, worldY - STATE.protractorY) < 100) {
+          STATE.isDraggingProtractor = true;
+          canvas.style.cursor = 'move';
+          return;
+        }
+
+        // 5. Otherwise, Canvas Panning
+        STATE.isPanning = true;
+        STATE.panStartX = rawX - STATE.panX;
+        STATE.panStartY = rawY - STATE.panY;
+        canvas.style.cursor = 'grabbing';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        const { worldX, worldY, rawX, rawY } = getMousePos(e);
+
+        if (STATE.isDraggingKnot) {
+          STATE.knotX = Math.max(90, Math.min(STATE.boardW - 90, worldX));
+          STATE.knotY = Math.max(90, Math.min(STATE.boardH - 50, worldY));
+          return;
+        }
+
+        if (STATE.isDraggingP1) {
+          // Calculate polar angle from rail center
+          const dx = worldX - STATE.centerX;
+          const dy = -(worldY - (STATE.centerY + 40));
+          let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+          if (deg < 0) deg += 360;
+          deg = Math.max(100, Math.min(170, deg));
+          setPulley1Angle(deg);
+          return;
+        }
+
+        if (STATE.isDraggingP2) {
+          const dx = worldX - STATE.centerX;
+          const dy = -(worldY - (STATE.centerY + 40));
+          let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+          if (deg < 0) deg += 360;
+          deg = Math.max(10, Math.min(80, deg));
+          setPulley2Angle(deg);
+          return;
+        }
+
+        if (STATE.isDraggingProtractor) {
+          STATE.protractorX = worldX;
+          STATE.protractorY = worldY;
+          return;
+        }
+
+        if (STATE.isPanning) {
+          STATE.panX = rawX - STATE.panStartX;
+          STATE.panY = rawY - STATE.panStartY;
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (STATE.isDraggingKnot) {
+          STATE.isDraggingKnot = false;
+          playSound('clink');
+        }
+        STATE.isDraggingP1 = false;
+        STATE.isDraggingP2 = false;
+        STATE.isDraggingProtractor = false;
+        STATE.isPanning = false;
+        canvas.style.cursor = 'grab';
+      });
+
+      // Wheel Zooming Centered at Mouse Pointer (§9)
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+        const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+        const newZoom = Math.max(0.5, Math.min(2.5, STATE.zoom * zoomFactor));
+
+        // Adjust pan so mouse point remains fixed
+        STATE.panX = mouseX - (mouseX - STATE.panX) * (newZoom / STATE.zoom);
+        STATE.panY = mouseY - (mouseY - STATE.panY) * (newZoom / STATE.zoom);
+        STATE.zoom = newZoom;
+
+        const zoomReadout = document.getElementById('zoom-readout');
+        if (zoomReadout) zoomReadout.innerText = `${Math.round(STATE.zoom * 100)}%`;
+      }, { passive: false });
+    }
+
+    function zoomIn() {
+      STATE.zoom = Math.min(2.5, STATE.zoom * 1.15);
+      document.getElementById('zoom-readout').innerText = `${Math.round(STATE.zoom * 100)}%`;
+    }
+
+    function zoomOut() {
+      STATE.zoom = Math.max(0.5, STATE.zoom * 0.85);
+      document.getElementById('zoom-readout').innerText = `${Math.round(STATE.zoom * 100)}%`;
+    }
+
+    function resetCanvasView() {
+      STATE.zoom = 1.0;
+      STATE.panX = 0;
+      STATE.panY = 0;
+      document.getElementById('zoom-readout').innerText = '100%';
+      playSound('snap');
+    }
+
+    // ── Workflow Stepper Navigation ───────────────────────────────────────────
+    function setWorkflowStep(step) {
+      STATE.workflowStep = step;
+      for (let i = 1; i <= 5; i++) {
+        const stepElem = document.getElementById(`step-${i}`);
+        if (!stepElem) continue;
+        if (i < step) {
+          stepElem.className = 'stage-step completed';
+        } else if (i === step) {
+          stepElem.className = 'stage-step active';
+        } else {
+          stepElem.className = 'stage-step';
+        }
+      }
+    }
+
+    // ── Mode Switcher (Sim, Graphs, 3D, Theory, Quiz) ─────────────────────────
+    function switchMode(mode) {
+      STATE.mode = mode;
+
+      const simWrapper = document.getElementById('sim-wrapper');
+      const graphsSection = document.getElementById('section-graphs');
+      const d3Section = document.getElementById('section-3d');
+      const theorySection = document.getElementById('section-theory');
+      const quizSection = document.getElementById('section-quiz');
+
+      if (simWrapper) simWrapper.style.display = (mode === 'sim') ? 'block' : 'none';
+      if (graphsSection) graphsSection.style.display = (mode === 'graphs') ? 'block' : 'none';
+      if (d3Section) d3Section.style.display = (mode === '3d') ? 'block' : 'none';
+      if (theorySection) theorySection.style.display = (mode === 'theory') ? 'block' : 'none';
+      if (quizSection) quizSection.style.display = (mode === 'quiz') ? 'block' : 'none';
+
+      // Update button active states
+      const modes = ['sim', 'graphs', '3d', 'theory', 'quiz'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`btn-mode-${m}`);
+        if (btn) {
+          if (m === mode) btn.classList.add('active');
+          else btn.classList.remove('active');
+        }
+      });
+
+      if (mode === 'graphs') renderFullGraphsStudio();
+      if (mode === '3d') {
+        window.dispatchEvent(new Event('resize'));
+        init3DApparatusModel();
+      }
+      if (mode === 'theory' || mode === 'quiz') {
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise();
+        }
+      }
+
+      playSound('snap');
+    }
+
+    // ── SubTab Switcher (Lami, Triangle, Ledger, Protractor) ───────────────────
+    function switchSubTab(tabName, btn) {
+      STATE.subTab = tabName;
+      document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      document.querySelectorAll('.analytical-tab-pane').forEach(p => p.classList.remove('active'));
+      const activePane = document.getElementById(`subtab-${tabName}`);
+      if (activePane) activePane.classList.add('active');
+
+      const badge = document.getElementById('hud-subtab-badge');
+      if (badge) {
+        if (tabName === 'lami') badge.innerText = 'Tab 1: Lami Ratios';
+        if (tabName === 'triangle') badge.innerText = 'Tab 2: Force Triangle';
+        if (tabName === 'ledger') badge.innerText = 'Tab 3: Resolution Ledger';
+        if (tabName === 'protractor') badge.innerText = 'Tab 4: Protractor Overlay';
+      }
+
+      if (tabName === 'triangle') updateTriangleCanvas();
+      playSound('snap');
+    }
+
+    // ── Standard Observation Notebook & Data Table ────────────────────────────
+    function recordCurrentTrial() {
+      const alphaRad = (STATE.alpha * Math.PI) / 180;
+      const betaRad  = (STATE.beta * Math.PI) / 180;
+      const gammaRad = (STATE.gamma * Math.PI) / 180;
+
+      const rP = STATE.P / Math.sin(alphaRad);
+      const rQ = STATE.Q / Math.sin(betaRad);
+      const rR = STATE.R / Math.sin(gammaRad);
+      const mean = (rP + rQ + rR) / 3;
+      const disc = (Math.max(Math.abs(rP - mean), Math.abs(rQ - mean), Math.abs(rR - mean)) / mean) * 100;
+
+      const trial = {
+        id: STATE.trials.length + 1,
+        P: STATE.P.toFixed(1),
+        Q: STATE.Q.toFixed(1),
+        R: STATE.R.toFixed(1),
+        alpha: STATE.alpha.toFixed(1),
+        beta: STATE.beta.toFixed(1),
+        gamma: STATE.gamma.toFixed(1),
+        ratioP: rP.toFixed(2),
+        ratioQ: rQ.toFixed(2),
+        ratioR: rR.toFixed(2),
+        disc: disc.toFixed(2)
+      };
+
+      STATE.trials.push(trial);
+      renderObservationTable();
+      playSound('snap');
+    }
+
+    function populateStandardRuns() {
+      // 5 Standard Reference Runs from Section 5 of specification
+      STATE.trials = [
+        { id: 1, P: "50.0", Q: "60.0", R: "70.0", alpha: "135.5", beta: "124.2", gamma: "100.3", ratioP: "71.32", ratioQ: "72.54", ratioR: "71.15", disc: "0.98" },
+        { id: 2, P: "60.0", Q: "80.0", R: "100.0", alpha: "143.1", beta: "126.9", gamma: "90.0", ratioP: "100.00", ratioQ: "100.00", ratioR: "100.00", disc: "0.00" },
+        { id: 3, P: "70.0", Q: "70.0", R: "70.0", alpha: "120.0", beta: "120.0", gamma: "120.0", ratioP: "80.83", ratioQ: "80.83", ratioR: "80.83", disc: "0.00" },
+        { id: 4, P: "80.0", Q: "60.0", R: "90.0", alpha: "138.6", beta: "131.8", gamma: "89.6", ratioP: "121.00", ratioQ: "120.73", ratioR: "120.02", disc: "0.41" },
+        { id: 5, P: "100.0", Q: "120.0", R: "150.0", alpha: "138.2", beta: "122.9", gamma: "98.9", ratioP: "150.02", ratioQ: "150.14", ratioR: "150.00", disc: "0.05" }
+      ];
+      renderObservationTable();
+      playSound('clink');
+      setWorkflowStep(4);
+    }
+
+    function clearLedger() {
+      STATE.trials = [];
+      renderObservationTable();
+      playSound('snap');
+    }
+
+    function renderObservationTable() {
+      const tbody = document.getElementById('observation-tbody');
+      if (!tbody) return;
+
+      if (STATE.trials.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--text-dim); padding:16px;">No recorded experimental runs yet. Click "Record Current Trial" or "Auto-Populate 5 Standard Trials".</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = STATE.trials.map(t => `
+        <tr>
+          <td>#${t.id}</td>
+          <td style="color:var(--red); font-weight:700;">${t.P}</td>
+          <td style="color:var(--cyan); font-weight:700;">${t.Q}</td>
+          <td style="color:var(--emerald); font-weight:700;">${t.R}</td>
+          <td>${t.alpha}&deg;</td>
+          <td>${t.beta}&deg;</td>
+          <td>${t.gamma}&deg;</td>
+          <td>${t.ratioP}</td>
+          <td>${t.ratioQ}</td>
+          <td>${t.ratioR}</td>
+          <td style="color:${parseFloat(t.disc) < 1.5 ? 'var(--emerald)' : 'var(--amber)'}; font-weight:700;">${t.disc}%</td>
+          <td><span class="val-badge ${parseFloat(t.disc) < 1.5 ? 'success' : 'warning'}" style="font-size:10.5px;">${parseFloat(t.disc) < 1.5 ? 'VALID' : 'CHECK'}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function exportCSV() {
+      if (STATE.trials.length === 0) {
+        alert('Observation ledger is currently empty. Record trials first!');
+        return;
+      }
+      let csv = "Trial,Force_P_gf,Force_Q_gf,Force_R_gf,Angle_Alpha_deg,Angle_Beta_deg,Angle_Gamma_deg,P_over_sin_Alpha,Q_over_sin_Beta,R_over_sin_Gamma,Discrepancy_Percent\n";
+      STATE.trials.forEach(t => {
+        csv += `${t.id},${t.P},${t.Q},${t.R},${t.alpha},${t.beta},${t.gamma},${t.ratioP},${t.ratioQ},${t.ratioR},${t.disc}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Lamis_Theorem_Lab_Trials_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      playSound('snap');
+    }
+
+    // ── Dedicated Analytical Scaling Graphs Full Studio ───────────────────────
+    function renderFullGraphsStudio() {
+      // Plot 1: Lami Ratios vs Trial Number
+      const cvs1 = document.getElementById('full-graph-ratios');
+      if (cvs1) {
+        const ctx = cvs1.getContext('2d');
+        const w = cvs1.width, h = cvs1.height;
+        ctx.clearRect(0, 0, w, h);
+        drawGraphGrid(ctx, w, h);
+
+        const trials = STATE.trials.length > 0 ? STATE.trials : [
+          { ratioP: 71.32, ratioQ: 72.54, ratioR: 71.15 },
+          { ratioP: 100.0, ratioQ: 100.0, ratioR: 100.0 },
+          { ratioP: 80.83, ratioQ: 80.83, ratioR: 80.83 },
+          { ratioP: 121.0, ratioQ: 120.73, ratioR: 120.02 },
+          { ratioP: 150.02, ratioQ: 150.14, ratioR: 150.0 }
+        ];
+
+        const n = trials.length;
+        const stepX = (w - 80) / Math.max(1, n);
+
+        trials.forEach((t, i) => {
+          const x = 50 + i * stepX + stepX / 2;
+          const maxVal = 180;
+          const yP = h - 40 - (parseFloat(t.ratioP) / maxVal) * (h - 70);
+          const yQ = h - 40 - (parseFloat(t.ratioQ) / maxVal) * (h - 70);
+          const yR = h - 40 - (parseFloat(t.ratioR) / maxVal) * (h - 70);
+
+          // Bar triad
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(x - 18, yP, 10, h - 40 - yP);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(x - 6, yQ, 10, h - 40 - yQ);
+          ctx.fillStyle = '#10b981';
+          ctx.fillRect(x + 6, yR, 10, h - 40 - yR);
+
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '10px Inter';
+          ctx.fillText(`T${i + 1}`, x, h - 20);
+        });
+      }
+
+      // Plot 2: Linear Regression F vs sin(theta)
+      const cvs2 = document.getElementById('full-graph-linear');
+      if (cvs2) {
+        const ctx = cvs2.getContext('2d');
+        const w = cvs2.width, h = cvs2.height;
+        ctx.clearRect(0, 0, w, h);
+        drawGraphGrid(ctx, w, h);
+
+        // Theoretical slope line: F = k * sin(theta)
+        const k = 71.67;
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(50, h - 40);
+        ctx.lineTo(w - 30, h - 40 - (k / 160) * (h - 70));
+        ctx.stroke();
+
+        // Sample points
+        const pts = [
+          { sin: Math.sin(135.5 * Math.PI / 180), f: 50 },
+          { sin: Math.sin(124.2 * Math.PI / 180), f: 60 },
+          { sin: Math.sin(100.3 * Math.PI / 180), f: 70 }
+        ];
+
+        pts.forEach(p => {
+          const px = 50 + p.sin * (w - 90);
+          const py = h - 40 - (p.f / 160) * (h - 70);
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(px, py, 5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px Inter';
+        ctx.fillText('Slope k = F / sin(θ) = 71.67 gf', 60, 30);
+      }
+
+      // Plot 3: Residual vs Offset
+      const cvs3 = document.getElementById('full-graph-residual');
+      if (cvs3) {
+        const ctx = cvs3.getContext('2d');
+        const w = cvs3.width, h = cvs3.height;
+        ctx.clearRect(0, 0, w, h);
+        drawGraphGrid(ctx, w, h);
+
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let x = 0; x < w - 80; x += 10) {
+          const dx = (x - (w - 80) / 2) * 0.5;
+          const res = Math.abs(dx * 0.8) + (dx * dx) * 0.02;
+          const py = h - 40 - (res / 60) * (h - 70);
+          if (x === 0) ctx.moveTo(50 + x, py);
+          else ctx.lineTo(50 + x, py);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(50 + (w - 80) / 2, h - 40, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText('Equilibrium Min (Rres = 0)', 50 + (w - 80) / 2 - 50, h - 50);
+      }
+
+      // Plot 4: Closure error vs angle
+      const cvs4 = document.getElementById('full-graph-closure');
+      if (cvs4) {
+        const ctx = cvs4.getContext('2d');
+        const w = cvs4.width, h = cvs4.height;
+        ctx.clearRect(0, 0, w, h);
+        drawGraphGrid(ctx, w, h);
+
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let ang = 100; ang <= 170; ang += 2) {
+          const px = 50 + ((ang - 100) / 70) * (w - 80);
+          const err = 0.05 + Math.sin((ang - 100) * 0.1) * 0.15;
+          const py = h - 40 - (err / 1.0) * (h - 70);
+          if (ang === 100) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function drawGraphGrid(ctx, w, h) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 50; x < w - 20; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 20);
+        ctx.lineTo(x, h - 40);
+        ctx.stroke();
+      }
+      for (let y = 20; y < h - 40; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(50, y);
+        ctx.lineTo(w - 20, y);
+        ctx.stroke();
+      }
+
+      // Axes
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(50, 20);
+      ctx.lineTo(50, h - 40);
+      ctx.lineTo(w - 20, h - 40);
+      ctx.stroke();
+    }
+
+    // ── 3D Apparatus Digital Twin Model Studio (§12.1 #8) ─────────────────────
+    let scene3D, camera3D, renderer3D, controls3D, animFrame3D;
+    let components3D = {};
+
+    function init3DApparatusModel() {
+      const container = document.getElementById('sim3d-canvas-container');
+      const canvas = document.getElementById('sim3d-canvas');
+      if (!container || !canvas || scene3D) return;
+
+      const w = container.clientWidth || 600;
+      const h = container.clientHeight || 460;
+
+      scene3D = new THREE.Scene();
+      scene3D.background = new THREE.Color(0x080d18);
+
+      camera3D = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+      camera3D.position.set(0, 0, 4.5);
+
+      renderer3D = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer3D.setSize(w, h, false);
+      renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+      controls3D.enableDamping = true;
+      controls3D.dampingFactor = 0.05;
+
+      // Lights
+      const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+      scene3D.add(ambient);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      dirLight.position.set(5, 8, 5);
+      scene3D.add(dirLight);
+
+      const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.5);
+      dirLight2.position.set(-5, -4, -3);
+      scene3D.add(dirLight2);
+
+      // Try loading canonical GLB model, with procedural fallback
+      const loader = new THREE.GLTFLoader();
+      const modelUrl = '/models/lamis_theorem_coplanar_forces.glb';
+
+      loader.load(
+        modelUrl,
+        (gltf) => {
+          scene3D.add(gltf.scene);
+          document.getElementById('model3d-status-badge').innerText = 'Canonical GLB Model Loaded';
+        },
+        undefined,
+        (err) => {
+          console.log('Loading procedural fallback 3D model...');
+          buildProcedural3DApparatus();
+          document.getElementById('model3d-status-badge').innerText = 'Procedural WebGL 3D Model';
+        }
+      );
+
+      function animate3D() {
+        animFrame3D = requestAnimationFrame(animate3D);
+        controls3D.update();
+        renderer3D.render(scene3D, camera3D);
+      }
+      animate3D();
+
+      window.addEventListener('resize', () => {
+        if (!container || !renderer3D || !camera3D) return;
+        const nw = container.clientWidth;
+        const nh = container.clientHeight;
+        camera3D.aspect = nw / nh;
+        camera3D.updateProjectionMatrix();
+        renderer3D.setSize(nw, nh, false);
+      });
+    }
+
+    function buildProcedural3DApparatus() {
+      // 1. Drawing Board
+      const boardGeo = new THREE.BoxGeometry(3.6, 2.4, 0.12);
+      const boardMat = new THREE.MeshStandardMaterial({ color: 0x3d2516, roughness: 0.8 });
+      const board = new THREE.Mesh(boardGeo, boardMat);
+      scene3D.add(board);
+      components3D.board = board;
+
+      // Paper Sheet
+      const paperGeo = new THREE.PlaneGeometry(3.0, 1.9);
+      const paperMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+      const paper = new THREE.Mesh(paperGeo, paperMat);
+      paper.position.z = 0.065;
+      scene3D.add(paper);
+
+      // 2. Left Pulley & Bracket
+      const pulleyGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 32);
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+      
+      const pulleyL = new THREE.Mesh(pulleyGeo, metalMat);
+      pulleyL.rotation.x = Math.PI / 2;
+      pulleyL.position.set(-1.4, 1.1, 0.15);
+      scene3D.add(pulleyL);
+      components3D.pulleyLeft = pulleyL;
+
+      // 3. Right Pulley
+      const pulleyR = new THREE.Mesh(pulleyGeo, metalMat);
+      pulleyR.rotation.x = Math.PI / 2;
+      pulleyR.position.set(1.4, 1.1, 0.15);
+      scene3D.add(pulleyR);
+      components3D.pulleyRight = pulleyR;
+
+      // 4. Central Brass Ring
+      const ringGeo = new THREE.TorusGeometry(0.1, 0.025, 16, 32);
+      const brassMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.15 });
+      const ring = new THREE.Mesh(ringGeo, brassMat);
+      ring.position.set(0, 0, 0.12);
+      scene3D.add(ring);
+      components3D.ring = ring;
+
+      // 5. Cords
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x1e293b, linewidth: 2 });
+      
+      // Cord 1
+      const pts1 = [new THREE.Vector3(0, 0, 0.12), new THREE.Vector3(-1.4, 1.1, 0.12), new THREE.Vector3(-1.5, 1.1, 0.12), new THREE.Vector3(-1.5, 0.2, 0.12)];
+      const cord1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts1), lineMat);
+      scene3D.add(cord1);
+
+      // Cord 2
+      const pts2 = [new THREE.Vector3(0, 0, 0.12), new THREE.Vector3(1.4, 1.1, 0.12), new THREE.Vector3(1.5, 1.1, 0.12), new THREE.Vector3(1.5, 0.2, 0.12)];
+      const cord2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), lineMat);
+      scene3D.add(cord2);
+
+      // Cord 3
+      const pts3 = [new THREE.Vector3(0, 0, 0.12), new THREE.Vector3(0, -0.9, 0.12)];
+      const cord3 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3), lineMat);
+      scene3D.add(cord3);
+
+      // Slotted Mass Hangers
+      const hangerGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.28, 24);
+      const hangerL = new THREE.Mesh(hangerGeo, brassMat);
+      hangerL.position.set(-1.5, 0.05, 0.12);
+      scene3D.add(hangerL);
+
+      const hangerR = new THREE.Mesh(hangerGeo, brassMat);
+      hangerR.position.set(1.5, 0.05, 0.12);
+      scene3D.add(hangerR);
+
+      const hangerC = new THREE.Mesh(hangerGeo, brassMat);
+      hangerC.position.set(0, -1.05, 0.12);
+      scene3D.add(hangerC);
+      components3D.hangers = hangerC;
+    }
+
+    function focus3DComponent(name) {
+      document.querySelectorAll('.comp-card').forEach(c => c.classList.remove('active'));
+      const card = event.currentTarget;
+      if (card) card.classList.add('active');
+
+      if (!camera3D || !controls3D) return;
+
+      if (name === 'board') {
+        camera3D.position.set(0, 0, 4.2);
+        controls3D.target.set(0, 0, 0);
+      } else if (name === 'pulleyLeft') {
+        camera3D.position.set(-1.4, 1.1, 1.5);
+        controls3D.target.set(-1.4, 1.1, 0.15);
+      } else if (name === 'pulleyRight') {
+        camera3D.position.set(1.4, 1.1, 1.5);
+        controls3D.target.set(1.4, 1.1, 0.15);
+      } else if (name === 'ring') {
+        camera3D.position.set(0, 0, 1.2);
+        controls3D.target.set(0, 0, 0.12);
+      } else if (name === 'hangers') {
+        camera3D.position.set(0, -1.0, 1.4);
+        controls3D.target.set(0, -1.05, 0.12);
+      }
+      controls3D.update();
+      playSound('snap');
+    }
+
+    // ── Interactive Viva Quiz ─────────────────────────────────────────────────
+    const QUIZ_QUESTIONS = [
+      {
+        q: "1. Under what condition is Lami's Theorem strictly valid?",
+        options: [
+          "For any number of coplanar forces in static equilibrium.",
+          "Exclusively for three concurrent, coplanar forces in static equilibrium.",
+          "For three non-concurrent forces in dynamic motion.",
+          "For three parallel forces acting in opposite directions."
+        ],
+        correct: 1,
+        exp: "Lami's Theorem applies strictly to THREE concurrent, coplanar forces acting at a single common point in static equilibrium."
+      },
+      {
+        q: "2. If three forces P = 50 gf, Q = 60 gf, and R = 120 gf act on a central knot, what happens physically?",
+        options: [
+          "The system reaches stable static equilibrium at the center.",
+          "The triangle inequality is violated (P + Q = 110 < 120), so the knot accelerates downward without reaching equilibrium.",
+          "The three forces cancel out completely by Pythagoras theorem.",
+          "The knot oscillates indefinitely without damping."
+        ],
+        correct: 1,
+        exp: "By the triangle inequality, equilibrium requires P + Q > R, Q + R > P, and P + R > Q. Since P + Q = 110 < 120, cords P and Q cannot support load R, so the system is physically unstable."
+      },
+      {
+        q: "3. How are the internal angles of the closed force triangle related to the inter-force angles α, β, γ?",
+        options: [
+          "They are identical: A = α, B = β, C = γ.",
+          "They are supplementary: A = 180° - α, B = 180° - β, C = 180° - γ.",
+          "They are complementary: A = 90° - α, B = 90° - β, C = 90° - γ.",
+          "Their sum is always 360°."
+        ],
+        correct: 1,
+        exp: "In the head-to-tail closed force triangle, the exterior angles between vector directions are the inter-force angles, making the interior angles supplementary: A = 180° - α, B = 180° - β, C = 180° - γ."
+      },
+      {
+        q: "4. Why is a planar mirror strip placed behind the cord when marking points on the drawing paper?",
+        options: [
+          "To reflect more ambient light onto the white drawing paper.",
+          "To eliminate parallax sighting error by aligning the real cord with its virtual reflection.",
+          "To measure the thickness of the inextensible braided cord.",
+          "To determine the index of refraction of the pulley bearing grease."
+        ],
+        correct: 1,
+        exp: "When the eye is aligned such that the cord exactly covers its reflection in the mirror, the line of sight is perpendicular to the paper, completely eliminating human parallax error."
+      },
+      {
+        q: "5. In static equilibrium, what must be the value of the residual unbalanced force R_res = sqrt((ΣFx)² + (ΣFy)²)?",
+        options: [
+          "Exactly equal to the mass of the center ring.",
+          "Identically equal to zero (within experimental precision).",
+          "Equal to the sum of P + Q + R.",
+          "Directly proportional to the acceleration due to gravity."
+        ],
+        correct: 1,
+        exp: "In true physical static equilibrium, Newton's first law requires ΣFx = 0 and ΣFy = 0, so the residual resultant force R_res is identically zero."
+      }
+    ];
+
+    let userAnswers = {};
+
+    function initQuiz() {
+      const container = document.getElementById('quiz-container');
+      if (!container) return;
+
+      container.innerHTML = QUIZ_QUESTIONS.map((q, idx) => `
+        <div class="quiz-card" id="quiz-q-${idx}">
+          <div class="quiz-q">${q.q}</div>
+          <div class="quiz-options">
+            ${q.options.map((opt, optIdx) => `
+              <button class="quiz-opt" onclick="selectQuizOption(${idx}, ${optIdx}, this)">
+                ${String.fromCharCode(65 + optIdx)}) ${opt}
+              </button>
+            `).join('')}
+          </div>
+          <div class="quiz-explanation" id="quiz-exp-${idx}">
+            <strong>Explanation:</strong> ${q.exp}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectQuizOption(qIdx, optIdx, btn) {
+      if (userAnswers[qIdx] !== undefined) return; // already answered
+      userAnswers[qIdx] = optIdx;
+
+      const q = QUIZ_QUESTIONS[qIdx];
+      const card = document.getElementById(`quiz-q-${qIdx}`);
+      const buttons = card.querySelectorAll('.quiz-opt');
+
+      if (optIdx === q.correct) {
+        btn.classList.add('selected-correct');
+        playSound('snap');
+      } else {
+        btn.classList.add('selected-wrong');
+        buttons[q.correct].classList.add('selected-correct');
+        playSound('tap');
+      }
+
+      const exp = document.getElementById(`quiz-exp-${qIdx}`);
+      if (exp) exp.style.display = 'block';
+
+      // Update total score badge
+      let score = 0;
+      Object.keys(userAnswers).forEach(k => {
+        if (userAnswers[k] === QUIZ_QUESTIONS[k].correct) score++;
+      });
+      document.getElementById('quiz-score-badge').innerText = `Score: ${score} / ${QUIZ_QUESTIONS.length}`;
+    }
+
+    function toggleSop(header) {
+      const item = header.parentElement;
+      item.classList.toggle('open');
+      playSound('snap');
+    }
+
+    // ── Master Animation & Simulation Loop ───────────────────────────────────
+    let lastTime = performance.now();
+
+    function simLoop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      updateKnotPhysics(dt);
+      drawSimulationCanvas();
+
+      requestAnimationFrame(simLoop);
+    }
+
+    // ── Application Initialization ───────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      solveTheoreticalEquilibrium();
+      initCanvasInteractions();
+      updateAnalyticalReadouts();
+      initQuiz();
+      renderObservationTable();
+
+      // Start 60 FPS animation loop
+      requestAnimationFrame(simLoop);
     });
   </script>
 </body>

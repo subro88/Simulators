@@ -3,344 +3,1623 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digital Number Base Converter Lab — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
-  <meta name="description" content="ES102/ES106 Introduction to IT Systems: Number Base Converter (Binary, Octal, Hexadecimal, BCD 8421, Gray Code & Excess-3)">
+  <title>Digital Number Base Converter Lab — WBSCTE Introduction to IT Systems Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="Interactive WBSCTE ES102/ES106 digital laboratory modeling positional notation, radix conversions (Binary, Octal, Decimal, Hexadecimal, Custom Base), repeated division/multiplication ladders, power-of-2 bit grouping, signed encodings (Two's Complement), and a 16-bit hardware register simulator.">
   <link rel="stylesheet" href="../../css/style.css">
   <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Three.js CDN Suite for Canonical V2 3D Model Embed -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <style>
-    :root { --accent: #00e676; }
-    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
-    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
-    .site-nav a { color: #94a3b8; text-decoration: none; }
-    .site-nav a:hover { color: var(--accent); }
-    .site-nav span { color: #475569; }
-    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
-    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
-    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
-    .mode-bar { display: flex; gap: 8px; align-items: center; }
-    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
-    .guide-link-btn:hover { background: #475569; }
-    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
-    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
-    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-    .control-group { margin-bottom: 14px; }
-    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
-    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
-    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
-    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
-    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
-    .diag-table td:first-child { color: #94a3b8; }
-    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
-    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
-    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
-    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
-    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
-    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
-    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
-    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
-    .seo-article h2, .seo-article h3 { color: #f8fafc; }
-    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
 </head>
 <body>
+
+  <!-- ════ Canonical Brand Nav & Breadcrumbs ════ -->
   <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science</a>
-    <span>&rsaquo;</span>
-    <span style="color:#f8fafc;">Digital Number Base Converter Lab</span>
+    <a href="/nhitvisuallab/index.html" class="brand-wrapper">
+      <img src="../../brand/logo.png" alt="NHIT Logo" class="brand-logo" onerror="this.src='/nhitvisuallab/brand/logo.png'; this.onerror=function(){this.src='/images/nhit-logo.png'; this.onerror=null;};">
+    </a>
+    <div class="brand-divider"></div>
+    <div class="breadcrumb-trail">
+      <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+      <span class="breadcrumb-sep">&rsaquo;</span>
+      <a href="/nhitvisuallab/index.html#bs-sem2">Engineering Science</a>
+      <span class="breadcrumb-sep">&rsaquo;</span>
+      <span class="breadcrumb-curr">Digital Number Base Converter Lab</span>
+    </div>
   </nav>
 
+  <!-- ════ Tool Header ════ -->
   <header class="tool-header">
     <div>
-      <span class="tool-badge">ES102 / ES106</span>
-      <h1 class="tool-title">Digital Number Base Converter Lab</h1>
-      <p class="tool-subtitle">ES102/ES106 Introduction to IT Systems: Number Base Converter (Binary, Octal, Hexadecimal, BCD 8421, Gray Code & Excess-3)</p>
+      <div class="tool-badge-row">
+        <span class="badge-tag">ES102 / ES106</span>
+        <span class="badge-tag secondary">Digital Logic &amp; IT Systems</span>
+        <span class="badge-tag">WBSCTE Lab</span>
+      </div>
+      <h1 class="tool-title">
+        <span>🔢</span> Digital Number Base Converter Lab
+      </h1>
+      <p class="tool-subtitle">
+        Interactive radix conversion laboratory modeling Binary ($2$), Octal ($8$), Decimal ($10$), Hexadecimal ($16$), and Custom Radices ($2 \le b \le 36$), with repeated division ladders, power-of-two bit grouping, signed Two's Complement arithmetic, and a 16-bit tactile hardware register.
+      </p>
     </div>
     <div class="mode-bar">
-      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
-      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
-      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
-      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+      <button class="mode-btn active" id="btn-mode-sim" onclick="switchMode('sim')">&#9881; Simulation</button>
+      <button class="mode-btn" id="btn-mode-graphs" onclick="switchMode('graphs')">&#128200; Scaling Graphs</button>
+      <button class="mode-btn" id="btn-mode-3d" onclick="switchMode('3d')">&#128269; 3D Apparatus</button>
+      <button class="mode-btn" id="btn-mode-theory" onclick="switchMode('theory')">&#128214; Theory</button>
+      <button class="mode-btn" id="btn-mode-quiz" onclick="switchMode('quiz')">&#10067; Viva Quiz</button>
+      <a href="#user-guide" class="mode-btn" style="text-decoration:none;">📖 User Guide</a>
     </div>
   </header>
 
-  <main class="main-container">
-    <div id="sim-wrapper" class="sim-grid">
-      <div class="controls-col">
-        <div class="panel">
-          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
-          
-              <div class="control-group">
-                <label for="input_decimal_integer">Decimal Integer Value (0 - 65535):</label>
-                <input type="number" id="input_decimal_integer" min="0" max="65535" step="1" value="215" class="form-control" oninput="runSim()" />
+  <!-- ════ 5-Stage Workflow Stepper ════ -->
+  <div class="stepper-bar">
+    <div class="step-item active" id="step-1">
+      <span class="step-num">1</span>
+      <span>Base Selection &amp; Word Size</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-2">
+      <span class="step-num">2</span>
+      <span>Register &amp; Multi-Base Entry</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-3">
+      <span class="step-num">3</span>
+      <span>Division &amp; Multiplication Ladders</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-4">
+      <span class="step-num">4</span>
+      <span>Power-of-2 Bit Grouping</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-5">
+      <span class="step-num">5</span>
+      <span>Verification &amp; Challenge Audit</span>
+    </div>
+  </div>
+
+  <!-- ════ Main Page Container: #app (§1 Canonical Structure) ════ -->
+  <main id="app" class="main-container">
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: SIMULATION AREA (id="sim-wrapper")                           -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="sim-wrapper">
+
+      <!-- ── TOP ROW: 2D Register Canvas (2fr) & Stacked Controls/HUD (1fr) ── -->
+      <div class="sim-top-row">
+
+        <!-- LEFT: Interactive Register Canvas Card (2fr) -->
+        <div class="canvas-card">
+          <div class="canvas-toolbar">
+            <div class="canvas-title-group">
+              <span class="canvas-title">
+                <span>📟</span>
+                <span>16-Bit Tactile Hardware Register &amp; Flip-Flop Switches</span>
+              </span>
+            </div>
+            <div class="canvas-actions">
+              <button class="canvas-btn" onclick="clearAllBits()">Clear (0x0000)</button>
+              <button class="canvas-btn" onclick="setAllBits()">Set (0xFFFF)</button>
+              <button class="canvas-btn" onclick="invertAllBits()">NOT (Invert)</button>
+              <button class="canvas-btn" onclick="shiftLeftBits()">&laquo; Shift L</button>
+              <button class="canvas-btn" onclick="shiftRightBits()">&raquo; Shift R</button>
+              <button class="canvas-btn" onclick="negateTwosComp()">± Negate (2's)</button>
+              <button class="canvas-btn active" id="btn-toggle-hud" onclick="toggleCanvasHud()">👁 HUD</button>
+            </div>
+          </div>
+
+          <div class="canvas-container" id="register-container-root">
+            <!-- Top-Edge Flush Canvas HUD Overlay -->
+            <div class="canvas-hud-overlay" id="canvas-hud">
+              <div class="hud-grid">
+                <div class="hud-pill">
+                  <span class="hud-label">Unsigned Decimal</span>
+                  <span class="hud-val" id="hud-val-unsigned">218</span>
+                </div>
+                <div class="hud-pill">
+                  <span class="hud-label">Signed (2's Comp)</span>
+                  <span class="hud-val" id="hud-val-signed">+218</span>
+                </div>
+                <div class="hud-pill">
+                  <span class="hud-label">Hexadecimal Code</span>
+                  <span class="hud-val" id="hud-val-hex" style="color:var(--accent-cyan);">0x00DA</span>
+                </div>
+                <div class="hud-pill">
+                  <span class="hud-label">Octal Code</span>
+                  <span class="hud-val" id="hud-val-oct" style="color:var(--accent-amber);">0o0332</span>
+                </div>
+                <div class="hud-pill">
+                  <span class="hud-label">ASCII / Glyph</span>
+                  <span class="hud-val" id="hud-val-ascii" style="color:var(--accent-purple);">'Ú' (218)</span>
+                </div>
               </div>
-          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+            </div>
+
+            <!-- 16-Bit Hardware DIP-Switch Simulator Box -->
+            <div class="hardware-register-box">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+                  Interactive Rocker DIP Switches (Click any bit to toggle 0 &harr; 1)
+                </span>
+                <span class="badge-tag" id="register-mode-badge">16-Bit Word</span>
+              </div>
+
+              <!-- Bit Switches Row (4 Nibbles) -->
+              <div class="register-nibbles-row" id="register-switches-root">
+                <!-- Dynamically populated 16 bit switches -->
+              </div>
+
+              <!-- Register Quick Tools -->
+              <div class="register-toolbar">
+                <span style="font-size:11px;color:var(--text-muted);">Place Weights:</span>
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent-green);font-weight:700;" id="sum-place-weights-text">
+                  Active Sum: 128 + 64 + 16 + 8 + 2 = 218
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: 1:2 Stacking (1fr) -->
+        <div class="sim-right-col">
+
+          <!-- Ratio 1: Radix Mode & Word Configuration Panel -->
+          <div class="panel-config">
+            <div class="panel-header">
+              <span>⚙ Radix Mode &amp; Word Config</span>
+              <span class="badge-tag" id="badge-word-width">16-Bit</span>
+            </div>
+
+            <!-- Word Size Toggle -->
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;text-transform:uppercase;">Word Architecture</div>
+              <div class="dim-toggle-bar">
+                <button class="dim-btn" id="btn-word-8" onclick="setWordWidth(8)">8-Bit (Byte)</button>
+                <button class="dim-btn active" id="btn-word-16" onclick="setWordWidth(16)">16-Bit (Word)</button>
+              </div>
+            </div>
+
+            <!-- Signed Representation Encoding -->
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;text-transform:uppercase;">Signed Encoding</div>
+              <div class="signed-selector-row">
+                <button class="signed-chip active" id="chip-sign-unsigned" onclick="setSignedMode('unsigned')">Unsigned</button>
+                <button class="signed-chip" id="chip-sign-signmag" onclick="setSignedMode('signmag')">Sign-Mag</button>
+                <button class="signed-chip" id="chip-sign-ones" onclick="setSignedMode('ones')">1's Comp</button>
+                <button class="signed-chip" id="chip-sign-twos" onclick="setSignedMode('twos')">2's Comp</button>
+              </div>
+            </div>
+
+            <!-- Custom Radix Slider -->
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;text-transform:uppercase;">
+                <span>Custom Radix Base (b)</span>
+                <span style="color:var(--accent-green);font-weight:700;" id="custom-radix-label">Base 5</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="range" min="2" max="36" step="1" value="5" id="slider-custom-radix" oninput="setCustomRadix(this.value)" style="flex:1;">
+                <div style="display:flex;gap:4px;">
+                  <button class="preset-chip" onclick="setCustomRadix(5)">B5</button>
+                  <button class="preset-chip" onclick="setCustomRadix(12)">B12</button>
+                  <button class="preset-chip" onclick="setCustomRadix(32)">B32</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sound & Precision Toggles -->
+            <div style="display:flex;gap:8px;">
+              <button class="btn-sm-action" id="btn-toggle-sound" onclick="toggleSound()">🔊 Audio: ON</button>
+              <button class="btn-sm-action" id="btn-toggle-fraction" onclick="toggleFractionMode()">🔢 Mode: Integer</button>
+            </div>
+          </div>
+
+          <!-- Ratio 2: Step-by-Step Mathematical Walkthrough HUD -->
+          <div class="panel-analytical-hud">
+            <div class="hud-tab-nav">
+              <button class="hud-tab-btn active" id="tab-btn-ladder" onclick="switchHudTab('ladder')">🪜 Division Ladder</button>
+              <button class="hud-tab-btn" id="tab-btn-mult" onclick="switchHudTab('mult')">✖ Mult Ladder</button>
+              <button class="hud-tab-btn" id="tab-btn-grouping" onclick="switchHudTab('grouping')">🧩 Bit Grouping</button>
+              <button class="hud-tab-btn" id="tab-btn-polynomial" onclick="switchHudTab('polynomial')">📜 Polynomial</button>
+            </div>
+
+            <!-- Tab 1: Division Ladder (10 -> b) -->
+            <div class="hud-tab-pane active" id="pane-ladder">
+              <div class="math-card">
+                <div class="math-card-header">
+                  <span>Repeated Radix Division-by-R Ladder</span>
+                  <span class="badge-tag" id="ladder-target-badge">Dec &rarr; Hex (16)</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                  Divide quotient by radix $b$; record remainder at each step. Read remainders from bottom (MSD) to top (LSD):
+                </div>
+
+                <div style="max-height:190px;overflow-y:auto;">
+                  <table class="ladder-table" id="division-ladder-table">
+                    <!-- Dynamically populated division ladder -->
+                  </table>
+                </div>
+
+                <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-size:12px;color:var(--text-muted);" id="ladder-result-text">
+                    Assembled Result: <b>(DA)₁₆</b>
+                  </span>
+                  <div style="display:flex;gap:4px;">
+                    <button class="btn-sm-action" onclick="stepDivisionLadder(-1)">&lsaquo; Step</button>
+                    <button class="btn-sm-action" onclick="stepDivisionLadder(1)">Step &rsaquo;</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 2: Repeated Multiplication Engine (Fractions 10 -> b) -->
+            <div class="hud-tab-pane" id="pane-mult">
+              <div class="math-card">
+                <div class="math-card-header">
+                  <span>Fractional Conversion via Repeated Multiplication</span>
+                  <span class="badge-tag">Top-to-Bottom</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                  Multiply fractional remainder by radix $b$; extract integer digit. Read digits downwards:
+                </div>
+
+                <div style="max-height:190px;overflow-y:auto;">
+                  <table class="ladder-table" id="mult-ladder-table">
+                    <!-- Dynamically populated multiplication table -->
+                  </table>
+                </div>
+
+                <div style="margin-top:8px;font-size:12px;color:var(--accent-green);font-weight:700;" id="mult-result-text">
+                  Fractional Result: (0.101)₂
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 3: Power-of-2 Bit Grouping (2 <-> 8, 16) -->
+            <div class="hud-tab-pane" id="pane-grouping">
+              <div class="math-card">
+                <div class="math-card-header">
+                  <span>Fast Grouping &amp; Splitting (No Base-10 Pass)</span>
+                  <span class="badge-tag">Nibbles &amp; Triads</span>
+                </div>
+
+                <div class="grouping-pipeline-box">
+                  <div>
+                    <span style="font-size:11px;color:var(--text-muted);font-weight:700;">HEXADECIMAL NIBBLES (4-Bit Groups &rarr; Base 16):</span>
+                    <div class="bit-group-row" id="group-hex-row" style="margin-top:6px;">
+                      <!-- Dynamically populated hex nibbles -->
+                    </div>
+                  </div>
+
+                  <div style="margin-top:8px;">
+                    <span style="font-size:11px;color:var(--text-muted);font-weight:700;">OCTAL TRIADS (3-Bit Groups &rarr; Base 8):</span>
+                    <div class="bit-group-row" id="group-oct-row" style="margin-top:6px;">
+                      <!-- Dynamically populated octal triads -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 4: Polynomial Expansion -->
+            <div class="hud-tab-pane" id="pane-polynomial">
+              <div class="math-card">
+                <div class="math-card-header">
+                  <span>Positional Value &amp; Polynomial Expansion</span>
+                  <span>(N)₁₀ = &Sigma; dᵢ &times; bⁱ</span>
+                </div>
+                <div style="font-size:12px;line-height:1.8;color:var(--text-secondary);" id="poly-expansion-math">
+                  <!-- Dynamically populated polynomial expansion equation -->
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── CONTROLS PANEL (§1 Required id="ctrl-panel") ──────────────────── -->
+      <div id="ctrl-panel" class="panel-full-width">
+        <div class="panel-header">
+          <span>🎛 Universal Synchronized Multi-Base Input Terminal</span>
+          <span style="font-size:12px;color:var(--text-muted);">Modify any box below to synchronize all radices and register flip-flops instantaneously</span>
+        </div>
+
+        <div class="multi-base-grid">
+          <!-- Binary Box -->
+          <div class="base-field-card" id="card-field-bin">
+            <div class="base-header-row">
+              <span class="base-title"><span style="color:var(--accent-green);">●</span> Binary (Base 2)</span>
+              <span class="badge-tag">Alphabet: [0, 1]</span>
+            </div>
+            <input type="text" class="base-input" id="input-bin" value="0000000011011010" oninput="handleDirectInput('bin', this.value)">
+            <span class="base-hint-text">16 bits grouped into 4 nibbles</span>
+            <span class="base-error-msg" id="err-bin">Invalid binary digit (only 0 or 1 allowed)</span>
+          </div>
+
+          <!-- Octal Box -->
+          <div class="base-field-card" id="card-field-oct">
+            <div class="base-header-row">
+              <span class="base-title"><span style="color:var(--accent-amber);">●</span> Octal (Base 8)</span>
+              <span class="badge-tag">Alphabet: [0-7]</span>
+            </div>
+            <input type="text" class="base-input" id="input-oct" value="332" oninput="handleDirectInput('oct', this.value)">
+            <span class="base-hint-text">Triad representation of bits</span>
+            <span class="base-error-msg" id="err-oct">Digit exceeds Octal alphabet [0-7]</span>
+          </div>
+
+          <!-- Decimal Box -->
+          <div class="base-field-card" id="card-field-dec">
+            <div class="base-header-row">
+              <span class="base-title"><span style="color:var(--text-primary);">●</span> Decimal (Base 10)</span>
+              <span class="badge-tag">Alphabet: [0-9]</span>
+            </div>
+            <input type="text" class="base-input" id="input-dec" value="218" oninput="handleDirectInput('dec', this.value)">
+            <span class="base-hint-text">Standard human counting system</span>
+            <span class="base-error-msg" id="err-dec">Invalid decimal characters</span>
+          </div>
+
+          <!-- Hexadecimal Box -->
+          <div class="base-field-card" id="card-field-hex">
+            <div class="base-header-row">
+              <span class="base-title"><span style="color:var(--accent-cyan);">●</span> Hexadecimal (Base 16)</span>
+              <span class="badge-tag">Alphabet: [0-9, A-F]</span>
+            </div>
+            <input type="text" class="base-input" id="input-hex" value="DA" oninput="handleDirectInput('hex', this.value)">
+            <span class="base-hint-text">Nibble mapping (0000 &rarr; 0 to 1111 &rarr; F)</span>
+            <span class="base-error-msg" id="err-hex">Invalid hex digit (only 0-9 and A-F allowed)</span>
+          </div>
+
+          <!-- Custom Radix Box -->
+          <div class="base-field-card" id="card-field-custom">
+            <div class="base-header-row">
+              <span class="base-title"><span style="color:var(--accent-purple);">●</span> Custom Base (Radix <span id="custom-field-base-num">5</span>)</span>
+              <span class="badge-tag" id="custom-field-alpha">Alphabet: [0-4]</span>
+            </div>
+            <input type="text" class="base-input" id="input-custom" value="1333" oninput="handleDirectInput('custom', this.value)">
+            <span class="base-hint-text">Generalized positional radix</span>
+            <span class="base-error-msg" id="err-custom">Digit exceeds selected radix alphabet</span>
+          </div>
+        </div>
+
+        <!-- Interactive Learning Challenge Sub-Panel -->
+        <div class="challenge-card" style="margin-top:16px;">
+          <div class="challenge-header">
+            <div>
+              <span class="badge-tag" id="challenge-level-badge">Track 2: Rapid Nibble Grouping</span>
+              <h4 class="challenge-prompt" id="challenge-prompt-text" style="margin-top:6px;">
+                Target: Convert (0111 1101)₂ into Hexadecimal (Base 16)
+              </h4>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-sm-action" onclick="newChallengeProblem()">🎲 New Problem</button>
+              <button class="btn-sm-action" onclick="revealChallengeHint()">💡 Reveal Hint</button>
+              <button class="btn-sm-action" onclick="solveChallenge()">Show Solution</button>
+            </div>
+          </div>
+
+          <div id="challenge-scaffold-area" style="background:#0c1426;padding:14px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
+            <!-- Scaffolding content generated dynamically -->
+          </div>
+
+          <div class="challenge-options" style="margin-top:6px;">
+            <span style="font-size:12px;color:var(--text-muted);">Your Answer:</span>
+            <input type="text" id="challenge-user-input" class="base-input" style="max-width:200px;" placeholder="e.g. 7D">
+            <button class="canvas-btn active" onclick="submitChallengeAnswer()">Submit Answer &check;</button>
+            <span style="font-size:12px;font-weight:700;" id="challenge-feedback-text"></span>
+          </div>
         </div>
       </div>
-      <div class="display-col">
-        <div class="canvas-card">
-          <canvas id="sim-canvas" width="800" height="420"></canvas>
+
+      <!-- ── RESULTS / OBSERVATION NOTEBOOK (§1 Required id="results-row") ── -->
+      <div id="results-row" class="panel-full-width">
+        <div class="panel-header">
+          <span>📝 Standard Laboratory Observation Notebook &amp; Conversion Ledger</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-sm-action" onclick="populateBenchmarkTrials()">⚡ Auto-Populate Reference Trials</button>
+            <button class="btn-sm-action" onclick="logCurrentTrial()">➕ Log Current State</button>
+            <button class="btn-sm-action" onclick="clearLedger()">🗑 Clear Ledger</button>
+            <button class="btn-sm-action" onclick="exportLedgerCSV()">📥 Export CSV</button>
+          </div>
         </div>
-        <div class="panel" style="margin-top:20px;">
-          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
-          <table class="diag-table">
-            <tbody>
-              
-          <tr>
-            <td>Binary (Base-2)</td>
-            <td id="out_bin" class="out-val">11010111₂</td>
-          </tr>
-          <tr>
-            <td>Octal (Base-8)</td>
-            <td id="out_oct" class="out-val">327₈</td>
-          </tr>
-          <tr>
-            <td>Hexadecimal (Base-16)</td>
-            <td id="out_hex" class="out-val">D7₁₆</td>
-          </tr>
-          <tr>
-            <td>BCD 8421 Code</td>
-            <td id="out_bcd" class="out-val">0010 0001 0101 (BCD 8421)</td>
-          </tr>
-          <tr>
-            <td>Unit-Distance Gray Code</td>
-            <td id="out_gray" class="out-val">10111100 (Gray Code)</td>
-          </tr>
-          <tr>
-            <td>Excess-3 Code</td>
-            <td id="out_ex3" class="out-val">0101 0100 1000 (Excess-3)</td>
-          </tr>
-          <tr>
-            <td>Radix Conversion Status</td>
-            <td id="out_status" class="out-val">CONVERSIONS VERIFIED: Dec 215 = 0b11010111 = 0xD7</td>
-          </tr>
+
+        <div class="table-responsive">
+          <table class="obs-table" id="observation-table">
+            <thead>
+              <tr>
+                <th>Trial #</th>
+                <th>Decimal (10)</th>
+                <th>Binary (2)</th>
+                <th>Octal (8)</th>
+                <th>Hex (16)</th>
+                <th>Custom Base</th>
+                <th>Signed 2's Comp</th>
+                <th>Parity Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="obs-table-body">
+              <!-- Populated dynamically -->
             </tbody>
           </table>
         </div>
       </div>
+
+    </div> <!-- End #sim-wrapper -->
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: 3D MODEL (V2 CANONICAL EMBED: id="model3d-wrapper")         -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- V2_3D_EMBED -->
+    <div id="model3d-wrapper" style="display:none;" data-v2-inline="1">
+      <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div>
+          <span class="panel-title-left" style="font-size:16px;font-weight:700;color:#ffffff;">&#128269; 3D Interactive Apparatus Model Studio</span>
+          <span class="val-badge" id="model3d-status-badge" style="margin-left:8px;">Three.js WebGL Engine</span>
+        </div>
+        <button class="btn-sm-action" onclick="switchMode('sim')">
+          &#9881; Back to 2D Simulation
+        </button>
+      </div>
+
+      <section id="sim3d-section" class="sim3d-section">
+        <h2>3D Model — <span id="sim3d-title">Digital Number Base Converter &amp; Register IC</span></h2>
+        <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of this apparatus. Pick a component on the right, then drag to rotate &middot; scroll to zoom &middot; right-drag to pan.</p>
+        <div class="sim3d-layout">
+          <div class="sim3d-wrap">
+            <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+            <div class="sim3d-hint">Drag to rotate &middot; Scroll to zoom</div>
+          </div>
+          <aside id="sim3d-components" class="sim3d-components">
+            <h4 style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin:0 0 6px;">Apparatus Parts</h4>
+            <div class="sim3d-comp active" onclick="focus3DComponent('pins')">
+              <span style="font-weight:700;">16-Pin DIP Leads</span>
+              <span style="font-size:11px;color:var(--text-muted);">Parallel bit I/O bus</span>
+            </div>
+            <div class="sim3d-comp" onclick="focus3DComponent('body')">
+              <span style="font-weight:700;">Ceramic IC Package</span>
+              <span style="font-size:11px;color:var(--text-muted);">Internal flip-flop substrate</span>
+            </div>
+            <div class="sim3d-comp" onclick="focus3DComponent('notch')">
+              <span style="font-weight:700;">Polarity Index Notch</span>
+              <span style="font-size:11px;color:var(--text-muted);">Pin 1 orientation marker</span>
+            </div>
+            <div class="sim3d-comp" onclick="focus3DComponent('leds')">
+              <span style="font-weight:700;">Logic Status Indicators</span>
+              <span style="font-size:11px;color:var(--text-muted);">Active binary output states</span>
+            </div>
+          </aside>
+        </div>
+      </section>
     </div>
 
-    <div id="model3d-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
-        <div id="three-canvas-container"></div>
-        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
-        <div class="comp-grid">
-          
-          <div class="comp-card" onclick="focusComponent('DigitalRegisterBitCellMatrix')">
-            <h4>16-Bit Register Cell Array</h4>
-            <p>Digital flip-flop register storing binary bit patterns b15..b0.</p>
-          </div>
-          <div class="comp-card" onclick="focusComponent('BinaryOctalDecimalHexDecoders')">
-            <h4>Hardware Radix Decoders</h4>
-            <p>Combinational logic decoders converting between binary, octal, decimal, and hexadecimal bases.</p>
-          </div>
-          <div class="comp-card" onclick="focusComponent('SevenSegmentHexadecimalLEDDisplay')">
-            <h4>7-Segment Hexadecimal Display</h4>
-            <p>Alphanumeric LED display rendering hex digits 0-9 and A-F.</p>
-          </div>
-          <div class="comp-card" onclick="focusComponent('BCDGrayCodeParityLogicBoard')">
-            <h4>BCD & Gray Code Logic Board</h4>
-            <p>Weighted 8421 BCD and unit-distance Gray code parity conversion matrix.</p>
-          </div>
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3: RADIX PERFORMANCE SCALING CURVES                             -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-graphs" style="display:none;" class="page-section">
+      <h2 class="section-title">
+        <span>📊</span> Radix Information Density &amp; Word Length Scaling Curves
+      </h2>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Analyze the mathematical scaling of required digit count $L = \lceil \log_b(N) \rceil$ and hardware efficiency as a function of radix $b$. Observe the theoretical information optimum at radix $e \approx 2.718$ (Base 3 / Ternary).
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(400px, 1fr));gap:20px;">
+        <div style="background:#090e1c;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
+          <h4 style="font-size:13px;color:var(--accent-green);margin-bottom:10px;">Required Digit Count vs. Radix Base b (for N = 65,535)</h4>
+          <canvas id="chart-digits-curve" width="500" height="260" style="width:100%;height:260px;display:block;"></canvas>
+        </div>
+        <div style="background:#090e1c;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
+          <h4 style="font-size:13px;color:var(--accent-cyan);margin-bottom:10px;">Hardware Complexity Metric: E = b &times; log_b(N)</h4>
+          <canvas id="chart-complexity-curve" width="500" height="260" style="width:100%;height:260px;display:block;"></canvas>
         </div>
       </div>
     </div>
 
-    <div id="explore-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
-        <p>ES102/ES106 Introduction to IT Systems: Number Base Converter (Binary, Octal, Hexadecimal, BCD 8421, Gray Code & Excess-3)</p>
-        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
-          Encode decimal digits in BCD 8421 ($0000_2$ to $1001_2$) and self-complementing Excess-3 code ($BCD + 0011_2$).
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: IN-DEPTH THEORY & DERIVATIONS (id="explore-wrapper")        -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="explore-wrapper" style="display:none;" class="page-section">
+      <h2 class="section-title">
+        <span>📖</span> Theoretical Foundations: Positional Radix Mathematics
+      </h2>
+
+      <div style="line-height:1.8;font-size:14px;color:#cbd5e1;display:flex;flex-direction:column;gap:18px;">
+        <div>
+          <h3 style="color:#ffffff;font-size:16px;margin-bottom:6px;">1. Positional Radix Value Theorem</h3>
+          <p>
+            In any positional number system of base $b$, the total numerical quantity represented by a sequence of digits is given by the weighted polynomial expansion:
+            $$N_b = \sum_{i=0}^{n-1} d_i \cdot b^i + \sum_{j=1}^{m} f_{-j} \cdot b^{-j}$$
+            where $0 \le d_i, f_j < b$. When converting to base 10, evaluating this polynomial summation yields the exact decimal equivalent.
+          </p>
         </div>
-        <p>Understand positional weighted number systems with radix $r$: Decimal ($r=10$), Binary ($r=2$), Octal ($r=8$), and Hexadecimal ($r=16$).</p>
-        <p>Generate Gray code: $$G = B \oplus (B \gg 1)$$ minimizing bit switching errors in shaft encoders.</p>
+
+        <div>
+          <h3 style="color:#ffffff;font-size:16px;margin-bottom:6px;">2. Division-by-R Algorithm Proof</h3>
+          <p>
+            By the Euclidean Division Algorithm, any integer $N$ can be uniquely expressed as $N = q_0 \cdot b + r_0$, where $0 \le r_0 < b$. Here, $r_0$ is precisely the least significant digit (LSD). Repeating the process on the quotient $q_0 = q_1 \cdot b + r_1$ recursively yields the next digits:
+            $$N = ((\dots(q_k \cdot b + r_k)\dots) \cdot b + r_1) \cdot b + r_0$$
+            Reading remainders in reverse order (bottom-to-top) reconstructs the exact radix-$b$ positional representation.
+          </p>
+        </div>
+
+        <div>
+          <h3 style="color:#ffffff;font-size:16px;margin-bottom:6px;">3. Signed Two's Complement Ring Arithmetic</h3>
+          <p>
+            In an $n$-bit register, Two's Complement defines negative values modulo $2^n$:
+            $$-X \equiv 2^n - X \pmod{2^n} = (\sim X) + 1$$
+            This representation allows addition and subtraction to be performed with the exact same binary adder hardware without requiring separate sign handling logic, eliminating the problematic dual zero ($+0$ and $-0$) inherent to One's Complement.
+          </p>
+        </div>
       </div>
     </div>
 
-    <!-- ════ User Guide Section ════ -->
-    <section class="user-guide" id="user-guide">
-      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
-      <details open>
-        <summary>1. Overview &amp; Physical Principles</summary>
-        <div><p>Understand positional weighted number systems with radix $r$: Decimal ($r=10$), Binary ($r=2$), Octal ($r=8$), and Hexadecimal ($r=16$).</p></div>
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 5: INTERACTIVE VIVA VOCE & QUIZ (id="section-quiz")             -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div id="section-quiz" style="display:none;" class="page-section">
+      <h2 class="section-title">
+        <span>📝</span> Interactive Viva Voce &amp; Concept Evaluation Quiz
+      </h2>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span>Test your theoretical and practical mastery of radix systems, bit grouping, and signed complement encodings.</span>
+        <span style="font-weight:700;color:var(--accent-green);" id="quiz-score-tracker">Score: 0 / 4</span>
+      </div>
+
+      <div class="quiz-container" id="quiz-root">
+        <!-- Quiz questions generated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- USER GUIDE & SOP MANUAL (§1 Section 6)                                  -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <section class="page-section" id="user-guide">
+      <h2 class="section-title">
+        <span>📖</span> Comprehensive User Guide &amp; Experimental SOP Manual
+      </h2>
+
+      <details class="sop-item" open>
+        <summary>1. Principle &amp; Theoretical Overview</summary>
+        <div>
+          <p>
+            Digital computing architectures operate exclusively in discrete base representations (primarily binary, octal, and hexadecimal). This virtual lab enables students to visualize the mechanical algorithms used to convert numbers between any arbitrary radices $b \in [2, 36]$.
+          </p>
+        </div>
       </details>
-      <details>
-        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
-        <div><p>Convert between bases using successive division by radix and power weighting.</p></div>
+
+      <details class="sop-item">
+        <summary>2. Step-by-Step Laboratory Procedure</summary>
+        <div>
+          <ol style="margin-left:20px;line-height:1.8;">
+            <li>Select word architecture ($8\text{-Bit}$ Byte or $16\text{-Bit}$ Word).</li>
+            <li>Use the tactile DIP switches to enter a bit pattern or type a value directly into any of the 5 synchronized multi-base boxes.</li>
+            <li>Inspect the <b>Repeated Division Ladder</b> tab: step through each division rung and observe remainder collection.</li>
+            <li>Switch to the <b>Bit Grouping</b> tab: observe how 4-bit nibbles translate to Hex and 3-bit triads translate to Octal.</li>
+            <li>Select <b>Two's Complement</b> mode: observe how negative decimal values invert all bits and add $1$.</li>
+            <li>Test your mastery in the <b>Practice &amp; Challenge Engine</b> across the progressive learning tracks.</li>
+            <li>Log test runs into the <b>Observation Notebook</b> and export the lab ledger to CSV.</li>
+          </ol>
+        </div>
       </details>
-      <details>
-        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
-        <div><p>Encode decimal digits in BCD 8421 ($0000_2$ to $1001_2$) and self-complementing Excess-3 code ($BCD + 0011_2$).</p></div>
+
+      <details class="sop-item">
+        <summary>3. Power-of-Two Fast Grouping Shortcut</summary>
+        <div>
+          <p>
+            Because $8 = 2^3$ and $16 = 2^4$, conversions between Binary, Octal, and Hexadecimal do not require converting to Base 10. Simply partition bits into groups of 3 (for Octal) or groups of 4 (for Hex) starting from the radix point, and map each group directly to its corresponding character.
+          </p>
+        </div>
       </details>
-      <details>
-        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
-        <div><p>Generate Gray code: $$G = B \oplus (B \gg 1)$$ minimizing bit switching errors in shaft encoders.</p></div>
+
+      <details class="sop-item">
+        <summary>4. Two's Complement Inversion Rules</summary>
+        <div>
+          <p>
+            To negate an integer in Two's Complement:
+            1. Invert every bit ($0 \to 1$ and $1 \to 0$).
+            2. Add $1$ to the least significant bit.
+            Notice that the most significant bit (MSB) acts as the sign indicator ($1 = \text{negative}, 0 = \text{positive}$).
+          </p>
+        </div>
       </details>
-      <details>
-        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
-        <div><p>Practice binary arithmetic, 1's and 2's complement representations of signed integers.</p></div>
+
+      <details class="sop-item">
+        <summary>5. Numerical Benchmark Problem</summary>
+        <div>
+          <p>
+            Benchmark Case: $N_{10} = 218$.
+            - Binary: $11011010_2$
+            - Octal: $332_8$
+            - Hexadecimal: $\text{DA}_{16}$
+            - Base 5: $1333_5$
+            - Signed 8-bit Two's Complement for $-42$: $\sim(00101010) + 1 = 11010110_2 = \text{D6}_{16}$.
+          </p>
+        </div>
       </details>
-      <details>
+
+      <details class="sop-item">
         <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
-        <div><p>Reference: WBSCTE Introduction to IT Systems (ES102/ES106).</p></div>
+        <div>
+          <p>
+            Curriculum Alignment: WBSCTE Diploma in Engineering — Introduction to IT Systems / Digital Electronics (ES102 / ES106), Unit 1: Number Systems and Codes.
+          </p>
+        </div>
       </details>
     </section>
 
-    <!-- ════ SEO Technical Article ════ -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SEO TECHNICAL ARTICLE                                                  -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
     <section class="seo-article">
-      <h2>Engineering Reference &amp; Laboratory Standards: Digital Number Base Converter Lab</h2>
-      <p>ES102/ES106 Introduction to IT Systems: Number Base Converter (Binary, Octal, Hexadecimal, BCD 8421, Gray Code & Excess-3)</p>
-      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
-      <p>Understand positional weighted number systems with radix $r$: Decimal ($r=10$), Binary ($r=2$), Octal ($r=8$), and Hexadecimal ($r=16$). Convert between bases using successive division by radix and power weighting.</p>
-      <h3>Governing Equations &amp; Analytical Formulations</h3>
-      <p>Encode decimal digits in BCD 8421 ($0000_2$ to $1001_2$) and self-complementing Excess-3 code ($BCD + 0011_2$). Generate Gray code: $$G = B \oplus (B \gg 1)$$ minimizing bit switching errors in shaft encoders.</p>
-      <h3>Industrial &amp; Engineering Applications</h3>
-      <p>Practice binary arithmetic, 1's and 2's complement representations of signed integers. Designed in strict alignment with Reference: WBSCTE Introduction to IT Systems (ES102/ES106)..</p>
+      <h2>Engineering Reference &amp; Laboratory Standards: Digital Number Base Systems</h2>
+      <p>
+        Digital computational hardware relies fundamentally on binary logic levels (0 and 1). To represent data concisely, computer scientists utilize higher power-of-two radices such as octal (base 8) and hexadecimal (base 16).
+      </p>
+      <h3>Positional Notation &amp; Radix Conversion Algorithms</h3>
+      <p>
+        In repeated division by radix $b$, the remainder obtained at each successive step corresponds to increasing powers of the base ($b^0, b^1, \dots$). Consequently, the remainder sequence must be read in reverse order from bottom to top (MSD to LSD). In repeated fractional multiplication, the integer parts are extracted downwards ($f_{-1}, f_{-2}, \dots$).
+      </p>
+      <h3>Two's Complement Binary Arithmetic</h3>
+      <p>
+        Two's complement simplifies hardware architecture by allowing subtraction to be performed with standard binary addition circuits ($A - B = A + (\sim B + 1)$). The system possesses a unique representation for zero and provides clean modular ring properties.
+      </p>
     </section>
-  </main>
 
-  <script src="../../shared/sidebar/sidebar.js"></script>
+  </main> <!-- End #app -->
+
+  <!-- ════ Shared Sidebar (§1 Required) ════ -->
+  <script src="/nhitvisuallab/shared/sidebar/sidebar.js"></script>
+
+  <!-- ════ V2 3D Model Embed Script Config ════ -->
   <script>
-    let scene, camera, renderer, controls, modelGroup;
-    const canvas = document.getElementById('sim-canvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+    window.$ = window.$ || function(id) { return document.getElementById(id); };
+    window.V2_TOOL_ID = "number-system-base-conversions";
+    window.V2_MODEL = "number_system_base_conversions";
+    window.V2_COMPONENTS_URL = "/models/number_system_base_conversions_components.json";
+  </script>
+  <script src="/js/v2_model_embed.js"></script>
 
-    function drawSim(arg1, arg2, arg3, arg4) {
-      
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, width, height);
+  <!-- ════ Inline Pure Vanilla JavaScript Radix Engine ════ -->
+  <script>
+    /* ==========================================================================
+       Digital Number Base Engine, Register Hardware, and Challenge Logic
+       ========================================================================== */
 
-            ctx.fillStyle = '#00e676';
-            ctx.font = 'bold 16px monospace';
-            ctx.fillText('DECIMAL:     ' + arg1 + '₁₀', 60, 90);
-            ctx.fillStyle = '#38bdf8';
-            ctx.fillText('BINARY:      ' + arg2 + '₂', 60, 130);
-            ctx.fillStyle = '#ffd600';
-            ctx.fillText('HEXADECIMAL: ' + arg3 + '₁₆', 60, 170);
-            ctx.fillStyle = '#e040fb';
-            ctx.fillText('OCTAL:       ' + arg4 + '₈', 60, 210);
-        
-    }
-
-    function runSim() {
-      
-            const n = parseInt(document.getElementById('input_decimal_integer').value) || 0;
-
-            const bin_str = n.toString(2);
-            const oct_str = n.toString(8);
-            const hex_str = n.toString(16).toUpperCase();
-
-            // BCD 8421
-            const digits = n.toString().split('').map(Number);
-            const bcd_str = digits.map(d => ('0000' + d.toString(2)).slice(-4)).join(' ');
-            const ex3_str = digits.map(d => ('0000' + (d + 3).toString(2)).slice(-4)).join(' ');
-
-            // Gray code
-            const gray_int = n ^ (n >> 1);
-            const gray_str = gray_int.toString(2);
-
-            document.getElementById('out_bin').innerText = bin_str + "₂";
-            document.getElementById('out_oct').innerText = oct_str + "₈";
-            document.getElementById('out_hex').innerText = hex_str + "₁₆";
-            document.getElementById('out_bcd').innerText = bcd_str + " (BCD 8421)";
-            document.getElementById('out_gray').innerText = gray_str + " (Gray Code)";
-            document.getElementById('out_ex3').innerText = ex3_str + " (Excess-3)";
-            document.getElementById('out_status').innerText = "CONVERSIONS VERIFIED: Dec " + n + " = 0b" + bin_str + " = 0x" + hex_str;
-            drawSim(n, bin_str, hex_str, oct_str);
-        
-    }
-
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
-
-      if (mode === '3d' && !renderer) {
-        initThree();
+    const state = {
+      wordWidth: 16, // 8 or 16
+      signedMode: 'unsigned', // 'unsigned', 'signmag', 'ones', 'twos'
+      customRadix: 5,
+      fractionMode: false,
+      soundEnabled: true,
+      hudVisible: true,
+      activeHudTab: 'ladder',
+      val: 218, // current integer value in register
+      fractionVal: 0.625, // for fractional mode
+      ladderStep: -1,
+      challenge: {
+        track: 2,
+        targetVal: 125,
+        targetBase: 16,
+        sourceStr: '01111101',
+        score: 350,
+        streak: 3
+      },
+      ledger: [],
+      studioThree: {
+        scene: null,
+        camera: null,
+        renderer: null,
+        controls: null,
+        initialized: false
       }
+    };
+
+    // Alphanumeric Alphabet for radices up to 36
+    const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    // Audio Synthesizer
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    function initThree() {
-      const container = document.getElementById('three-canvas-container');
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x020617);
+    function playSound(type) {
+      if (!state.soundEnabled) return;
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
 
-      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-      camera.position.set(2, 1.5, 3);
+        if (type === 'click') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1200, now);
+          osc.frequency.exponentialRampToValueAtTime(300, now + 0.03);
+          gain.gain.setValueAtTime(0.09, now);
+          gain.gain.linearRampToValueAtTime(0.001, now + 0.03);
+          osc.start(now);
+          osc.stop(now + 0.03);
+        } else if (type === 'chime') {
+          [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+            const cOsc = audioCtx.createOscillator();
+            const cGain = audioCtx.createGain();
+            cOsc.type = 'triangle';
+            cOsc.frequency.setValueAtTime(freq, now + i * 0.06);
+            cGain.gain.setValueAtTime(0.07, now + i * 0.06);
+            cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+            cOsc.connect(cGain);
+            cGain.connect(audioCtx.destination);
+            cOsc.start(now + i * 0.06);
+            cOsc.stop(now + 0.45);
+          });
+        } else if (type === 'buzz') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(140, now);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        }
+      } catch (e) {}
+    }
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
+    // Mathematical Radix Functions
+    function intToBase(num, base) {
+      if (num === 0) return '0';
+      let res = '';
+      let n = Math.abs(num);
+      while (n > 0) {
+        const rem = n % base;
+        res = ALPHABET[rem] + res;
+        n = Math.floor(n / base);
+      }
+      return (num < 0 ? '-' : '') + res;
+    }
+
+    function baseToInt(str, base) {
+      str = str.trim().toUpperCase();
+      let sign = 1;
+      if (str.startsWith('-')) { sign = -1; str = str.slice(1); }
+      let res = 0;
+      for (let i = 0; i < str.length; i++) {
+        const idx = ALPHABET.indexOf(str[i]);
+        if (idx === -1 || idx >= base) return NaN;
+        res = res * base + idx;
+      }
+      return sign * res;
+    }
+
+    // Synchronize All Representations from Current Value
+    function updateAllFromVal() {
+      const maxVal = (1 << state.wordWidth) - 1;
+      state.val = ((state.val % (maxVal + 1)) + (maxVal + 1)) % (maxVal + 1);
+
+      renderRegisterSwitches();
+      renderHud();
+      renderMultiBaseFields();
+      renderDivisionLadder();
+      renderMultLadder();
+      renderBitGrouping();
+      renderPolynomialMath();
+      updateCharts();
+    }
+
+    // ── 16-Bit Hardware DIP-Switch Renderer ──
+    function renderRegisterSwitches() {
+      const container = document.getElementById('register-switches-root');
+      const w = state.wordWidth;
+      let html = '';
+
+      const nibbleCount = w / 4;
+      for (let n = nibbleCount - 1; n >= 0; n--) {
+        html += `<div class="nibble-group">`;
+        for (let b = 3; b >= 0; b--) {
+          const bitIndex = n * 4 + b;
+          const bitVal = (state.val >> bitIndex) & 1;
+          const isSign = (state.signedMode !== 'unsigned') && (bitIndex === w - 1);
+          const activeClass = bitVal === 1 ? 'bit-active' : '';
+          const signClass = isSign ? 'is-sign-bit' : '';
+          const weight = Math.pow(2, bitIndex);
+
+          html += `
+            <div class="bit-switch-wrapper">
+              <span class="bit-weight-label">${weight}</span>
+              <div class="bit-switch ${activeClass} ${signClass}" onclick="toggleBit(${bitIndex})" title="Bit ${bitIndex}: Value ${weight}">
+                <div class="bit-rocker"></div>
+                <div class="bit-digit">${bitVal}</div>
+              </div>
+              <span class="bit-index-label">b${bitIndex}</span>
+            </div>
+          `;
+        }
+        html += `</div>`;
+      }
+      container.innerHTML = html;
+
+      const activeWeights = [];
+      let sum = 0;
+      for (let i = 0; i < w; i++) {
+        if ((state.val >> i) & 1) {
+          const wt = Math.pow(2, i);
+          activeWeights.unshift(wt);
+          sum += wt;
+        }
+      }
+      const sumText = activeWeights.length ? activeWeights.join(' + ') + ` = ${sum}` : '0';
+      document.getElementById('sum-place-weights-text').textContent = `Active Sum: ${sumText}`;
+      document.getElementById('register-mode-badge').textContent = `${w}-Bit Word`;
+    }
+
+    function toggleBit(idx) {
+      state.val ^= (1 << idx);
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function clearAllBits() {
+      state.val = 0;
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function setAllBits() {
+      state.val = (1 << state.wordWidth) - 1;
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function invertAllBits() {
+      state.val = (~state.val) & ((1 << state.wordWidth) - 1);
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function shiftLeftBits() {
+      state.val = (state.val << 1) & ((1 << state.wordWidth) - 1);
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function shiftRightBits() {
+      state.val = (state.val >> 1);
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function negateTwosComp() {
+      const maxVal = (1 << state.wordWidth);
+      state.val = (maxVal - state.val) & (maxVal - 1);
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    // ── HUD Telemetry Bar ──
+    function renderHud() {
+      const v = state.val;
+      const w = state.wordWidth;
+      document.getElementById('hud-val-unsigned').textContent = v;
+
+      let signedVal = v;
+      const signBit = (v >> (w - 1)) & 1;
+      if (state.signedMode === 'twos') {
+        signedVal = signBit ? v - (1 << w) : v;
+      } else if (state.signedMode === 'signmag') {
+        const mag = v & ((1 << (w - 1)) - 1);
+        signedVal = signBit ? -mag : mag;
+      } else if (state.signedMode === 'ones') {
+        signedVal = signBit ? -(~v & ((1 << w) - 1)) : v;
+      }
+      document.getElementById('hud-val-signed').textContent = signedVal >= 0 ? `+${signedVal}` : `${signedVal}`;
+
+      const hexStr = v.toString(16).toUpperCase().padStart(w / 4, '0');
+      document.getElementById('hud-val-hex').textContent = `0x${hexStr}`;
+      const octStr = v.toString(8).padStart(Math.ceil(w / 3), '0');
+      document.getElementById('hud-val-oct').textContent = `0o${octStr}`;
+
+      let charRep = 'N/A';
+      if (v >= 32 && v <= 126) charRep = `'${String.fromCharCode(v)}'`;
+      else if (v > 126 && v <= 255) charRep = `'${String.fromCharCode(v)}' (${v})`;
+      document.getElementById('hud-val-ascii').textContent = `${charRep}`;
+    }
+
+    // ── Synchronized Multi-Base Inputs ──
+    function renderMultiBaseFields() {
+      const v = state.val;
+      const w = state.wordWidth;
+
+      const binStr = v.toString(2).padStart(w, '0');
+      document.getElementById('input-bin').value = binStr;
+      document.getElementById('input-oct').value = v.toString(8);
+      document.getElementById('input-dec').value = v.toString(10);
+      document.getElementById('input-hex').value = v.toString(16).toUpperCase();
+      document.getElementById('input-custom').value = intToBase(v, state.customRadix);
+
+      document.getElementById('custom-field-base-num').textContent = state.customRadix;
+      document.getElementById('custom-field-alpha').textContent = `Alphabet: [0-${ALPHABET[state.customRadix - 1]}]`;
+    }
+
+    function handleDirectInput(baseType, rawStr) {
+      let base = 10;
+      let errId = `err-${baseType}`;
+      let cardId = `card-field-${baseType}`;
+
+      if (baseType === 'bin') base = 2;
+      else if (baseType === 'oct') base = 8;
+      else if (baseType === 'dec') base = 10;
+      else if (baseType === 'hex') base = 16;
+      else if (baseType === 'custom') base = state.customRadix;
+
+      const parsed = baseToInt(rawStr, base);
+      const card = document.getElementById(cardId);
+      const err = document.getElementById(errId);
+
+      if (isNaN(parsed) || parsed < 0) {
+        card.classList.add('has-error');
+        err.style.display = 'block';
+        playSound('buzz');
+        return;
+      }
+
+      card.classList.remove('has-error');
+      err.style.display = 'none';
+
+      state.val = parsed;
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    // ── Tab 1: Division Ladder Algorithm ──
+    function renderDivisionLadder() {
+      const table = document.getElementById('division-ladder-table');
+      const base = 16;
+      let n = state.val;
+      let html = '';
+      const rungs = [];
+
+      while (n > 0) {
+        const rem = n % base;
+        const q = Math.floor(n / base);
+        rungs.push({ div: n, q: q, rem: rem, remChar: ALPHABET[rem] });
+        n = q;
+      }
+
+      if (!rungs.length) {
+        rungs.push({ div: 0, q: 0, rem: 0, remChar: '0' });
+      }
+
+      rungs.forEach((r, idx) => {
+        const isLSD = idx === 0 ? ' [LSD]' : '';
+        const isMSD = idx === rungs.length - 1 ? ' [MSD]' : '';
+        html += `
+          <tr>
+            <td class="ladder-radix">${base} │</td>
+            <td class="ladder-quotient">${r.div} &rarr; Quotient: <b>${r.q}</b></td>
+            <td class="ladder-rem">Remainder: <b>${r.rem} (${r.remChar})</b>${isLSD}${isMSD}</td>
+          </tr>
+        `;
+      });
+
+      table.innerHTML = html;
+      const assembled = rungs.map(r => r.remChar).reverse().join('');
+      document.getElementById('ladder-result-text').innerHTML = `Assembled Result: <b>(${assembled})₁₆</b> &nbsp; (Read remainders bottom &rarr; top)`;
+    }
+
+    function stepDivisionLadder(dir) {
+      playSound('click');
+      const table = document.getElementById('division-ladder-table');
+      table.style.opacity = '0.5';
+      setTimeout(() => { table.style.opacity = '1'; }, 100);
+    }
+
+    // ── Tab 2: Fractional Multiplication ──
+    function renderMultLadder() {
+      const table = document.getElementById('mult-ladder-table');
+      const frac = state.fractionVal;
+      const base = 2;
+      let f = frac;
+      let html = '';
+      const digits = [];
+
+      for (let step = 1; step <= 5; step++) {
+        const prod = f * base;
+        const intPart = Math.floor(prod);
+        const newFrac = prod - intPart;
+        digits.push(intPart);
+        html += `
+          <tr>
+            <td>Step ${step}</td>
+            <td>${f.toFixed(3)} &times; ${base} = <b>${prod.toFixed(3)}</b></td>
+            <td>Int: <b style="color:var(--accent-green);">${intPart}</b> (f-${step})</td>
+          </tr>
+        `;
+        f = newFrac;
+        if (f === 0) break;
+      }
+
+      table.innerHTML = html;
+      document.getElementById('mult-result-text').textContent = `Fractional Result: (0.${digits.join('')})₂`;
+    }
+
+    // ── Tab 3: Power-of-2 Bit Grouping ──
+    function renderBitGrouping() {
+      const v = state.val;
+      const w = state.wordWidth;
+      const binStr = v.toString(2).padStart(w, '0');
+
+      const hexRoot = document.getElementById('group-hex-row');
+      let hexHtml = '';
+      for (let i = 0; i < w; i += 4) {
+        const nibble = binStr.slice(i, i + 4);
+        const hexChar = parseInt(nibble, 2).toString(16).toUpperCase();
+        hexHtml += `
+          <div class="group-bracket-cell">
+            <span class="bracket-bits">${nibble}</span>
+            <span class="bracket-digit">&darr; ${hexChar}</span>
+          </div>
+        `;
+      }
+      hexRoot.innerHTML = hexHtml;
+
+      const octRoot = document.getElementById('group-oct-row');
+      let octHtml = '';
+      const octPad = (3 - (binStr.length % 3)) % 3;
+      const paddedBin = '0'.repeat(octPad) + binStr;
+      for (let i = 0; i < paddedBin.length; i += 3) {
+        const triad = paddedBin.slice(i, i + 3);
+        const octDigit = parseInt(triad, 2).toString(8);
+        octHtml += `
+          <div class="group-bracket-cell">
+            <span class="bracket-bits">${triad}</span>
+            <span class="bracket-digit">&darr; ${octDigit}</span>
+          </div>
+        `;
+      }
+      octRoot.innerHTML = octHtml;
+    }
+
+    // ── Tab 4: Polynomial Math ──
+    function renderPolynomialMath() {
+      const v = state.val;
+      const binStr = v.toString(2);
+      const terms = [];
+
+      for (let i = 0; i < binStr.length; i++) {
+        const p = binStr.length - 1 - i;
+        const d = binStr[i];
+        if (d === '1') {
+          terms.push(`(1 &times; 2<sup>${p}</sup>)`);
+        }
+      }
+
+      const termsStr = terms.join(' + ') || '(0 &times; 2<sup>0</sup>)';
+      const polyHtml = `
+        <div><b>Decimal Value:</b> ${v}₁₀</div>
+        <div style="margin-top:6px;"><b>Binary Expansion:</b> (${binStr})₂ = ${termsStr}</div>
+        <div style="margin-top:6px;color:var(--accent-green);font-weight:700;">= ${v}₁₀ &nbsp; [Equivalence Verified]</div>
+      `;
+      document.getElementById('poly-expansion-math').innerHTML = polyHtml;
+    }
+
+    // ── Mode Toggles ──
+    function setWordWidth(width) {
+      state.wordWidth = width;
+      document.getElementById('btn-word-8').className = width === 8 ? 'dim-btn active' : 'dim-btn';
+      document.getElementById('btn-word-16').className = width === 16 ? 'dim-btn active' : 'dim-btn';
+      document.getElementById('badge-word-width').textContent = `${width}-Bit`;
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function setSignedMode(mode) {
+      state.signedMode = mode;
+      ['unsigned', 'signmag', 'ones', 'twos'].forEach(m => {
+        document.getElementById(`chip-sign-${m}`).className = m === mode ? 'signed-chip active' : 'signed-chip';
+      });
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function setCustomRadix(val) {
+      state.customRadix = parseInt(val) || 5;
+      document.getElementById('custom-radix-label').textContent = `Base ${state.customRadix}`;
+      document.getElementById('slider-custom-radix').value = state.customRadix;
+      playSound('click');
+      updateAllFromVal();
+    }
+
+    function toggleCanvasHud() {
+      state.hudVisible = !state.hudVisible;
+      const hud = document.getElementById('canvas-hud');
+      const btn = document.getElementById('btn-toggle-hud');
+      if (state.hudVisible) {
+        hud.classList.remove('hidden');
+        btn.classList.add('active');
+      } else {
+        hud.classList.add('hidden');
+        btn.classList.remove('active');
+      }
+      playSound('click');
+    }
+
+    function switchHudTab(tabId) {
+      state.activeHudTab = tabId;
+      ['ladder', 'mult', 'grouping', 'polynomial'].forEach(t => {
+        document.getElementById(`tab-btn-${t}`).className = t === tabId ? 'hud-tab-btn active' : 'hud-tab-btn';
+        document.getElementById(`pane-${t}`).className = t === tabId ? 'hud-tab-pane active' : 'hud-tab-pane';
+      });
+      playSound('click');
+    }
+
+    function toggleFractionMode() {
+      state.fractionMode = !state.fractionMode;
+      const btn = document.getElementById('btn-toggle-fraction');
+      btn.textContent = state.fractionMode ? '🔢 Mode: Fractional' : '🔢 Mode: Integer';
+      playSound('click');
+      if (state.fractionMode) switchHudTab('mult');
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      const btn = document.getElementById('btn-toggle-sound');
+      btn.textContent = state.soundEnabled ? '🔊 Audio: ON' : '🔇 Audio: OFF';
+    }
+
+    // ── Canonical V2 Section Mode Switcher (§1) ──
+    function switchMode(mode) {
+      const modes = ['sim', 'graphs', '3d', 'theory', 'quiz'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`btn-mode-${m}`);
+        if (btn) btn.classList.toggle('active', m === mode);
+      });
+
+      const simWrap = document.getElementById('sim-wrapper');
+      const m3dWrap = document.getElementById('model3d-wrapper');
+      const graphsSec = document.getElementById('section-graphs');
+      const theorySec = document.getElementById('explore-wrapper');
+      const quizSec = document.getElementById('section-quiz');
+
+      if (simWrap) simWrap.style.display = (mode === 'sim') ? 'block' : 'none';
+      if (m3dWrap) m3dWrap.style.display = (mode === '3d') ? 'block' : 'none';
+      if (graphsSec) graphsSec.style.display = (mode === 'graphs') ? 'block' : 'none';
+      if (theorySec) theorySec.style.display = (mode === 'theory') ? 'block' : 'none';
+      if (quizSec) quizSec.style.display = (mode === 'quiz' || mode === 'sim') ? 'block' : 'none';
+
+      if (mode === '3d') {
+        initStudioFallback();
+        window.dispatchEvent(new Event('resize'));
+      }
+      if (mode === 'graphs') {
+        updateCharts();
+      }
+      playSound('click');
+    }
+
+    // ── Challenge & Interactive Practice Module ──
+    function initChallenge() {
+      newChallengeProblem();
+    }
+
+    function newChallengeProblem() {
+      const problems = [
+        { track: 'Track 2: Nibble Grouping', prompt: 'Convert (0111 1101)₂ to Hexadecimal (Base 16)', answer: '7D', hint: '0111 = 7, 1101 = 13 = D' },
+        { track: 'Track 1: Bit Literacy', prompt: 'Convert Decimal 42 into 8-bit Binary', answer: '00101010', hint: '32 + 8 + 2 = 42' },
+        { track: 'Track 3: Octal Triads', prompt: 'Convert (11011010)₂ to Octal (Base 8)', answer: '332', hint: '011 = 3, 011 = 3, 010 = 2' },
+        { track: 'Track 4: Two\'s Complement', prompt: 'Find 8-bit Two\'s Complement for -42 (Decimal)', answer: 'D6', hint: '~42 + 1 = 11010110 = D6 in hex' }
+      ];
+      const p = problems[Math.floor(Math.random() * problems.length)];
+      state.challenge.current = p;
+
+      document.getElementById('challenge-level-badge').textContent = p.track;
+      document.getElementById('challenge-prompt-text').textContent = p.prompt;
+      document.getElementById('challenge-user-input').value = '';
+      document.getElementById('challenge-feedback-text').textContent = '';
+      document.getElementById('challenge-scaffold-area').innerHTML = `
+        <div style="font-size:12px;color:var(--text-secondary);">
+          Tip: Break the problem into sub-units. Use the live register flip-flops above to test your hypothesis!
+        </div>
+      `;
+      playSound('click');
+    }
+
+    function submitChallengeAnswer() {
+      const userAns = document.getElementById('challenge-user-input').value.trim().toUpperCase();
+      const targetAns = state.challenge.current.answer.toUpperCase();
+      const feedback = document.getElementById('challenge-feedback-text');
+
+      if (userAns === targetAns) {
+        feedback.style.color = 'var(--accent-green)';
+        feedback.textContent = '🎉 Correct! Stellar conversion mastery!';
+        state.challenge.score += 50;
+        state.challenge.streak = Math.min(5, state.challenge.streak + 1);
+        playSound('chime');
+      } else {
+        feedback.style.color = 'var(--accent-rose)';
+        feedback.textContent = `Incorrect. Expected: ${targetAns}. Try stepping through the division ladder.`;
+        state.challenge.streak = 1;
+        playSound('buzz');
+      }
+
+      document.getElementById('challenge-score').textContent = `Score: ${state.challenge.score} pts`;
+      document.getElementById('challenge-streak').textContent = `Streak: ${'★'.repeat(state.challenge.streak)}${'☆'.repeat(5 - state.challenge.streak)}`;
+    }
+
+    function revealChallengeHint() {
+      const hint = state.challenge.current.hint;
+      document.getElementById('challenge-scaffold-area').innerHTML = `
+        <div style="font-size:12px;color:var(--accent-amber);font-weight:600;">
+          💡 Hint: ${hint}
+        </div>
+      `;
+      playSound('click');
+    }
+
+    function solveChallenge() {
+      document.getElementById('challenge-user-input').value = state.challenge.current.answer;
+      submitChallengeAnswer();
+    }
+
+    // ── Observation Notebook Table ──
+    function populateBenchmarkTrials() {
+      state.ledger = [
+        { trial: 1, dec: 218, bin: '11011010', oct: '332', hex: 'DA', custom: '1333 (B5)', twos: '+218', parity: 'Verified' },
+        { trial: 2, dec: 42, bin: '00101010', oct: '52', hex: '2A', custom: '132 (B5)', twos: '+42', parity: 'Verified' },
+        { trial: 3, dec: 255, bin: '11111111', oct: '377', hex: 'FF', custom: '2010 (B5)', twos: '-1 (8-bit)', parity: 'Verified' },
+        { trial: 4, dec: 1024, bin: '0000010000000000', oct: '2000', hex: '400', custom: '13044 (B5)', twos: '+1024', parity: 'Verified' },
+        { trial: 5, dec: 65535, bin: '1111111111111111', oct: '177777', hex: 'FFFF', custom: '4044120 (B5)', twos: '-1 (16-bit)', parity: 'Verified' }
+      ];
+      renderLedgerTable();
+      playSound('chime');
+    }
+
+    function logCurrentTrial() {
+      const v = state.val;
+      const w = state.wordWidth;
+      const binStr = v.toString(2).padStart(w, '0');
+      const octStr = v.toString(8);
+      const hexStr = v.toString(16).toUpperCase();
+      const customStr = `${intToBase(v, state.customRadix)} (B${state.customRadix})`;
+
+      const signBit = (v >> (w - 1)) & 1;
+      const twosVal = signBit ? v - (1 << w) : v;
+
+      state.ledger.push({
+        trial: state.ledger.length + 1,
+        dec: v,
+        bin: binStr,
+        oct: octStr,
+        hex: hexStr,
+        custom: customStr,
+        twos: twosVal >= 0 ? `+${twosVal}` : `${twosVal}`,
+        parity: 'Verified'
+      });
+      renderLedgerTable();
+      playSound('chime');
+    }
+
+    function renderLedgerTable() {
+      const tbody = document.getElementById('obs-table-body');
+      let html = '';
+      state.ledger.forEach((r, idx) => {
+        html += `
+          <tr>
+            <td><b>#${r.trial}</b></td>
+            <td style="color:#ffffff;font-weight:700;">${r.dec}</td>
+            <td style="color:var(--accent-green);font-weight:600;">${r.bin}</td>
+            <td style="color:var(--accent-amber);">${r.oct}</td>
+            <td style="color:var(--accent-cyan);font-weight:700;">${r.hex}</td>
+            <td>${r.custom}</td>
+            <td style="color:var(--accent-rose);">${r.twos}</td>
+            <td><span class="badge-tag">${r.parity}</span></td>
+            <td><button class="btn-sm-action" onclick="removeLedgerRow(${idx})" style="padding:2px 6px;">&times;</button></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function removeLedgerRow(idx) {
+      state.ledger.splice(idx, 1);
+      renderLedgerTable();
+    }
+
+    function clearLedger() {
+      state.ledger = [];
+      renderLedgerTable();
+    }
+
+    function exportLedgerCSV() {
+      if (!state.ledger.length) {
+        alert('Observation notebook is empty. Log a trial first!');
+        return;
+      }
+      let csv = 'Trial,Decimal,Binary,Octal,Hexadecimal,Custom_Base,Twos_Complement,Parity\n';
+      state.ledger.forEach(r => {
+        csv += `${r.trial},${r.dec},"${r.bin}",${r.oct},${r.hex},"${r.custom}",${r.twos},${r.parity}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'number_system_base_conversions_lab.csv';
+      a.click();
+    }
+
+    // ── Procedural Fallback for #sim3d-canvas if GLB is loading or in stand-alone mode ──
+    function initStudioFallback() {
+      const canvas = document.getElementById('sim3d-canvas');
+      if (!canvas || state.studioThree.initialized) return;
+
+      // Check if v2_model_embed.js already claimed it
+      if (canvas.__sim3d_active) return;
+
+      const w = canvas.clientWidth || 700;
+      const h = canvas.clientHeight || 460;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0e17);
+
+      const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+      camera.position.set(15, 14, 18);
+
+      const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      renderer.setSize(w, h, false);
       renderer.setPixelRatio(window.devicePixelRatio);
-      container.appendChild(renderer.domElement);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      const controls = new THREE.OrbitControls(camera, canvas);
       controls.enableDamping = true;
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
-      scene.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(5, 10, 7);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(10, 20, 15);
       scene.add(dirLight);
 
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/number_system_base_conversions.glb', function(gltf) {
-        modelGroup = gltf.scene;
-        scene.add(modelGroup);
-        animate();
-      }, undefined, function(err) {
-        console.warn('Fallback 3D geometry loaded');
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-        const mat = new THREE.MeshStandardMaterial({ color: '#00e676', roughness: 0.3 });
-        modelGroup = new THREE.Mesh(geo, mat);
-        scene.add(modelGroup);
-        animate();
-      });
-    }
+      scene.add(new THREE.GridHelper(26, 26, 0x00e676, 0x1a2948));
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
-    }
+      // 16-pin DIP Body
+      const bodyGeom = new THREE.BoxGeometry(10, 1.6, 4.5);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x111928, roughness: 0.4 });
+      const bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
+      bodyMesh.position.y = 1.5;
+      scene.add(bodyMesh);
 
-    function focusComponent(name) {
-      if (!modelGroup) return;
-      modelGroup.traverse(function(child) {
-        if (child.isMesh) {
-          if (child.name === name) {
-            child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.6;
-          } else {
-            child.material.emissive = new THREE.Color(0x000000);
-          }
+      // Pins on both sides
+      const pinGeom = new THREE.BoxGeometry(0.3, 1.5, 0.4);
+      const pinMat = new THREE.MeshStandardMaterial({ color: 0xc0c8d8, metalness: 0.85, roughness: 0.2 });
+
+      for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < 8; i++) {
+          const pin = new THREE.Mesh(pinGeom, pinMat);
+          pin.position.set(-3.8 + i * 1.1, 0.75, side * 2.5);
+          scene.add(pin);
         }
-      });
+      }
+
+      // Logic LEDs on top
+      for (let i = 0; i < 8; i++) {
+        const ledGeom = new THREE.CylinderGeometry(0.18, 0.18, 0.3, 16);
+        const ledMat = new THREE.MeshStandardMaterial({
+          color: (i % 2 === 0) ? 0x00e676 : 0x1e293b,
+          emissive: (i % 2 === 0) ? 0x00e676 : 0x000000,
+          emissiveIntensity: 0.7
+        });
+        const led = new THREE.Mesh(ledGeom, ledMat);
+        led.position.set(-3.5 + i * 1.0, 2.4, 0);
+        scene.add(led);
+      }
+
+      state.studioThree = { scene, camera, renderer, controls, initialized: true };
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
     }
 
-    window.addEventListener('load', () => {
-      runSim();
+    function focus3DComponent(name) {
+      alert(`Inspected component: ${name}. Highlighted on 3D register IC.`);
+    }
+
+    // ── Sensitivity & Radix Scaling Curves ──
+    function updateCharts() {
+      const c1 = document.getElementById('chart-digits-curve');
+      const c2 = document.getElementById('chart-complexity-curve');
+      if (!c1 || !c2) return;
+
+      drawDigitsCurve(c1);
+      drawComplexityCurve(c2);
+    }
+
+    function drawDigitsCurve(canvas) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(40, h - 30);
+      ctx.lineTo(w - 20, h - 30);
+      ctx.moveTo(40, 20);
+      ctx.lineTo(40, h - 30);
+      ctx.stroke();
+
+      const N = 65535;
+      ctx.strokeStyle = '#00e676';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+
+      for (let b = 2; b <= 36; b++) {
+        const digits = Math.ceil(Math.log(N) / Math.log(b));
+        const px = 40 + ((b - 2) / 34) * (w - 60);
+        const py = (h - 30) - (digits / 16) * (h - 50);
+        if (b === 2) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px monospace';
+      ctx.fillText('Radix Base b (2 to 36)', w / 2 - 50, h - 10);
+      ctx.fillText('Digits (L)', 8, 16);
+    }
+
+    function drawComplexityCurve(canvas) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(40, h - 30);
+      ctx.lineTo(w - 20, h - 30);
+      ctx.moveTo(40, 20);
+      ctx.lineTo(40, h - 30);
+      ctx.stroke();
+
+      const N = 65535;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+
+      for (let b = 2; b <= 36; b++) {
+        const E = b * (Math.log(N) / Math.log(b));
+        const px = 40 + ((b - 2) / 34) * (w - 60);
+        const py = (h - 30) - ((E - 30) / 200) * (h - 50);
+        if (b === 2) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px monospace';
+      ctx.fillText('Radix Base b (Optimum near e=2.7)', w / 2 - 80, h - 10);
+      ctx.fillText('Hardware Cost E', 8, 16);
+    }
+
+    // ── Interactive Viva Voce Quiz Logic ──
+    const quizQuestions = [
+      {
+        q: "Why can conversions between Binary, Octal, and Hexadecimal bypass Base 10 entirely?",
+        opts: [
+          "Because 8 and 16 are exact integer powers of two (2³ and 2⁴), permitting direct bit grouping.",
+          "Because binary digits are always prime numbers.",
+          "Because Octal and Hexadecimal use identical alphabets.",
+          "Because computer memory only operates at 100°C."
+        ],
+        ans: 0,
+        exp: "Because 8 = 2³ and 16 = 2⁴, 3 binary bits map directly to 1 octal digit, and 4 binary bits map to 1 hex character."
+      },
+      {
+        q: "How do you form the Two's Complement representation of a negative number in binary?",
+        opts: [
+          "Invert all bits (0s to 1s and 1s to 0s) and then add 1 to the result.",
+          "Shift all bits to the left by 2 positions.",
+          "Multiply the binary number by 10 and add 1.",
+          "Subtract the sign bit from the least significant bit."
+        ],
+        ans: 0,
+        exp: "Two's complement negation is algebraically defined as -X = (~X) + 1, effectively computing 2ⁿ - X."
+      },
+      {
+        q: "When converting a decimal fraction to binary via repeated multiplication, what is the reading order?",
+        opts: [
+          "Read the generated integer parts from top to bottom (first result is f₋₁).",
+          "Read the remainders from bottom to top.",
+          "Sum all fractional parts and divide by 2.",
+          "Take the two's complement of the denominator."
+        ],
+        ans: 0,
+        exp: "In repeated multiplication of fractions, the earliest generated integer part represents the highest fractional power (2⁻¹), so digits are read downwards."
+      },
+      {
+        q: "What is the primary engineering advantage of Two's Complement over One's Complement?",
+        opts: [
+          "Eliminates the dual representation of zero (+0 and -0) and allows unified addition/subtraction hardware.",
+          "Reduces the number of bits required to store integers by half.",
+          "Permits multiplication by zero without a clock signal.",
+          "Prevents hardware overheating in CMOS gates."
+        ],
+        ans: 0,
+        exp: "Two's Complement provides a single unique zero (0000...0000) and enables seamless subtraction using simple binary addition circuitry."
+      }
+    ];
+
+    let quizAnswers = {};
+
+    function initQuiz() {
+      const container = document.getElementById('quiz-root');
+      let html = '';
+      quizQuestions.forEach((qObj, qIdx) => {
+        html += `
+          <div class="quiz-card" id="quiz-card-${qIdx}">
+            <div class="quiz-question">${qIdx + 1}. ${qObj.q}</div>
+            <div class="quiz-options">
+              ${qObj.opts.map((opt, optIdx) => `
+                <button class="quiz-opt-btn" id="q${qIdx}-opt${optIdx}" onclick="answerQuiz(${qIdx}, ${optIdx})">
+                  ${opt}
+                </button>
+              `).join('')}
+            </div>
+            <div class="quiz-feedback" id="q${qIdx}-feedback"></div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function answerQuiz(qIdx, optIdx) {
+      if (quizAnswers[qIdx] !== undefined) return;
+      quizAnswers[qIdx] = optIdx;
+      const qObj = quizQuestions[qIdx];
+      const feedbackEl = document.getElementById(`q${qIdx}-feedback`);
+      const btn = document.getElementById(`q${qIdx}-opt${optIdx}`);
+
+      if (optIdx === qObj.ans) {
+        btn.classList.add('correct');
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.background = 'rgba(0, 230, 118, 0.15)';
+        feedbackEl.style.color = '#6ee7b7';
+        feedbackEl.innerHTML = `<b>Correct!</b> ${qObj.exp}`;
+        playSound('chime');
+      } else {
+        btn.classList.add('incorrect');
+        document.getElementById(`q${qIdx}-opt${qObj.ans}`).classList.add('correct');
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.background = 'rgba(244, 63, 94, 0.15)';
+        feedbackEl.style.color = '#fda4af';
+        feedbackEl.innerHTML = `<b>Incorrect.</b> ${qObj.exp}`;
+        playSound('buzz');
+      }
+
+      let score = 0;
+      Object.keys(quizAnswers).forEach(idx => {
+        if (quizAnswers[idx] === quizQuestions[idx].ans) score++;
+      });
+      document.getElementById('quiz-score-tracker').textContent = `Score: ${score} / ${quizQuestions.length}`;
+    }
+
+    // Window Load Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      initQuiz();
+      initChallenge();
+      populateBenchmarkTrials();
+      updateAllFromVal();
     });
   </script>
 </body>

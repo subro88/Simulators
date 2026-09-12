@@ -3,345 +3,2279 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cramer's Rule & Matrix Inversion Solver — WBSCTE Basic Science 2nd Sem Simulation | NHIT Visual Lab</title>
-  <meta name="description" content="BS102 Engineering Mathematics-II: System of Linear Equations Solver via Cramer's Rule x = Dx/D, y = Dy/D, z = Dz/D">
+  <title>Cramer's Rule & Matrix Inversion Solver — WBSCTE Engineering Mathematics Simulation | NHIT Visual Lab</title>
+  <meta name="description" content="Interactive WBSCTE BS102/BS104 Engineering Mathematics laboratory simulation modeling systems of linear equations via Cramer's Rule, Adjugate Matrix Inversion, Rouché-Capelli rank theorem, and dual 2D/3D geometric manifolds.">
   <link rel="stylesheet" href="../../css/style.css">
   <link rel="stylesheet" href="../../shared/sidebar/sidebar.css">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Three.js and OrbitControls for 3D Spatial Visualizations -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <style>
-    :root { --accent: #38bdf8; }
-    body { background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; margin: 0; }
-    .site-nav { padding: 12px 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; gap: 8px; font-size: 14px; align-items: center; }
-    .site-nav a { color: #94a3b8; text-decoration: none; }
-    .site-nav a:hover { color: var(--accent); }
-    .site-nav span { color: #475569; }
-    .tool-header { padding: 24px; background: #0f172a; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .tool-badge { background: var(--accent); color: #000; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 12px; display: inline-block; margin-bottom: 6px; }
-    .tool-title { font-size: 24px; margin: 0 0 6px 0; color: #fff; }
-    .tool-subtitle { font-size: 14px; color: #94a3b8; margin: 0; max-width: 800px; }
-    .mode-bar { display: flex; gap: 8px; align-items: center; }
-    .mode-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .mode-btn:hover, .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .guide-link-btn { background: #334155; color: #f8fafc; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #475569; }
-    .guide-link-btn:hover { background: #475569; }
-    .main-container { max-width: 1400px; margin: 24px auto; padding: 0 20px; }
-    .sim-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .sim-grid { grid-template-columns: 1fr; } }
-    .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .panel-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-    .control-group { margin-bottom: 14px; }
-    .control-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-    .val-badge { background: #1e293b; color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
-    .form-control, .form-range { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    .canvas-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; position: relative; }
-    #sim-canvas { width: 100%; height: 420px; display: block; background: #020617; }
-    #three-canvas-container { width: 100%; height: 420px; background: #020617; position: relative; }
-    .diag-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .diag-table td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
-    .diag-table td:first-child { color: #94a3b8; }
-    .out-val { color: var(--accent); font-weight: 700; text-align: right; }
-    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .comp-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .comp-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .comp-card h4 { margin: 0 0 4px 0; font-size: 13px; color: #f8fafc; }
-    .comp-card p { margin: 0; font-size: 12px; color: #94a3b8; }
-    .user-guide { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; }
-    .user-guide h3 { color: #f8fafc; margin-top: 0; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
-    details { margin-bottom: 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: var(--accent); outline: none; }
-    details > div { padding: 12px 16px; font-size: 14px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid #334155; }
-    .seo-article { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; margin-top: 32px; font-size: 14px; color: #94a3b8; line-height: 1.8; }
-    .seo-article h2, .seo-article h3 { color: #f8fafc; }
-    .calc-btn { background: var(--accent); color: #000; font-weight: 700; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 10px; }
-  </style>
 </head>
 <body>
+
+  <!-- ════ Canonical Brand Nav & Breadcrumbs ════ -->
   <nav class="site-nav">
-    <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
-    <span>&rsaquo;</span>
-    <a href="/nhitvisuallab/index.html#bs-sem2">Basic Science & Humanities</a>
-    <span>&rsaquo;</span>
-    <span style="color:#f8fafc;">Cramer's Rule & Matrix Inversion Solver</span>
+    <a href="/nhitvisuallab/index.html" class="brand-wrapper">
+      <img src="../../brand/logo.png" alt="NHIT Logo" class="brand-logo" onerror="this.src='/nhitvisuallab/brand/logo.png'; this.onerror=function(){this.src='/images/nhit-logo.png'; this.onerror=null;};">
+    </a>
+    <div class="brand-divider"></div>
+    <div class="breadcrumb-trail">
+      <a href="/nhitvisuallab/index.html">NHIT Visual Lab</a>
+      <span class="breadcrumb-sep">&rsaquo;</span>
+      <a href="/nhitvisuallab/index.html#bs-sem2">Basic Science &amp; Humanities</a>
+      <span class="breadcrumb-sep">&rsaquo;</span>
+      <span class="breadcrumb-curr">Cramer's Rule &amp; Matrix Inversion Solver</span>
+    </div>
   </nav>
 
+  <!-- ════ Tool Header ════ -->
   <header class="tool-header">
     <div>
-      <span class="tool-badge">BS102</span>
-      <h1 class="tool-title">Cramer's Rule & Matrix Inversion Solver</h1>
-      <p class="tool-subtitle">BS102 Engineering Mathematics-II: System of Linear Equations Solver via Cramer's Rule x = Dx/D, y = Dy/D, z = Dz/D</p>
+      <div class="tool-badge-row">
+        <span class="badge-tag">BS102 / BS104</span>
+        <span class="badge-tag secondary">Linear Algebra</span>
+        <span class="badge-tag">WBSCTE Lab</span>
+      </div>
+      <h1 class="tool-title">
+        <span>📐</span> Cramer's Rule &amp; Matrix Inversion Solver
+      </h1>
+      <p class="tool-subtitle">
+        Interactive linear system solver ($A\vec{x} = \vec{b}$) modeling Cramer's Rule, Matrix Inversion via the Adjugate Method, Rouché–Capelli singularity classifications, and dual row/column 2D &amp; 3D geometric projections.
+      </p>
     </div>
     <div class="mode-bar">
-      <button class="mode-btn active" onclick="switchMode('sim')">Interactive Simulation</button>
-      <button class="mode-btn" onclick="switchMode('3d')">3D Apparatus Model</button>
-      <button class="mode-btn" onclick="switchMode('explore')">Explore &amp; Theory</button>
-      <a href="#user-guide" class="guide-link-btn">&#128218; User Guide</a>
+      <button class="mode-btn active" id="btn-mode-sim" onclick="switchViewMode('sim')">Interactive Simulation</button>
+      <button class="mode-btn" id="btn-mode-3d" onclick="switchViewMode('3d')">3D Spatial Studio</button>
+      <button class="mode-btn" id="btn-mode-graphs" onclick="switchViewMode('graphs')">Sensitivity Curves</button>
+      <button class="mode-btn" id="btn-mode-theory" onclick="switchViewMode('theory')">Explore &amp; Theory</button>
+      <a href="#user-guide" class="mode-btn" style="text-decoration:none;">📖 User Guide</a>
     </div>
   </header>
 
+  <!-- ════ 5-Stage Workflow Stepper ════ -->
+  <div class="stepper-bar">
+    <div class="step-item active" id="step-1">
+      <span class="step-num">1</span>
+      <span>System Formulation $[A|\vec{b}]$</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-2">
+      <span class="step-num">2</span>
+      <span>Master Determinant $D = \det(A)$</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-3">
+      <span class="step-num">3</span>
+      <span>Column Matrices $D_i$ &amp; Minors</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-4">
+      <span class="step-num">4</span>
+      <span>Cramer &amp; Adjugate Proof</span>
+    </div>
+    <span class="step-arrow">&rsaquo;</span>
+    <div class="step-item" id="step-5">
+      <span class="step-num">5</span>
+      <span>Geometric Convergence &amp; Residual</span>
+    </div>
+  </div>
+
+  <!-- ════ Main Simulation Container ════ -->
   <main class="main-container">
-    <div id="sim-wrapper" class="sim-grid">
-      <div class="controls-col">
-        <div class="panel">
-          <h3 class="panel-title">&#9881; Input Controls &amp; Parameters</h3>
+
+    <!-- ════ SIMULATION TOP ROW (2:1 Ratio Grid) ════ -->
+    <div class="sim-top-row" id="sim-top-view">
+
+      <!-- LEFT: Canvas Card (2fr) -->
+      <div class="canvas-card">
+        <div class="canvas-toolbar">
+          <div class="canvas-title-group">
+            <span class="canvas-title">
+              <span id="canvas-geom-icon">📐</span>
+              <span id="canvas-geom-title">Geometric Manifold &amp; Vector Projection (Row Picture)</span>
+            </span>
+          </div>
+          <div class="canvas-actions">
+            <button class="canvas-btn active" id="btn-geom-row" onclick="setGeomPicture('row')">Row Picture (Planes/Lines)</button>
+            <button class="canvas-btn" id="btn-geom-col" onclick="setGeomPicture('col')">Column Picture (Volumes)</button>
+            <button class="canvas-btn" id="btn-toggle-3d-canvas" onclick="toggleCanvasDimension()">Switch to 3D Orbit</button>
+            <button class="canvas-btn" id="btn-reset-view" onclick="resetCanvasCamera()">⟲ Reset Camera</button>
+            <button class="canvas-btn active" id="btn-toggle-hud" onclick="toggleCanvasHud()">👁 HUD</button>
+          </div>
+        </div>
+
+        <div class="canvas-container" id="canvas-container-root">
+          <!-- 2D Canvas Viewport -->
+          <canvas id="geom-canvas" width="900" height="520"></canvas>
           
-              <div class="control-group">
-                <label for="a11">Row 1: [a11, a12, a13] = [2, 1, 1], b1:</label>
-                <input type="number" id="a11" min="-50.0" max="50.0" step="1.0" value="10.0" class="form-control" oninput="runSim()" />
+          <!-- 3D WebGL Viewport -->
+          <div id="three-viewport"></div>
+
+          <!-- Top-Edge Flush Canvas HUD Overlay -->
+          <div class="canvas-hud-overlay" id="canvas-hud">
+            <div class="hud-grid">
+              <div class="hud-pill">
+                <span class="hud-label">System Size</span>
+                <span class="hud-val" id="hud-dim">3 × 3 System</span>
               </div>
-              <div class="control-group">
-                <label for="a21">Row 2: [a21, a22, a23] = [1, 3, 2], b2:</label>
-                <input type="number" id="a21" min="-50.0" max="50.0" step="1.0" value="18.0" class="form-control" oninput="runSim()" />
+              <div class="hud-pill">
+                <span class="hud-label">Determinant D = det(A)</span>
+                <span class="hud-val" id="hud-det">20.00</span>
               </div>
-              <div class="control-group">
-                <label for="a31">Row 3: [a31, a32, a33] = [1, 1, 1], b3:</label>
-                <input type="number" id="a31" min="-50.0" max="50.0" step="1.0" value="6.0" class="form-control" oninput="runSim()" />
+              <div class="hud-pill">
+                <span class="hud-label">Solution Vector x*</span>
+                <span class="hud-val" id="hud-sol">[ 2.00, -1.00, 3.00 ]</span>
               </div>
-          <button class="calc-btn" onclick="runSim()">&#9654; Recalculate &amp; Simulate</button>
+              <div class="hud-pill">
+                <span class="hud-label">Consistency Status</span>
+                <span class="hud-val status-unique" id="hud-status">UNIQUE SOLUTION</span>
+              </div>
+              <div class="hud-pill">
+                <span class="hud-label">Residual Norm ||r||</span>
+                <span class="hud-val" id="hud-residual">0.0000</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="display-col">
-        <div class="canvas-card">
-          <canvas id="sim-canvas" width="800" height="420"></canvas>
+
+      <!-- RIGHT COLUMN: 1:2 Stacking (1fr) -->
+      <div class="sim-right-col">
+
+        <!-- Ratio 1: System Dimension & Presets Panel -->
+        <div class="panel-config">
+          <div class="panel-header">
+            <span>⚙ Dimension &amp; System Presets</span>
+            <span class="badge-tag" id="badge-system-type">3x3 Matrix</span>
+          </div>
+
+          <!-- Dimension Toggle -->
+          <div class="dim-toggle-bar">
+            <button class="dim-btn" id="btn-dim-2" onclick="setDimension(2)">2 × 2 System</button>
+            <button class="dim-btn active" id="btn-dim-3" onclick="setDimension(3)">3 × 3 System</button>
+          </div>
+
+          <!-- Preset Chips -->
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;">Curated Presets</div>
+            <div class="chip-group" id="preset-chip-container">
+              <button class="preset-chip active" onclick="loadPreset('benchmark3')">Standard 3x3 Benchmark (D=20)</button>
+              <button class="preset-chip" onclick="loadPreset('benchmark2')">Standard 2x2 Rig (D=-17)</button>
+              <button class="preset-chip" onclick="loadPreset('inconsistent')">Inconsistent (Parallel/Prism)</button>
+              <button class="preset-chip" onclick="loadPreset('dependent')">Dependent (Infinite Line)</button>
+              <button class="preset-chip" onclick="loadPreset('illconditioned')">Ill-Conditioned (Nearly Parallel)</button>
+              <button class="preset-chip" onclick="loadPreset('orthogonal')">Orthogonal (det=1, A⁻¹=Aᵀ)</button>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="quick-tools-row">
+            <button class="btn-sm-action" onclick="randomizeSystem()">🎲 Random Integer</button>
+            <button class="btn-sm-action" onclick="resetToIdentity()">Identity [I | 0]</button>
+            <button class="btn-sm-action" id="btn-toggle-fraction" onclick="toggleFractionMode()">½ Exact Fractions</button>
+            <button class="btn-sm-action" id="btn-toggle-sound" onclick="toggleSound()">🔊 Audio: ON</button>
+          </div>
         </div>
-        <div class="panel" style="margin-top:20px;">
-          <h3 class="panel-title">&#128202; Diagnostic Telemetry &amp; Verification Output</h3>
-          <table class="diag-table">
+
+        <!-- Ratio 2: Step-by-Step Mathematical Walkthrough HUD -->
+        <div class="panel-analytical-hud">
+          <div class="hud-tab-nav">
+            <button class="hud-tab-btn active" id="tab-btn-cramer" onclick="switchHudTab('cramer')">📐 Cramer's Rule</button>
+            <button class="hud-tab-btn" id="tab-btn-inverse" onclick="switchHudTab('inverse')">🔄 Matrix Inversion</button>
+            <button class="hud-tab-btn" id="tab-btn-geometry" onclick="switchHudTab('geometry')">📦 Volume &amp; Angles</button>
+            <button class="hud-tab-btn" id="tab-btn-rouche" onclick="switchHudTab('rouche')">⚖ Rouché–Capelli</button>
+          </div>
+
+          <!-- Tab 1: Cramer's Rule Walkthrough -->
+          <div class="hud-tab-pane active" id="pane-cramer">
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Master Determinant D = det(A)</span>
+                <span id="cramer-d-badge" class="badge-tag">Laplace Row 1</span>
+              </div>
+              <div id="cramer-d-expansion" class="math-eq-row"></div>
+              <div style="margin-top:6px;font-weight:700;color:var(--accent-cyan);" id="cramer-d-val">D = 20.00</div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Column Determinant Dx (Col 1 &larr; b)</span>
+                <span style="color:var(--col-x);font-weight:700;">x = Dx / D</span>
+              </div>
+              <div id="cramer-dx-expansion" class="math-eq-row"></div>
+              <div class="math-eq-row">
+                <span>Dx = <b id="cramer-dx-val">40.00</b></span>
+                <span style="color:var(--text-muted);">&rArr;</span>
+                <span class="sol-pill" id="cramer-x-pill">x = 2.00</span>
+              </div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Column Determinant Dy (Col 2 &larr; b)</span>
+                <span style="color:var(--col-y);font-weight:700;">y = Dy / D</span>
+              </div>
+              <div id="cramer-dy-expansion" class="math-eq-row"></div>
+              <div class="math-eq-row">
+                <span>Dy = <b id="cramer-dy-val">-20.00</b></span>
+                <span style="color:var(--text-muted);">&rArr;</span>
+                <span class="sol-pill" id="cramer-y-pill">y = -1.00</span>
+              </div>
+            </div>
+
+            <div class="math-card" id="cramer-dz-card">
+              <div class="math-card-header">
+                <span>Column Determinant Dz (Col 3 &larr; b)</span>
+                <span style="color:var(--col-z);font-weight:700;">z = Dz / D</span>
+              </div>
+              <div id="cramer-dz-expansion" class="math-eq-row"></div>
+              <div class="math-eq-row">
+                <span>Dz = <b id="cramer-dz-val">60.00</b></span>
+                <span style="color:var(--text-muted);">&rArr;</span>
+                <span class="sol-pill" id="cramer-z-pill">z = 3.00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Matrix Inversion Walkthrough -->
+          <div class="hud-tab-pane" id="pane-inverse">
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Step 1: Determinant &amp; Invertibility</span>
+                <span id="inv-det-status" class="badge-tag">det(A) &ne; 0</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary);" id="inv-det-text">
+                det(A) = 20 &ne; 0 &rArr; A is non-singular and strictly invertible.
+              </div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Step 2: Matrix of Minors M_ij</span>
+                <span>M_ij = det(Sub_ij)</span>
+              </div>
+              <div id="inv-minors-grid" class="matrix-display-grid"></div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Step 3: Cofactor Matrix C_ij = (-1)^(i+j) * M_ij</span>
+                <span>Checkered Sign</span>
+              </div>
+              <div id="inv-cofactors-grid" class="matrix-display-grid"></div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Step 4: Adjugate Matrix adj(A) = C^T</span>
+                <span>Transposition</span>
+              </div>
+              <div id="inv-adjugate-grid" class="matrix-display-grid"></div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Step 5: Inverse A⁻¹ = (1/det(A)) * adj(A)</span>
+                <span>Scalar Scale</span>
+              </div>
+              <div id="inv-inverse-grid" class="matrix-display-grid"></div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Step 6: Solution x* = A⁻¹ * b</span>
+                <span style="color:var(--accent-emerald);">Matches Cramer</span>
+              </div>
+              <div id="inv-solution-text" style="font-size:13px;font-weight:700;color:var(--accent-emerald);"></div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Geometry & Volume HUD -->
+          <div class="hud-tab-pane" id="pane-geometry">
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Column Parallelepiped Volume (Vol = |det(A)|)</span>
+                <span class="badge-tag">Signed Determinant</span>
+              </div>
+              <div style="font-size:13px;line-height:1.7;">
+                <div>Base Parallelepiped Vol(A) = <b style="color:var(--accent-cyan);" id="geom-vol-a">20.00</b> cubic units</div>
+                <div>Modified Vol(A_x) [col 1 &larr; b] = <b style="color:var(--col-x);" id="geom-vol-ax">40.00</b></div>
+                <div>Modified Vol(A_y) [col 2 &larr; b] = <b style="color:var(--col-y);" id="geom-vol-ay">20.00</b></div>
+                <div id="geom-vol-az-row">Modified Vol(A_z) [col 3 &larr; b] = <b style="color:var(--col-z);" id="geom-vol-az">60.00</b></div>
+                <div style="margin-top:6px;font-size:11px;color:var(--text-secondary);">
+                  Cramer's geometric ratio: <i>x_i = Vol(A_i) / Vol(A)</i> verifies exact scaling of column volumes.
+                </div>
+              </div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Plane Normals &amp; Dihedral Orientations</span>
+                <span>n_i = [ a_i1, a_i2, a_i3 ]</span>
+              </div>
+              <div id="geom-normals-list" style="font-size:12px;display:flex;flex-direction:column;gap:6px;"></div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Rouché-Capelli & Residual Audit -->
+          <div class="hud-tab-pane" id="pane-rouche">
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Rouché–Capelli Rank Theorem</span>
+                <span id="rouche-badge" class="badge-tag">Rank Test</span>
+              </div>
+              <div style="font-size:12px;line-height:1.8;color:var(--text-secondary);">
+                <div>Coefficient Matrix Rank: <b style="color:#ffffff;" id="rouche-rank-a">rank(A) = 3</b></div>
+                <div>Augmented Matrix Rank: <b style="color:#ffffff;" id="rouche-rank-ab">rank([A|b]) = 3</b></div>
+                <div>System Unknowns Count: <b style="color:#ffffff;" id="rouche-n">n = 3</b></div>
+                <div style="margin-top:6px;padding:8px;background:#0d162a;border-radius:6px;" id="rouche-summary-text">
+                  rank(A) = rank([A|b]) = n &rArr; System is <b>Consistent with a Single Unique Solution</b>.
+                </div>
+              </div>
+            </div>
+
+            <div class="math-card">
+              <div class="math-card-header">
+                <span>Numerical Stability &amp; Residual Audit</span>
+                <span>||A x* - b||</span>
+              </div>
+              <div style="font-size:12px;line-height:1.8;color:var(--text-secondary);">
+                <div>Condition Number &kappa;(A): <b style="color:var(--accent-cyan);" id="audit-cond">4.82</b> (Well-conditioned)</div>
+                <div>Residual Vector r = A x* - b: <b style="color:var(--accent-emerald);" id="audit-res-vec">[ 0.00, 0.00, 0.00 ]</b></div>
+                <div>Euclidean Residual Norm ||r||_2: <b style="color:var(--accent-emerald);" id="audit-res-norm">0.000000</b></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ════ FULL-WIDTH PANEL: Interactive Matrix Input Grid [A | b] ════ -->
+    <div class="panel-full-width">
+      <div class="panel-header">
+        <span>🎛 Matrix Coefficient Grid &amp; Dynamic Steppers $[A \mid \vec{b}]$</span>
+        <span style="font-size:12px;color:var(--text-muted);">Click numbers or use +/- spinners to edit coefficients dynamically</span>
+      </div>
+
+      <div class="matrix-augmented-wrapper">
+        <!-- Coefficient Matrix A -->
+        <div class="bracket-container" id="bracket-matrix-a">
+          <div class="matrix-cell-grid grid-3x3" id="matrix-a-grid">
+            <!-- Dynamically populated cell inputs -->
+          </div>
+        </div>
+
+        <span class="matrix-mult-sym">&times;</span>
+
+        <!-- Unknown Vector x -->
+        <div class="bracket-container" id="bracket-vector-x" style="padding:12px 14px;">
+          <div class="matrix-cell-grid" id="matrix-x-labels" style="grid-template-columns:36px;text-align:center;">
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--col-x);font-weight:700;">x₁</div>
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--col-y);font-weight:700;">x₂</div>
+            <div id="x3-label-row" style="font-family:var(--font-mono);font-size:14px;color:var(--col-z);font-weight:700;">x₃</div>
+          </div>
+        </div>
+
+        <span class="matrix-eq-sym">=</span>
+
+        <!-- Constant Vector b -->
+        <div class="bracket-container right-brackets" id="bracket-vector-b">
+          <div class="matrix-cell-grid" id="matrix-b-grid" style="grid-template-columns:80px;">
+            <!-- Dynamically populated b inputs -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Sliders Drawer for Coefficients -->
+      <div style="margin-top:16px;background:#090e1c;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 16px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;display:flex;justify-content:space-between;">
+          <span>Dynamic Coefficient Scrubbing (Real-Time Plane/Line Shifting)</span>
+          <span style="color:var(--accent-cyan);" id="scrubber-active-label">Select cell or use sliders below</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;" id="sliders-drawer">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ FULL-WIDTH PANEL: Standard Laboratory Observation Notebook ════ -->
+    <div class="panel-full-width">
+      <div class="panel-header">
+        <span>📝 Standard Laboratory Observation Notebook &amp; Comparative Ledger</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-sm-action" onclick="populateBenchmarkTrials()">⚡ Auto-Populate Reference Trials</button>
+          <button class="btn-sm-action" onclick="logCurrentTrial()">➕ Log Current State</button>
+          <button class="btn-sm-action" onclick="clearLedger()">🗑 Clear Ledger</button>
+          <button class="btn-sm-action" onclick="exportLedgerCSV()">📥 Export CSV</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="obs-table" id="observation-table">
+          <thead>
+            <tr>
+              <th>Trial #</th>
+              <th>System Dimension</th>
+              <th>Master det(A)</th>
+              <th>Dx, Dy, Dz</th>
+              <th>Solution Vector x*</th>
+              <th>Adjugate A⁻¹b</th>
+              <th>Consistency Classification</th>
+              <th>Residual Norm ||r||</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="obs-table-body">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════ FULL-PAGE SECTION: 3D Apparatus Spatial Studio ════ -->
+    <section class="page-section" id="section-3d" style="display:none;">
+      <h2 class="section-title">
+        <span>🌐</span> 3D Spatial Geometry Studio &amp; Intersection Manifold
+      </h2>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Interact with the geometric manifolds representing equations in 3-dimensional space. Orbit around the three intersecting planes ($a_{i1}x + a_{i2}y + a_{i3}z = b_i$), inspect normal vectors $\vec{n}_i$, and verify whether they intersect at a single vertex point, along a line of solutions, or form a triangular prism with no common intersection.
+      </p>
+
+      <div style="height:520px;border:1px solid var(--border-subtle);border-radius:var(--radius-lg);overflow:hidden;position:relative;" id="studio-3d-container">
+        <!-- 3D Three.js canvas mounts here -->
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:700;color:var(--text-secondary);">Camera Angles:</span>
+        <button class="canvas-btn" onclick="setStudioCamera('iso')">Isometric View</button>
+        <button class="canvas-btn" onclick="setStudioCamera('top')">Top View (XY)</button>
+        <button class="canvas-btn" onclick="setStudioCamera('front')">Front View (XZ)</button>
+        <button class="canvas-btn" onclick="setStudioCamera('side')">Side View (YZ)</button>
+        <span style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-left:14px;">Plane Transparency:</span>
+        <input type="range" min="0.1" max="0.9" step="0.05" value="0.45" id="slider-plane-opacity" oninput="setPlaneOpacity(this.value)" style="width:140px;">
+      </div>
+
+      <div class="comp-grid" style="margin-top:20px;">
+        <div class="comp-card" onclick="focusStudioComponent('plane1')">
+          <h4 style="color:var(--col-x);">Plane 1 ($P_1$)</h4>
+          <p>Equation $a_{11}x + a_{12}y + a_{13}z = b_1$ with cyan normal vector.</p>
+        </div>
+        <div class="comp-card" onclick="focusStudioComponent('plane2')">
+          <h4 style="color:var(--col-y);">Plane 2 ($P_2$)</h4>
+          <p>Equation $a_{21}x + a_{22}y + a_{23}z = b_2$ with magenta normal vector.</p>
+        </div>
+        <div class="comp-card" onclick="focusStudioComponent('plane3')">
+          <h4 style="color:var(--col-z);">Plane 3 ($P_3$)</h4>
+          <p>Equation $a_{31}x + a_{32}y + a_{33}z = b_3$ with gold normal vector.</p>
+        </div>
+        <div class="comp-card" onclick="focusStudioComponent('vertex')">
+          <h4 style="color:var(--accent-emerald);">Intersection Vertex $(x^*, y^*, z^*)$</h4>
+          <p>The unique solution point where all three planar sheets concurrently meet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ FULL-PAGE SECTION: Determinant & Condition Scaling Curves ════ -->
+    <section class="page-section" id="section-graphs" style="display:none;">
+      <h2 class="section-title">
+        <span>📊</span> Determinant Scaling &amp; Condition Number Sensitivity
+      </h2>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Examine how perturbation in matrix coefficients affects the determinant $\det(A)$, condition number $\kappa(A)$, and the displacement of the solution vector $\vec{x}^*$.
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(400px, 1fr));gap:20px;">
+        <div style="background:#090e1c;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
+          <h4 style="font-size:13px;color:var(--accent-cyan);margin-bottom:10px;">Determinant vs. Coefficient Perturbation $\Delta a_{11}$</h4>
+          <canvas id="chart-det-curve" width="500" height="260" style="width:100%;height:260px;display:block;"></canvas>
+        </div>
+        <div style="background:#090e1c;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
+          <h4 style="font-size:13px;color:var(--accent-amber);margin-bottom:10px;">Condition Number &kappa;(A) &amp; Singularity Cliff</h4>
+          <canvas id="chart-cond-curve" width="500" height="260" style="width:100%;height:260px;display:block;"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ FULL-PAGE SECTION: Mathematical Theory & Foundations ════ -->
+    <section class="page-section" id="section-theory" style="display:none;">
+      <h2 class="section-title">
+        <span>📖</span> Theoretical Foundations: Cramer's Rule &amp; Matrix Inversion
+      </h2>
+      
+      <div style="line-height:1.8;font-size:14px;color:#cbd5e1;display:flex;flex-direction:column;gap:18px;">
+        <div>
+          <h3 style="color:#ffffff;font-size:16px;margin-bottom:6px;">1. Cramer's Theorem Proof via Determinant Multilinearity</h3>
+          <p>
+            Let $A = [\vec{a}_1, \vec{a}_2, \dots, \vec{a}_n]$ be an $n \times n$ matrix. The linear system $A\vec{x} = \vec{b}$ expands as the linear combination:
+            $$x_1 \vec{a}_1 + x_2 \vec{a}_2 + \dots + x_n \vec{a}_n = \vec{b}$$
+            Substitute $\vec{b}$ into the $i$-th column of $A$ to form matrix $A_i$:
+            $$\det(A_i) = \det([\vec{a}_1, \dots, \sum_{k=1}^n x_k \vec{a}_k, \dots, \vec{a}_n])$$
+            By the multilinearity of determinants across column vectors:
+            $$\det(A_i) = \sum_{k=1}^n x_k \det([\vec{a}_1, \dots, \vec{a}_k, \dots, \vec{a}_n])$$
+            Whenever $k \ne i$, the determinant contains two identical columns $(\vec{a}_k \text{ and } \vec{a}_k)$, which identically vanishes to zero. The only remaining non-zero term occurs when $k = i$:
+            $$\det(A_i) = x_i \det([\vec{a}_1, \dots, \vec{a}_i, \dots, \vec{a}_n]) = x_i \det(A)$$
+            Dividing by $\det(A) \ne 0$ yields Cramer's explicit identity:
+            $$x_i = \frac{\det(A_i)}{\det(A)}$$
+          </p>
+        </div>
+
+        <div>
+          <h3 style="color:#ffffff;font-size:16px;margin-bottom:6px;">2. Matrix Inversion via Adjugate Formulation</h3>
+          <p>
+            The fundamental identity linking an invertible matrix $A$ to its adjugate is:
+            $$A \cdot \text{adj}(A) = \det(A) \cdot I_n$$
+            where $[\text{adj}(A)]_{ij} = C_{ji} = (-1)^{i+j} M_{ji}$. If $\det(A) \ne 0$, dividing both sides by $\det(A)$ proves:
+            $$A^{-1} = \frac{1}{\det(A)} \text{adj}(A)$$
+            Multiplying $A^{-1}$ by $\vec{b}$:
+            $$\vec{x} = A^{-1} \vec{b} = \frac{1}{\det(A)} (\text{adj}(A) \cdot \vec{b})$$
+            The $i$-th row of $\text{adj}(A) \cdot \vec{b}$ evaluates to $\sum_{j=1}^n C_{ji} b_j$, which is precisely the Laplace expansion of the column-substituted matrix determinant $\det(A_i)$. Thus, Cramer's Rule and Matrix Inversion are algebraically identical!
+          </p>
+        </div>
+
+        <div>
+          <h3 style="color:#ffffff;font-size:16px;margin-bottom:6px;">3. Rouché–Capelli Singularity Classification</h3>
+          <table class="obs-table" style="margin-top:10px;">
+            <thead>
+              <tr>
+                <th>Determinant Condition</th>
+                <th>Rank Condition</th>
+                <th>Geometric Meaning</th>
+                <th>Classification</th>
+              </tr>
+            </thead>
             <tbody>
-              
-          <tr>
-            <td>Main Coefficient Determinant Delta</td>
-            <td id="out_delta" class="out-val">1.00</td>
-          </tr>
-          <tr>
-            <td>Solution Variable x = Dx/Delta</td>
-            <td id="out_x" class="out-val">4.00</td>
-          </tr>
-          <tr>
-            <td>Solution Variable y = Dy/Delta</td>
-            <td id="out_y" class="out-val">10.00</td>
-          </tr>
-          <tr>
-            <td>Solution Variable z = Dz/Delta</td>
-            <td id="out_z" class="out-val">-8.00</td>
-          </tr>
-          <tr>
-            <td>Linear System Consistency</td>
-            <td id="out_status" class="out-val">CRAMER'S RULE VERIFIED: x = 4.00, y = 10.00, z = -8.00</td>
-          </tr>
+              <tr>
+                <td>$D \ne 0$</td>
+                <td>$\text{rank}(A) = \text{rank}([A|\vec{b}]) = n$</td>
+                <td>Planes intersect at a unique vertex</td>
+                <td><span class="badge-status unique">Unique Solution</span></td>
+              </tr>
+              <tr>
+                <td>$D = 0$, some $D_i \ne 0$</td>
+                <td>$\text{rank}(A) < \text{rank}([A|\vec{b}])$</td>
+                <td>Planes form parallel sheets or triangular prism</td>
+                <td><span class="badge-status inconsistent">Inconsistent / No Solution</span></td>
+              </tr>
+              <tr>
+                <td>$D = 0$, all $D_i = 0$</td>
+                <td>$\text{rank}(A) = \text{rank}([A|\vec{b}]) < n$</td>
+                <td>Planes intersect along a continuous line</td>
+                <td><span class="badge-status dependent">Dependent / Infinite Solutions</span></td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div id="model3d-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128269; 3D Interactive Apparatus Model</h3>
-        <div id="three-canvas-container"></div>
-        <h4 style="margin-top:20px;color:#cbd5e1;">Apparatus Components (Click to Inspect):</h4>
-        <div class="comp-grid">
-          
-          <div class="comp-card" onclick="focusComponent('MatrixDeterminantGridCube3x3')">
-            <h4>3x3 Coefficient Matrix A</h4>
-            <p>3D matrix tensor grid holding linear system coefficients a_ij.</p>
-          </div>
-          <div class="comp-card" onclick="focusComponent('CoefficientMatrixSubSpaceVectors')">
-            <h4>Column Vectors (A1, A2, A3)</h4>
-            <p>3D basis vectors spanning the linear transformation subspace.</p>
-          </div>
-          <div class="comp-card" onclick="focusComponent('RightHandConstantsVectorB')">
-            <h4>Constants Vector B</h4>
-            <p>Target non-homogeneous vector B = [b1, b2, b3] transposed onto the space.</p>
-          </div>
-          <div class="comp-card" onclick="focusComponent('UniqueSolutionIntersectionPoint')">
-            <h4>Solution Node (x, y, z)</h4>
-            <p>Unique intersection point representing Cramer's rule solutions.</p>
-          </div>
-        </div>
+    <!-- ════ FULL-PAGE SECTION: Interactive Viva Voce Quiz ════ -->
+    <section class="page-section" id="section-quiz">
+      <h2 class="section-title">
+        <span>📝</span> Interactive Viva Voce &amp; Concept Evaluation Quiz
+      </h2>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span>Test your theoretical and applied understanding of Cramer's Rule, Inversion, and Singularity.</span>
+        <span style="font-weight:700;color:var(--accent-cyan);" id="quiz-score-tracker">Score: 0 / 4</span>
       </div>
-    </div>
 
-    <div id="explore-wrapper" style="display:none;">
-      <div class="panel">
-        <h3 class="panel-title">&#128214; Mathematical Theory &amp; Formulas</h3>
-        <p>BS102 Engineering Mathematics-II: System of Linear Equations Solver via Cramer's Rule x = Dx/D, y = Dy/D, z = Dz/D</p>
-        <div style="background:#1e293b;padding:16px;border-radius:8px;font-family:monospace;color:#38bdf8;margin:16px 0;">
-          Solve for the unknowns: $$x = \frac{\Delta_x}{\Delta},\quad y = \frac{\Delta_y}{\Delta},\quad z = \frac{\Delta_z}{\Delta}$$
-        </div>
-        <p>Understand the condition for unique consistency of non-homogeneous linear systems $A X = B$ (Determinant $\Delta = \det(A) \ne 0$).</p>
-        <p>Verify using matrix inversion: $$X = A^{-1} B = \frac{\text{Adj}(A)}{\det(A)} B$$</p>
+      <div class="quiz-container" id="quiz-root">
+        <!-- Quiz questions generated by JavaScript -->
       </div>
-    </div>
+    </section>
 
-    <!-- ════ User Guide Section ════ -->
-    <section class="user-guide" id="user-guide">
-      <h3>&#128218; Comprehensive User Guide &amp; Experimental Manual</h3>
-      <details open>
-        <summary>1. Overview &amp; Physical Principles</summary>
-        <div><p>Understand the condition for unique consistency of non-homogeneous linear systems $A X = B$ (Determinant $\Delta = \det(A) \ne 0$).</p></div>
+    <!-- ════ Comprehensive User Guide (SOP Accordion) ════ -->
+    <section class="page-section" id="user-guide">
+      <h2 class="section-title">
+        <span>📖</span> Comprehensive User Guide &amp; Experimental SOP Manual
+      </h2>
+
+      <details class="sop-item" open>
+        <summary>1. Principle &amp; Theoretical Overview</summary>
+        <div>
+          <p>
+            Cramer’s rule provides an explicit formula for the solution of a system of linear equations with as many equations as unknowns, valid whenever the system has a unique solution ($D = \det(A) \ne 0$). The simulation verifies this relationship both algebraically and geometrically in $\mathbb{R}^2$ and $\mathbb{R}^3$.
+          </p>
+        </div>
       </details>
-      <details>
-        <summary>2. Apparatus Setup &amp; Parameter Controls</summary>
-        <div><p>Evaluate Cramer's determinants $\Delta_x, \Delta_y, \Delta_z$ by replacing corresponding columns of $A$ with constants $B$.</p></div>
+
+      <details class="sop-item">
+        <summary>2. Step-by-Step Laboratory Procedure</summary>
+        <div>
+          <ol style="margin-left:20px;line-height:1.8;">
+            <li>Select system dimension ($2 \times 2$ or $3 \times 3$).</li>
+            <li>Input the coefficient matrix $A$ and constant vector $\vec{b}$ manually or load the curated benchmark presets.</li>
+            <li>Inspect the Master Determinant card: verify the Laplace expansion along row 1.</li>
+            <li>Observe the modified column determinants $D_x, D_y, D_z$ where column $i$ is replaced with $\vec{b}$.</li>
+            <li>Verify Cramer’s quotient: $x_i = D_i / D$.</li>
+            <li>Switch to the <b>Matrix Inversion</b> tab: follow the minors matrix, check sign flips for cofactors, transpose for the adjugate, and multiply $A^{-1}\vec{b}$.</li>
+            <li>Explore the <b>3D Spatial Studio</b>: rotate the camera around the intersecting planes and column parallelepiped.</li>
+            <li>Log the completed trial to the <b>Observation Notebook</b> and export the final lab report as a CSV.</li>
+          </ol>
+        </div>
       </details>
-      <details>
-        <summary>3. Mathematical Formulas &amp; Diagnostic Telemetry</summary>
-        <div><p>Solve for the unknowns: $$x = \frac{\Delta_x}{\Delta},\quad y = \frac{\Delta_y}{\Delta},\quad z = \frac{\Delta_z}{\Delta}$$</p></div>
+
+      <details class="sop-item">
+        <summary>3. Geometric Interpretations (Row vs. Column Picture)</summary>
+        <div>
+          <p>
+            <b>Row Picture:</b> Each equation $a_{i1}x + a_{i2}y + a_{i3}z = b_i$ represents a flat plane in $\mathbb{R}^3$. The solution is the point intersection of all three planes.
+          </p>
+          <p style="margin-top:8px;">
+            <b>Column Picture:</b> The equation $x_1 \vec{a}_1 + x_2 \vec{a}_2 + x_3 \vec{a}_3 = \vec{b}$ represents reaching vector $\vec{b}$ by scaling column basis vectors. The volume of the parallelepiped spanned by $\vec{a}_i$ equals $|\det(A)|$.
+          </p>
+        </div>
       </details>
-      <details>
-        <summary>4. Step-by-Step Procedure &amp; Calibration</summary>
-        <div><p>Verify using matrix inversion: $$X = A^{-1} B = \frac{\text{Adj}(A)}{\det(A)} B$$</p></div>
+
+      <details class="sop-item">
+        <summary>4. Diagnostic Singularity &amp; Inconsistency Identification</summary>
+        <div>
+          <p>
+            When $\det(A) = 0$, Cramer's rule cannot divide by zero. Inspect the modified determinants:
+            - If any $D_i \ne 0$, the planes do not intersect at any common point (e.g. triangular prism or parallel sheets) $\implies$ Inconsistent system.
+            - If all $D_i = 0$, the planes intersect along a continuous line or are coincident $\implies$ Dependent system with infinitely many solutions.
+          </p>
+        </div>
       </details>
-      <details>
-        <summary>5. Numerical Problem &amp; Sample Calculation</summary>
-        <div><p>Apply linear solvers in electrical Kirchhoff loop analysis and structural truss nodal equations.</p></div>
+
+      <details class="sop-item">
+        <summary>5. Numerical Benchmark Problem</summary>
+        <div>
+          <p>
+            Benchmark 3x3 Problem:
+            Row 1: $1x + 2y + 3z = 9$ | Row 2: $2x - 1y + 1z = 8$ | Row 3: $3x + 0y - 1z = 3$.
+            $D = 20, D_x = 40 \implies x = 2.00$; $D_y = -20 \implies y = -1.00$; $D_z = 60 \implies z = 3.00$.
+          </p>
+        </div>
       </details>
-      <details>
+
+      <details class="sop-item">
         <summary>6. Syllabus Mapping &amp; Standard Codes</summary>
-        <div><p>Reference: WBSCTE Engineering Mathematics-II (BS102).</p></div>
+        <div>
+          <p>
+            Curriculum Alignment: WBSCTE Diploma in Engineering — Engineering Mathematics-II (BS102/BS104), Unit 1: Matrices and Determinants.
+          </p>
+        </div>
       </details>
     </section>
 
-    <!-- ════ SEO Technical Article ════ -->
-    <section class="seo-article">
-      <h2>Engineering Reference &amp; Laboratory Standards: Cramer's Rule & Matrix Inversion Solver</h2>
-      <p>BS102 Engineering Mathematics-II: System of Linear Equations Solver via Cramer's Rule x = Dx/D, y = Dy/D, z = Dz/D</p>
-      <h3>Experimental Apparatus &amp; Scientific Methodology</h3>
-      <p>Understand the condition for unique consistency of non-homogeneous linear systems $A X = B$ (Determinant $\Delta = \det(A) \ne 0$). Evaluate Cramer's determinants $\Delta_x, \Delta_y, \Delta_z$ by replacing corresponding columns of $A$ with constants $B$.</p>
-      <h3>Governing Equations &amp; Analytical Formulations</h3>
-      <p>Solve for the unknowns: $$x = \frac{\Delta_x}{\Delta},\quad y = \frac{\Delta_y}{\Delta},\quad z = \frac{\Delta_z}{\Delta}$$ Verify using matrix inversion: $$X = A^{-1} B = \frac{\text{Adj}(A)}{\det(A)} B$$</p>
-      <h3>Industrial &amp; Engineering Applications</h3>
-      <p>Apply linear solvers in electrical Kirchhoff loop analysis and structural truss nodal equations. Designed in strict alignment with Reference: WBSCTE Engineering Mathematics-II (BS102)..</p>
-    </section>
   </main>
 
   <script src="../../shared/sidebar/sidebar.js"></script>
+
+  <!-- ════ Inline Pure Vanilla JavaScript Solver & Engine ════ -->
   <script>
-    let scene, camera, renderer, controls, modelGroup;
-    const canvas = document.getElementById('sim-canvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+    /* ==========================================================================
+       Linear Algebra Engine, Geometric Renderer, and Audio Synthesizer
+       ========================================================================== */
+    
+    // Application State
+    const state = {
+      n: 3, // 2 or 3
+      A: [
+        [1, 2, 3],
+        [2, -1, 1],
+        [3, 0, -1]
+      ],
+      b: [9, 8, 3],
+      exactFractions: false,
+      soundEnabled: true,
+      geomPicture: 'row', // 'row' or 'col'
+      is3DCanvas: false,
+      hudVisible: true,
+      activeHudTab: 'cramer',
+      results: null,
+      zoom2D: 35, // pixels per unit
+      pan2D: { x: 0, y: 0 },
+      isDragging2D: false,
+      dragStart2D: { x: 0, y: 0 },
+      three: {
+        scene: null,
+        camera: null,
+        renderer: null,
+        controls: null,
+        planesGroup: null,
+        colGroup: null,
+        initialized: false
+      },
+      studioThree: {
+        scene: null,
+        camera: null,
+        renderer: null,
+        controls: null,
+        initialized: false
+      },
+      ledger: []
+    };
 
-    function drawSim(arg1, arg2, arg3, arg4) {
-      
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, width, height);
-
-            // Matrix Equations Display
-            ctx.fillStyle = '#38bdf8';
-            ctx.font = '14px monospace';
-            ctx.fillText('│ 2  1  1 │ │ x │   │ b1 │', 100, 100);
-            ctx.fillText('│ 1  3  2 │ │ y │ = │ b2 │', 100, 130);
-            ctx.fillText('│ 1  1  1 │ │ z │   │ b3 │', 100, 160);
-
-            ctx.fillStyle = '#ffd600';
-            ctx.fillText('Determinant Δ = ' + arg4.toFixed(1), 100, 220);
-            ctx.fillText('Solution Vector: [ x = ' + arg1.toFixed(2) + ', y = ' + arg2.toFixed(2) + ', z = ' + arg3.toFixed(2) + ' ]', 100, 260);
-        
-    }
-
-    function runSim() {
-      
-            const b1 = parseFloat(document.getElementById('a11').value);
-            const b2 = parseFloat(document.getElementById('a21').value);
-            const b3 = parseFloat(document.getElementById('a31').value);
-
-            // Matrix A = [[2,1,1],[1,3,2],[1,1,1]] -> det = 1.0
-            const delta = 1.0;
-            // Dx = det([[b1,1,1],[b2,3,2],[b3,1,1]]) = b1(3-2) - 1(b2-2b3) + 1(b2-3b3) = b1 - b2 + 2b3 + b2 - 3b3 = b1 - b3
-            const dx = b1 - b3;
-            // Dy = det([[2,b1,1],[1,b2,2],[1,b3,1]]) = 2(b2-2b3) - b1(1-2) + 1(b3-b2) = 2b2 - 4b3 + b1 + b3 - b2 = b1 + b2 - 3b3
-            const dy = b1 + b2 - 3.0 * b3;
-            // Dz = det([[2,1,b1],[1,3,b2],[1,1,b3]]) = 2(3b3-b2) - 1(b3-b2) + b1(1-3) = 6b3 - 2b2 - b3 + b2 - 2b1 = -2b1 - b2 + 5b3
-            const dz = -2.0 * b1 - b2 + 5.0 * b3;
-
-            const x = dx / delta;
-            const y = dy / delta;
-            const z = dz / delta;
-
-            document.getElementById('out_delta').innerText = delta.toFixed(2);
-            document.getElementById('out_x').innerText = x.toFixed(2);
-            document.getElementById('out_y').innerText = y.toFixed(2);
-            document.getElementById('out_z').innerText = z.toFixed(2);
-            document.getElementById('out_status').innerText = "CRAMER'S RULE VERIFIED: x = " + x.toFixed(2) + ", y = " + y.toFixed(2) + ", z = " + z.toFixed(2);
-            drawSim(x, y, z, delta);
-        
-    }
-
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('sim-wrapper').style.display = (mode === 'sim') ? 'grid' : 'none';
-      document.getElementById('model3d-wrapper').style.display = (mode === '3d') ? 'block' : 'none';
-      document.getElementById('explore-wrapper').style.display = (mode === 'explore') ? 'block' : 'none';
-
-      if (mode === '3d' && !renderer) {
-        initThree();
+    // Web Audio Synthesizer
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
       }
     }
 
-    function initThree() {
-      const container = document.getElementById('three-canvas-container');
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x020617);
+    function playSound(type) {
+      if (!state.soundEnabled) return;
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
 
-      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-      camera.position.set(2, 1.5, 3);
+        if (type === 'click') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.linearRampToValueAtTime(0.001, now + 0.04);
+          osc.start(now);
+          osc.stop(now + 0.04);
+        } else if (type === 'harmonic') {
+          [523.25, 659.25, 783.99].forEach((freq, i) => {
+            const chordOsc = audioCtx.createOscillator();
+            const chordGain = audioCtx.createGain();
+            chordOsc.type = 'triangle';
+            chordOsc.frequency.setValueAtTime(freq, now + i * 0.05);
+            chordGain.gain.setValueAtTime(0.06, now + i * 0.05);
+            chordGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+            chordOsc.connect(chordGain);
+            chordGain.connect(audioCtx.destination);
+            chordOsc.start(now + i * 0.05);
+            chordOsc.stop(now + 0.5);
+          });
+        } else if (type === 'discord') {
+          [220, 233.08].forEach((freq) => {
+            const dOsc = audioCtx.createOscillator();
+            const dGain = audioCtx.createGain();
+            dOsc.type = 'sawtooth';
+            dOsc.frequency.setValueAtTime(freq, now);
+            dGain.gain.setValueAtTime(0.07, now);
+            dGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            dOsc.connect(dGain);
+            dGain.connect(audioCtx.destination);
+            dOsc.start(now);
+            dOsc.stop(now + 0.35);
+          });
+        }
+      } catch (e) {}
+    }
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
+    // Exact Fraction Arithmetic Helper
+    class Fraction {
+      constructor(num, den = 1) {
+        if (den < 0) { num = -num; den = -den; }
+        const g = this.gcd(Math.abs(Math.round(num)), Math.abs(Math.round(den))) || 1;
+        this.num = Math.round(num) / g;
+        this.den = Math.round(den) / g;
+      }
+      gcd(a, b) { return b === 0 ? a : this.gcd(b, a % b); }
+      toStr() {
+        if (this.den === 1) return `${this.num}`;
+        if (this.den === 0) return 'undef';
+        return `${this.num}/${this.den}`;
+      }
+      toFloat() { return this.num / this.den; }
+    }
+
+    // Linear Algebra Functions
+    function det2x2(m) {
+      return m[0][0] * m[1][1] - m[0][1] * m[1][0];
+    }
+
+    function det3x3(m) {
+      return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+           - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+           + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    }
+
+    function computeSystem() {
+      const n = state.n;
+      const A = state.A.map(row => row.slice(0, n));
+      const b = state.b.slice(0, n);
+
+      let D = 0;
+      let Di = [];
+      let minors = [];
+      let cofactors = [];
+      let adjugate = [];
+      let inverse = null;
+      let xSol = [];
+
+      if (n === 2) {
+        D = det2x2(A);
+        // Column replacement matrices
+        const A1 = [[b[0], A[0][1]], [b[1], A[1][1]]];
+        const A2 = [[A[0][0], b[0]], [A[1][0], b[1]]];
+        Di = [det2x2(A1), det2x2(A2)];
+
+        // Minors & Cofactors
+        minors = [
+          [A[1][1], A[1][0]],
+          [A[0][1], A[0][0]]
+        ];
+        cofactors = [
+          [A[1][1], -A[1][0]],
+          [-A[0][1], A[0][0]]
+        ];
+        adjugate = [
+          [cofactors[0][0], cofactors[1][0]],
+          [cofactors[0][1], cofactors[1][1]]
+        ];
+      } else {
+        D = det3x3(A);
+        // Column replacement matrices
+        const A1 = [
+          [b[0], A[0][1], A[0][2]],
+          [b[1], A[1][1], A[1][2]],
+          [b[2], A[2][1], A[2][2]]
+        ];
+        const A2 = [
+          [A[0][0], b[0], A[0][2]],
+          [A[1][0], b[1], A[1][2]],
+          [A[2][0], b[2], A[2][2]]
+        ];
+        const A3 = [
+          [A[0][0], A[0][1], b[0]],
+          [A[1][0], A[1][1], b[1]],
+          [A[2][0], A[2][1], b[2]]
+        ];
+        Di = [det3x3(A1), det3x3(A2), det3x3(A3)];
+
+        // 3x3 Minors & Cofactors
+        minors = [];
+        cofactors = [];
+        adjugate = [[0,0,0],[0,0,0],[0,0,0]];
+
+        for (let i = 0; i < 3; i++) {
+          minors[i] = [];
+          cofactors[i] = [];
+          for (let j = 0; j < 3; j++) {
+            // submatrix deleting row i, col j
+            const sub = [];
+            for (let r = 0; r < 3; r++) {
+              if (r === i) continue;
+              const subRow = [];
+              for (let c = 0; c < 3; c++) {
+                if (c === j) continue;
+                subRow.push(A[r][c]);
+              }
+              sub.push(subRow);
+            }
+            const mVal = det2x2(sub);
+            minors[i][j] = mVal;
+            const sign = ((i + j) % 2 === 0) ? 1 : -1;
+            cofactors[i][j] = sign * mVal;
+            adjugate[j][i] = sign * mVal; // transposed
+          }
+        }
+      }
+
+      // Invertibility & Solutions
+      const EPS = 1e-7;
+      const isSingular = Math.abs(D) < EPS;
+      let status = 'unique';
+
+      if (!isSingular) {
+        status = 'unique';
+        xSol = Di.map(d => d / D);
+        // Inverse matrix = adjugate / D
+        inverse = adjugate.map(row => row.map(val => val / D));
+      } else {
+        const anyDiNonZero = Di.some(d => Math.abs(d) >= EPS);
+        if (anyDiNonZero) {
+          status = 'inconsistent';
+        } else {
+          status = 'dependent';
+        }
+      }
+
+      // Rank via Gaussian Elimination on Augmented Matrix [A | b]
+      const rankA = matrixRank(A);
+      const augmented = A.map((row, i) => [...row, b[i]]);
+      const rankAb = matrixRank(augmented);
+
+      if (rankA < rankAb) {
+        status = 'inconsistent';
+      } else if (rankA === rankAb && rankA < n) {
+        status = 'dependent';
+      }
+
+      // Residual norm ||A x - b||
+      let residualNorm = 0;
+      let resVector = [];
+      if (status === 'unique') {
+        for (let i = 0; i < n; i++) {
+          let ax_i = 0;
+          for (let j = 0; j < n; j++) {
+            ax_i += A[i][j] * xSol[j];
+          }
+          const diff = ax_i - b[i];
+          resVector.push(diff);
+          residualNorm += diff * diff;
+        }
+        residualNorm = Math.sqrt(residualNorm);
+      }
+
+      // Condition number estimation: ||A||_F * ||A^-1||_F
+      let condNum = 1.0;
+      if (status === 'unique' && inverse) {
+        let normA = 0, normInv = 0;
+        for (let i = 0; i < n; i++) {
+          for (let j = 0; j < n; j++) {
+            normA += A[i][j] * A[i][j];
+            normInv += inverse[i][j] * inverse[i][j];
+          }
+        }
+        condNum = Math.sqrt(normA) * Math.sqrt(normInv);
+      } else {
+        condNum = Infinity;
+      }
+
+      state.results = {
+        D, Di, minors, cofactors, adjugate, inverse, xSol, status,
+        rankA, rankAb, residualNorm, resVector, condNum
+      };
+
+      return state.results;
+    }
+
+    function matrixRank(mat) {
+      const m = mat.length;
+      const n = mat[0].length;
+      const copy = mat.map(row => [...row]);
+      let rank = 0;
+      const EPS = 1e-9;
+
+      for (let col = 0; col < n && rank < m; col++) {
+        let pivotRow = rank;
+        for (let r = rank + 1; r < m; r++) {
+          if (Math.abs(copy[r][col]) > Math.abs(copy[pivotRow][col])) {
+            pivotRow = r;
+          }
+        }
+        if (Math.abs(copy[pivotRow][col]) < EPS) continue;
+
+        // swap
+        const tmp = copy[rank];
+        copy[rank] = copy[pivotRow];
+        copy[pivotRow] = tmp;
+
+        for (let r = rank + 1; r < m; r++) {
+          const factor = copy[r][col] / copy[rank][col];
+          for (let c = col; c < n; c++) {
+            copy[r][c] -= factor * copy[rank][c];
+          }
+        }
+        rank++;
+      }
+      return rank;
+    }
+
+    // UI Renderers & Updaters
+    function updateAll() {
+      computeSystem();
+      renderMatrixInputs();
+      renderSlidersDrawer();
+      renderHudSummary();
+      renderWalkthroughTabs();
+      draw2DCanvas();
+      update3DScene();
+      updateSensitivityCharts();
+    }
+
+    function renderMatrixInputs() {
+      const n = state.n;
+      const gridA = document.getElementById('matrix-a-grid');
+      const gridB = document.getElementById('matrix-b-grid');
+      gridA.className = n === 2 ? 'matrix-cell-grid grid-2x2' : 'matrix-cell-grid grid-3x3';
+
+      let htmlA = '';
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const val = state.A[i][j];
+          htmlA += `
+            <div class="cell-input-box">
+              <span class="cell-label">a${i+1}${j+1}</span>
+              <input type="number" step="1" class="matrix-input" value="${val}"
+                onchange="setCellA(${i}, ${j}, this.value)"
+                onfocus="highlightCell(${i}, ${j})" />
+            </div>
+          `;
+        }
+      }
+      gridA.innerHTML = htmlA;
+
+      let htmlB = '';
+      for (let i = 0; i < n; i++) {
+        const val = state.b[i];
+        htmlB += `
+          <div class="cell-input-box">
+            <span class="cell-label">b${i+1}</span>
+            <input type="number" step="1" class="matrix-input col-b-input" value="${val}"
+              onchange="setCellB(${i}, this.value)" />
+          </div>
+        `;
+      }
+      gridB.innerHTML = htmlB;
+
+      document.getElementById('x3-label-row').style.display = n === 2 ? 'none' : 'block';
+      document.getElementById('hud-dim').textContent = `${n} × ${n} System`;
+      document.getElementById('badge-system-type').textContent = `${n}x${n} Matrix`;
+    }
+
+    function renderSlidersDrawer() {
+      const n = state.n;
+      const container = document.getElementById('sliders-drawer');
+      let html = '';
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const val = state.A[i][j];
+          html += `
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-family:var(--font-mono);">
+              <span style="width:36px;color:var(--text-muted);">a${i+1}${j+1}:</span>
+              <input type="range" min="-10" max="10" step="0.5" value="${val}"
+                oninput="setCellA(${i}, ${j}, this.value, true)" style="flex:1;">
+              <span style="width:28px;text-align:right;color:var(--accent-cyan);font-weight:700;">${val}</span>
+            </div>
+          `;
+        }
+      }
+      container.innerHTML = html;
+    }
+
+    function renderHudSummary() {
+      const res = state.results;
+      const detEl = document.getElementById('hud-det');
+      const solEl = document.getElementById('hud-sol');
+      const statusEl = document.getElementById('hud-status');
+      const residualEl = document.getElementById('hud-residual');
+
+      detEl.textContent = formatNum(res.D);
+      statusEl.className = `hud-val status-${res.status}`;
+
+      if (res.status === 'unique') {
+        statusEl.textContent = 'UNIQUE SOLUTION';
+        const formatted = res.xSol.map(x => formatNum(x)).join(', ');
+        solEl.textContent = `[ ${formatted} ]`;
+        residualEl.textContent = res.residualNorm.toFixed(6);
+        residualEl.style.color = 'var(--accent-emerald)';
+      } else if (res.status === 'inconsistent') {
+        statusEl.textContent = 'INCONSISTENT (NO SOL)';
+        solEl.textContent = 'Empty Set ∅ (Parallel)';
+        residualEl.textContent = 'Undefined';
+        residualEl.style.color = 'var(--accent-rose)';
+      } else {
+        statusEl.textContent = 'DEPENDENT (INFINITE)';
+        solEl.textContent = 'Infinite Line/Plane';
+        residualEl.textContent = 'Rank Deficient';
+        residualEl.style.color = 'var(--accent-amber)';
+      }
+    }
+
+    function renderWalkthroughTabs() {
+      const res = state.results;
+      const n = state.n;
+
+      // ── Tab 1: Cramer's Rule Walkthrough ──
+      const dExp = document.getElementById('cramer-d-expansion');
+      if (n === 2) {
+        const a11 = state.A[0][0], a12 = state.A[0][1];
+        const a21 = state.A[1][0], a22 = state.A[1][1];
+        dExp.innerHTML = `
+          <span>D = (${a11})(${a22}) - (${a12})(${a21})</span>
+          <span>= ${a11*a22} - ${a12*a21}</span>
+        `;
+        document.getElementById('cramer-dz-card').style.display = 'none';
+      } else {
+        const A = state.A;
+        const term1 = A[0][0] * (A[1][1]*A[2][2] - A[1][2]*A[2][1]);
+        const term2 = A[0][1] * (A[1][0]*A[2][2] - A[1][2]*A[2][0]);
+        const term3 = A[0][2] * (A[1][0]*A[2][1] - A[1][1]*A[2][0]);
+        dExp.innerHTML = `
+          <span>${A[0][0]} &times; [(${A[1][1]})(${A[2][2]}) - (${A[1][2]})(${A[2][1]})]</span>
+          <span>- ${A[0][1]} &times; [(${A[1][0]})(${A[2][2]}) - (${A[1][2]})(${A[2][0]})]</span>
+          <span>+ ${A[0][2]} &times; [(${A[1][0]})(${A[2][1]}) - (${A[1][1]})(${A[2][0]})]</span>
+          <span>= ${term1} - ${term2} + ${term3}</span>
+        `;
+        document.getElementById('cramer-dz-card').style.display = 'block';
+      }
+      document.getElementById('cramer-d-val').textContent = `D = ${formatNum(res.D)}`;
+
+      // Dx
+      document.getElementById('cramer-dx-val').textContent = formatNum(res.Di[0]);
+      if (res.status === 'unique') {
+        document.getElementById('cramer-x-pill').textContent = `x = ${formatNum(res.xSol[0])}`;
+        document.getElementById('cramer-x-pill').style.display = 'inline-flex';
+      } else {
+        document.getElementById('cramer-x-pill').style.display = 'none';
+      }
+
+      // Dy
+      document.getElementById('cramer-dy-val').textContent = formatNum(res.Di[1]);
+      if (res.status === 'unique') {
+        document.getElementById('cramer-y-pill').textContent = `y = ${formatNum(res.xSol[1])}`;
+        document.getElementById('cramer-y-pill').style.display = 'inline-flex';
+      } else {
+        document.getElementById('cramer-y-pill').style.display = 'none';
+      }
+
+      // Dz
+      if (n === 3) {
+        document.getElementById('cramer-dz-val').textContent = formatNum(res.Di[2]);
+        if (res.status === 'unique') {
+          document.getElementById('cramer-z-pill').textContent = `z = ${formatNum(res.xSol[2])}`;
+          document.getElementById('cramer-z-pill').style.display = 'inline-flex';
+        } else {
+          document.getElementById('cramer-z-pill').style.display = 'none';
+        }
+      }
+
+      // ── Tab 2: Matrix Inversion Walkthrough ──
+      const invDetEl = document.getElementById('inv-det-text');
+      if (res.status === 'unique') {
+        invDetEl.textContent = `det(A) = ${formatNum(res.D)} ≠ 0 ⟹ A is non-singular. Inverse exists uniquely!`;
+        document.getElementById('inv-det-status').className = 'badge-tag';
+        document.getElementById('inv-det-status').textContent = 'Invertible';
+      } else {
+        invDetEl.textContent = `det(A) = 0 ⟹ A is singular. Inverse matrix A⁻¹ does NOT exist!`;
+        document.getElementById('inv-det-status').className = 'badge-tag secondary';
+        document.getElementById('inv-det-status').textContent = 'Singular Matrix';
+      }
+
+      // Minors Grid
+      renderMatrixDisplayGrid('inv-minors-grid', res.minors);
+      // Cofactors Grid
+      renderMatrixDisplayGrid('inv-cofactors-grid', res.cofactors);
+      // Adjugate Grid
+      renderMatrixDisplayGrid('inv-adjugate-grid', res.adjugate);
+      // Inverse Grid
+      if (res.inverse) {
+        renderMatrixDisplayGrid('inv-inverse-grid', res.inverse, true);
+        const solParts = res.xSol.map((x, i) => `x${i+1} = ${formatNum(x)}`).join(', ');
+        document.getElementById('inv-solution-text').textContent = `x* = A⁻¹ * b = [ ${solParts} ]`;
+      } else {
+        document.getElementById('inv-inverse-grid').innerHTML = '<div style="grid-column:1/-1;color:var(--accent-rose);text-align:center;padding:8px;">A⁻¹ does not exist (det A = 0)</div>';
+        document.getElementById('inv-solution-text').textContent = 'No Unique Inverse Solution';
+      }
+
+      // ── Tab 3: Volume & Geometry HUD ──
+      document.getElementById('geom-vol-a').textContent = Math.abs(res.D).toFixed(2);
+      document.getElementById('geom-vol-ax').textContent = Math.abs(res.Di[0]).toFixed(2);
+      document.getElementById('geom-vol-ay').textContent = Math.abs(res.Di[1]).toFixed(2);
+      if (n === 3) {
+        document.getElementById('geom-vol-az-row').style.display = 'block';
+        document.getElementById('geom-vol-az').textContent = Math.abs(res.Di[2]).toFixed(2);
+      } else {
+        document.getElementById('geom-vol-az-row').style.display = 'none';
+      }
+
+      let normalsHtml = '';
+      for (let i = 0; i < n; i++) {
+        const vecStr = state.A[i].slice(0, n).map(v => formatNum(v)).join(', ');
+        const col = i === 0 ? 'var(--col-x)' : (i === 1 ? 'var(--col-y)' : 'var(--col-z)');
+        normalsHtml += `<div><span style="color:${col};font-weight:700;">Plane ${i+1} Normal:</span> n${i+1} = [ ${vecStr} ], const b${i+1} = ${state.b[i]}</div>`;
+      }
+      document.getElementById('geom-normals-list').innerHTML = normalsHtml;
+
+      // ── Tab 4: Rouché-Capelli & Residual ──
+      document.getElementById('rouche-rank-a').textContent = `rank(A) = ${res.rankA}`;
+      document.getElementById('rouche-rank-ab').textContent = `rank([A|b]) = ${res.rankAb}`;
+      document.getElementById('rouche-n').textContent = `n = ${n}`;
+
+      const summaryBox = document.getElementById('rouche-summary-text');
+      if (res.status === 'unique') {
+        summaryBox.innerHTML = `rank(A) = rank([A|b]) = ${n} &rArr; System is <b>Consistent with a Single Unique Solution</b>.`;
+        summaryBox.style.color = 'var(--accent-emerald)';
+      } else if (res.status === 'inconsistent') {
+        summaryBox.innerHTML = `rank(A) = ${res.rankA} &lt; rank([A|b]) = ${res.rankAb} &rArr; System is <b>Inconsistent (No Solution)</b>.`;
+        summaryBox.style.color = 'var(--accent-rose)';
+      } else {
+        summaryBox.innerHTML = `rank(A) = rank([A|b]) = ${res.rankA} &lt; ${n} &rArr; System is <b>Linearly Dependent with Infinitely Many Solutions</b>.`;
+        summaryBox.style.color = 'var(--accent-amber)';
+      }
+
+      document.getElementById('audit-cond').textContent = isFinite(res.condNum) ? res.condNum.toFixed(2) : '∞ (Singular)';
+      if (res.status === 'unique') {
+        document.getElementById('audit-res-vec').textContent = `[ ${res.resVector.map(r => r.toFixed(4)).join(', ')} ]`;
+        document.getElementById('audit-res-norm').textContent = res.residualNorm.toFixed(7);
+      } else {
+        document.getElementById('audit-res-vec').textContent = 'N/A';
+        document.getElementById('audit-res-norm').textContent = 'N/A';
+      }
+    }
+
+    function renderMatrixDisplayGrid(id, mat, isFloat = false) {
+      const container = document.getElementById(id);
+      if (!mat || !mat.length) {
+        container.innerHTML = '';
+        return;
+      }
+      const n = mat.length;
+      container.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+      let html = '';
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const val = mat[i][j];
+          const formatted = isFloat ? val.toFixed(2) : formatNum(val);
+          html += `<div class="matrix-display-cell">${formatted}</div>`;
+        }
+      }
+      container.innerHTML = html;
+    }
+
+    function formatNum(val) {
+      if (typeof val !== 'number') return val;
+      if (state.exactFractions) {
+        // approximate fraction
+        const f = new Fraction(val);
+        return f.toStr();
+      }
+      if (Number.isInteger(val)) return val.toString();
+      return val.toFixed(2);
+    }
+
+    // ════ 2D Interactive Canvas Renderer ════
+    function draw2DCanvas() {
+      const canvas = document.getElementById('geom-canvas');
+      if (!canvas || state.is3DCanvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Coordinate Transform
+      const originX = w / 2 + state.pan2D.x;
+      const originY = h / 2 + state.pan2D.y;
+      const scale = state.zoom2D;
+
+      // Draw Grid
+      ctx.strokeStyle = '#131e36';
+      ctx.lineWidth = 1;
+      const step = scale;
+
+      for (let x = originX % step; x < w; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = originY % step; y < h; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Draw Axes
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      // X Axis
+      ctx.beginPath();
+      ctx.moveTo(0, originY);
+      ctx.lineTo(w, originY);
+      ctx.stroke();
+      // Y Axis
+      ctx.beginPath();
+      ctx.moveTo(originX, 0);
+      ctx.lineTo(originX, h);
+      ctx.stroke();
+
+      // Origin Marker & Axis Labels
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px monospace';
+      ctx.fillText('(0, 0)', originX + 5, originY + 15);
+      ctx.fillText('+X', w - 24, originY - 6);
+      ctx.fillText('+Y', originX + 6, 16);
+
+      const n = state.n;
+      const res = state.results;
+
+      if (state.geomPicture === 'row') {
+        // ── Row Picture: Intersecting Lines ──
+        const colors = ['#06b6d4', '#ec4899', '#eab308'];
+
+        for (let i = 0; i < Math.min(n, 2); i++) {
+          const a1 = state.A[i][0];
+          const a2 = state.A[i][1];
+          const bVal = state.b[i];
+
+          ctx.strokeStyle = colors[i];
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+
+          // a1 * x + a2 * y = bVal  => find two points on viewport
+          if (Math.abs(a2) > 1e-6) {
+            const xLeft = - (originX / scale) - 2;
+            const yLeft = (bVal - a1 * xLeft) / a2;
+            const xRight = (w - originX) / scale + 2;
+            const yRight = (bVal - a1 * xRight) / a2;
+
+            ctx.moveTo(originX + xLeft * scale, originY - yLeft * scale);
+            ctx.lineTo(originX + xRight * scale, originY - yRight * scale);
+          } else if (Math.abs(a1) > 1e-6) {
+            // vertical line x = bVal / a1
+            const xConst = bVal / a1;
+            ctx.moveTo(originX + xConst * scale, 0);
+            ctx.lineTo(originX + xConst * scale, h);
+          }
+          ctx.stroke();
+
+          // Draw Normal Vector from a point on the line
+          let px = 0, py = 0;
+          if (Math.abs(a2) > 1e-6) { py = bVal / a2; }
+          else if (Math.abs(a1) > 1e-6) { px = bVal / a1; }
+
+          const nLen = Math.hypot(a1, a2) || 1;
+          const nx = (a1 / nLen) * 1.5;
+          const ny = (a2 / nLen) * 1.5;
+
+          const sx = originX + px * scale;
+          const sy = originY - py * scale;
+          const ex = originX + (px + nx) * scale;
+          const ey = originY - (py + ny) * scale;
+
+          ctx.strokeStyle = colors[i];
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+
+          // Normal arrow tip
+          drawArrowTip(ctx, sx, sy, ex, ey, colors[i]);
+          ctx.fillStyle = colors[i];
+          ctx.font = '11px monospace';
+          ctx.fillText(`L${i+1}: ${a1}x + ${a2}y = ${bVal}`, sx + 10, sy - 8);
+        }
+
+        // Intersection Point (x*, y*)
+        if (res.status === 'unique') {
+          const ix = originX + res.xSol[0] * scale;
+          const iy = originY - res.xSol[1] * scale;
+
+          // Glowing point
+          ctx.fillStyle = '#10b981';
+          ctx.shadowColor = '#10b981';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(ix, iy, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = 'bold 12px monospace';
+          ctx.fillText(`Vertex (${res.xSol[0].toFixed(2)}, ${res.xSol[1].toFixed(2)})`, ix + 12, iy - 10);
+        } else if (res.status === 'inconsistent') {
+          ctx.fillStyle = '#f43f5e';
+          ctx.font = 'bold 14px monospace';
+          ctx.fillText('⚡ Parallel Lines — Inconsistent System (∅)', originX - 160, originY - 140);
+        } else {
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = 'bold 14px monospace';
+          ctx.fillText('∞ Coincident Lines — Linearly Dependent', originX - 150, originY - 140);
+        }
+
+      } else {
+        // ── Column Picture: Vectors & Parallelogram Area ──
+        const col1 = [state.A[0][0], state.A[1][0]];
+        const col2 = [state.A[0][1], state.A[1][1]];
+        const targetB = [state.b[0], state.b[1]];
+
+        // Draw Parallelogram spanned by col1 and col2
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + col1[0] * scale, originY - col1[1] * scale);
+        ctx.lineTo(originX + (col1[0] + col2[0]) * scale, originY - (col1[1] + col2[1]) * scale);
+        ctx.lineTo(originX + col2[0] * scale, originY - col2[1] * scale);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw col1 vector
+        drawVector2D(ctx, originX, originY, col1[0], col1[1], scale, '#06b6d4', 'a₁');
+        // Draw col2 vector
+        drawVector2D(ctx, originX, originY, col2[0], col2[1], scale, '#ec4899', 'a₂');
+        // Draw target b vector
+        drawVector2D(ctx, originX, originY, targetB[0], targetB[1], scale, '#10b981', 'b');
+
+        // Area annotation
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '12px monospace';
+        ctx.fillText(`Base Area = |det(A)| = ${Math.abs(res.D).toFixed(2)}`, originX + (col1[0] + col2[0]) * scale * 0.5 - 40, originY - (col1[1] + col2[1]) * scale * 0.5);
+      }
+    }
+
+    function drawVector2D(ctx, ox, oy, vx, vy, scale, color, label) {
+      const ex = ox + vx * scale;
+      const ey = oy - vy * scale;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+
+      drawArrowTip(ctx, ox, oy, ex, ey, color);
+
+      ctx.fillStyle = color;
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText(`${label} [${vx}, ${vy}]`, ex + 8, ey - 6);
+    }
+
+    function drawArrowTip(ctx, fromX, fromY, toX, toY, color) {
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      const headlen = 9;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ════ 3D WebGL Three.js Visualizer ════
+    function initThreeViewport() {
+      const container = document.getElementById('three-viewport');
+      if (!container || state.three.initialized) return;
+
+      const w = container.clientWidth || 900;
+      const h = container.clientHeight || 520;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x040813);
+
+      const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+      camera.position.set(16, 14, 20);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(w, h);
       renderer.setPixelRatio(window.devicePixelRatio);
       container.appendChild(renderer.domElement);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.2);
-      scene.add(hemiLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(5, 10, 7);
+      // Lights
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+      dirLight.position.set(10, 20, 15);
       scene.add(dirLight);
 
-      const loader = new THREE.GLTFLoader();
-      loader.load('/frontend/models/cramers_rule_matrix_inversion_system.glb', function(gltf) {
-        modelGroup = gltf.scene;
-        scene.add(modelGroup);
-        animate();
-      }, undefined, function(err) {
-        console.warn('Fallback 3D geometry loaded');
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-        const mat = new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.3 });
-        modelGroup = new THREE.Mesh(geo, mat);
-        scene.add(modelGroup);
-        animate();
+      // Coordinate Grid
+      const grid = new THREE.GridHelper(30, 30, 0x38bdf8, 0x1e293b);
+      grid.position.y = 0;
+      scene.add(grid);
+
+      // Axes
+      const axesHelper = new THREE.AxesHelper(8);
+      scene.add(axesHelper);
+
+      const planesGroup = new THREE.Group();
+      scene.add(planesGroup);
+      const colGroup = new THREE.Group();
+      scene.add(colGroup);
+
+      state.three = {
+        scene, camera, renderer, controls, planesGroup, colGroup, initialized: true
+      };
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        if (!container.clientWidth) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
       });
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
+    function update3DScene() {
+      if (!state.three.initialized) return;
+      const { planesGroup, colGroup } = state.three;
+
+      // Clear existing
+      while (planesGroup.children.length > 0) {
+        planesGroup.remove(planesGroup.children[0]);
+      }
+      while (colGroup.children.length > 0) {
+        colGroup.remove(colGroup.children[0]);
+      }
+
+      const n = state.n;
+      const res = state.results;
+
+      if (state.geomPicture === 'row') {
+        planesGroup.visible = true;
+        colGroup.visible = false;
+
+        const colors = [0x06b6d4, 0xec4899, 0xeab308];
+        const size = 16;
+
+        for (let i = 0; i < n; i++) {
+          const a = state.A[i][0];
+          const b = state.A[i][1];
+          const c = n === 3 ? state.A[i][2] : 0;
+          const d = state.b[i];
+
+          const normLen = Math.hypot(a, b, c) || 1;
+          const normal = new THREE.Vector3(a / normLen, b / normLen, c / normLen);
+          const dist = d / normLen;
+
+          const geom = new THREE.PlaneGeometry(size, size);
+          const mat = new THREE.MeshStandardMaterial({
+            color: colors[i],
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.45,
+            roughness: 0.3
+          });
+          const planeMesh = new THREE.Mesh(geom, mat);
+
+          // Align plane normal
+          const defaultNormal = new THREE.Vector3(0, 0, 1);
+          planeMesh.quaternion.setFromUnitVectors(defaultNormal, normal);
+          planeMesh.position.copy(normal.clone().multiplyScalar(dist));
+          planesGroup.add(planeMesh);
+        }
+
+        // Solution Vertex Marker
+        if (res.status === 'unique') {
+          const x = res.xSol[0];
+          const y = res.xSol[1];
+          const z = n === 3 ? res.xSol[2] : 0;
+
+          const sphereGeom = new THREE.SphereGeometry(0.45, 32, 32);
+          const sphereMat = new THREE.MeshStandardMaterial({
+            color: 0x10b981,
+            emissive: 0x10b981,
+            emissiveIntensity: 0.7
+          });
+          const sphere = new THREE.Mesh(sphereGeom, sphereMat);
+          sphere.position.set(x, y, z);
+          planesGroup.add(sphere);
+        }
+
+      } else {
+        // Column Parallelepiped in 3D
+        planesGroup.visible = false;
+        colGroup.visible = true;
+
+        const col1 = new THREE.Vector3(state.A[0][0], state.A[1][0], n===3 ? state.A[2][0] : 0);
+        const col2 = new THREE.Vector3(state.A[0][1], state.A[1][1], n===3 ? state.A[2][1] : 0);
+        const col3 = n===3 ? new THREE.Vector3(state.A[0][2], state.A[1][2], state.A[2][2]) : new THREE.Vector3(0,0,1);
+        const vecB = new THREE.Vector3(state.b[0], state.b[1], n===3 ? state.b[2] : 0);
+
+        addVector3D(colGroup, col1, 0x06b6d4, 'a₁');
+        addVector3D(colGroup, col2, 0xec4899, 'a₂');
+        if (n === 3) addVector3D(colGroup, col3, 0xeab308, 'a₃');
+        addVector3D(colGroup, vecB, 0x10b981, 'b');
+
+        // Draw Parallelepiped box edges
+        const boxGeom = createParallelepipedGeometry(col1, col2, col3);
+        const boxMat = new THREE.MeshBasicMaterial({
+          color: 0x38bdf8,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.4
+        });
+        const boxMesh = new THREE.Mesh(boxGeom, boxMat);
+        colGroup.add(boxMesh);
+      }
     }
 
-    function focusComponent(name) {
-      if (!modelGroup) return;
-      modelGroup.traverse(function(child) {
-        if (child.isMesh) {
-          if (child.name === name) {
-            child.material.emissive = new THREE.Color(0x38bdf8);
-            child.material.emissiveIntensity = 0.6;
-          } else {
-            child.material.emissive = new THREE.Color(0x000000);
-          }
+    function addVector3D(group, vec, color, label) {
+      const len = vec.length();
+      if (len < 1e-4) return;
+      const arrow = new THREE.ArrowHelper(vec.clone().normalize(), new THREE.Vector3(0,0,0), len, color, 0.6, 0.3);
+      group.add(arrow);
+    }
+
+    function createParallelepipedGeometry(v1, v2, v3) {
+      const geom = new THREE.BufferGeometry();
+      const vertices = [
+        // 8 vertices of parallelepiped
+        0,0,0,
+        v1.x, v1.y, v1.z,
+        v1.x + v2.x, v1.y + v2.y, v1.z + v2.z,
+        v2.x, v2.y, v2.z,
+        v3.x, v3.y, v3.z,
+        v1.x + v3.x, v1.y + v3.y, v1.z + v3.z,
+        v1.x + v2.x + v3.x, v1.y + v2.y + v3.y, v1.z + v2.z + v3.z,
+        v2.x + v3.x, v2.y + v3.y, v2.z + v3.z
+      ];
+      // 12 lines / 24 indices for wireframe
+      const indices = [
+        0,1, 1,2, 2,3, 3,0,
+        4,5, 5,6, 6,7, 7,4,
+        0,4, 1,5, 2,6, 3,7
+      ];
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geom.setIndex(indices);
+      return geom;
+    }
+
+    // ════ Interactive View Mode Switches ════
+    function setDimension(dim) {
+      state.n = dim;
+      document.getElementById('btn-dim-2').className = dim === 2 ? 'dim-btn active' : 'dim-btn';
+      document.getElementById('btn-dim-3').className = dim === 3 ? 'dim-btn active' : 'dim-btn';
+      playSound('click');
+      updateAll();
+    }
+
+    function setGeomPicture(pic) {
+      state.geomPicture = pic;
+      document.getElementById('btn-geom-row').className = pic === 'row' ? 'canvas-btn active' : 'canvas-btn';
+      document.getElementById('btn-geom-col').className = pic === 'col' ? 'canvas-btn active' : 'canvas-btn';
+      document.getElementById('canvas-geom-title').textContent = pic === 'row' 
+        ? 'Geometric Manifold & Vector Projection (Row Picture)'
+        : 'Basis Vector Parallelepiped & Volume Projection (Column Picture)';
+      playSound('click');
+      draw2DCanvas();
+      update3DScene();
+    }
+
+    function toggleCanvasDimension() {
+      state.is3DCanvas = !state.is3DCanvas;
+      const c2D = document.getElementById('geom-canvas');
+      const c3D = document.getElementById('three-viewport');
+      const btn = document.getElementById('btn-toggle-3d-canvas');
+
+      if (state.is3DCanvas) {
+        c2D.style.display = 'none';
+        c3D.style.display = 'block';
+        btn.textContent = 'Switch to 2D Grid';
+        btn.classList.add('active');
+        initThreeViewport();
+        update3DScene();
+      } else {
+        c2D.style.display = 'block';
+        c3D.style.display = 'none';
+        btn.textContent = 'Switch to 3D Orbit';
+        btn.classList.remove('active');
+        draw2DCanvas();
+      }
+      playSound('click');
+    }
+
+    function toggleCanvasHud() {
+      state.hudVisible = !state.hudVisible;
+      const hud = document.getElementById('canvas-hud');
+      const btn = document.getElementById('btn-toggle-hud');
+      if (state.hudVisible) {
+        hud.classList.remove('hidden');
+        btn.classList.add('active');
+      } else {
+        hud.classList.add('hidden');
+        btn.classList.remove('active');
+      }
+      playSound('click');
+    }
+
+    function resetCanvasCamera() {
+      state.pan2D = { x: 0, y: 0 };
+      state.zoom2D = 35;
+      if (state.three.initialized) {
+        state.three.camera.position.set(16, 14, 20);
+        state.three.controls.reset();
+      }
+      playSound('click');
+      draw2DCanvas();
+    }
+
+    function switchHudTab(tabId) {
+      state.activeHudTab = tabId;
+      const tabs = ['cramer', 'inverse', 'geometry', 'rouche'];
+      tabs.forEach(t => {
+        document.getElementById(`tab-btn-${t}`).className = t === tabId ? 'hud-tab-btn active' : 'hud-tab-btn';
+        document.getElementById(`pane-${t}`).className = t === tabId ? 'hud-tab-pane active' : 'hud-tab-pane';
+      });
+      playSound('click');
+    }
+
+    function switchViewMode(mode) {
+      const modes = ['sim', '3d', 'graphs', 'theory'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`btn-mode-${m}`);
+        if (btn) btn.className = m === mode ? 'mode-btn active' : 'mode-btn';
+      });
+
+      document.getElementById('sim-top-view').style.display = (mode === 'sim') ? 'grid' : 'none';
+      document.getElementById('section-3d').style.display = (mode === '3d') ? 'block' : 'none';
+      document.getElementById('section-graphs').style.display = (mode === 'graphs') ? 'block' : 'none';
+      document.getElementById('section-theory').style.display = (mode === 'theory') ? 'block' : 'none';
+
+      if (mode === '3d') {
+        initStudioThree();
+      }
+      playSound('click');
+    }
+
+    // ── Interactive Coefficient Mutators ──
+    function setCellA(i, j, val, isSlider = false) {
+      state.A[i][j] = parseFloat(val) || 0;
+      computeSystem();
+      if (!isSlider) renderSlidersDrawer();
+      renderHudSummary();
+      renderWalkthroughTabs();
+      draw2DCanvas();
+      update3DScene();
+      checkAudioStatus();
+    }
+
+    function setCellB(i, val) {
+      state.b[i] = parseFloat(val) || 0;
+      computeSystem();
+      renderHudSummary();
+      renderWalkthroughTabs();
+      draw2DCanvas();
+      update3DScene();
+      checkAudioStatus();
+    }
+
+    function checkAudioStatus() {
+      if (state.results.status === 'unique') {
+        playSound('harmonic');
+      } else {
+        playSound('discord');
+      }
+    }
+
+    function highlightCell(i, j) {
+      document.getElementById('scrubber-active-label').textContent = `Active: a${i+1}${j+1} = ${state.A[i][j]}`;
+    }
+
+    function toggleFractionMode() {
+      state.exactFractions = !state.exactFractions;
+      const btn = document.getElementById('btn-toggle-fraction');
+      btn.textContent = state.exactFractions ? '0.00 Decimals' : '½ Exact Fractions';
+      playSound('click');
+      updateAll();
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      const btn = document.getElementById('btn-toggle-sound');
+      btn.textContent = state.soundEnabled ? '🔊 Audio: ON' : '🔇 Audio: OFF';
+    }
+
+    // ── Curated Presets ──
+    function loadPreset(key) {
+      if (key === 'benchmark3') {
+        state.n = 3;
+        state.A = [[1, 2, 3], [2, -1, 1], [3, 0, -1]];
+        state.b = [9, 8, 3];
+      } else if (key === 'benchmark2') {
+        state.n = 2;
+        state.A = [[2, 3, 0], [5, -1, 0], [0, 0, 1]];
+        state.b = [8, 3, 0];
+      } else if (key === 'inconsistent') {
+        state.n = 2;
+        state.A = [[2, 4, 0], [1, 2, 0], [0, 0, 1]];
+        state.b = [6, 5, 0];
+      } else if (key === 'dependent') {
+        state.n = 2;
+        state.A = [[2, 4, 0], [1, 2, 0], [0, 0, 1]];
+        state.b = [6, 3, 0];
+      } else if (key === 'illconditioned') {
+        state.n = 2;
+        state.A = [[1, 1, 0], [1, 1.05, 0], [0, 0, 1]];
+        state.b = [2, 2.05, 0];
+      } else if (key === 'orthogonal') {
+        state.n = 3;
+        state.A = [[0, 1, 0], [0, 0, 1], [1, 0, 0]];
+        state.b = [2, 3, 1];
+      }
+      setDimension(state.n);
+    }
+
+    function resetToIdentity() {
+      state.A = [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ];
+      state.b = [1, 1, 1];
+      playSound('click');
+      updateAll();
+    }
+
+    function randomizeSystem() {
+      const n = state.n;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          state.A[i][j] = Math.floor(Math.random() * 9) - 4;
+        }
+        state.b[i] = Math.floor(Math.random() * 15) - 7;
+      }
+      playSound('click');
+      updateAll();
+    }
+
+    // ── Observation Notebook & Comparative Ledger ──
+    function logCurrentTrial() {
+      const res = state.results;
+      const trialNum = state.ledger.length + 1;
+      const entry = {
+        trial: trialNum,
+        dim: `${state.n}x${state.n}`,
+        detA: res.D.toFixed(2),
+        dVec: res.Di.map(d => d.toFixed(1)).join(', '),
+        solVec: res.status === 'unique' ? res.xSol.map(x => x.toFixed(2)).join(', ') : 'None',
+        invVec: res.status === 'unique' ? res.xSol.map(x => x.toFixed(2)).join(', ') : 'None',
+        status: res.status,
+        resNorm: res.status === 'unique' ? res.residualNorm.toFixed(5) : 'N/A'
+      };
+      state.ledger.push(entry);
+      renderLedgerTable();
+      playSound('harmonic');
+    }
+
+    function renderLedgerTable() {
+      const tbody = document.getElementById('obs-table-body');
+      let html = '';
+      state.ledger.forEach((item, idx) => {
+        const badgeClass = item.status === 'unique' ? 'unique' : (item.status === 'inconsistent' ? 'inconsistent' : 'dependent');
+        html += `
+          <tr>
+            <td><b>#${item.trial}</b></td>
+            <td>${item.dim}</td>
+            <td style="color:var(--accent-cyan);font-weight:700;">${item.detA}</td>
+            <td>[ ${item.dVec} ]</td>
+            <td style="color:var(--accent-emerald);font-weight:700;">[ ${item.solVec} ]</td>
+            <td>[ ${item.invVec} ]</td>
+            <td><span class="badge-status ${badgeClass}">${item.status.toUpperCase()}</span></td>
+            <td>${item.resNorm}</td>
+            <td><button class="btn-sm-action" onclick="removeLedgerRow(${idx})" style="padding:2px 6px;">&times;</button></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function removeLedgerRow(idx) {
+      state.ledger.splice(idx, 1);
+      renderLedgerTable();
+    }
+
+    function clearLedger() {
+      state.ledger = [];
+      renderLedgerTable();
+    }
+
+    function populateBenchmarkTrials() {
+      state.ledger = [
+        {
+          trial: 1, dim: '3x3', detA: '20.00', dVec: '40.0, -20.0, 60.0',
+          solVec: '2.00, -1.00, 3.00', invVec: '2.00, -1.00, 3.00', status: 'unique', resNorm: '0.00000'
+        },
+        {
+          trial: 2, dim: '2x2', detA: '-17.00', dVec: '-17.0, -34.0',
+          solVec: '1.00, 2.00', invVec: '1.00, 2.00', status: 'unique', resNorm: '0.00000'
+        },
+        {
+          trial: 3, dim: '2x2', detA: '0.00', dVec: '-8.0, 4.0',
+          solVec: 'None', invVec: 'None', status: 'inconsistent', resNorm: 'N/A'
+        },
+        {
+          trial: 4, dim: '2x2', detA: '0.00', dVec: '0.0, 0.0',
+          solVec: 'None', invVec: 'None', status: 'dependent', resNorm: 'N/A'
+        },
+        {
+          trial: 5, dim: '3x3', detA: '1.00', dVec: '1.0, 2.0, 3.0',
+          solVec: '1.00, 2.00, 3.00', invVec: '1.00, 2.00, 3.00', status: 'unique', resNorm: '0.00000'
+        }
+      ];
+      renderLedgerTable();
+      playSound('harmonic');
+    }
+
+    function exportLedgerCSV() {
+      if (!state.ledger.length) {
+        alert('Observation notebook is empty. Log a trial first!');
+        return;
+      }
+      let csv = 'Trial,Dimension,det(A),Dx_Dy_Dz,Solution_Vector,Adjugate_Inv,Status,Residual_Norm\n';
+      state.ledger.forEach(r => {
+        csv += `${r.trial},${r.dim},${r.detA},"${r.dVec}","${r.solVec}","${r.invVec}",${r.status},${r.resNorm}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cramers_rule_matrix_inversion_lab.csv';
+      a.click();
+    }
+
+    // ── 3D Spatial Studio (Dedicated Section) ──
+    function initStudioThree() {
+      const container = document.getElementById('studio-3d-container');
+      if (!container || state.studioThree.initialized) return;
+
+      const w = container.clientWidth || 900;
+      const h = container.clientHeight || 520;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050a16);
+
+      const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+      camera.position.set(18, 16, 22);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(15, 25, 20);
+      scene.add(dirLight);
+
+      // Floor Grid & Axes
+      scene.add(new THREE.GridHelper(30, 30, 0x38bdf8, 0x1e293b));
+      scene.add(new THREE.AxesHelper(10));
+
+      // Attempt to load GLB model if available
+      const loader = new THREE.GLTFLoader();
+      const glbPaths = [
+        'cramers_rule_matrix_inversion_system.glb',
+        '/frontend/models/cramers_rule_matrix_inversion_system.glb',
+        '../../models/cramers_rule_matrix_inversion_system.glb'
+      ];
+      loadGlbWithFallback(loader, glbPaths, 0, scene);
+
+      state.studioThree = {
+        scene, camera, renderer, controls, initialized: true
+      };
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function loadGlbWithFallback(loader, paths, index, scene) {
+      if (index >= paths.length) {
+        buildProceduralStudio(scene);
+        return;
+      }
+      loader.load(
+        paths[index],
+        gltf => {
+          gltf.scene.scale.set(3, 3, 3);
+          gltf.scene.position.set(0, 0, 0);
+          scene.add(gltf.scene);
+        },
+        undefined,
+        () => {
+          loadGlbWithFallback(loader, paths, index + 1, scene);
+        }
+      );
+    }
+
+    function buildProceduralStudio(scene) {
+      // 3 intersecting planes
+      const colors = [0x06b6d4, 0xec4899, 0xeab308];
+      for (let i = 0; i < 3; i++) {
+        const geom = new THREE.PlaneGeometry(16, 16);
+        const mat = new THREE.MeshStandardMaterial({
+          color: colors[i],
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.45,
+          roughness: 0.3
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        if (i === 0) mesh.rotation.y = Math.PI / 4;
+        if (i === 1) mesh.rotation.x = Math.PI / 3;
+        if (i === 2) mesh.rotation.z = Math.PI / 6;
+        scene.add(mesh);
+      }
+      // Glowing Vertex
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 32, 32),
+        new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 0.8 })
+      );
+      sphere.position.set(2, -1, 3);
+      scene.add(sphere);
+    }
+
+    function setStudioCamera(view) {
+      if (!state.studioThree.initialized) return;
+      const { camera, controls } = state.studioThree;
+      if (view === 'top') camera.position.set(0, 30, 0);
+      else if (view === 'front') camera.position.set(0, 0, 30);
+      else if (view === 'side') camera.position.set(30, 0, 0);
+      else camera.position.set(18, 16, 22);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+    }
+
+    function setPlaneOpacity(val) {
+      if (!state.three.planesGroup) return;
+      state.three.planesGroup.traverse(child => {
+        if (child.isMesh && child.material) {
+          child.material.opacity = parseFloat(val);
         }
       });
     }
 
-    window.addEventListener('load', () => {
-      runSim();
+    function focusStudioComponent(comp) {
+      alert(`Inspected component: ${comp}. Visual parameters highlighted.`);
+    }
+
+    // ── Sensitivity & Scaling Plots ──
+    function updateSensitivityCharts() {
+      const cDet = document.getElementById('chart-det-curve');
+      const cCond = document.getElementById('chart-cond-curve');
+      if (!cDet || !cCond) return;
+
+      drawDetSensitivityChart(cDet);
+      drawCondSensitivityChart(cCond);
+    }
+
+    function drawDetSensitivityChart(canvas) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Axes
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(40, h - 30);
+      ctx.lineTo(w - 20, h - 30);
+      ctx.moveTo(40, 20);
+      ctx.lineTo(40, h - 30);
+      ctx.stroke();
+
+      // Plot det vs perturbation delta in a11
+      const origA11 = state.A[0][0];
+      const points = [];
+      for (let da = -5; da <= 5; da += 0.5) {
+        state.A[0][0] = origA11 + da;
+        const detVal = state.n === 2 ? det2x2(state.A) : det3x3(state.A);
+        points.push({ x: da, y: detVal });
+      }
+      state.A[0][0] = origA11; // restore
+
+      const minY = Math.min(...points.map(p => p.y), -10);
+      const maxY = Math.max(...points.map(p => p.y), 30);
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      points.forEach((pt, i) => {
+        const px = 40 + ((pt.x + 5) / 10) * (w - 60);
+        const py = (h - 30) - ((pt.y - minY) / (maxY - minY)) * (h - 50);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px monospace';
+      ctx.fillText('Perturbation Δa11 [-5 to +5]', w / 2 - 60, h - 10);
+      ctx.fillText('det(A)', 10, 16);
+    }
+
+    function drawCondSensitivityChart(canvas) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(40, h - 30);
+      ctx.lineTo(w - 20, h - 30);
+      ctx.moveTo(40, 20);
+      ctx.lineTo(40, h - 30);
+      ctx.stroke();
+
+      // Asymptotic curve near det(A) = 0
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let x = 45; x < w - 20; x += 3) {
+        const t = (x - 45) / (w - 65); // 0 to 1
+        const distFromZero = Math.abs(t - 0.5) + 0.05;
+        const condVal = 1 / distFromZero;
+        const py = Math.max(25, (h - 30) - (condVal / 20) * (h - 50));
+        if (x === 45) ctx.moveTo(x, py);
+        else ctx.lineTo(x, py);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px monospace';
+      ctx.fillText('Distance to Singularity (det → 0)', w / 2 - 70, h - 10);
+      ctx.fillText('Condition κ(A)', 10, 16);
+    }
+
+    // ── Interactive Viva Voce Quiz Logic ──
+    const quizQuestions = [
+      {
+        q: "Under what exact condition is Cramer's Rule mathematically valid for finding a unique solution?",
+        opts: [
+          "The coefficient determinant D = det(A) must be strictly non-zero (D ≠ 0).",
+          "All column determinants Dx, Dy, Dz must sum to zero.",
+          "The matrix must contain only positive integers.",
+          "The number of equations must exceed the number of variables."
+        ],
+        ans: 0,
+        exp: "Cramer's Rule requires dividing by D (x_i = D_i / D). If D = 0, division by zero is undefined, and the system is either inconsistent or dependent."
+      },
+      {
+        q: "If D = 0 and at least one modified determinant (e.g. Dx) is non-zero (Dx ≠ 0), what is the system classification?",
+        opts: [
+          "Inconsistent with zero solutions (No solution / ∅).",
+          "Linearly dependent with infinitely many solutions.",
+          "Single unique trivial solution (0, 0, 0).",
+          "Orthogonal system."
+        ],
+        ans: 0,
+        exp: "According to the Rouché–Capelli theorem, D = 0 with any D_i ≠ 0 represents parallel geometric planes/lines that never meet at a common vertex."
+      },
+      {
+        q: "What is the relationship between the Adjugate matrix adj(A) and the Inverse matrix A⁻¹?",
+        opts: [
+          "A⁻¹ = (1 / det(A)) * adj(A)",
+          "A⁻¹ = det(A) * adj(A)",
+          "A⁻¹ = [adj(A)]^T",
+          "A⁻¹ = adj(A) + I"
+        ],
+        ans: 0,
+        exp: "Because A * adj(A) = det(A) * I, dividing both sides by scalar det(A) gives A⁻¹ = (1/det(A)) * adj(A)."
+      },
+      {
+        q: "Geometrically in 3D space, what does the master determinant |det(A)| represent for column vectors?",
+        opts: [
+          "The signed volume of the parallelepiped spanned by the column vectors.",
+          "The perimeter of the triangle formed by basis vectors.",
+          "The dihedral angle between the first two planes.",
+          "The distance of the intersection point from the origin."
+        ],
+        ans: 0,
+        exp: "The absolute determinant |det(A)| equals the scalar triple product |a1 · (a2 × a3)|, which geometrically defines the volume of the 3D parallelepiped."
+      }
+    ];
+
+    let quizAnswers = {};
+
+    function initQuiz() {
+      const container = document.getElementById('quiz-root');
+      let html = '';
+      quizQuestions.forEach((qObj, qIdx) => {
+        html += `
+          <div class="quiz-card" id="quiz-card-${qIdx}">
+            <div class="quiz-question">${qIdx + 1}. ${qObj.q}</div>
+            <div class="quiz-options">
+              ${qObj.opts.map((opt, optIdx) => `
+                <button class="quiz-opt-btn" id="q${qIdx}-opt${optIdx}" onclick="answerQuiz(${qIdx}, ${optIdx})">
+                  ${opt}
+                </button>
+              `).join('')}
+            </div>
+            <div class="quiz-feedback" id="q${qIdx}-feedback"></div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function answerQuiz(qIdx, optIdx) {
+      if (quizAnswers[qIdx] !== undefined) return; // already answered
+      quizAnswers[qIdx] = optIdx;
+      const qObj = quizQuestions[qIdx];
+      const feedbackEl = document.getElementById(`q${qIdx}-feedback`);
+      const btn = document.getElementById(`q${qIdx}-opt${optIdx}`);
+
+      if (optIdx === qObj.ans) {
+        btn.classList.add('correct');
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.background = 'rgba(16, 185, 129, 0.15)';
+        feedbackEl.style.color = '#6ee7b7';
+        feedbackEl.innerHTML = `<b>Correct!</b> ${qObj.exp}`;
+        playSound('harmonic');
+      } else {
+        btn.classList.add('incorrect');
+        document.getElementById(`q${qIdx}-opt${qObj.ans}`).classList.add('correct');
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.background = 'rgba(244, 63, 94, 0.15)';
+        feedbackEl.style.color = '#fda4af';
+        feedbackEl.innerHTML = `<b>Incorrect.</b> ${qObj.exp}`;
+        playSound('discord');
+      }
+
+      // Update score tracker
+      let score = 0;
+      Object.keys(quizAnswers).forEach(idx => {
+        if (quizAnswers[idx] === quizQuestions[idx].ans) score++;
+      });
+      document.getElementById('quiz-score-tracker').textContent = `Score: ${score} / ${quizQuestions.length}`;
+    }
+
+    // ── Mouse Drag & Pan on 2D Canvas ──
+    function initCanvasInteractions() {
+      const canvas = document.getElementById('geom-canvas');
+      canvas.addEventListener('mousedown', e => {
+        state.isDragging2D = true;
+        state.dragStart2D = { x: e.clientX - state.pan2D.x, y: e.clientY - state.pan2D.y };
+      });
+      window.addEventListener('mousemove', e => {
+        if (!state.isDragging2D) return;
+        state.pan2D.x = e.clientX - state.dragStart2D.x;
+        state.pan2D.y = e.clientY - state.dragStart2D.y;
+        draw2DCanvas();
+      });
+      window.addEventListener('mouseup', () => {
+        state.isDragging2D = false;
+      });
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.12 : 0.89;
+        state.zoom2D = Math.max(12, Math.min(120, state.zoom2D * factor));
+        draw2DCanvas();
+      });
+    }
+
+    // Window Load Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      initCanvasInteractions();
+      initQuiz();
+      populateBenchmarkTrials();
+      updateAll();
     });
   </script>
 </body>
