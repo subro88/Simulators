@@ -149,7 +149,9 @@
         <button class="chip-btn" onclick="applyPreset('sorted-asc')">&#128200; Sorted Ascending</button>
         <button class="chip-btn" onclick="applyPreset('sorted-desc')">&#128201; Sorted Descending</button>
         <button class="chip-btn" onclick="applyPreset('duplicates')">&#128257; Duplicate Heavy</button>
+        <button class="chip-btn" onclick="applyPreset('traversal-tree')" style="border-color:#00e676;color:#00e676;">&#127795; Tree Traversal [50,30,70,20,40,60,80]</button>
       </div>
+
     </div>
 
     <!-- Dual-Viewport Laboratory Workbench (55% : 45% Layout) -->
@@ -905,9 +907,19 @@ const STRUCTURES_META = {
     { id: 'dll', name: 'Doubly Linked List' }
   ],
   trees: [
-    { id: 'bst', name: 'Binary Search Tree (BST)' },
+    { id: 'bst', name: 'Binary Search Tree (BST) — Insert/Search/Delete' },
     { id: 'avl', name: 'AVL Tree (Self-Balancing Rotations)' },
-    { id: 'heap', name: 'Binary Max/Min Heap (Array-Backed)' }
+    { id: 'heap', name: 'Binary Max/Min Heap (Array-Backed)' },
+    { id: 'traversal_inorder', name: '① Inorder Traversal (L → Root → R)' },
+    { id: 'traversal_preorder', name: '② Preorder Traversal (Root → L → R)' },
+    { id: 'traversal_postorder', name: '③ Postorder Traversal (L → R → Root)' },
+    { id: 'traversal_levelorder', name: '④ Level-Order BFS (Breadth-First Scan)' },
+    { id: 'traversal_dfs', name: '⑤ DFS — Iterative Stack Traversal' },
+    { id: 'traversal_zigzag', name: '⑥ Zigzag Level-Order (Snake Pattern)' },
+    { id: 'traversal_vertical', name: '⑦ Vertical Order Sweep (Column Groups)' },
+    { id: 'traversal_diagonal', name: '⑧ Diagonal Traversal (Slope Groups)' },
+    { id: 'traversal_boundary', name: '⑨ Boundary Traversal (Perimeter Walk)' },
+    { id: 'traversal_morris', name: '⑩ Morris Inorder (O(1) Space, No Stack)' }
   ],
   graphs: [
     { id: 'graph_bfs', name: 'Breadth-First Search (BFS)' },
@@ -999,6 +1011,11 @@ function updateActionControls() {
     addBtn('Insert Node', 'primary', () => opBSTInsert());
     addBtn('Search Key', 'secondary', () => opBSTSearch());
     addBtn('In-Order Traversal', 'success', () => opBSTInorder());
+    addBtn('Reset', 'outline', () => resetData());
+  } else if (struct.startsWith('traversal_')) {
+    addBtn('▶ Run Traversal', 'primary', () => opRunTraversal(struct));
+    addBtn('Apply Benchmark Tree', 'warning', () => applyPreset('traversal-tree'));
+    addBtn('Custom: Add Node', 'success', () => opBSTInsert());
     addBtn('Reset', 'outline', () => resetData());
   } else if (struct === 'avl') {
     addBtn('Insert & Balance', 'primary', () => opAVLInsert());
@@ -1300,6 +1317,8 @@ function drawCanvas(snap) {
     drawDynamicArray(snap);
   } else if (struct === 'sll' || struct === 'dll') {
     drawLinkedList(snap, struct === 'dll');
+  } else if (struct.startsWith('traversal_')) {
+    drawTreeTraversal(snap);
   } else if (struct === 'bst' || struct === 'avl') {
     drawTree(snap);
   } else if (struct === 'heap') {
@@ -1657,6 +1676,155 @@ function drawTree(snap) {
     drawNodes(node.right);
   }
   drawNodes(root);
+}
+
+/* 6.5b Draw Tree Traversal with Visit-Order Badges & Color-Coded States */
+function drawTreeTraversal(snap) {
+  const elems = snap.elements;
+  if (elems.length === 0) return;
+
+  // Build BST
+  function TNode(v) { this.val=v; this.left=null; this.right=null; this.x=0; this.y=0; this.hd=0; this.diag=0; }
+  function ins(root,v){if(!root)return new TNode(v);if(v<root.val)root.left=ins(root.left,v);else if(v>root.val)root.right=ins(root.right,v);return root;}
+  let root=null;
+  elems.forEach(v=>{root=ins(root,v);});
+
+  // Assign layout coords
+  function setCoords(node,depth,lb,rb){
+    if(!node)return;
+    node.x=(lb+rb)/2; node.y=56+depth*72;
+    setCoords(node.left,depth+1,lb,node.x);
+    setCoords(node.right,depth+1,node.x,rb);
+  }
+  setCoords(root,0,40,760);
+
+  const visitedSet = new Set(snap.highlights || []);
+  const currentVal = snap.pointers && snap.pointers.current !== undefined ? snap.pointers.current : null;
+  const visitOrder = snap.traversalOrder || [];
+  const pathEdges = snap.pathEdges || [];
+
+  // Collect all nodes for drawing
+  const allNodes = {};
+  function collectNodes(node){if(!node)return;allNodes[node.val]=node;collectNodes(node.left);collectNodes(node.right);}
+  collectNodes(root);
+
+  // Traversal progress strip at top
+  const stripY = 12;
+  ctx.fillStyle='rgba(0,28,36,0.75)';
+  ctx.beginPath();ctx.roundRect(30,stripY-2,740,28,8);ctx.fill();
+  ctx.fillStyle='#7aa2ff';ctx.font='bold 11px Segoe UI';ctx.textAlign='left';
+  ctx.fillText('Visit Order: ',36,stripY+16);
+  let stripX=130;
+  visitOrder.forEach((v,i)=>{
+    const isDone=visitedSet.has(v);
+    const isCurrent=v===currentVal;
+    ctx.fillStyle=isCurrent?'#ff9100':(isDone?'#00e676':'#1e2c44');
+    ctx.beginPath();ctx.roundRect(stripX,stripY,26,22,5);ctx.fill();
+    ctx.fillStyle=isCurrent?'#001020':(isDone?'#001020':'#7aa2ff');
+    ctx.font='bold 10px JetBrains Mono';ctx.textAlign='center';
+    ctx.fillText(v,stripX+13,stripY+15);
+    if(i<visitOrder.length-1){ctx.fillStyle='#385478';ctx.fillText('→',stripX+32,stripY+15);}
+    stripX+=38;
+    if(stripX>740)return;
+  });
+
+  // Draw path edges (traversal path highlighted)
+  function drawAllEdges(node){
+    if(!node)return;
+    if(node.left){
+      const edgeKey=`${node.val}-${node.left.val}`;
+      const isPath=pathEdges.includes(edgeKey);
+      ctx.strokeStyle=isPath?'#29b6f6':'#253a55';
+      ctx.lineWidth=isPath?3:1.5;
+      if(isPath){ctx.shadowColor='#29b6f6';ctx.shadowBlur=6;}
+      ctx.beginPath();ctx.moveTo(node.x,node.y);ctx.lineTo(node.left.x,node.left.y);ctx.stroke();
+      ctx.shadowBlur=0;
+      drawAllEdges(node.left);
+    }
+    if(node.right){
+      const edgeKey=`${node.val}-${node.right.val}`;
+      const isPath=pathEdges.includes(edgeKey);
+      ctx.strokeStyle=isPath?'#29b6f6':'#253a55';
+      ctx.lineWidth=isPath?3:1.5;
+      if(isPath){ctx.shadowColor='#29b6f6';ctx.shadowBlur=6;}
+      ctx.beginPath();ctx.moveTo(node.x,node.y);ctx.lineTo(node.right.x,node.right.y);ctx.stroke();
+      ctx.shadowBlur=0;
+      drawAllEdges(node.right);
+    }
+  }
+  drawAllEdges(root);
+
+  // Draw nodes with 3 states: unvisited(steel), currently-visiting(amber glow), visited(emerald)
+  function drawAllNodes(node){
+    if(!node)return;
+    const isVisited=visitedSet.has(node.val);
+    const isCurrent=node.val===currentVal;
+    const visitIdx=visitOrder.indexOf(node.val);
+
+    // Outer glow ring for current
+    if(isCurrent){
+      ctx.beginPath();ctx.arc(node.x,node.y,32,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,145,0,0.25)';ctx.fill();
+      ctx.beginPath();ctx.arc(node.x,node.y,36,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,145,0,0.12)';ctx.lineWidth=3;ctx.stroke();
+    } else if(isVisited){
+      ctx.beginPath();ctx.arc(node.x,node.y,28,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,230,118,0.15)';ctx.fill();
+    }
+
+    // Main node circle
+    ctx.beginPath();ctx.arc(node.x,node.y,22,0,Math.PI*2);
+    ctx.fillStyle=isCurrent?'#ff9100':(isVisited?'#00e676':'#00b0ff');
+    ctx.shadowColor=isCurrent?'#ff9100':(isVisited?'#00e676':'transparent');
+    ctx.shadowBlur=isCurrent?14:(isVisited?8:0);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=isCurrent?'#ffd54f':(isVisited?'#b9f6ca':'#80d8ff');
+    ctx.lineWidth=2.5;ctx.stroke();
+
+    // Node value
+    ctx.fillStyle=isCurrent?'#001020':(isVisited?'#002b11':'#001020');
+    ctx.font='bold 13px JetBrains Mono';ctx.textAlign='center';
+    ctx.fillText(node.val,node.x,node.y+5);
+
+    // Visit-order number badge (top-right)
+    if(visitIdx>=0){
+      ctx.fillStyle=isCurrent?'#ff5722':'#00e676';
+      ctx.beginPath();ctx.arc(node.x+16,node.y-16,10,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#001020';ctx.font='bold 9px Segoe UI';
+      ctx.fillText(visitIdx+1,node.x+16,node.y-13);
+    }
+
+    // Vertical/diagonal column annotation for vertical/diagonal traversals
+    if(snap.pointers&&snap.pointers[`hd_${node.val}`]!==undefined){
+      ctx.fillStyle='rgba(245,200,66,0.85)';
+      ctx.font='bold 10px Segoe UI';ctx.textAlign='center';
+      ctx.fillText(`hd:${snap.pointers[`hd_${node.val}`]}`,node.x,node.y+36);
+    }
+
+    drawAllNodes(node.left);
+    drawAllNodes(node.right);
+  }
+  drawAllNodes(root);
+
+  // Queue/Stack state strip at bottom (for BFS/iterative DFS)
+  if(snap.queueState&&snap.queueState.length>0){
+    ctx.fillStyle='rgba(0,28,36,0.8)';
+    ctx.beginPath();ctx.roundRect(30,400,740,36,8);ctx.fill();
+    ctx.fillStyle='#7aa2ff';ctx.font='bold 11px Segoe UI';ctx.textAlign='left';
+    ctx.fillText(snap.queueLabel||'Queue: ',36,422);
+    let qx=130;
+    snap.queueState.forEach(v=>{
+      ctx.fillStyle='rgba(41,182,246,0.25)';
+      ctx.strokeStyle='#29b6f6';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.roundRect(qx,408,28,22,5);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#ffffff';ctx.font='bold 11px JetBrains Mono';ctx.textAlign='center';
+      ctx.fillText(v,qx+14,422);
+      qx+=34;
+      if(qx>740)return;
+    });
+  }
 }
 
 /* 6.6 Draw Heap (Simultaneous Tree & Array Backing) */
@@ -2574,6 +2742,10 @@ function applyPreset(presetName) {
     STATE.elements = [85, 70, 55, 40, 25, 10];
   } else if (presetName === 'duplicates') {
     STATE.elements = [42, 15, 42, 60, 15, 42];
+  } else if (presetName === 'traversal-tree') {
+    // Classic balanced BST: 50→30,70→20,40,60,80  (perfect binary tree depth 3)
+    selectCategory('trees');
+    STATE.elements = [50, 30, 70, 20, 40, 60, 80];
   }
   onStructureChange();
   recordSnapshot({
@@ -2581,6 +2753,177 @@ function applyPreset(presetName) {
     log: `Applied Preset '${presetName}': [${STATE.elements.join(', ')}].`
   });
   renderStep(0);
+}
+
+/* ==========================================================================
+   7b. TREE TRAVERSAL STEP ENGINES (all 10 algorithms)
+   ========================================================================== */
+function opRunTraversal(travType) {
+  const elems = STATE.elements;
+  if (elems.length === 0) {
+    // Auto-load benchmark tree if no elements
+    STATE.elements = [50, 30, 70, 20, 40, 60, 80];
+    onStructureChange();
+    recordSnapshot({ codeLine: 1, log: 'Auto-loaded benchmark tree [50,30,70,20,40,60,80].' });
+    renderStep(0);
+    setTimeout(() => opRunTraversal(travType), 100);
+    return;
+  }
+
+  // Build BST from current elements
+  function TNode(v) { this.val=v; this.left=null; this.right=null; }
+  function ins(root,v){if(!root)return new TNode(v);if(v<root.val)root.left=ins(root.left,v);else if(v>root.val)root.right=ins(root.right,v);return root;}
+  let root=null; elems.forEach(v=>{root=ins(root,v);});
+
+  STATE.history = [];
+  const visitedSoFar = [];
+  const fullOrder = [];
+
+  // Compute the complete traversal order first (for the order strip)
+  function computeInorder(n){if(!n)return;computeInorder(n.left);fullOrder.push(n.val);computeInorder(n.right);}
+  function computePreorder(n){if(!n)return;fullOrder.push(n.val);computePreorder(n.left);computePreorder(n.right);}
+  function computePostorder(n){if(!n)return;computePostorder(n.left);computePostorder(n.right);fullOrder.push(n.val);}
+  function computeLevel(r){const q=[r];while(q.length){const n=q.shift();fullOrder.push(n.val);if(n.left)q.push(n.left);if(n.right)q.push(n.right);}}
+  function computeDFS(r){const s=[r];while(s.length){const n=s.pop();fullOrder.push(n.val);if(n.right)s.push(n.right);if(n.left)s.push(n.left);}}
+  function computeZigzag(r){const q=[r];let l2r=true;while(q.length){const sz=q.length;const lv=[];for(let i=0;i<sz;i++){const n=q.shift();if(l2r)lv.push(n.val);else lv.unshift(n.val);if(n.left)q.push(n.left);if(n.right)q.push(n.right);}l2r=!l2r;fullOrder.push(...lv);}}
+  function computeVertical(r){
+    const hdMap={};
+    function dfs(n,hd){if(!n)return;hdMap[hd]=hdMap[hd]||[];hdMap[hd].push(n.val);dfs(n.left,hd-1);dfs(n.right,hd+1);}
+    dfs(r,0);
+    Object.keys(hdMap).sort((a,b)=>+a-+b).forEach(k=>fullOrder.push(...hdMap[k]));
+    return hdMap;
+  }
+  function computeDiagonal(r){
+    const dMap={};
+    function dfs(n,d){if(!n)return;dMap[d]=dMap[d]||[];dMap[d].push(n.val);dfs(n.left,d+1);dfs(n.right,d);}
+    dfs(r,0);
+    Object.keys(dMap).sort((a,b)=>+a-+b).forEach(k=>fullOrder.push(...dMap[k]));
+    return dMap;
+  }
+  function computeBoundary(r){
+    if(!r)return;
+    fullOrder.push(r.val);
+    function leftBound(n){if(!n||(!n.left&&!n.right))return;fullOrder.push(n.val);if(n.left)leftBound(n.left);else leftBound(n.right);}
+    function leaves(n){if(!n)return;if(!n.left&&!n.right){fullOrder.push(n.val);return;}leaves(n.left);leaves(n.right);}
+    function rightBound(n){if(!n||(!n.left&&!n.right))return;if(n.right)rightBound(n.right);else rightBound(n.left);fullOrder.push(n.val);}
+    leftBound(r.left);leaves(r.left);leaves(r.right);rightBound(r.right);
+  }
+  function computeMorris(r){
+    let curr=r;
+    while(curr){
+      if(!curr.left){fullOrder.push(curr.val);curr=curr.right;}
+      else{
+        let prev=curr.left;
+        while(prev.right&&prev.right!==curr)prev=prev.right;
+        if(!prev.right){prev.right=curr;curr=curr.left;}
+        else{prev.right=null;fullOrder.push(curr.val);curr=curr.right;}
+      }
+    }
+  }
+
+  let hdMap={}, dMap={}, qLabel='Queue';
+  if (travType==='traversal_inorder') computeInorder(root);
+  else if (travType==='traversal_preorder') computePreorder(root);
+  else if (travType==='traversal_postorder') computePostorder(root);
+  else if (travType==='traversal_levelorder'){computeLevel(root);qLabel='Queue (FIFO)';}
+  else if (travType==='traversal_dfs'){computeDFS(root);qLabel='Stack (LIFO)';}
+  else if (travType==='traversal_zigzag'){computeZigzag(root);qLabel='Deque (Zigzag)';}
+  else if (travType==='traversal_vertical'){hdMap=computeVertical(root);qLabel='HD Map';}
+  else if (travType==='traversal_diagonal'){dMap=computeDiagonal(root);qLabel='Diag Map';}
+  else if (travType==='traversal_boundary') computeBoundary(root);
+  else if (travType==='traversal_morris') computeMorris(root);
+
+  const trName = {
+    traversal_inorder:'Inorder (L→Root→R)',traversal_preorder:'Preorder (Root→L→R)',
+    traversal_postorder:'Postorder (L→R→Root)',traversal_levelorder:'Level-Order BFS',
+    traversal_dfs:'DFS Iterative Stack',traversal_zigzag:'Zigzag Level-Order',
+    traversal_vertical:'Vertical Order Sweep',traversal_diagonal:'Diagonal Traversal',
+    traversal_boundary:'Boundary Traversal',traversal_morris:'Morris Inorder O(1)'
+  }[travType] || travType;
+
+  // Record initial snapshot (everything unvisited)
+  STATE.elements = [...elems];
+  recordSnapshot({
+    highlights: [],
+    traversalOrder: [...fullOrder],
+    pathEdges: [],
+    queueState: [],
+    queueLabel: `${qLabel}: `,
+    pointers: { current: null },
+    codeLine: 1,
+    callStack: [{ name: trName, args: 'root' }],
+    complexity: 'O(n)',
+    log: `Starting ${trName}. Total nodes: ${fullOrder.length}`
+  });
+
+  // Step through each visited node, building cumulative state
+  let queueSim = [];
+  if (travType === 'traversal_levelorder' || travType === 'traversal_zigzag' || travType === 'traversal_dfs') {
+    queueSim = [...fullOrder];
+  }
+
+  // Build path edges set from traversal order pairs
+  const buildPathEdges = (visited, orderArr) => {
+    const edges = [];
+    // Mark edges between consecutively visited node values
+    for (let i = 1; i < visited.length; i++) {
+      edges.push(`${orderArr[i-1]}-${orderArr[i]}`);
+    }
+    return edges;
+  };
+
+  // Build hd pointer map for vertical traversal
+  const makeHDPointers = () => {
+    const p = {};
+    if (travType !== 'traversal_vertical') return p;
+    Object.entries(hdMap).forEach(([hd, vals]) => vals.forEach(v => { p[`hd_${v}`] = +hd; }));
+    return p;
+  };
+  const hdPointers = makeHDPointers();
+
+  fullOrder.forEach((val, idx) => {
+    visitedSoFar.push(val);
+    const remainingQueue = [...fullOrder.slice(idx + 1)];
+    const extraPointers = { current: val, ...hdPointers };
+
+    recordSnapshot({
+      highlights: [...visitedSoFar],
+      traversalOrder: [...fullOrder],
+      pathEdges: buildPathEdges(visitedSoFar, fullOrder),
+      queueState: remainingQueue.slice(0, 12),
+      queueLabel: `${qLabel}: `,
+      pointers: extraPointers,
+      codeLine: Math.min(idx + 2, 7),
+      callStack: [
+        { name: trName, args: `node=${val}` },
+        ...(idx > 0 ? [{ name: 'visit()', args: fullOrder.slice(0,idx).join(',') }] : [])
+      ],
+      comparisons: idx + 1,
+      allocations: elems.length,
+      complexity: travType.includes('morris') ? 'O(1) space' : (travType.includes('level')||travType.includes('dfs')||travType.includes('zigzag') ? 'O(n) space' : 'O(h) space'),
+      log: `Step ${idx+1}/${fullOrder.length}: Visiting node ${val}. Visited: [${visitedSoFar.join(', ')}]`
+    });
+  });
+
+  // Final done snapshot
+  recordSnapshot({
+    highlights: [...fullOrder],
+    traversalOrder: [...fullOrder],
+    pathEdges: buildPathEdges(fullOrder, fullOrder),
+    queueState: [],
+    queueLabel: `${qLabel}: `,
+    pointers: { current: null },
+    codeLine: 7,
+    callStack: [{ name: 'done()', args: fullOrder.join('→') }],
+    comparisons: fullOrder.length,
+    allocations: elems.length,
+    complexity: 'O(n)',
+    log: `✓ ${trName} complete! Order: [${fullOrder.join(', ')}]`
+  });
+
+  SoundFX.success();
+  renderStep(0);
+  playbackPlay();
 }
 
 function generateInitialState() {
@@ -2591,6 +2934,7 @@ function generateInitialState() {
   });
   renderStep(0);
 }
+
 
 /* ==========================================================================
    8. SYNCHRONIZED CODE TERMINAL
@@ -2694,6 +3038,267 @@ const CODE_LIBRARY = {
       "    return i + 1;",
       "}"
     ]
+  },
+  traversal_inorder: {
+    pseudo: [
+      "function inorder(node, result=[]):",
+      "    if node is None: return",
+      "    inorder(node.left, result)        # 1. Visit Left",
+      "    result.append(node.val)           # 2. Visit Root",
+      "    inorder(node.right, result)       # 3. Visit Right",
+      "    return result"
+    ],
+    cpp: [
+      "void inorder(TreeNode* node, vector<int>& res) {",
+      "    if (!node) return;",
+      "    inorder(node->left, res);   // 1. Left",
+      "    res.push_back(node->val);   // 2. Root",
+      "    inorder(node->right, res);  // 3. Right",
+      "}"
+    ],
+    py: [
+      "def inorder(node, res=[]):",
+      "    if not node: return",
+      "    inorder(node.left, res)   # 1. Left",
+      "    res.append(node.val)      # 2. Root",
+      "    inorder(node.right, res)  # 3. Right"
+    ],
+    js: [
+      "function inorder(node, res=[]) {",
+      "    if (!node) return;",
+      "    inorder(node.left, res);   // 1. Left",
+      "    res.push(node.val);        // 2. Root",
+      "    inorder(node.right, res);  // 3. Right",
+      "}"
+    ]
+  },
+  traversal_preorder: {
+    pseudo: [
+      "function preorder(node, result=[]):",
+      "    if node is None: return",
+      "    result.append(node.val)           # 1. Visit Root",
+      "    preorder(node.left, result)       # 2. Visit Left",
+      "    preorder(node.right, result)      # 3. Visit Right",
+      "    return result"
+    ],
+    cpp: [
+      "void preorder(TreeNode* node, vector<int>& res) {",
+      "    if (!node) return;",
+      "    res.push_back(node->val);   // 1. Root",
+      "    preorder(node->left, res);  // 2. Left",
+      "    preorder(node->right, res); // 3. Right",
+      "}"
+    ],
+    py: [
+      "def preorder(node, res=[]):",
+      "    if not node: return",
+      "    res.append(node.val)      # 1. Root",
+      "    preorder(node.left, res)  # 2. Left",
+      "    preorder(node.right, res) # 3. Right"
+    ],
+    js: [
+      "function preorder(node, res=[]) {",
+      "    if (!node) return;",
+      "    res.push(node.val);         // 1. Root",
+      "    preorder(node.left, res);   // 2. Left",
+      "    preorder(node.right, res);  // 3. Right",
+      "}"
+    ]
+  },
+  traversal_postorder: {
+    pseudo: [
+      "function postorder(node, result=[]):",
+      "    if node is None: return",
+      "    postorder(node.left, result)      # 1. Visit Left",
+      "    postorder(node.right, result)     # 2. Visit Right",
+      "    result.append(node.val)           # 3. Visit Root",
+      "    return result"
+    ],
+    cpp: [
+      "void postorder(TreeNode* node, vector<int>& res) {",
+      "    if (!node) return;",
+      "    postorder(node->left, res);  // 1. Left",
+      "    postorder(node->right, res); // 2. Right",
+      "    res.push_back(node->val);    // 3. Root",
+      "}"
+    ],
+    py: [
+      "def postorder(node, res=[]):",
+      "    if not node: return",
+      "    postorder(node.left, res)  # 1. Left",
+      "    postorder(node.right, res) # 2. Right",
+      "    res.append(node.val)       # 3. Root"
+    ],
+    js: [
+      "function postorder(node, res=[]) {",
+      "    if (!node) return;",
+      "    postorder(node.left, res);  // 1. Left",
+      "    postorder(node.right, res); // 2. Right",
+      "    res.push(node.val);         // 3. Root",
+      "}"
+    ]
+  },
+  traversal_levelorder: {
+    pseudo: [
+      "function levelOrder(root):",
+      "    queue = deque([root])          # Init FIFO queue",
+      "    result = []",
+      "    while queue is not empty:",
+      "        node = queue.popleft()     # Dequeue front",
+      "        result.append(node.val)    # Visit node",
+      "        if node.left:  queue.append(node.left)",
+      "        if node.right: queue.append(node.right)",
+      "    return result"
+    ],
+    cpp: [
+      "vector<int> levelOrder(TreeNode* root) {",
+      "    queue<TreeNode*> q; q.push(root);",
+      "    vector<int> res;",
+      "    while (!q.empty()) {",
+      "        auto node = q.front(); q.pop();",
+      "        res.push_back(node->val);",
+      "        if (node->left)  q.push(node->left);",
+      "        if (node->right) q.push(node->right);",
+      "    }",
+      "    return res;",
+      "}"
+    ],
+    py: [
+      "from collections import deque",
+      "def level_order(root):",
+      "    queue, res = deque([root]), []",
+      "    while queue:",
+      "        node = queue.popleft()",
+      "        res.append(node.val)",
+      "        if node.left:  queue.append(node.left)",
+      "        if node.right: queue.append(node.right)",
+      "    return res"
+    ],
+    js: [
+      "function levelOrder(root) {",
+      "    const queue = [root], res = [];",
+      "    while (queue.length) {",
+      "        const node = queue.shift();",
+      "        res.push(node.val);",
+      "        if (node.left)  queue.push(node.left);",
+      "        if (node.right) queue.push(node.right);",
+      "    }",
+      "    return res;",
+      "}"
+    ]
+  },
+  traversal_zigzag: {
+    pseudo: [
+      "function zigzagLevelOrder(root):",
+      "    queue = deque([root])",
+      "    leftToRight = True",
+      "    result = []",
+      "    while queue:",
+      "        level_size = len(queue)",
+      "        level = deque()",
+      "        for _ in range(level_size):",
+      "            node = queue.popleft()",
+      "            if leftToRight: level.append(node.val)",
+      "            else:           level.appendleft(node.val)",
+      "            if node.left:  queue.append(node.left)",
+      "            if node.right: queue.append(node.right)",
+      "        leftToRight = not leftToRight",
+      "        result.extend(level)"
+    ],
+    cpp: ["// Zigzag Level-Order Traversal","// Alternates append direction per level","vector<int> zigzag(TreeNode* root) {","    deque<TreeNode*> dq = {root};","    bool l2r = true; vector<int> res;","    while (!dq.empty()) {","        int sz = dq.size();","        deque<int> level;","        for (int i=0;i<sz;i++) {","            auto n = dq.front(); dq.pop_front();","            if (l2r) level.push_back(n->val);","            else level.push_front(n->val);","            if (n->left) dq.push_back(n->left);","            if (n->right) dq.push_back(n->right);","        }","        l2r=!l2r; for(auto v:level) res.push_back(v);","    }","    return res;","}"],
+    py: ["def zigzag_level_order(root):","    from collections import deque","    queue = deque([root])","    l2r = True; result = []","    while queue:","        level = deque()","        for _ in range(len(queue)):","            node = queue.popleft()","            if l2r: level.append(node.val)","            else:   level.appendleft(node.val)","            if node.left:  queue.append(node.left)","            if node.right: queue.append(node.right)","        l2r = not l2r","        result.extend(level)","    return result"],
+    js: ["function zigzagLevelOrder(root) {","    const queue = [root], res = [];","    let l2r = true;","    while (queue.length) {","        const level = [];","        for (let i=0,sz=queue.length;i<sz;i++) {","            const node = queue.shift();","            if (l2r) level.push(node.val);","            else level.unshift(node.val);","            if (node.left)  queue.push(node.left);","            if (node.right) queue.push(node.right);","        }","        l2r = !l2r; res.push(...level);","    }","    return res;","}"]
+  },
+  traversal_dfs: {
+    pseudo: [
+      "function dfsIterative(root):",
+      "    if root is None: return []",
+      "    stack = [root]",
+      "    result = []",
+      "    while stack:",
+      "        node = stack.pop()",
+      "        result.append(node.val)",
+      "        if node.right: stack.append(node.right)",
+      "        if node.left:  stack.append(node.left)",
+      "    return result"
+    ],
+    cpp: ["// DFS Iterative Preorder Traversal","vector<int> dfsIterative(TreeNode* root) {","    if (!root) return {};","    vector<int> res; stack<TreeNode*> st;","    st.push(root);","    while (!st.empty()) {","        auto curr = st.top(); st.pop();","        res.push_back(curr->val);","        if (curr->right) st.push(curr->right);","        if (curr->left)  st.push(curr->left);","    }","    return res;","}"],
+    py: ["def dfs_iterative(root):","    if not root: return []","    stack, res = [root], []","    while stack:","        node = stack.pop()","        res.append(node.val)","        if node.right: stack.append(node.right)","        if node.left:  stack.append(node.left)","    return res"],
+    js: ["function dfsIterative(root) {","    if (!root) return [];","    const stack = [root], res = [];","    while (stack.length) {","        const node = stack.pop();","        res.push(node.val);","        if (node.right) stack.push(node.right);","        if (node.left)  stack.push(node.left);","    }","    return res;","}"]
+  },
+  traversal_vertical: {
+    pseudo: [
+      "function verticalOrder(root):",
+      "    if root is None: return []",
+      "    colMap = defaultdict(list)",
+      "    queue = deque([(root, 0)])   # (node, col)",
+      "    while queue:",
+      "        node, col = queue.popleft()",
+      "        colMap[col].append(node.val)",
+      "        if node.left:  queue.append((node.left, col - 1))",
+      "        if node.right: queue.append((node.right, col + 1))",
+      "    return [colMap[x] for x in sorted(colMap.keys())]"
+    ],
+    cpp: ["// Vertical Order Sweep via Horizontal Distance","vector<vector<int>> verticalOrder(TreeNode* root) {","    if (!root) return {};","    map<int, vector<int>> colMap;","    queue<pair<TreeNode*, int>> q;","    q.push({root, 0});","    while (!q.empty()) {","        auto [node, col] = q.front(); q.pop();","        colMap[col].push_back(node->val);","        if (node->left)  q.push({node->left, col - 1});","        if (node->right) q.push({node->right, col + 1});","    }","    vector<vector<int>> res;","    for (auto& [c, nodes] : colMap) res.push_back(nodes);","    return res;","}"],
+    py: ["def vertical_order(root):","    if not root: return []","    from collections import defaultdict, deque","    col_map = defaultdict(list)","    queue = deque([(root, 0)])","    while queue:","        node, col = queue.popleft()","        col_map[col].append(node.val)","        if node.left:  queue.append((node.left, col - 1))","        if node.right: queue.append((node.right, col + 1))","    return [col_map[x] for x in sorted(col_map.keys())]"],
+    js: ["function verticalOrder(root) {","    if (!root) return [];","    const colMap = new Map();","    const queue = [{node: root, col: 0}];","    while (queue.length) {","        const {node, col} = queue.shift();","        if (!colMap.has(col)) colMap.set(col, []);","        colMap.get(col).push(node.val);","        if (node.left)  queue.push({node: node.left, col: col - 1});","        if (node.right) queue.push({node: node.right, col: col + 1});","    }","    return Array.from(colMap.keys()).sort((a,b)=>a-b).map(k => colMap.get(k));","}"]
+  },
+  traversal_diagonal: {
+    pseudo: [
+      "function diagonalTraversal(root):",
+      "    if root is None: return []",
+      "    queue = deque([root])",
+      "    result = []",
+      "    while queue:",
+      "        node = queue.popleft()",
+      "        while node:",
+      "            result.append(node.val)",
+      "            if node.left: queue.append(node.left)",
+      "            node = node.right",
+      "    return result"
+    ],
+    cpp: ["// Diagonal Traversal (Follow right pointers, queue left)","vector<int> diagonal(TreeNode* root) {","    if (!root) return {};","    vector<int> res; queue<TreeNode*> q;","    q.push(root);","    while (!q.empty()) {","        auto curr = q.front(); q.pop();","        while (curr) {","            res.push_back(curr->val);","            if (curr->left) q.push(curr->left);","            curr = curr->right;","        }","    }","    return res;","}"],
+    py: ["def diagonal_traversal(root):","    if not root: return []","    from collections import deque","    queue = deque([root]); res = []","    while queue:","        curr = queue.popleft()","        while curr:","            res.append(curr.val)","            if curr.left: queue.append(curr.left)","            curr = curr.right","    return res"],
+    js: ["function diagonalTraversal(root) {","    if (!root) return [];","    const queue = [root], res = [];","    while (queue.length) {","        let curr = queue.shift();","        while (curr) {","            res.push(curr.val);","            if (curr.left) queue.push(curr.left);","            curr = curr.right;","        }","    }","    return res;","}"]
+  },
+  traversal_boundary: {
+    pseudo: [
+      "function boundaryTraversal(root):",
+      "    if root is None: return []",
+      "    result = []",
+      "    if not isLeaf(root): result.append(root.val)",
+      "    addLeftBoundary(root.left, result)",
+      "    addLeaves(root, result)",
+      "    addRightBoundary(root.right, result)",
+      "    return result"
+    ],
+    cpp: ["// Boundary Traversal (Anti-Clockwise Perimeter)","vector<int> boundaryOfBinaryTree(TreeNode* root) {","    if (!root) return {};","    vector<int> res;","    if (!isLeaf(root)) res.push_back(root->val);","    addLeftBoundary(root->left, res);","    addLeaves(root, res);","    addRightBoundary(root->right, res);","    return res;","}"],
+    py: ["def boundary_traversal(root):","    if not root: return []","    res = []","    if not is_leaf(root): res.append(root.val)","    add_left_boundary(root.left, res)","    add_leaves(root, res)","    add_right_boundary(root.right, res)","    return res"],
+    js: ["function boundaryTraversal(root) {","    if (!root) return [];","    const res = [];","    if (!isLeaf(root)) res.push(root.val);","    addLeftBoundary(root.left, res);","    addLeaves(root, res);","    addRightBoundary(root.right, res);","    return res;","}"]
+  },
+  traversal_morris: {
+    pseudo: [
+      "function morrisInorder(root):",
+      "    current = root; result = []",
+      "    while current is not None:",
+      "        if current.left is None:          # No left child",
+      "            result.append(current.val)    # Visit",
+      "            current = current.right       # Move right",
+      "        else:                             # Has left child",
+      "            prev = current.left",
+      "            while prev.right not in (None, current):",
+      "                prev = prev.right          # Find inorder predecessor",
+      "            if prev.right is None:         # Make thread",
+      "                prev.right = current",
+      "                current = current.left",
+      "            else:                          # Remove thread",
+      "                prev.right = None",
+      "                result.append(current.val)",
+      "                current = current.right"
+    ],
+    cpp: ["// Morris Inorder — O(1) extra space","void morris(TreeNode* root, vector<int>& res) {","    TreeNode* curr = root;","    while (curr) {","        if (!curr->left) {","            res.push_back(curr->val); curr = curr->right;","        } else {","            TreeNode* prev = curr->left;","            while (prev->right && prev->right != curr)","                prev = prev->right;","            if (!prev->right) {","                prev->right = curr; curr = curr->left;","            } else {","                prev->right = nullptr;","                res.push_back(curr->val); curr = curr->right;","            }","        }","    }","}"],
+    py: ["def morris_inorder(root):","    curr, res = root, []","    while curr:","        if not curr.left:","            res.append(curr.val); curr = curr.right","        else:","            prev = curr.left","            while prev.right and prev.right != curr:","                prev = prev.right","            if not prev.right:","                prev.right = curr; curr = curr.left","            else:","                prev.right = None","                res.append(curr.val); curr = curr.right","    return res"],
+    js: ["function morrisInorder(root) {","    let curr = root, res = [];","    while (curr) {","        if (!curr.left) {","            res.push(curr.val); curr = curr.right;","        } else {","            let prev = curr.left;","            while (prev.right && prev.right !== curr)","                prev = prev.right;","            if (!prev.right) {","                prev.right = curr; curr = curr.left;","            } else {","                prev.right = null;","                res.push(curr.val); curr = curr.right;","            }","        }","    }","    return res;","}"]
   }
 };
 
@@ -2708,7 +3313,11 @@ function selectCodeLang(lang) {
 function updateCodeTerminal() {
   const container = document.getElementById('code-terminal-lines');
   container.innerHTML = '';
-  const struct = STATE.structure.includes('sorting') ? 'sorting_quick' : (STATE.structure === 'queue' ? 'queue' : 'stack');
+  let struct = STATE.structure;
+  if (struct.includes('sorting')) struct = 'sorting_quick';
+  else if (struct === 'queue') struct = 'queue';
+  else if (struct.startsWith('traversal_')) struct = struct; // keep traversal_* id
+  else struct = 'stack';
   const lines = (CODE_LIBRARY[struct] && CODE_LIBRARY[struct][STATE.codeLang]) || CODE_LIBRARY.stack.pseudo;
 
   lines.forEach(line => {
