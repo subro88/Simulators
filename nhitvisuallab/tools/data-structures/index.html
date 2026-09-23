@@ -1365,16 +1365,52 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
+function clampPan() {
+  const w = canvas.width;
+  const h = canvas.height;
+  const z = STATE.scaleZoom || 1.0;
+  // Keep content comfortably within visible screen
+  const maxPanX = w * 0.75;
+  const minPanX = w * 0.25 - w * z;
+  const maxPanY = h * 0.75;
+  const minPanY = h * 0.25 - h * z;
+  STATE.panX = Math.max(minPanX, Math.min(maxPanX, STATE.panX));
+  STATE.panY = Math.max(minPanY, Math.min(maxPanY, STATE.panY));
+}
+
+function zoomAtPoint(factor, cx, cy) {
+  const oldZoom = STATE.scaleZoom || 1.0;
+  const newZoom = Math.min(2.5, Math.max(0.4, oldZoom * factor));
+  if (Math.abs(newZoom - oldZoom) < 0.0001) return;
+
+  // World coordinates under (cx, cy) before zoom:
+  const wx = (cx - STATE.panX) / oldZoom;
+  const wy = (cy - STATE.panY) / oldZoom;
+
+  // After zoom, (wx, wy) remains exactly under (cx, cy):
+  STATE.panX = cx - wx * newZoom;
+  STATE.panY = cy - wy * newZoom;
+  STATE.scaleZoom = newZoom;
+
+  clampPan();
+  if (STATE.history && STATE.history.length > 0 && STATE.currentStepIndex >= 0) {
+    drawCanvas(STATE.history[STATE.currentStepIndex]);
+  }
+}
+
 function resetCanvasView() {
   STATE.scaleZoom = 1.0;
   STATE.panX = 0;
   STATE.panY = 0;
-  if (STATE.history.length > 0) renderStep(STATE.currentStepIndex);
+  if (STATE.history && STATE.history.length > 0 && STATE.currentStepIndex >= 0) {
+    drawCanvas(STATE.history[STATE.currentStepIndex]);
+  }
 }
 
 function zoomCanvas(factor) {
-  STATE.scaleZoom = Math.min(2.5, Math.max(0.4, STATE.scaleZoom * factor));
-  if (STATE.history.length > 0) renderStep(STATE.currentStepIndex);
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  zoomAtPoint(factor, cx, cy);
 }
 
 function toggleCanvasFullscreen() {
@@ -1396,6 +1432,7 @@ window.addEventListener('mousemove', (e) => {
   if (!STATE.isDragging) return;
   STATE.panX = e.clientX - STATE.dragStartX;
   STATE.panY = e.clientY - STATE.dragStartY;
+  clampPan();
   if (STATE.history.length > 0) drawCanvas(STATE.history[STATE.currentStepIndex]);
 });
 window.addEventListener('mouseup', () => {
@@ -1403,9 +1440,16 @@ window.addEventListener('mouseup', () => {
 });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
   const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-  zoomCanvas(zoomFactor);
+  zoomAtPoint(zoomFactor, mouseX, mouseY);
 }, { passive: false });
+
+canvas.addEventListener('dblclick', () => {
+  resetCanvasView();
+});
 
 function drawCanvas(snap) {
   if (!snap) return;
@@ -1413,11 +1457,24 @@ function drawCanvas(snap) {
   const h = canvas.height;
 
   ctx.clearRect(0, 0, w, h);
+
+  // Seamless base canvas background fill across full viewport so zoom/pan never shows empty borders
+  const struct = STATE.structure;
+  if (struct === 'sorting_bubble') {
+    ctx.fillStyle = '#061325';
+    ctx.fillRect(0, 0, w, h);
+  } else if (struct === 'sorting_selection') {
+    ctx.fillStyle = '#06070a';
+    ctx.fillRect(0, 0, w, h);
+  } else {
+    ctx.fillStyle = '#050c18';
+    ctx.fillRect(0, 0, w, h);
+  }
+
   ctx.save();
   ctx.translate(STATE.panX, STATE.panY);
   ctx.scale(STATE.scaleZoom, STATE.scaleZoom);
 
-  const struct = STATE.structure;
   if (struct === 'stack') {
     drawStack(snap);
   } else if (struct === 'queue') {
@@ -2100,27 +2157,39 @@ function drawDevAngeloBubbleSort(snap) {
   const h = canvas.height;
 
   // 1. Engineering Blueprint Background & Technical Grid
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
   ctx.save();
   ctx.fillStyle = '#061325';
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(worldX, worldY, worldW, worldH);
 
-  // Fine 24px Graph Grid
+  // Fine 24px Graph Grid covering entire visible viewport
   ctx.strokeStyle = '#0d223f';
   ctx.lineWidth = 1;
-  for (let x = 0; x <= w; x += 24) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  const startGridX = Math.floor(worldX / 24) * 24;
+  const endGridX = worldX + worldW;
+  const startGridY = Math.floor(worldY / 24) * 24;
+  const endGridY = worldY + worldH;
+  for (let x = startGridX; x <= endGridX; x += 24) {
+    ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, endGridY); ctx.stroke();
   }
-  for (let y = 0; y <= h; y += 24) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  for (let y = startGridY; y <= endGridY; y += 24) {
+    ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(endGridX, y); ctx.stroke();
   }
   // Major 120px Technical Grid Accents
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
   ctx.lineWidth = 1.2;
-  for (let x = 0; x <= w; x += 120) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  const startMajorX = Math.floor(worldX / 120) * 120;
+  const startMajorY = Math.floor(worldY / 120) * 120;
+  for (let x = startMajorX; x <= endGridX; x += 120) {
+    ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, endGridY); ctx.stroke();
   }
-  for (let y = 0; y <= h; y += 120) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  for (let y = startMajorY; y <= endGridY; y += 120) {
+    ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(endGridX, y); ctx.stroke();
   }
 
   // Corner Engineering Alignment Marks (+)
@@ -2663,14 +2732,24 @@ function drawCodingChopsSelectionSort(snap) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // 1. Dark Theatrical Spotlight Background (Vignette)
+  // 1. Dark Theatrical Spotlight Background (Vignette covering full world viewport)
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
   ctx.save();
-  const bgGrad = ctx.createRadialGradient(w / 2, 170, 70, w / 2, 270, 490);
+  ctx.fillStyle = '#06070a';
+  ctx.fillRect(worldX, worldY, worldW, worldH);
+
+  const maxR = Math.max(520, Math.sqrt(worldW * worldW + worldH * worldH) * 0.7);
+  const bgGrad = ctx.createRadialGradient(w / 2, 170, 70, w / 2, 270, maxR);
   bgGrad.addColorStop(0, '#191e2b');
-  bgGrad.addColorStop(0.6, '#0e1118');
+  bgGrad.addColorStop(0.5, '#0e1118');
   bgGrad.addColorStop(1, '#06070a');
   ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(worldX, worldY, worldW, worldH);
 
   // 2. Header: Coding Chops Title & Telemetry Pills
   ctx.textAlign = 'left';
@@ -3246,18 +3325,28 @@ function drawGenericSortingVisualizer(snap) {
   const h = canvas.height;
   const struct = STATE.structure;
 
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
   ctx.save();
   ctx.fillStyle = '#050c18';
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(worldX, worldY, worldW, worldH);
 
-  // Background Grid Lines
+  // Background Grid Lines covering full world viewport
   ctx.strokeStyle = '#0e1d32';
   ctx.lineWidth = 1;
-  for (let x = 0; x <= w; x += 40) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  const startGridX = Math.floor(worldX / 40) * 40;
+  const endGridX = worldX + worldW;
+  const startGridY = Math.floor(worldY / 40) * 40;
+  const endGridY = worldY + worldH;
+  for (let x = startGridX; x <= endGridX; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, endGridY); ctx.stroke();
   }
-  for (let y = 0; y <= h; y += 40) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  for (let y = startGridY; y <= endGridY; y += 40) {
+    ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(endGridX, y); ctx.stroke();
   }
 
   // Header Banner
