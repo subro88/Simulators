@@ -146,6 +146,7 @@
         <button class="chip-btn" onclick="applyPreset('avl-benchmark')">&#11088; AVL Benchmark [30,20,10,40,50,25]</button>
         <button class="chip-btn" onclick="applyPreset('lomuto-quick')">&#9889; QuickSort Lomuto [38,27,43,3,9,82,10]</button>
         <button class="chip-btn" onclick="applyPreset('random-8')">&#127922; Random 8</button>
+        <button class="chip-btn" onclick="applyPreset('random-16')" style="border-color:#38bdf8;color:#38bdf8;">&#127922; Random 16</button>
         <button class="chip-btn" onclick="applyPreset('sorted-asc')">&#128200; Sorted Ascending</button>
         <button class="chip-btn" onclick="applyPreset('sorted-desc')">&#128201; Sorted Descending</button>
         <button class="chip-btn" onclick="applyPreset('duplicates')">&#128257; Duplicate Heavy</button>
@@ -1053,6 +1054,7 @@ function updateActionControls() {
     } else if (struct === 'sorting_selection') {
       addBtn('🎳 Apply Bowling Pins [64,25,12,22,11]', 'warning', () => applyPreset('bowling-pins'));
     }
+    addBtn('🎲 Random 16', 'secondary', () => applyPreset('random-16'));
     addBtn('🎲 Shuffle Array', 'outline', () => shuffleArray());
     addBtn('↺ Reset', 'outline', () => resetData());
   }
@@ -2072,7 +2074,7 @@ function drawGraph(snap) {
 
 /* 6.8 Draw Sorting Visualizer (Bubble Sort Mechanical Gantry & Selection Sort Bowling Pins) */
 
-// 6.8.1 DevAngelo Pixel-Perfect Bubble Sort Mechanical Gantry Crane Visualizer
+// 6.8.1 DevAngelo Full-Canvas Bubble Sort Mechanical Gantry Crane Visualizer
 function drawDevAngeloBubbleSort(snap) {
   const elems = snap.elements;
   const n = elems ? elems.length : 0;
@@ -2153,16 +2155,17 @@ function drawDevAngeloBubbleSort(snap) {
   drawPill(w - 255, 24, 110, 25, 'rgba(245, 158, 11, 0.15)', '#f59e0b', '#fbbf24', 'CAMBIA', swaps);
   drawPill(w - 135, 24, 105, 25, 'rgba(168, 85, 247, 0.15)', '#a855f7', '#c084fc', 'PASO', pass + '/' + totalPass);
 
-  // 3. Layout Dimensions for Element Cards
-  const leftX = 40;
-  const rightX = w - 40;
-  const totalSpan = rightX - leftX;
-  const cardW = Math.min(62, Math.floor((totalSpan - (n - 1) * 16) / n));
-  const gap = (totalSpan - n * cardW) / (n > 1 ? (n - 1) : 1);
-  const cardY = 186;
-  const cardH = 68;
+  // 3. Dynamic Proportional Layout for Elements (N = 4 to 16)
+  const startX = 36;
+  const availW = w - 72;
+  const gap = Math.max(4, Math.min(16, Math.floor(120 / n)));
+  const cardW = Math.max(26, Math.min(64, Math.floor((availW - (n - 1) * gap) / n)));
+  const cardH = Math.max(52, Math.min(88, Math.round(cardW * 1.35)));
+  const cardY = 310;
+  const totalCardsWidth = n * cardW + (n - 1) * gap;
+  const offsetX = startX + Math.max(0, Math.floor((availW - totalCardsWidth) / 2));
 
-  const getCardX = (idx) => leftX + idx * (cardW + gap);
+  const getCardX = (idx) => offsetX + idx * (cardW + gap);
 
   const sortedSet = new Set(snap.sortedIndices || []);
   const activePair = snap.activePair || (snap.pointers.j !== undefined ? [snap.pointers.j, snap.pointers.j + 1] : []);
@@ -2173,6 +2176,9 @@ function drawDevAngeloBubbleSort(snap) {
   // 4. Overhead Industrial Gantry Rail (at Y = 82)
   const railY = 82;
   const railH = 14;
+  const railLeft = startX - 10;
+  const railWidth = availW + 20;
+
   const railGrad = ctx.createLinearGradient(0, railY, 0, railY + railH);
   railGrad.addColorStop(0, '#2b4b73');
   railGrad.addColorStop(0.5, '#162840');
@@ -2181,7 +2187,7 @@ function drawDevAngeloBubbleSort(snap) {
   ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(leftX - 10, railY, totalSpan + 20, railH, 3);
+  ctx.roundRect(railLeft, railY, railWidth, railH, 3);
   ctx.fill();
   ctx.stroke();
 
@@ -2189,8 +2195,8 @@ function drawDevAngeloBubbleSort(snap) {
   ctx.strokeStyle = '#091524';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(leftX - 5, railY + railH / 2);
-  ctx.lineTo(rightX + 5, railY + railH / 2);
+  ctx.moveTo(railLeft + 5, railY + railH / 2);
+  ctx.lineTo(railLeft + railWidth - 5, railY + railH / 2);
   ctx.stroke();
 
   // End-Stopper Buffers with Hazard Caution Stripes
@@ -2209,41 +2215,45 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.lineTo(sx + 10, railY - 2);
     ctx.stroke();
   };
-  drawEndStopper(leftX - 22);
-  drawEndStopper(rightX + 10);
+  drawEndStopper(railLeft - 12);
+  drawEndStopper(railLeft + railWidth);
 
   // 5. Motorized Gantry Carriage & Articulated A-Frame Grippers
   if (jIdx >= 0 && jNextIdx < n) {
     const xA = getCardX(jIdx) + cardW / 2;
     const xB = getCardX(jNextIdx) + cardW / 2;
     const trolleyCenterX = (xA + xB) / 2;
-    const trolleyW = 90;
+    const pairSpan = Math.abs(xB - xA);
+    const trolleyW = Math.max(cardW * 2 + 10, Math.min(130, pairSpan + cardW + 16));
     const trolleyH = 22;
     const trolleyY = railY - 5;
 
     ctx.save();
     // A-Frame Diagonal Mechanical Struts
     ctx.strokeStyle = isSwap ? '#f59e0b' : '#38bdf8';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = Math.max(2, Math.min(3.5, cardW * 0.08));
     ctx.lineCap = 'round';
+
+    const strutTopOffset = Math.min(20, trolleyW * 0.22);
+    const cardTopY = cardY - cardH;
 
     // Left strut to card j
     ctx.beginPath();
-    ctx.moveTo(trolleyCenterX - 16, trolleyY + trolleyH);
-    ctx.lineTo(xA, cardY - 14);
+    ctx.moveTo(trolleyCenterX - strutTopOffset, trolleyY + trolleyH);
+    ctx.lineTo(xA, cardTopY - 14);
     ctx.stroke();
 
     // Right strut to card j+1
     ctx.beginPath();
-    ctx.moveTo(trolleyCenterX + 16, trolleyY + trolleyH);
-    ctx.lineTo(xB, cardY - 14);
+    ctx.moveTo(trolleyCenterX + strutTopOffset, trolleyY + trolleyH);
+    ctx.lineTo(xB, cardTopY - 14);
     ctx.stroke();
 
     // Cross-brace between struts
-    const braceY = (trolleyY + trolleyH + cardY - 14) / 2;
-    const braceLeft = trolleyCenterX - 16 + (xA - (trolleyCenterX - 16)) * 0.45;
-    const braceRight = trolleyCenterX + 16 + (xB - (trolleyCenterX + 16)) * 0.45;
-    ctx.lineWidth = 2;
+    const braceY = (trolleyY + trolleyH + cardTopY - 14) / 2;
+    const braceLeft = (trolleyCenterX - strutTopOffset) + (xA - (trolleyCenterX - strutTopOffset)) * 0.45;
+    const braceRight = (trolleyCenterX + strutTopOffset) + (xB - (trolleyCenterX + strutTopOffset)) * 0.45;
+    ctx.lineWidth = Math.max(1.5, ctx.lineWidth * 0.7);
     ctx.beginPath();
     ctx.moveTo(braceLeft, braceY);
     ctx.lineTo(braceRight, braceY);
@@ -2266,7 +2276,7 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.fillStyle = '#94a3b8';
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 1;
-    [-trolleyW / 2 + 10, trolleyW / 2 - 10].forEach(wx => {
+    [-trolleyW / 2 + 8, trolleyW / 2 - 8].forEach(wx => {
       ctx.beginPath();
       ctx.arc(trolleyCenterX + wx, railY - 2, 4, 0, Math.PI * 2);
       ctx.fill();
@@ -2287,12 +2297,12 @@ function drawDevAngeloBubbleSort(snap) {
 
     // Dual Mechanical Gripper Bracket Pads [   ]
     [xA, xB].forEach(targetX => {
-      const gripY = cardY - 14;
-      const padW = cardW + 12;
-      const clawH = 40;
+      const gripY = cardTopY - 14;
+      const padW = cardW + Math.min(10, cardW * 0.25);
+      const clawH = Math.min(36, cardH * 0.45);
 
       ctx.strokeStyle = isSwap ? '#fbbf24' : '#38bdf8';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(2, Math.min(3, cardW * 0.07));
 
       // Horizontal mounting bracket
       ctx.beginPath();
@@ -2304,20 +2314,20 @@ function drawDevAngeloBubbleSort(snap) {
       ctx.beginPath();
       ctx.moveTo(targetX - padW / 2, gripY);
       ctx.lineTo(targetX - padW / 2, gripY + clawH);
-      ctx.lineTo(targetX - padW / 2 + 5, gripY + clawH);
+      ctx.lineTo(targetX - padW / 2 + 4, gripY + clawH);
       ctx.stroke();
 
       // Right gripper claw pad
       ctx.beginPath();
       ctx.moveTo(targetX + padW / 2, gripY);
       ctx.lineTo(targetX + padW / 2, gripY + clawH);
-      ctx.lineTo(targetX + padW / 2 - 5, gripY + clawH);
+      ctx.lineTo(targetX + padW / 2 - 4, gripY + clawH);
       ctx.stroke();
 
       // Mechanical Bolt / Rivet
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(targetX, gripY, 3, 0, Math.PI * 2);
+      ctx.arc(targetX, gripY, 2.5, 0, Math.PI * 2);
       ctx.fill();
     });
 
@@ -2327,9 +2337,9 @@ function drawDevAngeloBubbleSort(snap) {
       ctx.lineWidth = 2.5;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      const arcMidY = cardY - 32;
-      ctx.moveTo(xA, cardY - 8);
-      ctx.quadraticCurveTo(trolleyCenterX, arcMidY, xB, cardY - 8);
+      const arcMidY = cardTopY - 32;
+      ctx.moveTo(xA, cardTopY - 8);
+      ctx.quadraticCurveTo(trolleyCenterX, arcMidY, xB, cardTopY - 8);
       ctx.stroke();
       ctx.setLineDash([]);
 
@@ -2342,13 +2352,15 @@ function drawDevAngeloBubbleSort(snap) {
   }
 
   // 6. Proportional Blueprint Data Cards
+  const valFontSize = Math.max(11, Math.min(24, Math.round(cardW * 0.42)));
+
   for (let k = 0; k < n; k++) {
     const val = elems[k];
     const cx = getCardX(k);
     const isSorted = sortedSet.has(k);
     const isActive = (k === jIdx || k === jNextIdx);
-    const yOffset = (isActive && isSwap) ? -8 : 0;
-    const curY = cardY + yOffset;
+    const yOffset = (isActive && isSwap) ? -10 : 0;
+    const curTopY = (cardY - cardH) + yOffset;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
@@ -2376,7 +2388,7 @@ function drawDevAngeloBubbleSort(snap) {
     }
 
     ctx.beginPath();
-    ctx.roundRect(cx, curY, cardW, cardH, 8);
+    ctx.roundRect(cx, curTopY, cardW, cardH, 8);
     ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -2385,12 +2397,12 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(cx + 2, curY + 2, cardW - 4, cardH - 4, 6);
+    ctx.roundRect(cx + 2, curTopY + 2, cardW - 4, cardH - 4, 6);
     ctx.stroke();
 
     // Value Numeral
     ctx.textAlign = 'center';
-    ctx.font = 'bold 24px "JetBrains Mono", monospace';
+    ctx.font = 'bold ' + valFontSize + 'px "JetBrains Mono", monospace';
     if (isSorted) {
       ctx.fillStyle = '#34d399';
     } else if (isActive) {
@@ -2398,124 +2410,45 @@ function drawDevAngeloBubbleSort(snap) {
     } else {
       ctx.fillStyle = '#e2e8f0';
     }
-    ctx.fillText(val, cx + cardW / 2, curY + 43);
+    ctx.fillText(val, cx + cardW / 2, curTopY + cardH / 2 + valFontSize * 0.35);
 
     // Sorted Lock Badge
     if (isSorted) {
-      ctx.font = 'bold 11px "Segoe UI"';
+      ctx.font = 'bold 10px "Segoe UI"';
       ctx.fillStyle = '#10b981';
-      ctx.fillText('🔒', cx + cardW / 2, curY - 6);
+      ctx.fillText('🔒', cx + cardW / 2, curTopY - 6);
     }
 
     // Sub-index label below card
-    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.font = '10px "JetBrains Mono", monospace';
     ctx.fillStyle = isActive ? '#38bdf8' : '#64748b';
-    ctx.fillText('[' + k + ']', cx + cardW / 2, cardY + cardH + 18);
+    ctx.fillText('[' + k + ']', cx + cardW / 2, cardY + 16);
     ctx.restore();
   }
 
-  // 7. Canvas-Embedded macOS Terminal Window (bubble_sort.c)
-  const termX = 30;
-  const termY = 292;
-  const termW = w - 60;
-  const termH = 212;
+  // 7. Full-Width Engineering Telemetry & Operational HUD (Lower Canvas)
+  const hudY = 360;
+  const hudH = 135;
 
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 6;
-
-  // Window Frame
-  ctx.fillStyle = '#080d1a';
-  ctx.strokeStyle = '#1e293b';
+  // Telemetry Container Box
+  ctx.fillStyle = 'rgba(8, 18, 36, 0.85)';
+  ctx.strokeStyle = '#1e385c';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(termX, termY, termW, termH, 10);
+  ctx.roundRect(startX, hudY, availW, hudH, 8);
   ctx.fill();
   ctx.stroke();
-  ctx.shadowBlur = 0;
 
-  // Titlebar
-  const tbH = 26;
-  ctx.fillStyle = '#0f172a';
+  // Primary Telemetry Header Bar
+  ctx.fillStyle = '#0c1b30';
   ctx.beginPath();
-  ctx.roundRect(termX, termY, termW, tbH, [10, 10, 0, 0]);
+  ctx.roundRect(startX, hudY, availW, 30, [8, 8, 0, 0]);
   ctx.fill();
-  ctx.strokeStyle = '#1e293b';
+  ctx.strokeStyle = '#1e385c';
   ctx.beginPath();
-  ctx.moveTo(termX, termY + tbH);
-  ctx.lineTo(termX + termW, termY + tbH);
-  ctx.stroke();
-
-  // macOS Window Buttons (Red, Amber, Green)
-  const dotY = termY + tbH / 2;
-  ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(termX + 16, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(termX + 30, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(termX + 44, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
-
-  // Titlebar File Title
-  ctx.font = 'bold 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#94a3b8';
-  ctx.textAlign = 'center';
-  ctx.fillText('bubble_sort.c', termX + termW / 2, dotY + 4);
-
-  // DevAngelo Watermark
-  ctx.font = 'bold 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#38bdf8';
-  ctx.textAlign = 'right';
-  ctx.fillText('@DevAngelo', termX + termW - 16, dotY + 4);
-
-  // Embedded Code Lines
-  const cLines = [
-    { line: 1, text: 'for (int i = 0; i < n - 1; i++) {' },
-    { line: 2, text: '    bool swapped = false;' },
-    { line: 3, text: '    for (int j = 0; j < n - i - 1; j++) {' },
-    { line: 4, text: '        if (arr[j] > arr[j + 1]) {' },
-    { line: 5, text: '            swap(&arr[j], &arr[j + 1]);' },
-    { line: 6, text: '            swapped = true;' },
-    { line: 7, text: '        }' },
-    { line: 8, text: '    }' },
-    { line: 9, text: '    if (!swapped) break;  // O(n) early exit' }
-  ];
-
-  let activeLine = 3;
-  if (snap.earlyExit) activeLine = 9;
-  else if (isSwap) activeLine = 5;
-  else if (snap.codeLine) activeLine = Math.min(9, Math.max(1, snap.codeLine));
-
-  const codeStartY = termY + tbH + 16;
-  const lineH = 16;
-
-  cLines.forEach((item, idx) => {
-    const ly = codeStartY + idx * lineH;
-    const isCur = (item.line === activeLine);
-
-    if (isCur) {
-      ctx.fillStyle = isSwap ? 'rgba(245, 158, 11, 0.2)' : 'rgba(56, 189, 248, 0.16)';
-      ctx.fillRect(termX + 1, ly - 11, termW - 2, lineH);
-      ctx.fillStyle = isSwap ? '#f59e0b' : '#38bdf8';
-      ctx.fillRect(termX + 1, ly - 11, 3.5, lineH);
-    }
-
-    ctx.textAlign = 'right';
-    ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.fillStyle = isCur ? '#38bdf8' : '#475569';
-    ctx.fillText(item.line, termX + 24, ly);
-
-    ctx.textAlign = 'left';
-    ctx.font = '11px "JetBrains Mono", monospace';
-    ctx.fillStyle = isCur ? '#ffffff' : '#94a3b8';
-    ctx.fillText(item.text, termX + 34, ly);
-  });
-
-  // Terminal Bottom Status Bar
-  const botBarY = termY + termH - 24;
-  ctx.fillStyle = '#0b1324';
-  ctx.fillRect(termX + 1, botBarY, termW - 2, 23);
-  ctx.strokeStyle = '#1e293b';
-  ctx.beginPath();
-  ctx.moveTo(termX, botBarY);
-  ctx.lineTo(termX + termW, botBarY);
+  ctx.moveTo(startX, hudY + 30);
+  ctx.lineTo(startX + availW, hudY + 30);
   ctx.stroke();
 
   ctx.font = 'bold 11px "JetBrains Mono", monospace';
@@ -2524,17 +2457,65 @@ function drawDevAngeloBubbleSort(snap) {
   const curI = snap.pointers.i !== undefined ? snap.pointers.i : 0;
   const curJ = snap.pointers.j !== undefined ? snap.pointers.j : (jIdx >= 0 ? jIdx : 0);
   const swappedStr = snap.swappedFlag ? 'true' : 'false';
-  ctx.fillText('n = ' + n + '    i = ' + curI + '    j = ' + curJ + '    swapped = ' + swappedStr, termX + 16, botBarY + 16);
+  ctx.fillText('ACTIVE STEP TELEMETRY  •  n = ' + n + '  |  i = ' + curI + '  |  j = ' + curJ + '  |  swapped = ' + swappedStr, startX + 16, hudY + 20);
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = isSwap ? '#f59e0b' : (snap.earlyExit ? '#10b981' : '#64748b');
-  const statusMsg = snap.earlyExit ? '✓ EARLY EXIT TRIGGERED' : (isSwap ? '⇄ SWAP EXECUTED' : 'ADJACENT COMPARISON');
-  ctx.fillText(statusMsg, termX + termW - 16, botBarY + 16);
+  ctx.fillStyle = isSwap ? '#f59e0b' : (snap.earlyExit ? '#10b981' : '#94a3b8');
+  const statusMsg = snap.earlyExit ? '✓ EARLY EXIT TRIGGERED' : (isSwap ? '⇄ ADJACENT SWAP EXECUTED' : 'ADJACENT COMPARISON SCAN');
+  ctx.fillText(statusMsg, startX + availW - 16, hudY + 20);
+
+  // Invariant & Operational Explanation Text inside HUD
+  ctx.textAlign = 'left';
+  ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#cbd5e1';
+
+  let opDesc = '';
+  if (snap.earlyExit) {
+    opDesc = '🚀 Adaptive Optimization: 0 swaps occurred in this pass. The array is fully sorted in optimal O(n) linear time!';
+    ctx.fillStyle = '#34d399';
+  } else if (isSwap) {
+    opDesc = '🫧 Bubble Up Action: arr[' + jIdx + '] (' + elems[jIdx] + ') > arr[' + jNextIdx + '] (' + elems[jNextIdx] + '). Swapping adjacent pair.';
+    ctx.fillStyle = '#fde047';
+  } else if (jIdx >= 0 && jNextIdx < n) {
+    opDesc = '🔍 Comparison: Comparing arr[' + jIdx + '] (' + elems[jIdx] + ') with arr[' + jNextIdx + '] (' + elems[jNextIdx] + '). ' + (elems[jIdx] > elems[jNextIdx] ? 'Out of order → Swap required.' : 'In order → Retaining position.');
+    ctx.fillStyle = '#93c5fd';
+  } else {
+    opDesc = '🔒 Pass complete. Largest unsorted element locked at final position.';
+  }
+  ctx.fillText(opDesc, startX + 16, hudY + 56);
+
+  // Live Metric Badges inside HUD (3-column layout)
+  const colW = Math.floor((availW - 48) / 3);
+  const badgeY = hudY + 76;
+  const badgeH = 44;
+
+  const drawMetricBox = (bx, title, val, color) => {
+    ctx.fillStyle = '#061325';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, badgeY, colW, badgeH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '10px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(title, bx + 12, badgeY + 16);
+
+    ctx.font = 'bold 15px "JetBrains Mono", monospace';
+    ctx.fillStyle = color;
+    ctx.fillText(val, bx + 12, badgeY + 34);
+  };
+
+  drawMetricBox(startX + 12, 'TOTAL COMPARISONS', comps + ' checks', '#38bdf8');
+  drawMetricBox(startX + 12 + colW + 12, 'TOTAL SWAPS', swaps + ' exchanges', '#f59e0b');
+  drawMetricBox(startX + 12 + (colW + 12) * 2, 'SORTED ELEMENTS', sortedSet.size + ' of ' + n + ' locked', '#10b981');
 
   ctx.restore();
 }
 
-// 6.8.2 Coding Chops Selection Sort Visualizer (Bowling Pins, Spotlight & Universal Crane)
+// 6.8.2 Coding Chops Full-Canvas Selection Sort Visualizer (Bowling Pins, Spotlight & Universal Crane)
 function drawCodingChopsSelectionSort(snap) {
   const elems = snap.elements;
   const n = elems ? elems.length : 0;
@@ -2545,7 +2526,7 @@ function drawCodingChopsSelectionSort(snap) {
 
   // 1. Dark Theatrical Spotlight Background
   ctx.save();
-  const bgGrad = ctx.createRadialGradient(w / 2, 160, 60, w / 2, 260, 480);
+  const bgGrad = ctx.createRadialGradient(w / 2, 180, 80, w / 2, 280, 500);
   bgGrad.addColorStop(0, '#1a1f2b');
   bgGrad.addColorStop(0.6, '#0f1218');
   bgGrad.addColorStop(1, '#07080b');
@@ -2591,15 +2572,17 @@ function drawCodingChopsSelectionSort(snap) {
   drawBadge(w - 255, 26, 110, 25, 'rgba(255, 255, 255, 0.1)', '#cbd5e1', '#ffffff', 'COMPARES', comps);
   drawBadge(w - 135, 26, 105, 25, 'rgba(245, 158, 11, 0.15)', '#f59e0b', '#fbbf24', 'SWAPS', swaps);
 
-  // 3. Layout Dimensions for Bowling Pins
-  const laneY = 282;
-  const pinW = 44;
-  const pinH = 88;
-  const startX = 60;
-  const availW = w - 120;
-  const gap = (availW - n * pinW) / (n > 1 ? (n - 1) : 1);
+  // 3. Dynamic Proportional Layout for Bowling Pins (N = 4 to 16)
+  const laneY = 360;
+  const startX = 36;
+  const availW = w - 72;
+  const gap = Math.max(4, Math.min(18, Math.floor(140 / n)));
+  const pinW = Math.max(24, Math.min(52, Math.floor((availW - (n - 1) * gap) / n)));
+  const pinH = Math.max(70, Math.min(112, Math.round(pinW * 2.05)));
+  const totalPinsWidth = n * pinW + (n - 1) * gap;
+  const offsetX = startX + Math.max(0, Math.floor((availW - totalPinsWidth) / 2));
 
-  const getPinX = (idx) => startX + idx * (pinW + gap);
+  const getPinX = (idx) => offsetX + idx * (pinW + gap);
 
   const sortedIdx = snap.pointers.i !== undefined ? snap.pointers.i : 0;
   const scanIdx = snap.pointers.j !== undefined ? snap.pointers.j : sortedIdx;
@@ -2612,12 +2595,14 @@ function drawCodingChopsSelectionSort(snap) {
   // 4. Overhead Industrial Crane & Conical Yellow Spotlight Beam
   const railY = 82;
   const railH = 14;
+  const railLeft = startX - 10;
+  const railWidth = availW + 20;
 
   // Conical Yellow Spotlight Beam projecting onto pin [j]
   ctx.save();
-  const beamTopW = 20;
-  const beamBotW = 110;
-  const beamTopY = railY + railH + 60;
+  const beamTopW = Math.max(16, Math.round(pinW * 0.65));
+  const beamBotW = Math.max(42, Math.round(pinW * 1.75));
+  const beamTopY = railY + railH + 68;
   const beamBotY = laneY;
 
   const spotGrad = ctx.createLinearGradient(0, beamTopY, 0, beamBotY);
@@ -2651,7 +2636,7 @@ function drawCodingChopsSelectionSort(snap) {
   ctx.strokeStyle = '#475569';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(startX - 20, railY, availW + 40, railH, 3);
+  ctx.roundRect(railLeft, railY, railWidth, railH, 3);
   ctx.fill();
   ctx.stroke();
 
@@ -2659,12 +2644,12 @@ function drawCodingChopsSelectionSort(snap) {
   ctx.strokeStyle = '#0a0d12';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(startX - 15, railY + railH / 2);
-  ctx.lineTo(startX + availW + 15, railY + railH / 2);
+  ctx.moveTo(railLeft + 5, railY + railH / 2);
+  ctx.lineTo(railLeft + railWidth - 5, railY + railH / 2);
   ctx.stroke();
 
   // Industrial Motorized Trolley
-  const trollW = 74;
+  const trollW = Math.max(56, Math.min(84, pinW * 1.6));
   const trollH = 22;
   const trollY = railY - 4;
   ctx.fillStyle = '#242a38';
@@ -2686,7 +2671,7 @@ function drawCodingChopsSelectionSort(snap) {
   // Vertical Telescoping Hydraulic Piston
   const pistonTop = trollY + trollH;
   const pistonBot = beamTopY;
-  const pistonGrad = ctx.createLinearGradient(craneCenterX - 6, 0, craneCenterX + 6, 0);
+  const pistonGrad = ctx.createLinearGradient(craneCenterX - 5, 0, craneCenterX + 5, 0);
   pistonGrad.addColorStop(0, '#94a3b8');
   pistonGrad.addColorStop(0.5, '#f1f5f9');
   pistonGrad.addColorStop(1, '#64748b');
@@ -2725,14 +2710,14 @@ function drawCodingChopsSelectionSort(snap) {
   woodGrad.addColorStop(0.5, '#3d200b');
   woodGrad.addColorStop(1, '#1f0f04');
   ctx.fillStyle = woodGrad;
-  ctx.fillRect(startX - 20, laneY, availW + 40, 24);
+  ctx.fillRect(railLeft, laneY, railWidth, 24);
 
   // Top polished reflective floor highlight line
   ctx.strokeStyle = 'rgba(245, 200, 66, 0.4)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(startX - 20, laneY);
-  ctx.lineTo(startX + availW + 20, laneY);
+  ctx.moveTo(railLeft, laneY);
+  ctx.lineTo(railLeft + railWidth, laneY);
   ctx.stroke();
 
   // Recessed pin sockets on lane
@@ -2746,6 +2731,9 @@ function drawCodingChopsSelectionSort(snap) {
   ctx.restore();
 
   // 6. Vector Bowling Pins (Spherical Crown, Dual Red Neck Rings, Bulging Belly)
+  const valFontSize = Math.max(10, Math.min(20, Math.round(pinW * 0.42)));
+  const crownRadius = Math.max(7, Math.min(11, Math.round(pinW * 0.24)));
+
   for (let k = 0; k < n; k++) {
     const val = elems[k];
     const px = getPinX(k);
@@ -2757,34 +2745,24 @@ function drawCodingChopsSelectionSort(snap) {
     const isScan = (k === scanIdx);
 
     ctx.save();
-    // Drop shadow
     ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 4;
 
     // Pin Silhouette Contour Path
     ctx.beginPath();
-    // Start at bottom center
     ctx.moveTo(pinCenterX - pinW / 2 + 5, laneY);
-    // Base to lower belly
-    ctx.bezierCurveTo(pinCenterX - pinW / 2, laneY - 14, pinCenterX - pinW / 2, laneY - 32, pinCenterX - pinW / 2, laneY - 42);
-    // Belly to neck
-    ctx.bezierCurveTo(pinCenterX - pinW / 2 + 2, laneY - 56, pinCenterX - 8, laneY - 68, pinCenterX - 7, laneY - 74);
-    // Neck to spherical head
-    ctx.bezierCurveTo(pinCenterX - 8, laneY - 80, pinCenterX - 11, pinTopY + 10, pinCenterX - 11, pinTopY + 8);
-    // Head crown arc
-    ctx.arc(pinCenterX, pinTopY + 8, 10.5, Math.PI, 0, false);
-    // Right head to neck
-    ctx.bezierCurveTo(pinCenterX + 11, pinTopY + 10, pinCenterX + 8, laneY - 80, pinCenterX + 7, laneY - 74);
-    // Neck to right belly
-    ctx.bezierCurveTo(pinCenterX + 8, laneY - 68, pinCenterX + pinW / 2 - 2, laneY - 56, pinCenterX + pinW / 2, laneY - 42);
-    // Right belly to base
-    ctx.bezierCurveTo(pinCenterX + pinW / 2, laneY - 32, pinCenterX + pinW / 2, laneY - 14, pinCenterX + pinW / 2 - 5, laneY);
+    ctx.bezierCurveTo(pinCenterX - pinW / 2, laneY - pinH * 0.16, pinCenterX - pinW / 2, laneY - pinH * 0.36, pinCenterX - pinW / 2, laneY - pinH * 0.48);
+    ctx.bezierCurveTo(pinCenterX - pinW / 2 + 2, laneY - pinH * 0.64, pinCenterX - 8, laneY - pinH * 0.77, pinCenterX - 7, laneY - pinH * 0.84);
+    ctx.bezierCurveTo(pinCenterX - 8, laneY - pinH * 0.91, pinCenterX - crownRadius, pinTopY + crownRadius, pinCenterX - crownRadius, pinTopY + crownRadius);
+    ctx.arc(pinCenterX, pinTopY + crownRadius, crownRadius, Math.PI, 0, false);
+    ctx.bezierCurveTo(pinCenterX + crownRadius, pinTopY + crownRadius, pinCenterX + 8, laneY - pinH * 0.91, pinCenterX + 7, laneY - pinH * 0.84);
+    ctx.bezierCurveTo(pinCenterX + 8, laneY - pinH * 0.77, pinCenterX + pinW / 2 - 2, laneY - pinH * 0.64, pinCenterX + pinW / 2, laneY - pinH * 0.48);
+    ctx.bezierCurveTo(pinCenterX + pinW / 2, laneY - pinH * 0.36, pinCenterX + pinW / 2, laneY - pinH * 0.16, pinCenterX + pinW / 2 - 5, laneY);
     ctx.closePath();
 
     // Fill Lacquer Style
     if (isSorted) {
-      // Mint green sorted lacquer
       const mintGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       mintGrad.addColorStop(0, '#059669');
       mintGrad.addColorStop(0.4, '#10b981');
@@ -2793,7 +2771,6 @@ function drawCodingChopsSelectionSort(snap) {
       ctx.strokeStyle = '#34d399';
       ctx.lineWidth = 2;
     } else if (isMin) {
-      // Warm golden amber minimum lacquer
       const goldGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       goldGrad.addColorStop(0, '#d97706');
       goldGrad.addColorStop(0.4, '#f59e0b');
@@ -2802,7 +2779,6 @@ function drawCodingChopsSelectionSort(snap) {
       ctx.strokeStyle = '#fde047';
       ctx.lineWidth = 2.5;
     } else if (isScan) {
-      // Illuminated white spotlight finish
       const whiteGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       whiteGrad.addColorStop(0, '#f1f5f9');
       whiteGrad.addColorStop(0.3, '#ffffff');
@@ -2811,7 +2787,6 @@ function drawCodingChopsSelectionSort(snap) {
       ctx.strokeStyle = '#facc15';
       ctx.lineWidth = 2;
     } else {
-      // Clean ivory lacquer finish
       const ivoryGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       ivoryGrad.addColorStop(0, '#e2e8f0');
       ivoryGrad.addColorStop(0.4, '#f8fafc');
@@ -2825,12 +2800,13 @@ function drawCodingChopsSelectionSort(snap) {
     ctx.shadowBlur = 0;
 
     // Authentic Brunswick Dual Red Neck Stripes
+    const stripeW = Math.max(12, Math.round(pinW * 0.38));
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(pinCenterX - 8, laneY - 73, 16, 3);
-    ctx.fillRect(pinCenterX - 9, laneY - 68, 18, 3);
+    ctx.fillRect(pinCenterX - stripeW / 2, laneY - pinH * 0.83, stripeW, 3);
+    ctx.fillRect(pinCenterX - (stripeW + 2) / 2, laneY - pinH * 0.77, stripeW + 2, 3);
 
     // Value Numeral inside Belly
-    ctx.font = 'bold 20px "JetBrains Mono", monospace';
+    ctx.font = 'bold ' + valFontSize + 'px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     if (isSorted) {
       ctx.fillStyle = '#ffffff';
@@ -2839,11 +2815,11 @@ function drawCodingChopsSelectionSort(snap) {
     } else {
       ctx.fillStyle = '#0f172a';
     }
-    ctx.fillText(val, pinCenterX, laneY - 34);
+    ctx.fillText(val, pinCenterX, laneY - pinH * 0.38);
 
     // Sorted Checkmark Badge above pin
     if (isSorted) {
-      ctx.font = 'bold 11px "Segoe UI"';
+      ctx.font = 'bold 10px "Segoe UI"';
       ctx.fillStyle = '#10b981';
       ctx.fillText('✓', pinCenterX, pinTopY - 6);
     }
@@ -2866,115 +2842,65 @@ function drawCodingChopsSelectionSort(snap) {
     ctx.restore();
   }
 
-  // 7. Canvas-Embedded macOS Terminal Window (selection_sort.py)
-  const termX = 30;
-  const termY = 322;
-  const termW = w - 60;
-  const termH = 186;
+  // 7. Full-Width Theatrical Telemetry & Live Pass Banner (Lower Canvas)
+  const hudY = 405;
+  const hudH = 95;
 
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 6;
-
-  // Window Frame
-  ctx.fillStyle = '#080c16';
-  ctx.strokeStyle = '#1e293b';
+  ctx.fillStyle = 'rgba(11, 15, 23, 0.85)';
+  ctx.strokeStyle = '#263044';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(termX, termY, termW, termH, 10);
+  ctx.roundRect(startX, hudY, availW, hudH, 8);
   ctx.fill();
   ctx.stroke();
-  ctx.shadowBlur = 0;
 
-  // Titlebar
-  const tbH = 26;
-  ctx.fillStyle = '#0e1422';
+  // Telemetry Header Bar
+  ctx.fillStyle = '#151d2c';
   ctx.beginPath();
-  ctx.roundRect(termX, termY, termW, tbH, [10, 10, 0, 0]);
+  ctx.roundRect(startX, hudY, availW, 28, [8, 8, 0, 0]);
   ctx.fill();
-  ctx.strokeStyle = '#1e293b';
+  ctx.strokeStyle = '#263044';
   ctx.beginPath();
-  ctx.moveTo(termX, termY + tbH);
-  ctx.lineTo(termX + termW, termY + tbH);
-  ctx.stroke();
-
-  // macOS Window Buttons (Red, Amber, Green)
-  const dotY = termY + tbH / 2;
-  ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(termX + 16, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(termX + 30, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(termX + 44, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
-
-  // Titlebar File Title
-  ctx.font = 'bold 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#94a3b8';
-  ctx.textAlign = 'center';
-  ctx.fillText('selection_sort.py', termX + termW / 2, dotY + 4);
-
-  // CodingChops Watermark
-  ctx.font = 'bold 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#f5c842';
-  ctx.textAlign = 'right';
-  ctx.fillText('@CodingChops', termX + termW - 16, dotY + 4);
-
-  // Embedded Python Code Lines
-  const pyLines = [
-    { line: 1, text: 'for i in range(len(arr)):' },
-    { line: 2, text: '    min_idx = i' },
-    { line: 3, text: '    for j in range(i + 1, len(arr)):' },
-    { line: 4, text: '        if arr[j] < arr[min_idx]:' },
-    { line: 5, text: '            min_idx = j' },
-    { line: 6, text: '    arr[i], arr[min_idx] = arr[min_idx], arr[i]' }
-  ];
-
-  let activeLine = 3;
-  if (snap.codeLine) activeLine = Math.min(6, Math.max(1, snap.codeLine));
-
-  const codeStartY = termY + tbH + 16;
-  const lineH = 17;
-
-  pyLines.forEach((item, idx) => {
-    const ly = codeStartY + idx * lineH;
-    const isCur = (item.line === activeLine);
-
-    if (isCur) {
-      ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
-      ctx.fillRect(termX + 1, ly - 11, termW - 2, lineH);
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(termX + 1, ly - 11, 3.5, lineH);
-    }
-
-    ctx.textAlign = 'right';
-    ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.fillStyle = isCur ? '#f59e0b' : '#475569';
-    ctx.fillText(item.line, termX + 24, ly);
-
-    ctx.textAlign = 'left';
-    ctx.font = '11px "JetBrains Mono", monospace';
-    ctx.fillStyle = isCur ? '#ffffff' : '#94a3b8';
-    ctx.fillText(item.text, termX + 34, ly);
-  });
-
-  // Terminal Bottom Status Bar
-  const botBarY = termY + termH - 24;
-  ctx.fillStyle = '#0b0f1a';
-  ctx.fillRect(termX + 1, botBarY, termW - 2, 23);
-  ctx.strokeStyle = '#1e293b';
-  ctx.beginPath();
-  ctx.moveTo(termX, botBarY);
-  ctx.lineTo(termX + termW, botBarY);
+  ctx.moveTo(startX, hudY + 28);
+  ctx.lineTo(startX + availW, hudY + 28);
   ctx.stroke();
 
   ctx.font = 'bold 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#38bdf8';
   ctx.textAlign = 'left';
   const minValDisplay = (minIdx >= 0 && minIdx < n) ? elems[minIdx] : '-';
-  ctx.fillText('i: ' + sortedIdx + '    j: ' + scanIdx + '    min_idx: ' + minIdx + ' (' + minValDisplay + ')', termX + 16, botBarY + 16);
+  ctx.fillText('SELECTION SCAN STATUS  •  pass ' + pass + ' of ' + n + '  |  target [i]: ' + sortedIdx + '  |  scanning [j]: ' + scanIdx + '  |  min [min_idx]: ' + minIdx + ' (' + minValDisplay + ')', startX + 16, hudY + 18);
 
   ctx.textAlign = 'right';
   ctx.font = 'italic 11px "Segoe UI", sans-serif';
   ctx.fillStyle = '#f5c842';
-  ctx.fillText('• pass ' + pass + ' • finding the smallest pin', termX + termW - 16, botBarY + 16);
+  ctx.fillText('• finding the smallest pin in unsorted zone', startX + availW - 16, hudY + 18);
+
+  // Operational Explanation & Invariant summary
+  ctx.textAlign = 'left';
+  ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#cbd5e1';
+
+  let descText = '';
+  if (sortedIdx >= n - 1) {
+    descText = '🎉 Array is completely sorted! Every bowling pin is locked in monotonic non-decreasing order.';
+    ctx.fillStyle = '#34d399';
+  } else if (scanIdx === sortedIdx) {
+    descText = '🎯 Pass ' + pass + ' initialization: Setting initial candidate minimum pin to arr[' + sortedIdx + '] (' + elems[sortedIdx] + ').';
+  } else {
+    descText = '🔍 Inspecting pin [' + scanIdx + '] (' + elems[scanIdx] + ') against current minimum [' + minIdx + '] (' + minValDisplay + '). ' + (elems[scanIdx] < minValDisplay ? 'Smaller element found! Updating min_idx.' : 'Greater than candidate minimum. Continuing scan.');
+  }
+  ctx.fillText(descText, startX + 16, hudY + 54);
+
+  // Metric pills at bottom
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Comparisons: ' + comps + '  |  Swaps: ' + swaps + '  |  Sorted Sub-array: [0..' + Math.max(0, sortedIdx - 1) + ']', startX + 16, hudY + 78);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#f5c842';
+  ctx.fillText('@CodingChops Aesthetic Visualizer', startX + availW - 16, hudY + 78);
 
   ctx.restore();
 }
@@ -3036,21 +2962,23 @@ function drawGenericSortingVisualizer(snap) {
   ctx.fillText('COMPS: ' + comps + '  |  SWAPS/SHIFTS: ' + swaps, w - 40, 44);
 
   // Layout Bars
-  const availW = w - 120;
-  const barW = Math.min(56, Math.max(28, Math.floor(availW / n) - 10));
-  const spacing = (availW - (n * barW)) / (n > 1 ? (n - 1) : 1);
-  const startX = 60;
-  const floorY = 380;
+  const startX = 36;
+  const availW = w - 72;
+  const gap = Math.max(3, Math.min(14, Math.floor(100 / n)));
+  const barW = Math.max(18, Math.min(56, Math.floor((availW - (n - 1) * gap) / n)));
+  const floorY = 400;
   const maxVal = Math.max(...elems, 100);
-  const maxBarH = 220;
+  const maxBarH = 260;
+  const totalW = n * barW + (n - 1) * gap;
+  const offX = startX + Math.max(0, Math.floor((availW - totalW) / 2));
 
   const sortedSet = new Set(snap.sortedIndices || []);
   const highlights = new Set(snap.highlights || []);
 
   for (let k = 0; k < n; k++) {
     const val = elems[k];
-    const bx = startX + k * (barW + spacing);
-    const barH = Math.max(30, Math.floor((val / maxVal) * maxBarH));
+    const bx = offX + k * (barW + gap);
+    const barH = Math.max(26, Math.floor((val / maxVal) * maxBarH));
     const by = floorY - barH;
 
     const isSorted = sortedSet.has(k);
@@ -3079,13 +3007,13 @@ function drawGenericSortingVisualizer(snap) {
 
     // Value text
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+    ctx.font = 'bold ' + Math.max(9, Math.min(13, Math.round(barW * 0.42))) + 'px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.fillText(val, bx + barW / 2, by - 8);
 
     // Index text
     ctx.fillStyle = '#64748b';
-    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.font = '9px "JetBrains Mono", monospace';
     ctx.fillText('[' + k + ']', bx + barW / 2, floorY + 16);
     ctx.restore();
   }
@@ -4168,6 +4096,8 @@ function applyPreset(presetName) {
     STATE.elements = [38, 27, 43, 3, 9, 82, 10];
   } else if (presetName === 'random-8') {
     STATE.elements = Array.from({ length: 8 }, () => Math.floor(Math.random() * 90 + 10));
+  } else if (presetName === 'random-16') {
+    STATE.elements = Array.from({ length: 16 }, () => Math.floor(Math.random() * 90 + 10));
   } else if (presetName === 'sorted-asc') {
     STATE.elements = [12, 24, 36, 48, 60, 72, 84];
   } else if (presetName === 'sorted-desc') {
