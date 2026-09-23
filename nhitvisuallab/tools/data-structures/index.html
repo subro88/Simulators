@@ -188,7 +188,7 @@
               </div>
             </div>
             <!-- High-DPI Vector Canvas -->
-            <canvas id="ds-canvas" width="800" height="460"></canvas>
+            <canvas id="ds-canvas" width="800" height="520"></canvas>
           </div>
         </div>
 
@@ -1088,6 +1088,12 @@ function renderStep(index) {
   STATE.currentStepIndex = index;
   const snap = STATE.history[index];
 
+  // In sorting mode, hide translucent HTML overlay so the canvas-rendered gantry titlebars are clean & unblocked
+  const hudOverlay = document.querySelector('.canvas-hud-overlay');
+  if (hudOverlay) {
+    hudOverlay.style.display = STATE.structure.startsWith('sorting') ? 'none' : 'flex';
+  }
+
   // Update scrubber and indicator
   const scrubber = document.getElementById('state-scrubber');
   scrubber.max = STATE.history.length - 1;
@@ -1230,14 +1236,80 @@ function playbackTogglePlay() {
   }
 }
 
+function hasExecutableHistory() {
+  if (!STATE.history || STATE.history.length <= 1) return false;
+  if (STATE.history.length <= 2) {
+    return STATE.history.some(s => (
+      s.comparisons > 0 ||
+      s.swaps > 0 ||
+      (s.activePair && s.activePair.length > 0) ||
+      s.swapArc ||
+      s.minVal !== undefined ||
+      s.traversalOrder ||
+      (s.pathEdges && s.pathEdges.length > 0) ||
+      (s.codeLine && s.codeLine > 2)
+    ));
+  }
+  return true;
+}
+
 function playbackPlay() {
+  // If no algorithm steps generated yet (e.g. first time user clicks play, or after preset/reset), automatically generate & execute!
+  if (!hasExecutableHistory()) {
+    const struct = STATE.structure;
+    if (struct.startsWith('sorting')) {
+      opExecuteSort();
+      return;
+    } else if (struct.startsWith('traversal_')) {
+      opRunTraversal(struct);
+      return;
+    } else if (struct === 'graph_bfs') {
+      opGraphBFS();
+      return;
+    } else if (struct === 'graph_dfs') {
+      opGraphDFS();
+      return;
+    } else if (struct === 'graph_dijkstra') {
+      opGraphDijkstra();
+      return;
+    } else if (struct === 'stack') {
+      opStackPush();
+      return;
+    } else if (struct === 'queue') {
+      opQueueEnqueue();
+      return;
+    } else if (struct === 'array') {
+      opArrayPush();
+      return;
+    } else if (struct === 'sll' || struct === 'dll') {
+      opListInsertTail();
+      return;
+    } else if (struct === 'bst') {
+      opBSTInsert();
+      return;
+    } else if (struct === 'avl') {
+      opAVLInsert();
+      return;
+    } else if (struct === 'heap') {
+      opHeapInsert();
+      return;
+    }
+  }
+
+  if (!STATE.history || STATE.history.length === 0) return;
+
   if (STATE.currentStepIndex >= STATE.history.length - 1) {
     STATE.currentStepIndex = 0;
+    renderStep(0);
   }
   STATE.isPlaying = true;
-  document.getElementById('btn-vcr-play').innerHTML = '&#10074;&#10074; Pause';
-  document.getElementById('status-badge').textContent = 'Executing';
-  document.getElementById('status-badge').className = 'badge amber';
+  const playBtn = document.getElementById('btn-vcr-play');
+  if (playBtn) playBtn.innerHTML = '&#10074;&#10074; Pause';
+  const statusBadge = document.getElementById('status-badge');
+  if (statusBadge) {
+    statusBadge.textContent = 'Executing';
+    statusBadge.className = 'badge amber';
+  }
 
   clearInterval(STATE.playTimer);
   STATE.playTimer = setInterval(() => {
@@ -1245,8 +1317,10 @@ function playbackPlay() {
       renderStep(STATE.currentStepIndex + 1);
     } else {
       playbackPause();
-      document.getElementById('status-badge').textContent = 'Completed';
-      document.getElementById('status-badge').className = 'badge active';
+      if (statusBadge) {
+        statusBadge.textContent = 'Completed';
+        statusBadge.className = 'badge active';
+      }
     }
   }, STATE.playbackSpeed);
 }
@@ -1996,403 +2070,1041 @@ function drawGraph(snap) {
   });
 }
 
-/* 6.8 Draw Sorting Visualizer (Bubble Sort Burbujeando & Selection Sort Bowling Pins) */
-function drawSortingVisualizer(snap) {
+/* 6.8 Draw Sorting Visualizer (Bubble Sort Mechanical Gantry & Selection Sort Bowling Pins) */
+
+// 6.8.1 DevAngelo Pixel-Perfect Bubble Sort Mechanical Gantry Crane Visualizer
+function drawDevAngeloBubbleSort(snap) {
   const elems = snap.elements;
   const n = elems ? elems.length : 0;
   if (!elems || n === 0) return;
 
-  const struct = STATE.structure;
-  const maxVal = Math.max(...elems, 100);
-  const canvasW = canvas.width;
-  const canvasH = canvas.height;
+  const w = canvas.width;
+  const h = canvas.height;
 
-  // 1. Top HUD Header Bar
+  // 1. Engineering Blueprint Background & Technical Grid
   ctx.save();
-  ctx.fillStyle = 'rgba(0, 33, 43, 0.92)';
-  ctx.strokeStyle = '#1e384c';
+  ctx.fillStyle = '#061325';
+  ctx.fillRect(0, 0, w, h);
+
+  // Fine 24px Graph Grid
+  ctx.strokeStyle = '#0d223f';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= w; x += 24) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let y = 0; y <= h; y += 24) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  // Major 120px Technical Grid Accents
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+  ctx.lineWidth = 1.2;
+  for (let x = 0; x <= w; x += 120) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let y = 0; y <= h; y += 120) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  // Corner Engineering Alignment Marks (+)
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+  ctx.lineWidth = 1.5;
+  const cLen = 14;
+  [[14, 14], [w - 14, 14], [14, h - 14], [w - 14, h - 14]].forEach(([cx, cy]) => {
+    const sx = cx < w / 2 ? 1 : -1;
+    const sy = cy < h / 2 ? 1 : -1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + sy * cLen);
+    ctx.lineTo(cx, cy);
+    ctx.lineTo(cx + sx * cLen, cy);
+    ctx.stroke();
+  });
+
+  // 2. Top Header Banner & DevAngelo Title
+  ctx.textAlign = 'left';
+  ctx.font = '900 22px "Segoe UI", -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('BUBBLE SORT', 30, 38);
+
+  ctx.font = 'bold 10px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('ORDENACIÓN POR INTERCAMBIO', 31, 53);
+
+  // Badges (COMPARA & CAMBIA Pills on top right)
+  const comps = snap.comparisons !== undefined ? snap.comparisons : 0;
+  const swaps = snap.swaps !== undefined ? snap.swaps : 0;
+  const pass = snap.passNum || 1;
+  const totalPass = snap.totalPasses || (n - 1);
+
+  const drawPill = (rx, ry, rw, rh, fillCol, borderCol, textCol, label, val) => {
+    ctx.fillStyle = fillCol;
+    ctx.strokeStyle = borderCol;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, rw, rh, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = textCol;
+    ctx.textAlign = 'center';
+    ctx.fillText(label + ': ' + val, rx + rw / 2, ry + 16);
+  };
+
+  drawPill(w - 380, 24, 115, 25, 'rgba(56, 189, 248, 0.12)', '#38bdf8', '#38bdf8', 'COMPARA', comps);
+  drawPill(w - 255, 24, 110, 25, 'rgba(245, 158, 11, 0.15)', '#f59e0b', '#fbbf24', 'CAMBIA', swaps);
+  drawPill(w - 135, 24, 105, 25, 'rgba(168, 85, 247, 0.15)', '#a855f7', '#c084fc', 'PASO', pass + '/' + totalPass);
+
+  // 3. Layout Dimensions for Element Cards
+  const leftX = 40;
+  const rightX = w - 40;
+  const totalSpan = rightX - leftX;
+  const cardW = Math.min(62, Math.floor((totalSpan - (n - 1) * 16) / n));
+  const gap = (totalSpan - n * cardW) / (n > 1 ? (n - 1) : 1);
+  const cardY = 186;
+  const cardH = 68;
+
+  const getCardX = (idx) => leftX + idx * (cardW + gap);
+
+  const sortedSet = new Set(snap.sortedIndices || []);
+  const activePair = snap.activePair || (snap.pointers.j !== undefined ? [snap.pointers.j, snap.pointers.j + 1] : []);
+  const jIdx = activePair.length > 0 ? activePair[0] : -1;
+  const jNextIdx = activePair.length > 1 ? activePair[1] : -1;
+  const isSwap = !!snap.swapActive;
+
+  // 4. Overhead Industrial Gantry Rail (at Y = 82)
+  const railY = 82;
+  const railH = 14;
+  const railGrad = ctx.createLinearGradient(0, railY, 0, railY + railH);
+  railGrad.addColorStop(0, '#2b4b73');
+  railGrad.addColorStop(0.5, '#162840');
+  railGrad.addColorStop(1, '#0e1c2e');
+  ctx.fillStyle = railGrad;
+  ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(24, 14, canvasW - 48, 48, 8);
+  ctx.roundRect(leftX - 10, railY, totalSpan + 20, railH, 3);
   ctx.fill();
   ctx.stroke();
 
-  // Algorithm Title Badge on left of HUD
-  const isBubble = struct === 'sorting_bubble';
-  const isSelection = struct === 'sorting_selection';
-  const isInsertion = struct === 'sorting_insertion';
-  const isQuick = struct === 'sorting_quick';
+  // Rail Center Guide Track
+  ctx.strokeStyle = '#091524';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(leftX - 5, railY + railH / 2);
+  ctx.lineTo(rightX + 5, railY + railH / 2);
+  ctx.stroke();
 
-  ctx.font = 'bold 13px Segoe UI, sans-serif';
-  ctx.textAlign = 'left';
-  if (isBubble) {
-    ctx.fillStyle = '#ff9100';
-    ctx.fillText('🫧 BUBBLE SORT — "BURBUJEANDO" ADJACENT SCANNER', 38, 43);
-  } else if (isSelection) {
-    ctx.fillStyle = '#29b6f6';
-    ctx.fillText('🎳 SELECTION SORT — BOWLING PINS MINIMUM-SWEEP', 38, 43);
-  } else if (isInsertion) {
-    ctx.fillStyle = '#e040fb';
-    ctx.fillText('🃏 INSERTION SORT — HAND CARD SLIDE & INSERT', 38, 43);
-  } else if (isQuick) {
-    ctx.fillStyle = '#ff5252';
-    ctx.fillText('⚡ QUICKSORT — LOMUTO PIVOT PARTITION', 38, 43);
-  } else {
-    ctx.fillStyle = '#00e676';
-    ctx.fillText('📊 SORTING & SEARCH ENGINE', 38, 43);
+  // End-Stopper Buffers with Hazard Caution Stripes
+  const drawEndStopper = (sx) => {
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(sx, railY - 4, 12, railH + 8, 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx + 2, railY + railH);
+    ctx.lineTo(sx + 10, railY - 2);
+    ctx.stroke();
+  };
+  drawEndStopper(leftX - 22);
+  drawEndStopper(rightX + 10);
+
+  // 5. Motorized Gantry Carriage & Articulated A-Frame Grippers
+  if (jIdx >= 0 && jNextIdx < n) {
+    const xA = getCardX(jIdx) + cardW / 2;
+    const xB = getCardX(jNextIdx) + cardW / 2;
+    const trolleyCenterX = (xA + xB) / 2;
+    const trolleyW = 90;
+    const trolleyH = 22;
+    const trolleyY = railY - 5;
+
+    ctx.save();
+    // A-Frame Diagonal Mechanical Struts
+    ctx.strokeStyle = isSwap ? '#f59e0b' : '#38bdf8';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+
+    // Left strut to card j
+    ctx.beginPath();
+    ctx.moveTo(trolleyCenterX - 16, trolleyY + trolleyH);
+    ctx.lineTo(xA, cardY - 14);
+    ctx.stroke();
+
+    // Right strut to card j+1
+    ctx.beginPath();
+    ctx.moveTo(trolleyCenterX + 16, trolleyY + trolleyH);
+    ctx.lineTo(xB, cardY - 14);
+    ctx.stroke();
+
+    // Cross-brace between struts
+    const braceY = (trolleyY + trolleyH + cardY - 14) / 2;
+    const braceLeft = trolleyCenterX - 16 + (xA - (trolleyCenterX - 16)) * 0.45;
+    const braceRight = trolleyCenterX + 16 + (xB - (trolleyCenterX + 16)) * 0.45;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(braceLeft, braceY);
+    ctx.lineTo(braceRight, braceY);
+    ctx.stroke();
+
+    // Trolley Chassis Block
+    const trollGrad = ctx.createLinearGradient(0, trolleyY, 0, trolleyY + trolleyH);
+    trollGrad.addColorStop(0, '#1e385c');
+    trollGrad.addColorStop(0.5, '#0c1b30');
+    trollGrad.addColorStop(1, '#081324');
+    ctx.fillStyle = trollGrad;
+    ctx.strokeStyle = isSwap ? '#f59e0b' : '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(trolleyCenterX - trolleyW / 2, trolleyY, trolleyW, trolleyH, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Roller Wheels
+    ctx.fillStyle = '#94a3b8';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1;
+    [-trolleyW / 2 + 10, trolleyW / 2 - 10].forEach(wx => {
+      ctx.beginPath();
+      ctx.arc(trolleyCenterX + wx, railY - 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    // Circular Status LED Beacon on top of trolley
+    const ledX = trolleyCenterX;
+    const ledY = trolleyY - 5;
+    const ledColor = isSwap ? '#f59e0b' : '#38bdf8';
+    ctx.shadowColor = ledColor;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = ledColor;
+    ctx.beginPath();
+    ctx.arc(ledX, ledY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Dual Mechanical Gripper Bracket Pads [   ]
+    [xA, xB].forEach(targetX => {
+      const gripY = cardY - 14;
+      const padW = cardW + 12;
+      const clawH = 40;
+
+      ctx.strokeStyle = isSwap ? '#fbbf24' : '#38bdf8';
+      ctx.lineWidth = 3;
+
+      // Horizontal mounting bracket
+      ctx.beginPath();
+      ctx.moveTo(targetX - padW / 2, gripY);
+      ctx.lineTo(targetX + padW / 2, gripY);
+      ctx.stroke();
+
+      // Left gripper claw pad
+      ctx.beginPath();
+      ctx.moveTo(targetX - padW / 2, gripY);
+      ctx.lineTo(targetX - padW / 2, gripY + clawH);
+      ctx.lineTo(targetX - padW / 2 + 5, gripY + clawH);
+      ctx.stroke();
+
+      // Right gripper claw pad
+      ctx.beginPath();
+      ctx.moveTo(targetX + padW / 2, gripY);
+      ctx.lineTo(targetX + padW / 2, gripY + clawH);
+      ctx.lineTo(targetX + padW / 2 - 5, gripY + clawH);
+      ctx.stroke();
+
+      // Mechanical Bolt / Rivet
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(targetX, gripY, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Energetic Swap Dotted Arc & Banner
+    if (isSwap) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      const arcMidY = cardY - 32;
+      ctx.moveTo(xA, cardY - 8);
+      ctx.quadraticCurveTo(trolleyCenterX, arcMidY, xB, cardY - 8);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('⇄ INTERCAMBIO', trolleyCenterX, arcMidY - 6);
+    }
+    ctx.restore();
   }
 
-  // Telemetry Pills on right of HUD
+  // 6. Proportional Blueprint Data Cards
+  for (let k = 0; k < n; k++) {
+    const val = elems[k];
+    const cx = getCardX(k);
+    const isSorted = sortedSet.has(k);
+    const isActive = (k === jIdx || k === jNextIdx);
+    const yOffset = (isActive && isSwap) ? -8 : 0;
+    const curY = cardY + yOffset;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+
+    if (isSorted) {
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+    } else if (isActive) {
+      if (isSwap) {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.28)';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.5;
+      } else {
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.24)';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.5;
+      }
+    } else {
+      ctx.fillStyle = '#0c1b30';
+      ctx.strokeStyle = '#1e385c';
+      ctx.lineWidth = 1.5;
+    }
+
+    ctx.beginPath();
+    ctx.roundRect(cx, curY, cardW, cardH, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Subtle inner bevel highlight
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(cx + 2, curY + 2, cardW - 4, cardH - 4, 6);
+    ctx.stroke();
+
+    // Value Numeral
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 24px "JetBrains Mono", monospace';
+    if (isSorted) {
+      ctx.fillStyle = '#34d399';
+    } else if (isActive) {
+      ctx.fillStyle = isSwap ? '#fef08a' : '#ffffff';
+    } else {
+      ctx.fillStyle = '#e2e8f0';
+    }
+    ctx.fillText(val, cx + cardW / 2, curY + 43);
+
+    // Sorted Lock Badge
+    if (isSorted) {
+      ctx.font = 'bold 11px "Segoe UI"';
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('🔒', cx + cardW / 2, curY - 6);
+    }
+
+    // Sub-index label below card
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillStyle = isActive ? '#38bdf8' : '#64748b';
+    ctx.fillText('[' + k + ']', cx + cardW / 2, cardY + cardH + 18);
+    ctx.restore();
+  }
+
+  // 7. Canvas-Embedded macOS Terminal Window (bubble_sort.c)
+  const termX = 30;
+  const termY = 292;
+  const termW = w - 60;
+  const termH = 212;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 6;
+
+  // Window Frame
+  ctx.fillStyle = '#080d1a';
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(termX, termY, termW, termH, 10);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Titlebar
+  const tbH = 26;
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.roundRect(termX, termY, termW, tbH, [10, 10, 0, 0]);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.moveTo(termX, termY + tbH);
+  ctx.lineTo(termX + termW, termY + tbH);
+  ctx.stroke();
+
+  // macOS Window Buttons (Red, Amber, Green)
+  const dotY = termY + tbH / 2;
+  ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(termX + 16, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(termX + 30, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(termX + 44, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
+
+  // Titlebar File Title
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'center';
+  ctx.fillText('bubble_sort.c', termX + termW / 2, dotY + 4);
+
+  // DevAngelo Watermark
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#38bdf8';
   ctx.textAlign = 'right';
-  ctx.font = 'bold 12px JetBrains Mono, monospace';
+  ctx.fillText('@DevAngelo', termX + termW - 16, dotY + 4);
+
+  // Embedded Code Lines
+  const cLines = [
+    { line: 1, text: 'for (int i = 0; i < n - 1; i++) {' },
+    { line: 2, text: '    bool swapped = false;' },
+    { line: 3, text: '    for (int j = 0; j < n - i - 1; j++) {' },
+    { line: 4, text: '        if (arr[j] > arr[j + 1]) {' },
+    { line: 5, text: '            swap(&arr[j], &arr[j + 1]);' },
+    { line: 6, text: '            swapped = true;' },
+    { line: 7, text: '        }' },
+    { line: 8, text: '    }' },
+    { line: 9, text: '    if (!swapped) break;  // O(n) early exit' }
+  ];
+
+  let activeLine = 3;
+  if (snap.earlyExit) activeLine = 9;
+  else if (isSwap) activeLine = 5;
+  else if (snap.codeLine) activeLine = Math.min(9, Math.max(1, snap.codeLine));
+
+  const codeStartY = termY + tbH + 16;
+  const lineH = 16;
+
+  cLines.forEach((item, idx) => {
+    const ly = codeStartY + idx * lineH;
+    const isCur = (item.line === activeLine);
+
+    if (isCur) {
+      ctx.fillStyle = isSwap ? 'rgba(245, 158, 11, 0.2)' : 'rgba(56, 189, 248, 0.16)';
+      ctx.fillRect(termX + 1, ly - 11, termW - 2, lineH);
+      ctx.fillStyle = isSwap ? '#f59e0b' : '#38bdf8';
+      ctx.fillRect(termX + 1, ly - 11, 3.5, lineH);
+    }
+
+    ctx.textAlign = 'right';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillStyle = isCur ? '#38bdf8' : '#475569';
+    ctx.fillText(item.line, termX + 24, ly);
+
+    ctx.textAlign = 'left';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillStyle = isCur ? '#ffffff' : '#94a3b8';
+    ctx.fillText(item.text, termX + 34, ly);
+  });
+
+  // Terminal Bottom Status Bar
+  const botBarY = termY + termH - 24;
+  ctx.fillStyle = '#0b1324';
+  ctx.fillRect(termX + 1, botBarY, termW - 2, 23);
+  ctx.strokeStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.moveTo(termX, botBarY);
+  ctx.lineTo(termX + termW, botBarY);
+  ctx.stroke();
+
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'left';
+  const curI = snap.pointers.i !== undefined ? snap.pointers.i : 0;
+  const curJ = snap.pointers.j !== undefined ? snap.pointers.j : (jIdx >= 0 ? jIdx : 0);
+  const swappedStr = snap.swappedFlag ? 'true' : 'false';
+  ctx.fillText('n = ' + n + '    i = ' + curI + '    j = ' + curJ + '    swapped = ' + swappedStr, termX + 16, botBarY + 16);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = isSwap ? '#f59e0b' : (snap.earlyExit ? '#10b981' : '#64748b');
+  const statusMsg = snap.earlyExit ? '✓ EARLY EXIT TRIGGERED' : (isSwap ? '⇄ SWAP EXECUTED' : 'ADJACENT COMPARISON');
+  ctx.fillText(statusMsg, termX + termW - 16, botBarY + 16);
+
+  ctx.restore();
+}
+
+// 6.8.2 Coding Chops Selection Sort Visualizer (Bowling Pins, Spotlight & Universal Crane)
+function drawCodingChopsSelectionSort(snap) {
+  const elems = snap.elements;
+  const n = elems ? elems.length : 0;
+  if (!elems || n === 0) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // 1. Dark Theatrical Spotlight Background
+  ctx.save();
+  const bgGrad = ctx.createRadialGradient(w / 2, 160, 60, w / 2, 260, 480);
+  bgGrad.addColorStop(0, '#1a1f2b');
+  bgGrad.addColorStop(0.6, '#0f1218');
+  bgGrad.addColorStop(1, '#07080b');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle theatrical vertical guide beams
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+  ctx.lineWidth = 1;
+  for (let x = 60; x <= w - 60; x += 60) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+
+  // 2. Header: Coding Chops Title & Telemetry Pills
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 10px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#f5c842';
+  ctx.fillText('SORTING · VISUALIZED', 30, 36);
+
+  ctx.font = '900 22px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('Selection Sort', 30, 58);
+
   const comps = snap.comparisons !== undefined ? snap.comparisons : 0;
   const swaps = snap.swaps !== undefined ? snap.swaps : 0;
-  let hudInfo = `COMPS: ${comps}  |  SWAPS: ${swaps}`;
-  if (isBubble && snap.passNum) {
-    hudInfo = `PASS ${snap.passNum}/${snap.totalPasses || n-1}  |  SWAPPED: ${snap.swappedFlag ? 'YES ⇄' : 'NO'}  |  ${hudInfo}`;
-  } else if (isSelection && snap.minVal !== undefined) {
-    hudInfo = `MIN: ${snap.minVal}  |  TARGET: [${snap.targetSlot !== undefined ? snap.targetSlot : (snap.pointers.i || 0)}]  |  ${hudInfo}`;
-  }
-  ctx.fillStyle = '#aebfd4';
-  ctx.fillText(hudInfo, canvasW - 38, 43);
+  const pass = snap.pointers.i !== undefined ? (snap.pointers.i + 1) : 1;
+
+  const drawBadge = (rx, ry, rw, rh, fillCol, borderCol, textCol, label, val) => {
+    ctx.fillStyle = fillCol;
+    ctx.strokeStyle = borderCol;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, rw, rh, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = textCol;
+    ctx.textAlign = 'center';
+    ctx.fillText(label + ': ' + val, rx + rw / 2, ry + 16);
+  };
+
+  drawBadge(w - 380, 26, 115, 25, 'rgba(56, 189, 248, 0.12)', '#38bdf8', '#38bdf8', 'PASS', pass + '/' + n);
+  drawBadge(w - 255, 26, 110, 25, 'rgba(255, 255, 255, 0.1)', '#cbd5e1', '#ffffff', 'COMPARES', comps);
+  drawBadge(w - 135, 26, 105, 25, 'rgba(245, 158, 11, 0.15)', '#f59e0b', '#fbbf24', 'SWAPS', swaps);
+
+  // 3. Layout Dimensions for Bowling Pins
+  const laneY = 282;
+  const pinW = 44;
+  const pinH = 88;
+  const startX = 60;
+  const availW = w - 120;
+  const gap = (availW - n * pinW) / (n > 1 ? (n - 1) : 1);
+
+  const getPinX = (idx) => startX + idx * (pinW + gap);
+
+  const sortedIdx = snap.pointers.i !== undefined ? snap.pointers.i : 0;
+  const scanIdx = snap.pointers.j !== undefined ? snap.pointers.j : sortedIdx;
+  const minIdx = snap.pointers.minIdx !== undefined ? snap.pointers.minIdx : sortedIdx;
+
+  // Active crane target position
+  const craneTargetIdx = (scanIdx >= 0 && scanIdx < n) ? scanIdx : minIdx;
+  const craneCenterX = getPinX(craneTargetIdx) + pinW / 2;
+
+  // 4. Overhead Industrial Crane & Conical Yellow Spotlight Beam
+  const railY = 82;
+  const railH = 14;
+
+  // Conical Yellow Spotlight Beam projecting onto pin [j]
+  ctx.save();
+  const beamTopW = 20;
+  const beamBotW = 110;
+  const beamTopY = railY + railH + 60;
+  const beamBotY = laneY;
+
+  const spotGrad = ctx.createLinearGradient(0, beamTopY, 0, beamBotY);
+  spotGrad.addColorStop(0, 'rgba(253, 224, 71, 0.32)');
+  spotGrad.addColorStop(0.7, 'rgba(253, 224, 71, 0.14)');
+  spotGrad.addColorStop(1, 'rgba(253, 224, 71, 0.02)');
+
+  ctx.fillStyle = spotGrad;
+  ctx.beginPath();
+  ctx.moveTo(craneCenterX - beamTopW / 2, beamTopY);
+  ctx.lineTo(craneCenterX + beamTopW / 2, beamTopY);
+  ctx.lineTo(craneCenterX + beamBotW / 2, beamBotY);
+  ctx.lineTo(craneCenterX - beamBotW / 2, beamBotY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Floor Spotlight Pool Ellipse
+  ctx.fillStyle = 'rgba(253, 224, 71, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(craneCenterX, laneY + 2, beamBotW / 2, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
-  // Dimensions for items
-  const availW = canvasW - 120;
-  const barW = Math.min(56, Math.max(34, Math.floor(availW / n) - 12));
+  // Overhead Industrial Crane Rail
+  ctx.save();
+  const railGrad = ctx.createLinearGradient(0, railY, 0, railY + railH);
+  railGrad.addColorStop(0, '#333b4d');
+  railGrad.addColorStop(0.5, '#1e2430');
+  railGrad.addColorStop(1, '#11151c');
+  ctx.fillStyle = railGrad;
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(startX - 20, railY, availW + 40, railH, 3);
+  ctx.fill();
+  ctx.stroke();
+
+  // Rail inner track & steel rivets
+  ctx.strokeStyle = '#0a0d12';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(startX - 15, railY + railH / 2);
+  ctx.lineTo(startX + availW + 15, railY + railH / 2);
+  ctx.stroke();
+
+  // Industrial Motorized Trolley
+  const trollW = 74;
+  const trollH = 22;
+  const trollY = railY - 4;
+  ctx.fillStyle = '#242a38';
+  ctx.strokeStyle = '#f5c842';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(craneCenterX - trollW / 2, trollY, trollW, trollH, 4);
+  ctx.fill();
+  ctx.stroke();
+
+  // Trolley hazard yellow bolts
+  ctx.fillStyle = '#f5c842';
+  [-trollW / 2 + 10, 0, trollW / 2 - 10].forEach(bx => {
+    ctx.beginPath();
+    ctx.arc(craneCenterX + bx, trollY + trollH / 2, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Vertical Telescoping Hydraulic Piston
+  const pistonTop = trollY + trollH;
+  const pistonBot = beamTopY;
+  const pistonGrad = ctx.createLinearGradient(craneCenterX - 6, 0, craneCenterX + 6, 0);
+  pistonGrad.addColorStop(0, '#94a3b8');
+  pistonGrad.addColorStop(0.5, '#f1f5f9');
+  pistonGrad.addColorStop(1, '#64748b');
+  ctx.fillStyle = pistonGrad;
+  ctx.fillRect(craneCenterX - 5, pistonTop, 10, pistonBot - pistonTop);
+
+  // Universal Gripper Claw Head
+  ctx.fillStyle = '#1e293b';
+  ctx.strokeStyle = '#f5c842';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(craneCenterX - 14, pistonBot - 6, 28, 12, 3);
+  ctx.fill();
+  ctx.stroke();
+
+  // Dual Claw Fingers Gripping Downward
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(craneCenterX - 10, pistonBot + 6);
+  ctx.lineTo(craneCenterX - 12, pistonBot + 18);
+  ctx.lineTo(craneCenterX - 6, pistonBot + 20);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(craneCenterX + 10, pistonBot + 6);
+  ctx.lineTo(craneCenterX + 12, pistonBot + 18);
+  ctx.lineTo(craneCenterX + 6, pistonBot + 20);
+  ctx.stroke();
+  ctx.restore();
+
+  // 5. Polished Wooden Bowling Lane Floor
+  ctx.save();
+  const woodGrad = ctx.createLinearGradient(0, laneY, 0, laneY + 24);
+  woodGrad.addColorStop(0, '#543015');
+  woodGrad.addColorStop(0.5, '#3d200b');
+  woodGrad.addColorStop(1, '#1f0f04');
+  ctx.fillStyle = woodGrad;
+  ctx.fillRect(startX - 20, laneY, availW + 40, 24);
+
+  // Top polished reflective floor highlight line
+  ctx.strokeStyle = 'rgba(245, 200, 66, 0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(startX - 20, laneY);
+  ctx.lineTo(startX + availW + 20, laneY);
+  ctx.stroke();
+
+  // Recessed pin sockets on lane
+  for (let k = 0; k < n; k++) {
+    const px = getPinX(k) + pinW / 2;
+    ctx.fillStyle = '#140a02';
+    ctx.beginPath();
+    ctx.ellipse(px, laneY + 4, pinW / 2 - 2, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 6. Vector Bowling Pins (Spherical Crown, Dual Red Neck Rings, Bulging Belly)
+  for (let k = 0; k < n; k++) {
+    const val = elems[k];
+    const px = getPinX(k);
+    const pinCenterX = px + pinW / 2;
+    const pinTopY = laneY - pinH;
+
+    const isSorted = (k < sortedIdx);
+    const isMin = (k === minIdx);
+    const isScan = (k === scanIdx);
+
+    ctx.save();
+    // Drop shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+
+    // Pin Silhouette Contour Path
+    ctx.beginPath();
+    // Start at bottom center
+    ctx.moveTo(pinCenterX - pinW / 2 + 5, laneY);
+    // Base to lower belly
+    ctx.bezierCurveTo(pinCenterX - pinW / 2, laneY - 14, pinCenterX - pinW / 2, laneY - 32, pinCenterX - pinW / 2, laneY - 42);
+    // Belly to neck
+    ctx.bezierCurveTo(pinCenterX - pinW / 2 + 2, laneY - 56, pinCenterX - 8, laneY - 68, pinCenterX - 7, laneY - 74);
+    // Neck to spherical head
+    ctx.bezierCurveTo(pinCenterX - 8, laneY - 80, pinCenterX - 11, pinTopY + 10, pinCenterX - 11, pinTopY + 8);
+    // Head crown arc
+    ctx.arc(pinCenterX, pinTopY + 8, 10.5, Math.PI, 0, false);
+    // Right head to neck
+    ctx.bezierCurveTo(pinCenterX + 11, pinTopY + 10, pinCenterX + 8, laneY - 80, pinCenterX + 7, laneY - 74);
+    // Neck to right belly
+    ctx.bezierCurveTo(pinCenterX + 8, laneY - 68, pinCenterX + pinW / 2 - 2, laneY - 56, pinCenterX + pinW / 2, laneY - 42);
+    // Right belly to base
+    ctx.bezierCurveTo(pinCenterX + pinW / 2, laneY - 32, pinCenterX + pinW / 2, laneY - 14, pinCenterX + pinW / 2 - 5, laneY);
+    ctx.closePath();
+
+    // Fill Lacquer Style
+    if (isSorted) {
+      // Mint green sorted lacquer
+      const mintGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
+      mintGrad.addColorStop(0, '#059669');
+      mintGrad.addColorStop(0.4, '#10b981');
+      mintGrad.addColorStop(1, '#047857');
+      ctx.fillStyle = mintGrad;
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+    } else if (isMin) {
+      // Warm golden amber minimum lacquer
+      const goldGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
+      goldGrad.addColorStop(0, '#d97706');
+      goldGrad.addColorStop(0.4, '#f59e0b');
+      goldGrad.addColorStop(1, '#b45309');
+      ctx.fillStyle = goldGrad;
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 2.5;
+    } else if (isScan) {
+      // Illuminated white spotlight finish
+      const whiteGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
+      whiteGrad.addColorStop(0, '#f1f5f9');
+      whiteGrad.addColorStop(0.3, '#ffffff');
+      whiteGrad.addColorStop(1, '#cbd5e1');
+      ctx.fillStyle = whiteGrad;
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+    } else {
+      // Clean ivory lacquer finish
+      const ivoryGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
+      ivoryGrad.addColorStop(0, '#e2e8f0');
+      ivoryGrad.addColorStop(0.4, '#f8fafc');
+      ivoryGrad.addColorStop(1, '#cbd5e1');
+      ctx.fillStyle = ivoryGrad;
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 1.5;
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Authentic Brunswick Dual Red Neck Stripes
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(pinCenterX - 8, laneY - 73, 16, 3);
+    ctx.fillRect(pinCenterX - 9, laneY - 68, 18, 3);
+
+    // Value Numeral inside Belly
+    ctx.font = 'bold 20px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    if (isSorted) {
+      ctx.fillStyle = '#ffffff';
+    } else if (isMin) {
+      ctx.fillStyle = '#ffffff';
+    } else {
+      ctx.fillStyle = '#0f172a';
+    }
+    ctx.fillText(val, pinCenterX, laneY - 34);
+
+    // Sorted Checkmark Badge above pin
+    if (isSorted) {
+      ctx.font = 'bold 11px "Segoe UI"';
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('✓', pinCenterX, pinTopY - 6);
+    }
+
+    // Sub-lane indicators below lane
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    if (k === sortedIdx) {
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('▲ i', pinCenterX, laneY + 20);
+    }
+    if (k === minIdx) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('▲ min', pinCenterX, laneY + (k === sortedIdx ? 32 : 20));
+    }
+    if (k === scanIdx && scanIdx !== sortedIdx && scanIdx !== minIdx) {
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('▲ j', pinCenterX, laneY + 20);
+    }
+
+    ctx.restore();
+  }
+
+  // 7. Canvas-Embedded macOS Terminal Window (selection_sort.py)
+  const termX = 30;
+  const termY = 322;
+  const termW = w - 60;
+  const termH = 186;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 6;
+
+  // Window Frame
+  ctx.fillStyle = '#080c16';
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(termX, termY, termW, termH, 10);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Titlebar
+  const tbH = 26;
+  ctx.fillStyle = '#0e1422';
+  ctx.beginPath();
+  ctx.roundRect(termX, termY, termW, tbH, [10, 10, 0, 0]);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.moveTo(termX, termY + tbH);
+  ctx.lineTo(termX + termW, termY + tbH);
+  ctx.stroke();
+
+  // macOS Window Buttons (Red, Amber, Green)
+  const dotY = termY + tbH / 2;
+  ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(termX + 16, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(termX + 30, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(termX + 44, dotY, 4.5, 0, Math.PI * 2); ctx.fill();
+
+  // Titlebar File Title
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'center';
+  ctx.fillText('selection_sort.py', termX + termW / 2, dotY + 4);
+
+  // CodingChops Watermark
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#f5c842';
+  ctx.textAlign = 'right';
+  ctx.fillText('@CodingChops', termX + termW - 16, dotY + 4);
+
+  // Embedded Python Code Lines
+  const pyLines = [
+    { line: 1, text: 'for i in range(len(arr)):' },
+    { line: 2, text: '    min_idx = i' },
+    { line: 3, text: '    for j in range(i + 1, len(arr)):' },
+    { line: 4, text: '        if arr[j] < arr[min_idx]:' },
+    { line: 5, text: '            min_idx = j' },
+    { line: 6, text: '    arr[i], arr[min_idx] = arr[min_idx], arr[i]' }
+  ];
+
+  let activeLine = 3;
+  if (snap.codeLine) activeLine = Math.min(6, Math.max(1, snap.codeLine));
+
+  const codeStartY = termY + tbH + 16;
+  const lineH = 17;
+
+  pyLines.forEach((item, idx) => {
+    const ly = codeStartY + idx * lineH;
+    const isCur = (item.line === activeLine);
+
+    if (isCur) {
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
+      ctx.fillRect(termX + 1, ly - 11, termW - 2, lineH);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(termX + 1, ly - 11, 3.5, lineH);
+    }
+
+    ctx.textAlign = 'right';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillStyle = isCur ? '#f59e0b' : '#475569';
+    ctx.fillText(item.line, termX + 24, ly);
+
+    ctx.textAlign = 'left';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillStyle = isCur ? '#ffffff' : '#94a3b8';
+    ctx.fillText(item.text, termX + 34, ly);
+  });
+
+  // Terminal Bottom Status Bar
+  const botBarY = termY + termH - 24;
+  ctx.fillStyle = '#0b0f1a';
+  ctx.fillRect(termX + 1, botBarY, termW - 2, 23);
+  ctx.strokeStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.moveTo(termX, botBarY);
+  ctx.lineTo(termX + termW, botBarY);
+  ctx.stroke();
+
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'left';
+  const minValDisplay = (minIdx >= 0 && minIdx < n) ? elems[minIdx] : '-';
+  ctx.fillText('i: ' + sortedIdx + '    j: ' + scanIdx + '    min_idx: ' + minIdx + ' (' + minValDisplay + ')', termX + 16, botBarY + 16);
+
+  ctx.textAlign = 'right';
+  ctx.font = 'italic 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#f5c842';
+  ctx.fillText('• pass ' + pass + ' • finding the smallest pin', termX + termW - 16, botBarY + 16);
+
+  ctx.restore();
+}
+
+// 6.8.3 Generic High-Contrast Sorting Visualizer (Insertion, Quick, Merge, Binary Search)
+function drawGenericSortingVisualizer(snap) {
+  const elems = snap.elements;
+  const n = elems ? elems.length : 0;
+  if (!elems || n === 0) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const struct = STATE.structure;
+
+  ctx.save();
+  ctx.fillStyle = '#050c18';
+  ctx.fillRect(0, 0, w, h);
+
+  // Background Grid Lines
+  ctx.strokeStyle = '#0e1d32';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= w; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let y = 0; y <= h; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  // Header Banner
+  ctx.fillStyle = 'rgba(10, 25, 45, 0.9)';
+  ctx.strokeStyle = '#1e385c';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(24, 16, w - 48, 46, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = 'bold 14px "Segoe UI", sans-serif';
+  ctx.textAlign = 'left';
+  if (struct === 'sorting_insertion') {
+    ctx.fillStyle = '#e040fb';
+    ctx.fillText('🃏 INSERTION SORT — HAND CARD SLIDE & INSERT', 40, 44);
+  } else if (struct === 'sorting_quick') {
+    ctx.fillStyle = '#ff5252';
+    ctx.fillText('⚡ QUICKSORT — LOMUTO PIVOT PARTITION', 40, 44);
+  } else if (struct === 'sorting_merge') {
+    ctx.fillStyle = '#00e676';
+    ctx.fillText('🌳 MERGE SORT — DIVIDE & CONQUER TREE', 40, 44);
+  } else {
+    ctx.fillStyle = '#29b6f6';
+    ctx.fillText('🎯 BINARY SEARCH — INTERVAL HALVING', 40, 44);
+  }
+
+  const comps = snap.comparisons !== undefined ? snap.comparisons : 0;
+  const swaps = snap.swaps !== undefined ? snap.swaps : 0;
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 12px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#aebfd4';
+  ctx.fillText('COMPS: ' + comps + '  |  SWAPS/SHIFTS: ' + swaps, w - 40, 44);
+
+  // Layout Bars
+  const availW = w - 120;
+  const barW = Math.min(56, Math.max(28, Math.floor(availW / n) - 10));
   const spacing = (availW - (n * barW)) / (n > 1 ? (n - 1) : 1);
   const startX = 60;
   const floorY = 380;
+  const maxVal = Math.max(...elems, 100);
   const maxBarH = 220;
 
   const sortedSet = new Set(snap.sortedIndices || []);
-  const activePair = snap.activePair || [];
+  const highlights = new Set(snap.highlights || []);
 
-  // 2. Dotted Partition Wall (for Selection Sort: Sorted Zone vs Unsorted Zone)
-  if (isSelection && snap.targetSlot !== undefined && snap.targetSlot > 0 && snap.targetSlot < n) {
-    const partX = startX + (snap.targetSlot * (barW + spacing)) - (spacing / 2);
+  for (let k = 0; k < n; k++) {
+    const val = elems[k];
+    const bx = startX + k * (barW + spacing);
+    const barH = Math.max(30, Math.floor((val / maxVal) * maxBarH));
+    const by = floorY - barH;
+
+    const isSorted = sortedSet.has(k);
+    const isHigh = highlights.has(k);
+    const isPivot = (snap.pointers && snap.pointers.pivot === k);
+
     ctx.save();
-    ctx.strokeStyle = '#00e676';
+    if (isPivot) {
+      ctx.fillStyle = '#ff5252';
+      ctx.strokeStyle = '#ff8a80';
+    } else if (isHigh) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.strokeStyle = '#fde047';
+    } else if (isSorted) {
+      ctx.fillStyle = '#10b981';
+      ctx.strokeStyle = '#34d399';
+    } else {
+      ctx.fillStyle = '#1e385c';
+      ctx.strokeStyle = '#38bdf8';
+    }
     ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(partX, 74);
-    ctx.lineTo(partX, floorY + 40);
-    ctx.stroke();
-
-    ctx.font = 'bold 10px Segoe UI';
-    ctx.fillStyle = 'rgba(0, 230, 118, 0.85)';
-    ctx.textAlign = 'right';
-    ctx.fillText('SORTED ZONE 🔒', partX - 8, 90);
-    ctx.fillStyle = '#6b7f9c';
-    ctx.textAlign = 'left';
-    ctx.fillText('🔍 SEARCH POOL', partX + 8, 90);
-    ctx.restore();
-  }
-
-  // 3. Render Each Element
-  elems.forEach((val, i) => {
-    const x = startX + (i * (barW + spacing));
-    const h = 48 + ((val / maxVal) * (maxBarH - 48));
-    const y = floorY - h;
-
-    const isSorted = sortedSet.has(i);
-    const isTarget = isSelection && snap.targetSlot === i;
-    const isMin = isSelection && snap.pointers.minIdx === i;
-    const isJ = snap.pointers.j === i;
-    const isComparing = activePair.includes(i) || snap.highlights.includes(i);
-    const isPivot = snap.pointers.pivot === i;
-
-    ctx.save();
-
-    if (isBubble) {
-      // ══════ BUBBLE SORT RENDERING (DevAngelo Style) ══════
-      const bubbleRadius = barW / 2;
-      const isSwapping = snap.swapActive && (snap.swapArc?.from === i || snap.swapArc?.to === i);
-
-      // Micro-bubbles rising around active elements
-      if (isComparing || isSwapping) {
-        ctx.fillStyle = 'rgba(255, 145, 0, 0.35)';
-        for (let b = 0; b < 3; b++) {
-          ctx.beginPath();
-          ctx.arc(x + bubbleRadius + (b * 6 - 6), y - 14 - (b * 12), 3 + b, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      // Bubble Capsule Fill & Glow
-      let fillColor, strokeColor;
-      if (isSorted) {
-        fillColor = ctx.createLinearGradient(x, y, x + barW, y + h);
-        fillColor.addColorStop(0, '#00e676');
-        fillColor.addColorStop(1, '#004d26');
-        strokeColor = '#b9f6ca';
-      } else if (isComparing) {
-        fillColor = ctx.createLinearGradient(x, y, x + barW, y + h);
-        fillColor.addColorStop(0, '#ff9100');
-        fillColor.addColorStop(1, '#663a00');
-        strokeColor = '#ffe57f';
-        ctx.shadowColor = '#ff9100';
-        ctx.shadowBlur = 14;
-      } else {
-        fillColor = ctx.createLinearGradient(x, y, x + barW, y + h);
-        fillColor.addColorStop(0, '#00b0ff');
-        fillColor.addColorStop(1, '#00264d');
-        strokeColor = '#80d8ff';
-      }
-
-      ctx.fillStyle = fillColor;
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = isComparing ? 2.5 : 1.5;
-      ctx.beginPath();
-      ctx.roundRect(x, y, barW, h, [barW / 2, barW / 2, 8, 8]);
-      ctx.fill();
-      ctx.stroke();
-
-      // Bubble Gloss Highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(x + bubbleRadius, y + 14, bubbleRadius * 0.45, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Value text inside capsule
-      ctx.fillStyle = isSorted ? '#001a0d' : '#ffffff';
-      ctx.font = 'bold 15px JetBrains Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x + bubbleRadius, y + (h > 60 ? 32 : h / 2 + 5));
-
-      // Sorted Padlock badge
-      if (isSorted) {
-        ctx.font = '12px Segoe UI';
-        ctx.fillText('🔒', x + bubbleRadius, y - 8);
-      }
-
-    } else if (isSelection) {
-      // ══════ SELECTION SORT RENDERING (Bowling Pins Style) ══════
-      const headR = Math.min(18, barW / 2 - 2);
-      const headY = y + headR + 4;
-      const bodyTopY = headY + headR;
-      const bodyH = floorY - bodyTopY;
-
-      // Target slot spotlight pedestal
-      if (isTarget) {
-        ctx.fillStyle = 'rgba(41, 182, 246, 0.2)';
-        ctx.strokeStyle = '#29b6f6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(x + barW / 2, floorY + 4, barW * 0.7, 8, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      // Pin body gradient
-      let pinGrad;
-      if (isSorted) {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#00e676');
-        pinGrad.addColorStop(1, '#00381f');
-      } else if (isMin) {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#ffd54f');
-        pinGrad.addColorStop(1, '#664d00');
-        ctx.shadowColor = '#ffd54f';
-        ctx.shadowBlur = 16;
-      } else if (isComparing) {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#ff9100');
-        pinGrad.addColorStop(1, '#552200');
-        ctx.shadowColor = '#ff9100';
-        ctx.shadowBlur = 12;
-      } else {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#e0f7fa');
-        pinGrad.addColorStop(1, '#1b3b4f');
-      }
-
-      // Pin Head (Top Circle)
-      ctx.fillStyle = pinGrad;
-      ctx.strokeStyle = isMin ? '#fff9c4' : (isSorted ? '#b9f6ca' : '#4fc3f7');
-      ctx.lineWidth = (isMin || isTarget) ? 2.5 : 1.5;
-      ctx.beginPath();
-      ctx.arc(x + barW / 2, headY, headR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Bowling Pin Neck Stripe
-      ctx.fillStyle = isSorted ? '#00c853' : '#ff3d00';
-      ctx.fillRect(x + barW / 2 - headR * 0.7, headY + headR - 2, headR * 1.4, 4);
-
-      // Pin Body
-      ctx.fillStyle = pinGrad;
-      ctx.beginPath();
-      ctx.roundRect(x + 3, bodyTopY, barW - 6, bodyH, [headR * 0.5, headR * 0.5, 6, 6]);
-      ctx.fill();
-      ctx.stroke();
-
-      // Value text inside pin body
-      ctx.fillStyle = (isMin || isSorted) ? '#00141a' : '#ffffff';
-      ctx.font = 'bold 15px JetBrains Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x + barW / 2, bodyTopY + Math.min(28, bodyH / 2));
-
-      // Golden Crown 👑 on Min Element
-      if (isMin) {
-        ctx.font = '20px Segoe UI';
-        ctx.fillText('👑', x + barW / 2, y - 10);
-        ctx.font = 'bold 11px JetBrains Mono';
-        ctx.fillStyle = '#ffd54f';
-        ctx.fillText('MIN', x + barW / 2, y - 26);
-      }
-
-      // Target Slot Tag 🎯
-      if (isTarget && !isMin) {
-        ctx.font = '14px Segoe UI';
-        ctx.fillText('🎯', x + barW / 2, y - 8);
-      }
-
-      // Sorted strike badge 🎳
-      if (isSorted) {
-        ctx.font = 'bold 11px Segoe UI';
-        ctx.fillStyle = '#00e676';
-        ctx.fillText('✔', x + barW / 2, y - 8);
-      }
-
-    } else {
-      // ══════ OTHER SORTS (Quick, Insertion, Merge, Search) ══════
-      let fill = isPivot ? '#ff5252' : (isComparing ? '#ff9100' : (isSorted ? '#00e676' : '#29b6f6'));
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = isComparing ? 2 : 1;
-      ctx.beginPath();
-      ctx.roundRect(x, y, barW, h, [6, 6, 0, 0]);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px JetBrains Mono';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x + barW / 2, y - 8);
-    }
-
-    // Index & Pointer Annotations below Floor
-    ctx.fillStyle = '#8899b5';
-    ctx.font = '11px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText(`[${i}]`, x + barW / 2, floorY + 16);
-
-    let ptrStr = '';
-    if (isSelection) {
-      if (isTarget) ptrStr += 'tgt(i) ';
-      if (isJ) ptrStr += '▲ j ';
-      if (isMin) ptrStr += 'min ';
-    } else if (isBubble) {
-      if (snap.pointers.j === i) ptrStr += 'j ';
-      if (snap.pointers.jNext === i) ptrStr += 'j+1 ';
-    } else {
-      if (isPivot) ptrStr += 'P ';
-      if (snap.pointers.i === i) ptrStr += 'i ';
-      if (isJ) ptrStr += 'j ';
-    }
-
-    if (ptrStr) {
-      ctx.fillStyle = '#ffd54f';
-      ctx.font = 'bold 12px Segoe UI';
-      ctx.fillText(ptrStr.trim(), x + barW / 2, floorY + 34);
-    }
-
-    ctx.restore();
-  });
-
-  // 4. Comparator Laser Beam & Dynamic Connections (Selection Sort)
-  if (isSelection && snap.pointers.j !== undefined && snap.pointers.minIdx !== undefined && snap.pointers.j !== snap.pointers.minIdx) {
-    const minX = startX + (snap.pointers.minIdx * (barW + spacing)) + barW / 2;
-    const jX = startX + (snap.pointers.j * (barW + spacing)) + barW / 2;
-    const beamY = 105;
-
-    ctx.save();
-    ctx.strokeStyle = snap.newMinFound ? '#ff9100' : '#29b6f6';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 3]);
-    ctx.shadowColor = snap.newMinFound ? '#ff9100' : '#29b6f6';
-    ctx.shadowBlur = 10;
-
-    // Laser arch connecting minIdx and j
-    ctx.beginPath();
-    ctx.moveTo(minX, 130);
-    ctx.bezierCurveTo(minX, beamY, jX, beamY, jX, 130);
-    ctx.stroke();
-
-    // Laser center badge
-    const midX = (minX + jX) / 2;
-    ctx.fillStyle = snap.newMinFound ? 'rgba(255, 145, 0, 0.95)' : 'rgba(14, 23, 38, 0.9)';
-    ctx.strokeStyle = snap.newMinFound ? '#ffe57f' : '#29b6f6';
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.roundRect(midX - 70, beamY - 14, 140, 24, 6);
+    ctx.roundRect(bx, by, barW, barH, [6, 6, 2, 2]);
     ctx.fill();
     ctx.stroke();
 
+    // Value text
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px Segoe UI';
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(snap.newMinFound ? '★ NEW MIN FOUND!' : 'Comparing min vs j', midX, beamY + 3);
+    ctx.fillText(val, bx + barW / 2, by - 8);
+
+    // Index text
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillText('[' + k + ']', bx + barW / 2, floorY + 16);
     ctx.restore();
   }
 
-  // 5. Swap Arc Trajectory (for both Bubble & Selection sort)
-  if (snap.swapActive && snap.swapArc) {
-    const fromIdx = snap.swapArc.from;
-    const toIdx = snap.swapArc.to;
-    const fromX = startX + (fromIdx * (barW + spacing)) + barW / 2;
-    const toX = startX + (toIdx * (barW + spacing)) + barW / 2;
-    const arcHeight = Math.min(90, Math.abs(fromIdx - toIdx) * 35 + 40);
-    const arcY = floorY - maxBarH - arcHeight;
+  ctx.restore();
+}
 
-    ctx.save();
-    ctx.strokeStyle = '#ffd54f';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#ffd54f';
-    ctx.shadowBlur = 14;
-
-    ctx.beginPath();
-    ctx.moveTo(fromX, floorY - maxBarH);
-    ctx.bezierCurveTo(fromX, arcY, toX, arcY, toX, floorY - maxBarH);
-    ctx.stroke();
-
-    // Swap Badge
-    const midX = (fromX + toX) / 2;
-    ctx.fillStyle = 'rgba(255, 213, 79, 0.95)';
-    ctx.beginPath();
-    ctx.roundRect(midX - 55, arcY - 14, 110, 24, 6);
-    ctx.fill();
-
-    ctx.fillStyle = '#080c14';
-    ctx.font = 'bold 12px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('⇄ SWAP ACTIVE', midX, arcY + 3);
-    ctx.restore();
-  }
-
-  // 6. Early Exit Notification Banner
-  if (snap.earlyExit) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 230, 118, 0.95)';
-    ctx.strokeStyle = '#b9f6ca';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(canvasW / 2 - 220, floorY - 140, 440, 44, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#002613';
-    ctx.font = 'bold 14px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('🚀 ADAPTIVE EARLY EXIT: 0 Swaps in Pass!', canvasW / 2, floorY - 120);
-    ctx.font = '11px Segoe UI';
-    ctx.fillText('Array is fully sorted in O(n) optimal linear time.', canvasW / 2, floorY - 104);
-    ctx.restore();
+// 6.8.4 Main Dispatcher
+function drawSortingVisualizer(snap) {
+  const struct = STATE.structure;
+  if (struct === 'sorting_bubble') {
+    drawDevAngeloBubbleSort(snap);
+  } else if (struct === 'sorting_selection') {
+    drawCodingChopsSelectionSort(snap);
+  } else {
+    drawGenericSortingVisualizer(snap);
   }
 }
+
 
 /* ==========================================================================
    7. ALGORITHMIC OPERATIONS IMPLEMENTATIONS
