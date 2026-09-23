@@ -1068,15 +1068,16 @@ function updateActionControls() {
    ========================================================================== */
 function recordSnapshot(snapshot) {
   STATE.history.push({
+    ...snapshot,
     elements: JSON.parse(JSON.stringify(STATE.elements)),
     capacity: STATE.capacity,
-    pointers: snapshot.pointers || {},
-    highlights: snapshot.highlights || [],
+    pointers: snapshot.pointers ? { ...snapshot.pointers } : {},
+    highlights: snapshot.highlights ? [...snapshot.highlights] : [],
     rotations: snapshot.rotations || null,
     comparisons: snapshot.comparisons !== undefined ? snapshot.comparisons : (STATE.history.length > 0 ? STATE.history[STATE.history.length - 1].comparisons : 0),
     swaps: snapshot.swaps !== undefined ? snapshot.swaps : (STATE.history.length > 0 ? STATE.history[STATE.history.length - 1].swaps : 0),
     allocations: snapshot.allocations !== undefined ? snapshot.allocations : STATE.elements.length,
-    callStack: snapshot.callStack || [{ name: 'main()', args: 'root' }],
+    callStack: snapshot.callStack ? [...snapshot.callStack] : [{ name: 'main()', args: 'root' }],
     codeLine: snapshot.codeLine || 1,
     varState: snapshot.varState || '',
     complexity: snapshot.complexity || 'O(1)',
@@ -1348,6 +1349,21 @@ function onSpeedChange(val) {
    ========================================================================== */
 const canvas = document.getElementById('ds-canvas');
 const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    if (rect.width > 0 && Math.abs(canvas.width - Math.round(rect.width)) > 2) {
+      canvas.width = Math.round(rect.width);
+      canvas.height = 520;
+      if (STATE.history && STATE.history.length > 0 && STATE.currentStepIndex >= 0) {
+        drawCanvas(STATE.history[STATE.currentStepIndex]);
+      }
+    }
+  }
+}
+window.addEventListener('resize', resizeCanvas);
 
 function resetCanvasView() {
   STATE.scaleZoom = 1.0;
@@ -2145,6 +2161,12 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.roundRect(rx, ry, rw, rh, 6);
     ctx.fill();
     ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     ctx.font = 'bold 10px "JetBrains Mono", monospace';
     ctx.fillStyle = textCol;
     ctx.textAlign = 'center';
@@ -2171,7 +2193,10 @@ function drawDevAngeloBubbleSort(snap) {
   const activePair = snap.activePair || (snap.pointers.j !== undefined ? [snap.pointers.j, snap.pointers.j + 1] : []);
   const jIdx = activePair.length > 0 ? activePair[0] : -1;
   const jNextIdx = activePair.length > 1 ? activePair[1] : -1;
-  const isSwap = !!snap.swapActive;
+
+  const gantryPhase = snap.gantryPhase || (snap.swapActive ? 'transit' : 'scan');
+  const isSwap = !!snap.swapActive || gantryPhase === 'grip' || gantryPhase === 'lift' || gantryPhase === 'transit' || gantryPhase === 'drop';
+  const vacantSet = new Set(snap.vacantSockets || []);
 
   // 4. Overhead Industrial Gantry Rail (at Y = 82)
   const railY = 82;
@@ -2228,6 +2253,17 @@ function drawDevAngeloBubbleSort(snap) {
     const trolleyH = 22;
     const trolleyY = railY - 5;
 
+    // Strut vertical reach depends on physical animation phase:
+    // When lifted/transiting: struts retract to holding height (cardY - cardH - 60)
+    // When grip/drop: struts reach down to baseline card top (cardY - cardH)
+    // When scanning: struts cruise just above (cardY - cardH - 14)
+    let strutGripY = cardY - cardH - 14;
+    if (gantryPhase === 'lift' || gantryPhase === 'transit') {
+      strutGripY = cardY - cardH - 60;
+    } else if (gantryPhase === 'grip' || gantryPhase === 'drop') {
+      strutGripY = cardY - cardH;
+    }
+
     ctx.save();
     // A-Frame Diagonal Mechanical Struts
     ctx.strokeStyle = isSwap ? '#f59e0b' : '#38bdf8';
@@ -2235,22 +2271,21 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.lineCap = 'round';
 
     const strutTopOffset = Math.min(20, trolleyW * 0.22);
-    const cardTopY = cardY - cardH;
 
     // Left strut to card j
     ctx.beginPath();
     ctx.moveTo(trolleyCenterX - strutTopOffset, trolleyY + trolleyH);
-    ctx.lineTo(xA, cardTopY - 14);
+    ctx.lineTo(xA, strutGripY);
     ctx.stroke();
 
     // Right strut to card j+1
     ctx.beginPath();
     ctx.moveTo(trolleyCenterX + strutTopOffset, trolleyY + trolleyH);
-    ctx.lineTo(xB, cardTopY - 14);
+    ctx.lineTo(xB, strutGripY);
     ctx.stroke();
 
     // Cross-brace between struts
-    const braceY = (trolleyY + trolleyH + cardTopY - 14) / 2;
+    const braceY = (trolleyY + trolleyH + strutGripY) / 2;
     const braceLeft = (trolleyCenterX - strutTopOffset) + (xA - (trolleyCenterX - strutTopOffset)) * 0.45;
     const braceRight = (trolleyCenterX + strutTopOffset) + (xB - (trolleyCenterX + strutTopOffset)) * 0.45;
     ctx.lineWidth = Math.max(1.5, ctx.lineWidth * 0.7);
@@ -2294,12 +2329,13 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.arc(ledX, ledY, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
 
     // Dual Mechanical Gripper Bracket Pads [   ]
     [xA, xB].forEach(targetX => {
-      const gripY = cardTopY - 14;
+      const gripY = strutGripY;
       const padW = cardW + Math.min(10, cardW * 0.25);
-      const clawH = Math.min(36, cardH * 0.45);
+      const clawH = Math.min(32, cardH * 0.42);
 
       ctx.strokeStyle = isSwap ? '#fbbf24' : '#38bdf8';
       ctx.lineWidth = Math.max(2, Math.min(3, cardW * 0.07));
@@ -2337,9 +2373,9 @@ function drawDevAngeloBubbleSort(snap) {
       ctx.lineWidth = 2.5;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      const arcMidY = cardTopY - 32;
-      ctx.moveTo(xA, cardTopY - 8);
-      ctx.quadraticCurveTo(trolleyCenterX, arcMidY, xB, cardTopY - 8);
+      const arcMidY = strutGripY - 26;
+      ctx.moveTo(xA, strutGripY + 4);
+      ctx.quadraticCurveTo(trolleyCenterX, arcMidY, xB, strutGripY + 4);
       ctx.stroke();
       ctx.setLineDash([]);
 
@@ -2351,21 +2387,15 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.restore();
   }
 
-  // 6. Proportional Blueprint Data Cards
+  // 6. Baseline Blueprint Sockets & Proportional Data Cards
   const valFontSize = Math.max(11, Math.min(24, Math.round(cardW * 0.42)));
 
-  for (let k = 0; k < n; k++) {
-    const val = elems[k];
-    const cx = getCardX(k);
-    const isSorted = sortedSet.has(k);
-    const isActive = (k === jIdx || k === jNextIdx);
-    const yOffset = (isActive && isSwap) ? -10 : 0;
-    const curTopY = (cardY - cardH) + yOffset;
-
+  // Helper to render a card at exact coordinates
+  const renderCardBox = (cx, curTopY, val, isSorted, isActive, isElevated) => {
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = isElevated ? 16 : 8;
+    ctx.shadowOffsetY = isElevated ? 8 : 4;
 
     if (isSorted) {
       ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
@@ -2373,7 +2403,7 @@ function drawDevAngeloBubbleSort(snap) {
       ctx.lineWidth = 2;
     } else if (isActive) {
       if (isSwap) {
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.28)';
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.32)';
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 2.5;
       } else {
@@ -2406,7 +2436,7 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
 
-    // Value Numeral
+    // Value Numeral (Sharp, 1:1, crisp)
     ctx.textAlign = 'center';
     ctx.font = 'bold ' + valFontSize + 'px "JetBrains Mono", monospace';
     if (isSorted) {
@@ -2424,12 +2454,87 @@ function drawDevAngeloBubbleSort(snap) {
       ctx.fillStyle = '#10b981';
       ctx.fillText('🔒', cx + cardW / 2, curTopY - 6);
     }
-
-    // Sub-index label below card
-    ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.fillStyle = isActive ? '#38bdf8' : '#64748b';
-    ctx.fillText('[' + k + ']', cx + cardW / 2, cardY + 16);
     ctx.restore();
+  };
+
+  // Draw Baseline Floor Sockets for all slots
+  for (let k = 0; k < n; k++) {
+    const cx = getCardX(k);
+    const isVacant = vacantSet.has(k);
+
+    // Baseline floor socket cup
+    ctx.save();
+    ctx.fillStyle = 'rgba(10, 25, 45, 0.8)';
+    ctx.strokeStyle = isVacant ? '#f59e0b' : '#1e385c';
+    ctx.lineWidth = isVacant ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.roundRect(cx, cardY, cardW, 14, [0, 0, 4, 4]);
+    ctx.fill();
+    ctx.stroke();
+
+    // If socket is vacant, draw a luminous dashed empty slot cup
+    if (isVacant) {
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.08)';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.roundRect(cx, cardY - cardH, cardW, cardH, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('VACANT', cx + cardW / 2, cardY - cardH / 2 + 3);
+    }
+    ctx.restore();
+
+    // Sub-index label below socket
+    const isActive = (k === jIdx || k === jNextIdx);
+    ctx.save();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = isActive ? '#38bdf8' : '#64748b';
+    ctx.fillText('[' + k + ']', cx + cardW / 2, cardY + 28);
+    ctx.restore();
+  }
+
+  // Draw Static Baseline Cards (excluding vacant slots)
+  for (let k = 0; k < n; k++) {
+    if (vacantSet.has(k)) continue; // Card is elevated in mid-air!
+
+    const val = elems[k];
+    const cx = getCardX(k);
+    const isSorted = sortedSet.has(k);
+    const isActive = (k === jIdx || k === jNextIdx);
+    renderCardBox(cx, cardY - cardH, val, isSorted, isActive, false);
+  }
+
+  // Draw Elevated Mid-Air Cards (During 'lift' and 'transit' phases)
+  if (gantryPhase === 'lift' && jIdx >= 0 && jNextIdx < n) {
+    const valA = snap.valA !== undefined ? snap.valA : elems[jIdx];
+    const valB = snap.valB !== undefined ? snap.valB : elems[jNextIdx];
+    const elevatedY = cardY - cardH - 60;
+    renderCardBox(getCardX(jIdx), elevatedY, valA, false, true, true);
+    renderCardBox(getCardX(jNextIdx), elevatedY, valB, false, true, true);
+  } else if (gantryPhase === 'transit' && jIdx >= 0 && jNextIdx < n) {
+    // In transit, cards cross horizontally in mid-air!
+    const valA = snap.valA !== undefined ? snap.valA : elems[jIdx];
+    const valB = snap.valB !== undefined ? snap.valB : elems[jNextIdx];
+    const elevatedY = cardY - cardH - 60;
+    // Card A has crossed toward jNextIdx, Card B toward jIdx
+    renderCardBox(getCardX(jNextIdx), elevatedY, valA, false, true, true);
+    renderCardBox(getCardX(jIdx), elevatedY, valB, false, true, true);
   }
 
   // 7. Full-Width Engineering Telemetry & Operational HUD (Lower Canvas)
@@ -2457,6 +2562,11 @@ function drawDevAngeloBubbleSort(snap) {
   ctx.lineTo(startX + availW, hudY + 30);
   ctx.stroke();
 
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
   ctx.font = 'bold 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#38bdf8';
   ctx.textAlign = 'left';
@@ -2467,7 +2577,13 @@ function drawDevAngeloBubbleSort(snap) {
 
   ctx.textAlign = 'right';
   ctx.fillStyle = isSwap ? '#f59e0b' : (snap.earlyExit ? '#10b981' : '#94a3b8');
-  const statusMsg = snap.earlyExit ? '✓ EARLY EXIT TRIGGERED' : (isSwap ? '⇄ ADJACENT SWAP EXECUTED' : 'ADJACENT COMPARISON SCAN');
+  let statusMsg = 'ADJACENT COMPARISON SCAN';
+  if (snap.earlyExit) statusMsg = '✓ EARLY EXIT TRIGGERED';
+  else if (gantryPhase === 'grip') statusMsg = '🏗️ GANTRY CLAMPING PAIR';
+  else if (gantryPhase === 'lift') statusMsg = '⬆️ GANTRY LIFTING CARDS';
+  else if (gantryPhase === 'transit') statusMsg = '⇄ MID-AIR CROSS-SWAP';
+  else if (gantryPhase === 'drop') statusMsg = '⬇️ GANTRY SEATING CARDS';
+  else if (isSwap) statusMsg = '⇄ ADJACENT SWAP EXECUTED';
   ctx.fillText(statusMsg, startX + availW - 16, hudY + 20);
 
   // Invariant & Operational Explanation Text inside HUD
@@ -2478,6 +2594,18 @@ function drawDevAngeloBubbleSort(snap) {
   let opDesc = '';
   if (snap.earlyExit) {
     opDesc = '🚀 Adaptive Optimization: 0 swaps occurred in this pass. The array is fully sorted in optimal O(n) linear time!';
+    ctx.fillStyle = '#34d399';
+  } else if (gantryPhase === 'grip') {
+    opDesc = '🏗️ Gantry Clamping: A-frame struts descend and clamp adjacent cards [' + jIdx + '] and [' + jNextIdx + '].';
+    ctx.fillStyle = '#fde047';
+  } else if (gantryPhase === 'lift') {
+    opDesc = '⬆️ Gantry Lift: Struts retract, picking cards off baseline into mid-air! Baseline sockets are now empty.';
+    ctx.fillStyle = '#fde047';
+  } else if (gantryPhase === 'transit') {
+    opDesc = '⇄ Mid-Air Exchange: Cards cross-swap positions horizontally in flight above empty baseline sockets.';
+    ctx.fillStyle = '#fde047';
+  } else if (gantryPhase === 'drop') {
+    opDesc = '⬇️ Gantry Drop: Swapped cards lowered directly into reversed baseline sockets. Clamps release.';
     ctx.fillStyle = '#34d399';
   } else if (isSwap) {
     opDesc = '🫧 Bubble Up Action: arr[' + jIdx + '] (' + elems[jIdx] + ') > arr[' + jNextIdx + '] (' + elems[jNextIdx] + '). Swapping adjacent pair.';
@@ -2503,6 +2631,11 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.roundRect(bx, badgeY, colW, badgeH, 6);
     ctx.fill();
     ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
     ctx.font = '10px "Segoe UI", sans-serif';
     ctx.fillStyle = '#94a3b8';
@@ -2604,7 +2737,6 @@ function drawCodingChopsSelectionSort(snap) {
   const railLeft = startX - 10;
   const railWidth = availW + 20;
 
-  // Overhead Industrial Crane Rail
   ctx.save();
   const railGrad = ctx.createLinearGradient(0, railY, 0, railY + railH);
   railGrad.addColorStop(0, '#3a4456');
@@ -2660,40 +2792,6 @@ function drawCodingChopsSelectionSort(snap) {
   ctx.lineTo(railLeft + railWidth, laneY);
   ctx.stroke();
 
-  // Draw Recessed Sockets for Each Pin
-  for (let k = 0; k < n; k++) {
-    const px = getPinX(k);
-    const sockW = Math.max(18, Math.round(pinW * 0.88));
-    const sockX = px + (pinW - sockW) / 2;
-
-    const isSortedSocket = sortedSet.has(k) || k < sortedIdx;
-    const isTargetSocket = (k === sortedIdx && !isSortedSocket);
-    const isMinSocket = (k === minIdx);
-
-    // Socket interior
-    ctx.fillStyle = '#100702';
-    ctx.beginPath();
-    ctx.roundRect(sockX, laneY + 2, sockW, socketH - 4, 3);
-    ctx.fill();
-
-    // Socket Glowing Outline
-    if (isSortedSocket) {
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2;
-    } else if (isTargetSocket) {
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2;
-    } else if (isMinSocket && minIdx !== sortedIdx) {
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 1.5;
-    } else {
-      ctx.strokeStyle = '#351d0d';
-      ctx.lineWidth = 1;
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-
   // Determine Crane Target & Phase
   const cranePhase = snap.cranePhase || 'scan'; // 'scan', 'grip', 'lift', 'transit', 'drop', 'lock'
   let craneTargetX = 0;
@@ -2706,13 +2804,13 @@ function drawCodingChopsSelectionSort(snap) {
     isClawClosed = true;
   } else if (cranePhase === 'lift') {
     craneTargetX = getPinX(minIdx) + pinW / 2;
-    clawBaseY = laneY - pinH - 40; // Retracts upward with pin!
+    clawBaseY = laneY - pinH - 60; // Retracts 60px upward with pin!
     isClawClosed = true;
   } else if (cranePhase === 'transit') {
     const xMin = getPinX(minIdx) + pinW / 2;
     const xI = getPinX(sortedIdx) + pinW / 2;
     craneTargetX = (xMin + xI) / 2; // Mid-way along rail
-    clawBaseY = laneY - pinH - 40;
+    clawBaseY = laneY - pinH - 60;
     isClawClosed = true;
   } else if (cranePhase === 'drop') {
     craneTargetX = getPinX(sortedIdx) + pinW / 2;
@@ -2729,6 +2827,70 @@ function drawCodingChopsSelectionSort(snap) {
     clawBaseY = 180;
     isClawClosed = false;
   }
+
+  // Draw Recessed Sockets for Each Pin
+  for (let k = 0; k < n; k++) {
+    const px = getPinX(k);
+    const sockW = Math.max(18, Math.round(pinW * 0.88));
+    const sockX = px + (pinW - sockW) / 2;
+
+    const isSortedSocket = sortedSet.has(k) || k < sortedIdx;
+    const isTargetSocket = (k === sortedIdx && !isSortedSocket);
+    const isMinSocket = (k === minIdx);
+    const isVacant = (snap.vacantSlot === k) ||
+                     (cranePhase === 'lift' && k === minIdx) ||
+                     (cranePhase === 'transit' && (k === minIdx || k === sortedIdx));
+
+    // Socket interior
+    ctx.fillStyle = isVacant ? '#060201' : '#100702';
+    ctx.beginPath();
+    ctx.roundRect(sockX, laneY + 2, sockW, socketH - 4, 3);
+    ctx.fill();
+
+    // Socket Glowing Outline
+    if (isSortedSocket) {
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+    } else if (isVacant) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+    } else if (isTargetSocket) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+    } else if (isMinSocket && minIdx !== sortedIdx) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+    } else {
+      ctx.strokeStyle = '#351d0d';
+      ctx.lineWidth = 1;
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // If socket is vacant, draw a clear empty seat cup indicator above laneY
+    if (isVacant) {
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.08)';
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.roundRect(px, laneY - pinH, pinW, pinH, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('VACANT', px + pinW / 2, laneY - pinH / 2);
+    }
+  }
+  ctx.restore();
 
   // 6. Draw Conical Yellow Spotlight Beam (only when scanning or highlighting)
   if (cranePhase === 'scan' || cranePhase === 'init_pass') {
@@ -2870,7 +3032,7 @@ function drawCodingChopsSelectionSort(snap) {
     const val = elems[k];
     const px = getPinX(k) + pinW / 2;
     const isSortedPin = sortedSet.has(k) || k < sortedIdx;
-    const isMinPin = (k === minIdx && cranePhase !== 'drop' && cranePhase !== 'lock');
+    const isMinPin = (k === minIdx && cranePhase !== 'lock') || (k === sortedIdx && cranePhase === 'drop');
     const isScanPin = (k === scanIdx && cranePhase === 'scan');
 
     drawPinAt(px, laneY, val, isSortedPin, isMinPin, isScanPin);
@@ -2990,17 +3152,17 @@ function drawCodingChopsSelectionSort(snap) {
     } else {
       ctx.fillStyle = '#64748b';
     }
-    ctx.fillText(k, px, laneY + socketH + 16);
+    ctx.fillText(k, px, laneY + socketH + 18);
 
-    // Pointer symbols
+    // Pointer symbols (ample spacing, zero overlap)
     if (isTargetPin) {
       ctx.fillStyle = '#38bdf8';
-      ctx.fillText('▲', px, laneY + socketH + 28);
-      ctx.fillText('i', px, laneY + socketH + 39);
+      ctx.fillText('▲', px, laneY + socketH + 32);
+      ctx.fillText('i', px, laneY + socketH + 44);
     } else if (isScanPin && scanIdx !== sortedIdx) {
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('▲', px, laneY + socketH + 28);
-      ctx.fillText('j', px, laneY + socketH + 39);
+      ctx.fillText('▲', px, laneY + socketH + 32);
+      ctx.fillText('j', px, laneY + socketH + 44);
     }
   }
   ctx.restore();
@@ -3746,18 +3908,66 @@ function generateBubbleSortSteps() {
       });
 
       if (shouldSwap) {
-        swaps++;
-        swappedInPass = true;
-        const tmp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = tmp;
+        const valA = arr[j];
+        const valB = arr[j + 1];
 
-        // Post-swap snapshot with arc
+        // Phase 1: Gantry descends A-frame struts and clamps pair
         STATE.elements = [...arr];
         recordSnapshot({
           pointers: { i, j, jNext: j + 1 },
           highlights: [j, j + 1],
           activePair: [j, j + 1],
+          gantryPhase: 'grip',
+          valA,
+          valB,
+          sortedIndices: [...sortedIndices],
+          comparisons,
+          swaps,
+          passNum: i + 1,
+          totalPasses: n - 1,
+          swappedFlag: swappedInPass,
+          codeLine: 5,
+          varState: `Gantry clamps cards arr[${j}]=${valA} and arr[${j+1}]=${valB}`,
+          complexity: 'O(n²)',
+          log: `🏗️ Gantry carriage descends A-frame struts and clamps pair [${valA}, ${valB}].`
+        });
+
+        // Phase 2: Gantry lifts both cards 60px into mid-air! Baseline sockets are empty.
+        STATE.elements = [...arr];
+        recordSnapshot({
+          pointers: { i, j, jNext: j + 1 },
+          highlights: [j, j + 1],
+          activePair: [j, j + 1],
+          gantryPhase: 'lift',
+          vacantSockets: [j, j + 1],
+          valA,
+          valB,
+          sortedIndices: [...sortedIndices],
+          comparisons,
+          swaps,
+          passNum: i + 1,
+          totalPasses: n - 1,
+          swappedFlag: swappedInPass,
+          codeLine: 5,
+          varState: `Gantry lifts cards ${valA} and ${valB} off baseline!`,
+          complexity: 'O(n²)',
+          log: `⬆️ Gantry struts retract, lifting cards ${valA} and ${valB} into mid-air! Baseline sockets are empty.`
+        });
+
+        // Phase 3: Mid-air horizontal cross-swap
+        swaps++;
+        swappedInPass = true;
+        STATE.elements = [...arr];
+        recordSnapshot({
+          pointers: { i, j, jNext: j + 1 },
+          highlights: [j, j + 1],
+          activePair: [j, j + 1],
+          gantryPhase: 'transit',
+          vacantSockets: [j, j + 1],
           swapActive: true,
-          swapArc: { from: j, to: j + 1, valA: arr[j], valB: arr[j + 1] },
+          swapArc: { from: j, to: j + 1, valA, valB },
+          valA,
+          valB,
           sortedIndices: [...sortedIndices],
           comparisons,
           swaps,
@@ -3765,9 +3975,34 @@ function generateBubbleSortSteps() {
           totalPasses: n - 1,
           swappedFlag: true,
           codeLine: 6,
-          varState: `Swapped! arr[${j}]=${arr[j]} ⇄ arr[${j+1}]=${arr[j+1]}`,
+          varState: `Cross-swapping cards ${valA} ⇄ ${valB} in flight`,
           complexity: 'O(n²)',
-          log: `🫧 Bubbling up: Swapped arr[${j}] (${arr[j+1]} → ${arr[j]}) and arr[${j+1}].`
+          log: `⇄ Mid-air transit: Exchanging cards ${valA} ⇄ ${valB} across overhead gantry.`
+        });
+
+        // Swap in array
+        const tmp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = tmp;
+
+        // Phase 4: Gantry lowers swapped cards down into baseline sockets
+        STATE.elements = [...arr];
+        recordSnapshot({
+          pointers: { i, j, jNext: j + 1 },
+          highlights: [j, j + 1],
+          activePair: [j, j + 1],
+          gantryPhase: 'drop',
+          swapActive: true,
+          valA: arr[j],
+          valB: arr[j + 1],
+          sortedIndices: [...sortedIndices],
+          comparisons,
+          swaps,
+          passNum: i + 1,
+          totalPasses: n - 1,
+          swappedFlag: true,
+          codeLine: 6,
+          varState: `Lowering swapped cards into sockets [${j}]=${arr[j]} and [${j+1}]=${arr[j+1]}`,
+          complexity: 'O(n²)',
+          log: `⬇️ Gantry seats swapped cards into reversed baseline sockets.`
         });
       }
     }
@@ -5385,6 +5620,7 @@ function toggleSim3DFullscreen() {
    14. INITIALIZATION ON DOM LOAD
    ========================================================================== */
 window.addEventListener('DOMContentLoaded', () => {
+  resizeCanvas();
   selectCategory('linear');
   updateScalingChart(30);
   loadNextChallenge();
