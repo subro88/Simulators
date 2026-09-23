@@ -1498,7 +1498,12 @@ function drawCanvas(snap) {
   } else if (struct.startsWith('graph')) {
     drawGraph(snap);
   } else if (struct.startsWith('sorting')) {
-    drawGenericSortingVisualizer(snap);
+    const s = struct;
+    if (s === 'sorting_insertion') drawInsertionSortVisualizer(snap);
+    else if (s === 'sorting_quick') drawQuickSortVisualizer(snap);
+    else if (s === 'sorting_merge') drawMergeSortVisualizer(snap);
+    else if (s === 'sorting_binary_search') drawBinarySearchVisualizer(snap);
+    else drawGenericSortingVisualizer(snap);
   }
 
   ctx.restore();
@@ -3463,6 +3468,934 @@ function drawGenericSortingVisualizer(snap) {
   ctx.restore();
 }
 
+// ========================================================================
+// 6.8.5 Insertion Sort — Card Table Visualizer (Emerald Theme)
+// ========================================================================
+function drawInsertionSortVisualizer(snap) {
+  if (!snap || !snap.elements) return;
+  const elems = snap.elements;
+  const n = elems.length;
+  if (n === 0) return;
+
+  const w = canvas.width, h = canvas.height;
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
+  // Background
+  ctx.save();
+  ctx.fillStyle = '#0a1f0f';
+  ctx.fillRect(worldX, worldY, worldW, worldH);
+
+  // Grid
+  ctx.strokeStyle = '#112410';
+  ctx.lineWidth = 1;
+  const gsx = Math.floor(worldX / 40) * 40, gex = worldX + worldW;
+  const gsy = Math.floor(worldY / 40) * 40, gey = worldY + worldH;
+  for (let x = gsx; x <= gex; x += 40) { ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, gey); ctx.stroke(); }
+  for (let y = gsy; y <= gey; y += 40) { ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(gex, y); ctx.stroke(); }
+
+  // Header banner
+  ctx.fillStyle = 'rgba(10, 35, 15, 0.92)';
+  ctx.strokeStyle = '#166534';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(worldX + 16, worldY + 14, worldW - 32, 46, 8); ctx.fill(); ctx.stroke();
+  ctx.font = 'bold 15px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#4ade80';
+  ctx.textAlign = 'left';
+  ctx.fillText('\uD83C\uDCCF  INSERTION SORT', worldX + 28, worldY + 44);
+  ctx.fillStyle = '#6ee7b7';
+  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('Card-Hand Technique  \u2022  O(n\u00b2)', worldX + worldW - 28, worldY + 44);
+
+  // Layout
+  const cardW = Math.min(72, (worldW - 80) / n - 8);
+  const cardH = 90;
+  const baselineY = worldY + worldH * 0.58;
+  const totalW = n * (cardW + 8) - 8;
+  const startX = worldX + (worldW - totalW) / 2;
+
+  const sortedIndices = new Set(snap.sortedIndices || []);
+  const insertPhase = snap.insertPhase || 'idle';
+  const liftedCard = snap.liftedCard || null;
+  const dropSlot = snap.dropSlot;
+  const shiftTarget = snap.shiftTarget;
+
+  // Draw cards
+  for (let k = 0; k < n; k++) {
+    const val = elems[k];
+    const cx = startX + k * (cardW + 8);
+    const isSorted = sortedIndices.has(k);
+    const isLifted = liftedCard && k === liftedCard.fromIdx && insertPhase === 'pick';
+    const isDropSlot = (k === dropSlot && insertPhase === 'drop');
+    const isShifting = (k === shiftTarget && insertPhase === 'shift');
+
+    const cy = isLifted ? baselineY - 70 : baselineY;
+
+    ctx.save();
+
+    if (isDropSlot) {
+      // Pulsing vacancy outline
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.roundRect(cx, cy, cardW, cardH, 8); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      continue;
+    }
+
+    // Glow for active cards
+    if (isLifted || isShifting) {
+      ctx.shadowColor = '#4ade80';
+      ctx.shadowBlur = 18;
+    } else if (isSorted) {
+      ctx.shadowColor = '#16a34a';
+      ctx.shadowBlur = 6;
+    }
+
+    // Card fill
+    if (isSorted) {
+      ctx.fillStyle = 'rgba(22, 101, 52, 0.85)';
+      ctx.strokeStyle = '#22c55e';
+    } else if (isLifted) {
+      ctx.fillStyle = 'rgba(74, 222, 128, 0.18)';
+      ctx.strokeStyle = '#4ade80';
+    } else if (isShifting) {
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.12)';
+      ctx.strokeStyle = '#fbbf24';
+    } else {
+      ctx.fillStyle = 'rgba(15, 40, 20, 0.9)';
+      ctx.strokeStyle = '#1e4d2a';
+    }
+
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(cx, cy, cardW, cardH, 8); ctx.fill(); ctx.stroke();
+
+    // Suit symbol at top
+    ctx.font = '13px serif';
+    ctx.fillStyle = isSorted ? '#4ade80' : (isLifted ? '#4ade80' : '#2d6a3f');
+    ctx.textAlign = 'left';
+    ctx.fillText(k % 2 === 0 ? '\u2665' : '\u2660', cx + 6, cy + 18);
+
+    // Value
+    ctx.font = 'bold ' + Math.max(18, Math.min(26, Math.round(cardW * 0.36))) + 'px "JetBrains Mono", monospace';
+    ctx.fillStyle = isSorted ? '#86efac' : (isLifted ? '#4ade80' : '#cbd5e1');
+    ctx.textAlign = 'center';
+    ctx.fillText(val, cx + cardW / 2, cy + cardH / 2 + 8);
+
+    // Index label below card
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#475569';
+    ctx.fillText('[' + k + ']', cx + cardW / 2, cy + cardH + 14);
+
+    if (isSorted) {
+      ctx.fillStyle = '#4ade80';
+      ctx.font = 'bold 10px "JetBrains Mono", monospace';
+      ctx.fillText('\u2713', cx + cardW - 10, cy + cardH - 8);
+    }
+
+    ctx.restore();
+  }
+
+  // Floating lifted card (during shift phase, keep it above)
+  if (liftedCard && (insertPhase === 'shift' || insertPhase === 'pick')) {
+    const floatX = startX + liftedCard.fromIdx * (cardW + 8);
+    const floatY = baselineY - 90;
+    ctx.save();
+    ctx.shadowColor = '#4ade80';
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.22)';
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(floatX, floatY, cardW, cardH, 8); ctx.fill(); ctx.stroke();
+    ctx.font = 'bold ' + Math.max(18, Math.min(26, Math.round(cardW * 0.36))) + 'px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#4ade80';
+    ctx.textAlign = 'center';
+    ctx.fillText(liftedCard.val, floatX + cardW / 2, floatY + cardH / 2 + 8);
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#86efac';
+    ctx.fillText('KEY', floatX + cardW / 2, floatY - 8);
+    ctx.restore();
+  }
+
+  // Baseline rail
+  ctx.save();
+  ctx.strokeStyle = '#14532d';
+  ctx.lineWidth = 2;
+  const railX = startX - 10;
+  const railW = totalW + 20;
+  ctx.beginPath(); ctx.moveTo(railX, baselineY + cardH + 4); ctx.lineTo(railX + railW, baselineY + cardH + 4); ctx.stroke();
+  ctx.restore();
+
+  // HUD Pills
+  ctx.save();
+  const pillW = 120, pillH = 32, pillGap = 12;
+  const pills = [
+    { label: 'COMPARISONS', val: snap.comparisons ?? 0, valColor: '#4ade80', border: '#16a34a' },
+    { label: 'SHIFTS', val: snap.swaps ?? 0, valColor: '#fbbf24', border: '#d97706' },
+    { label: 'COMPLEXITY', val: 'O(n\u00b2)', valColor: '#a78bfa', border: '#7c3aed' },
+  ];
+  const totalPW = pills.length * pillW + (pills.length - 1) * pillGap;
+  let px = worldX + (worldW - totalPW) / 2;
+  const py = worldY + worldH - 58;
+  pills.forEach(p => {
+    ctx.fillStyle = 'rgba(10, 20, 15, 0.88)';
+    ctx.strokeStyle = p.border;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(px, py, pillW, pillH, 6); ctx.fill(); ctx.stroke();
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.label, px + 8, py + 14);
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+    ctx.fillStyle = p.valColor;
+    ctx.textAlign = 'right';
+    ctx.fillText(p.val, px + pillW - 8, py + 26);
+    px += pillW + pillGap;
+  });
+
+  // Caption
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 12px "JetBrains Mono", monospace';
+  let caption = '';
+  if (insertPhase === 'pick' && liftedCard) caption = `\u25ba Picked up card ${liftedCard.val} — scanning left for insertion slot`;
+  else if (insertPhase === 'shift') caption = `\u25ba Shifting card right to make room at slot [${shiftTarget}]`;
+  else if (insertPhase === 'drop') caption = `\u25ba Dropped card into sorted slot [${dropSlot}]`;
+  else if (insertPhase === 'done') caption = '\u2713 All cards sorted in hand — Insertion Sort complete!';
+  else caption = '\u25ba Insertion Sort — building sorted hand one card at a time';
+  ctx.fillStyle = '#6ee7b7';
+  ctx.fillText(caption, worldX + worldW / 2, worldY + worldH - 16);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// ========================================================================
+// 6.8.6 Quick Sort — Fiery Partition Visualizer (Flame Theme)
+// ========================================================================
+function drawQuickSortVisualizer(snap) {
+  if (!snap || !snap.elements) return;
+  const elems = snap.elements;
+  const n = elems.length;
+  if (n === 0) return;
+
+  const w = canvas.width, h = canvas.height;
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
+  ctx.save();
+  ctx.fillStyle = '#1a0505';
+  ctx.fillRect(worldX, worldY, worldW, worldH);
+
+  // Grid
+  ctx.strokeStyle = '#250a05';
+  ctx.lineWidth = 1;
+  const gsx = Math.floor(worldX / 40) * 40, gex = worldX + worldW;
+  const gsy = Math.floor(worldY / 40) * 40, gey = worldY + worldH;
+  for (let x = gsx; x <= gex; x += 40) { ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, gey); ctx.stroke(); }
+  for (let y = gsy; y <= gey; y += 40) { ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(gex, y); ctx.stroke(); }
+
+  // Header
+  ctx.fillStyle = 'rgba(40, 10, 5, 0.92)';
+  ctx.strokeStyle = '#7f1d1d';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(worldX + 16, worldY + 14, worldW - 32, 46, 8); ctx.fill(); ctx.stroke();
+  ctx.font = 'bold 15px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#f97316';
+  ctx.textAlign = 'left';
+  ctx.fillText('\uD83D\uDD25  QUICK SORT', worldX + 28, worldY + 44);
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('Lomuto Partition  \u2022  O(n log n)', worldX + worldW - 28, worldY + 44);
+
+  // Bar layout
+  const maxVal = Math.max(...elems, 1);
+  const barW = Math.min(56, (worldW - 80) / n - 6);
+  const barAreaH = worldH * 0.50;
+  const floorY = worldY + worldH * 0.72;
+  const startX = worldX + (worldW - (n * (barW + 6) - 6)) / 2;
+
+  const quickPhase = snap.quickPhase || 'scan';
+  const pivotIdx = snap.pivotIdx ?? -1;
+  const partitionLow = snap.partitionLow ?? 0;
+  const partitionHigh = snap.partitionHigh ?? (n - 1);
+  const lockedPivots = new Set(snap.lockedPivots || []);
+  const swapA = snap.swapA ?? -1;
+  const swapB = snap.swapB ?? -1;
+
+  // Partition region backgrounds
+  if (pivotIdx >= 0 && partitionHigh > partitionLow) {
+    // Left region (≤ pivot) warm orange tint
+    const lx = startX + partitionLow * (barW + 6) - 4;
+    const lw = (pivotIdx - partitionLow) * (barW + 6) + 4;
+    if (lw > 0) {
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.06)';
+      ctx.fillRect(lx, worldY + 80, lw, floorY - worldY - 80 + 16);
+    }
+    // Right region (> pivot) cool blue tint
+    const rx = startX + (pivotIdx + 1) * (barW + 6) - 4;
+    const rw = (partitionHigh - pivotIdx) * (barW + 6) + 4;
+    if (rw > 0 && rx < startX + (partitionHigh + 1) * (barW + 6)) {
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.05)';
+      ctx.fillRect(rx, worldY + 80, rw, floorY - worldY - 80 + 16);
+    }
+  }
+
+  // Draw bars
+  for (let k = 0; k < n; k++) {
+    const val = elems[k];
+    const bx = startX + k * (barW + 6);
+    const barH = Math.max(12, (val / maxVal) * barAreaH);
+    const by = floorY - barH;
+    const isPivot = (k === pivotIdx);
+    const isLocked = lockedPivots.has(k);
+    const isSwap = (k === swapA || k === swapB);
+    const inPartition = (k >= partitionLow && k <= partitionHigh);
+
+    ctx.save();
+
+    if (isLocked) {
+      ctx.shadowColor = '#22c55e';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = 'rgba(22, 163, 74, 0.85)';
+      ctx.strokeStyle = '#22c55e';
+    } else if (isPivot) {
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+      ctx.strokeStyle = '#f59e0b';
+    } else if (isSwap && quickPhase === 'swap') {
+      ctx.shadowColor = '#f97316';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.85)';
+      ctx.strokeStyle = '#ea580c';
+    } else if (inPartition) {
+      ctx.fillStyle = 'rgba(30, 15, 8, 0.95)';
+      ctx.strokeStyle = '#7c2d12';
+    } else {
+      ctx.fillStyle = 'rgba(20, 10, 10, 0.7)';
+      ctx.strokeStyle = '#451a03';
+    }
+
+    ctx.lineWidth = isPivot ? 2.5 : 1.5;
+    ctx.beginPath(); ctx.roundRect(bx, by, barW, barH, [5, 5, 2, 2]); ctx.fill(); ctx.stroke();
+
+    // Value above bar
+    ctx.fillStyle = isLocked ? '#4ade80' : (isPivot ? '#1a0505' : '#cbd5e1');
+    ctx.font = 'bold ' + Math.max(9, Math.min(13, Math.round(barW * 0.22))) + 'px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(val, bx + barW / 2, by - 8);
+
+    // Index
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillText('[' + k + ']', bx + barW / 2, floorY + 16);
+
+    // Pivot label
+    if (isPivot) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
+      ctx.fillText('PIVOT', bx + barW / 2, by - 20);
+    }
+
+    // Locked checkmark
+    if (isLocked) {
+      ctx.fillStyle = '#4ade80';
+      ctx.font = 'bold 12px "JetBrains Mono", monospace';
+      ctx.fillText('\u2713', bx + barW / 2, by - 8);
+    }
+
+    ctx.restore();
+  }
+
+  // Laser partition wall between i boundary and i+1
+  if (pivotIdx >= 0 && partitionLow < partitionHigh && !lockedPivots.has(pivotIdx)) {
+    const wallX = startX + pivotIdx * (barW + 6) - 6;
+    ctx.save();
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.shadowColor = '#f97316';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(wallX, worldY + 80);
+    ctx.lineTo(wallX, floorY + 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = 'bold 9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#f97316';
+    ctx.textAlign = 'center';
+    ctx.fillText('i', wallX, worldY + 78);
+    ctx.restore();
+  }
+
+  // Floor line
+  ctx.save();
+  ctx.strokeStyle = '#7c2d12';
+  ctx.lineWidth = 2;
+  const totalBarW = n * (barW + 6) - 6;
+  ctx.beginPath(); ctx.moveTo(startX - 10, floorY); ctx.lineTo(startX + totalBarW + 10, floorY); ctx.stroke();
+  ctx.restore();
+
+  // HUD Pills
+  ctx.save();
+  const pillW = 120, pillH = 32, pillGap = 12;
+  const depth = snap.recursionDepth ?? 0;
+  const pivotVal = pivotIdx >= 0 && pivotIdx < n ? elems[pivotIdx] : '-';
+  const pills = [
+    { label: 'COMPARISONS', val: snap.comparisons ?? 0, valColor: '#f97316', border: '#c2410c' },
+    { label: 'SWAPS', val: snap.swaps ?? 0, valColor: '#fbbf24', border: '#d97706' },
+    { label: 'REC DEPTH', val: depth, valColor: '#38bdf8', border: '#0284c7' },
+    { label: 'PIVOT', val: pivotVal, valColor: '#fbbf24', border: '#92400e' },
+  ];
+  const totalPW = pills.length * pillW + (pills.length - 1) * pillGap;
+  let px = worldX + (worldW - totalPW) / 2;
+  const py = worldY + worldH - 58;
+  pills.forEach(p => {
+    ctx.fillStyle = 'rgba(20, 5, 5, 0.9)';
+    ctx.strokeStyle = p.border;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(px, py, pillW, pillH, 6); ctx.fill(); ctx.stroke();
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.label, px + 8, py + 14);
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+    ctx.fillStyle = p.valColor;
+    ctx.textAlign = 'right';
+    ctx.fillText(p.val, px + pillW - 8, py + 26);
+    px += pillW + pillGap;
+  });
+
+  // Caption
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 12px "JetBrains Mono", monospace';
+  let caption = '';
+  if (quickPhase === 'scan') caption = `\u25ba Scanning partition [${partitionLow}..${partitionHigh}], pivot=${elems[pivotIdx] ?? '?'}`;
+  else if (quickPhase === 'swap') caption = `\u25ba Swapping arr[${swapA}]=${elems[swapA]} \u21c4 arr[${swapB}]=${elems[swapB]}`;
+  else if (quickPhase === 'pivot_land') caption = `\u25ba Pivot ${elems[pivotIdx] ?? '?'} locked at index [${pivotIdx}] — final position!`;
+  else if (quickPhase === 'done') caption = '\uD83D\uDD25 Quick Sort complete — all pivots locked in place!';
+  else caption = '\u25ba Quick Sort — Lomuto partition scheme';
+  ctx.fillStyle = '#fdba74';
+  ctx.fillText(caption, worldX + worldW / 2, worldY + worldH - 16);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// ========================================================================
+// 6.8.7 Merge Sort — Deep Space Dual-Row Visualizer (Violet Theme)
+// ========================================================================
+function drawMergeSortVisualizer(snap) {
+  if (!snap || !snap.elements) return;
+  const elems = snap.elements;
+  const n = elems.length;
+  if (n === 0) return;
+
+  const w = canvas.width, h = canvas.height;
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
+  ctx.save();
+  ctx.fillStyle = '#0c0a1e';
+  ctx.fillRect(worldX, worldY, worldW, worldH);
+
+  // Grid
+  ctx.strokeStyle = '#120f2e';
+  ctx.lineWidth = 1;
+  const gsx = Math.floor(worldX / 40) * 40, gex = worldX + worldW;
+  const gsy = Math.floor(worldY / 40) * 40, gey = worldY + worldH;
+  for (let x = gsx; x <= gex; x += 40) { ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, gey); ctx.stroke(); }
+  for (let y = gsy; y <= gey; y += 40) { ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(gex, y); ctx.stroke(); }
+
+  // Header
+  ctx.fillStyle = 'rgba(12, 10, 35, 0.94)';
+  ctx.strokeStyle = '#4338ca';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(worldX + 16, worldY + 14, worldW - 32, 46, 8); ctx.fill(); ctx.stroke();
+  ctx.font = 'bold 15px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#818cf8';
+  ctx.textAlign = 'left';
+  ctx.fillText('\uD83D\uDD2D  MERGE SORT', worldX + 28, worldY + 44);
+  ctx.fillStyle = '#a5b4fc';
+  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('Divide & Conquer  \u2022  O(n log n)', worldX + worldW - 28, worldY + 44);
+
+  const mergePhase = snap.mergePhase || 'idle';
+  const leftArr = snap.leftArr || [];
+  const rightArr = snap.rightArr || [];
+  const mergedArr = snap.mergedArr || [];
+  const leftPtr = snap.leftPtr ?? 0;
+  const rightPtr = snap.rightPtr ?? 0;
+  const pulledFrom = snap.pulledFrom;
+  const splitDepth = snap.splitDepth ?? 0;
+
+  // Row Y positions
+  const topRowY = worldY + worldH * 0.24;
+  const bottomRowY = worldY + worldH * 0.56;
+  const beamY = worldY + worldH * 0.43;
+
+  const maxN = Math.max(leftArr.length + rightArr.length, mergedArr.length, n, 1);
+  const boxW = Math.min(56, (worldW - 80) / Math.max(maxN + 1, n) - 6);
+  const boxH = 44;
+
+  // Helper to draw a row of boxes
+  const drawRow = (arr, rowY, ptr, side, label) => {
+    if (arr.length === 0) return;
+    const totalW = arr.length * (boxW + 6) - 6;
+    const sx = worldX + (worldW - totalW) / 2;
+    // Row label
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#6366f1';
+    ctx.textAlign = 'right';
+    ctx.fillText(label, sx - 10, rowY + boxH / 2 + 4);
+
+    for (let k = 0; k < arr.length; k++) {
+      const val = arr[k];
+      const bx = sx + k * (boxW + 6);
+      const isActive = (ptr !== undefined && k === ptr);
+      ctx.save();
+      if (isActive) {
+        ctx.shadowColor = '#818cf8';
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = 'rgba(129, 140, 248, 0.25)';
+        ctx.strokeStyle = '#818cf8';
+      } else {
+        ctx.fillStyle = 'rgba(18, 14, 50, 0.88)';
+        ctx.strokeStyle = '#312e81';
+      }
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(bx, rowY, boxW, boxH, 6); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold ' + Math.max(12, Math.min(18, Math.round(boxW * 0.33))) + 'px "JetBrains Mono", monospace';
+      ctx.fillStyle = isActive ? '#a5b4fc' : '#c7d2fe';
+      ctx.textAlign = 'center';
+      ctx.fillText(val, bx + boxW / 2, rowY + boxH / 2 + 6);
+      ctx.restore();
+    }
+  };
+
+  // Draw left/right sub-arrays on top row
+  if (leftArr.length > 0 || rightArr.length > 0) {
+    const combined = [...leftArr, ...rightArr];
+    const totalW = combined.length * (boxW + 6) - 6;
+    const sx = worldX + (worldW - totalW) / 2;
+
+    // Left sub-array
+    for (let k = 0; k < leftArr.length; k++) {
+      const val = leftArr[k];
+      const bx = sx + k * (boxW + 6);
+      const isActive = (mergePhase === 'compare' || mergePhase === 'pull') && k === leftPtr;
+      ctx.save();
+      ctx.fillStyle = isActive ? 'rgba(249, 115, 22, 0.25)' : 'rgba(18, 14, 50, 0.88)';
+      ctx.strokeStyle = isActive ? '#f97316' : '#1e3a8a';
+      if (isActive) { ctx.shadowColor = '#f97316'; ctx.shadowBlur = 14; }
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(bx, topRowY, boxW, boxH, 6); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold ' + Math.max(12, Math.min(18, Math.round(boxW * 0.33))) + 'px "JetBrains Mono", monospace';
+      ctx.fillStyle = isActive ? '#fdba74' : '#93c5fd';
+      ctx.textAlign = 'center';
+      ctx.fillText(val, bx + boxW / 2, topRowY + boxH / 2 + 6);
+      ctx.restore();
+    }
+
+    // Divider between left and right
+    if (leftArr.length > 0 && rightArr.length > 0) {
+      const divX = sx + leftArr.length * (boxW + 6) - 4;
+      ctx.save();
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(divX, topRowY - 8); ctx.lineTo(divX, topRowY + boxH + 8); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Right sub-array
+    for (let k = 0; k < rightArr.length; k++) {
+      const val = rightArr[k];
+      const bx = sx + (leftArr.length + k) * (boxW + 6);
+      const isActive = (mergePhase === 'compare' || mergePhase === 'pull') && k === rightPtr;
+      ctx.save();
+      ctx.fillStyle = isActive ? 'rgba(56, 189, 248, 0.25)' : 'rgba(18, 14, 50, 0.88)';
+      ctx.strokeStyle = isActive ? '#38bdf8' : '#1e3a8a';
+      if (isActive) { ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 14; }
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(bx, topRowY, boxW, boxH, 6); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold ' + Math.max(12, Math.min(18, Math.round(boxW * 0.33))) + 'px "JetBrains Mono", monospace';
+      ctx.fillStyle = isActive ? '#7dd3fc' : '#93c5fd';
+      ctx.textAlign = 'center';
+      ctx.fillText(val, bx + boxW / 2, topRowY + boxH / 2 + 6);
+      ctx.restore();
+    }
+
+    // Labels
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    if (leftArr.length > 0) {
+      const lx = sx + (leftArr.length * (boxW + 6) - 6) / 2;
+      ctx.fillStyle = '#f97316';
+      ctx.fillText('LEFT', lx, topRowY - 12);
+    }
+    if (rightArr.length > 0) {
+      const rx = sx + leftArr.length * (boxW + 6) + (rightArr.length * (boxW + 6) - 6) / 2;
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('RIGHT', rx, topRowY - 12);
+    }
+  }
+
+  // Horizontal beam
+  ctx.save();
+  ctx.strokeStyle = '#4338ca';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(worldX + 40, beamY); ctx.lineTo(worldX + worldW - 40, beamY); ctx.stroke();
+  // Arrow down
+  const bx2 = worldX + worldW / 2;
+  ctx.strokeStyle = '#818cf8';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bx2, beamY - 8); ctx.lineTo(bx2, beamY + 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx2 - 6, beamY + 2); ctx.lineTo(bx2, beamY + 10); ctx.lineTo(bx2 + 6, beamY + 2); ctx.stroke();
+  ctx.font = 'bold 9px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#818cf8';
+  ctx.textAlign = 'center';
+  ctx.fillText('MERGE', bx2, beamY - 14);
+  ctx.restore();
+
+  // Bottom row: merged output
+  if (mergedArr.length > 0) {
+    const totalW = mergedArr.length * (boxW + 6) - 6;
+    const sx = worldX + (worldW - totalW) / 2;
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#818cf8';
+    ctx.textAlign = 'right';
+    ctx.fillText('MERGED', sx - 10, bottomRowY + boxH / 2 + 4);
+    for (let k = 0; k < mergedArr.length; k++) {
+      const val = mergedArr[k];
+      const bxk = sx + k * (boxW + 6);
+      const isJustPulled = (snap.pulledVal === val && k === mergedArr.length - 1 && (mergePhase === 'pull'));
+      ctx.save();
+      if (isJustPulled) {
+        ctx.shadowColor = '#818cf8'; ctx.shadowBlur = 18;
+        ctx.fillStyle = 'rgba(129, 140, 248, 0.35)';
+        ctx.strokeStyle = '#818cf8';
+      } else if (mergePhase === 'final' || mergePhase === 'done') {
+        ctx.fillStyle = 'rgba(30, 20, 90, 0.9)';
+        ctx.strokeStyle = '#4ade80';
+      } else {
+        ctx.fillStyle = 'rgba(20, 14, 60, 0.88)';
+        ctx.strokeStyle = '#4338ca';
+      }
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(bxk, bottomRowY, boxW, boxH, 6); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold ' + Math.max(12, Math.min(18, Math.round(boxW * 0.33))) + 'px "JetBrains Mono", monospace';
+      ctx.fillStyle = isJustPulled ? '#c7d2fe' : (mergePhase === 'final' ? '#4ade80' : '#a5b4fc');
+      ctx.textAlign = 'center';
+      ctx.fillText(val, bxk + boxW / 2, bottomRowY + boxH / 2 + 6);
+      ctx.restore();
+    }
+  }
+
+  // Main array row (idle/final state)
+  if (mergePhase === 'idle' || mergePhase === 'final') {
+    const displayArr = mergePhase === 'final' ? (snap.mergeArr || elems) : elems;
+    const totalW = displayArr.length * (boxW + 6) - 6;
+    const sx = worldX + (worldW - totalW) / 2;
+    const rowY = worldY + worldH * 0.42;
+    for (let k = 0; k < displayArr.length; k++) {
+      const val = displayArr[k];
+      const bxk = sx + k * (boxW + 6);
+      const hl = snap.highlights && snap.highlights.includes(k);
+      ctx.save();
+      ctx.fillStyle = hl ? 'rgba(74, 222, 128, 0.2)' : 'rgba(18, 14, 50, 0.88)';
+      ctx.strokeStyle = hl ? '#4ade80' : '#312e81';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(bxk, rowY, boxW, boxH, 6); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold ' + Math.max(12, Math.min(18, Math.round(boxW * 0.33))) + 'px "JetBrains Mono", monospace';
+      ctx.fillStyle = hl ? '#4ade80' : '#c7d2fe';
+      ctx.textAlign = 'center';
+      ctx.fillText(val, bxk + boxW / 2, rowY + boxH / 2 + 6);
+      ctx.restore();
+    }
+  }
+
+  // Depth indicator
+  ctx.save();
+  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#6366f1';
+  ctx.textAlign = 'left';
+  ctx.fillText('DEPTH: ' + splitDepth, worldX + 24, worldY + 78);
+  ctx.restore();
+
+  // HUD Pills
+  ctx.save();
+  const pillW = 120, pillH = 32, pillGap = 12;
+  const pills = [
+    { label: 'COMPARISONS', val: snap.comparisons ?? 0, valColor: '#818cf8', border: '#4338ca' },
+    { label: 'MERGES', val: snap.merges ?? 0, valColor: '#a5b4fc', border: '#6366f1' },
+    { label: 'COMPLEXITY', val: 'O(n log n)', valColor: '#4ade80', border: '#16a34a' },
+  ];
+  const totalPW = pills.length * pillW + (pills.length - 1) * pillGap;
+  let px = worldX + (worldW - totalPW) / 2;
+  const py = worldY + worldH - 58;
+  pills.forEach(p => {
+    ctx.fillStyle = 'rgba(12, 10, 35, 0.9)';
+    ctx.strokeStyle = p.border;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(px, py, pillW, pillH, 6); ctx.fill(); ctx.stroke();
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.label, px + 8, py + 14);
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+    ctx.fillStyle = p.valColor;
+    ctx.textAlign = 'right';
+    ctx.fillText(p.val, px + pillW - 8, py + 26);
+    px += pillW + pillGap;
+  });
+
+  // Caption
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 12px "JetBrains Mono", monospace';
+  let caption = '';
+  if (mergePhase === 'split') caption = `\u25ba Split at depth ${splitDepth}: [${leftArr.join(',')}] | [${rightArr.join(',')}]`;
+  else if (mergePhase === 'compare') caption = `\u25ba Comparing left[${leftPtr}]=${leftArr[leftPtr]} vs right[${rightPtr}]=${rightArr[rightPtr]}`;
+  else if (mergePhase === 'pull') caption = `\u25ba Pulled ${snap.pulledVal} from ${pulledFrom} \u2192 merged output`;
+  else if (mergePhase === 'done') caption = `\u2713 Merged sub-array at depth ${splitDepth}: [${mergedArr.join(',')}]`;
+  else if (mergePhase === 'final') caption = '\uD83C\uDF89 Merge Sort complete — all sub-arrays unified!';
+  else caption = '\u25ba Merge Sort — divide, sort, conquer';
+  ctx.fillStyle = '#a5b4fc';
+  ctx.fillText(caption, worldX + worldW / 2, worldY + worldH - 16);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// ========================================================================
+// 6.8.8 Binary Search — Electric Teal Spotlight Visualizer
+// ========================================================================
+function drawBinarySearchVisualizer(snap) {
+  if (!snap || !snap.elements) return;
+  const elems = snap.elements;
+  const n = elems.length;
+  if (n === 0) return;
+
+  const w = canvas.width, h = canvas.height;
+  const z = STATE.scaleZoom || 1.0;
+  const worldX = -(STATE.panX || 0) / z;
+  const worldY = -(STATE.panY || 0) / z;
+  const worldW = w / z;
+  const worldH = h / z;
+
+  ctx.save();
+  ctx.fillStyle = '#021a18';
+  ctx.fillRect(worldX, worldY, worldW, worldH);
+
+  // Grid
+  ctx.strokeStyle = '#041f1c';
+  ctx.lineWidth = 1;
+  const gsx = Math.floor(worldX / 40) * 40, gex = worldX + worldW;
+  const gsy = Math.floor(worldY / 40) * 40, gey = worldY + worldH;
+  for (let x = gsx; x <= gex; x += 40) { ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, gey); ctx.stroke(); }
+  for (let y = gsy; y <= gey; y += 40) { ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(gex, y); ctx.stroke(); }
+
+  // Header
+  ctx.fillStyle = 'rgba(2, 28, 25, 0.94)';
+  ctx.strokeStyle = '#0d9488';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(worldX + 16, worldY + 14, worldW - 32, 46, 8); ctx.fill(); ctx.stroke();
+  ctx.font = 'bold 15px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#2dd4bf';
+  ctx.textAlign = 'left';
+  ctx.fillText('\uD83D\uDD0D  BINARY SEARCH', worldX + 28, worldY + 44);
+  ctx.fillStyle = '#5eead4';
+  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.textAlign = 'right';
+  const target = snap.bsTarget ?? '?';
+  ctx.fillText(`Target: ${target}  \u2022  O(log n)`, worldX + worldW - 28, worldY + 44);
+
+  const searchPhase = snap.searchPhase || 'halve';
+  const bsLow = snap.bsLow ?? 0;
+  const bsMid = snap.bsMid ?? -1;
+  const bsHigh = snap.bsHigh ?? n - 1;
+  const foundIdx = snap.foundIdx ?? -1;
+
+  // Slot layout
+  const slotW = Math.min(64, (worldW - 80) / n - 6);
+  const slotH = 52;
+  const rowY = worldY + worldH * 0.4;
+  const totalW = n * (slotW + 6) - 6;
+  const startX = worldX + (worldW - totalW) / 2;
+
+  // Draw slots
+  for (let k = 0; k < n; k++) {
+    const val = elems[k];
+    const bx = startX + k * (slotW + 6);
+    const isActive = (k >= bsLow && k <= bsHigh);
+    const isMid = (k === bsMid);
+    const isFound = (k === foundIdx && searchPhase === 'found');
+    const isDimmed = !isActive;
+
+    ctx.save();
+
+    // Spotlight for mid
+    if (isMid && (searchPhase === 'probe' || searchPhase === 'halve')) {
+      ctx.shadowColor = '#2dd4bf';
+      ctx.shadowBlur = 30;
+      // Teal circle spotlight
+      const radialGrad = ctx.createRadialGradient(bx + slotW / 2, rowY + slotH / 2, 0, bx + slotW / 2, rowY + slotH / 2, slotW * 0.9);
+      radialGrad.addColorStop(0, 'rgba(45, 212, 191, 0.18)');
+      radialGrad.addColorStop(1, 'rgba(45, 212, 191, 0)');
+      ctx.fillStyle = radialGrad;
+      ctx.beginPath();
+      ctx.arc(bx + slotW / 2, rowY + slotH / 2, slotW, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Found starburst
+    if (isFound) {
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 30;
+      const grad = ctx.createRadialGradient(bx + slotW / 2, rowY + slotH / 2, 0, bx + slotW / 2, rowY + slotH / 2, slotW);
+      grad.addColorStop(0, 'rgba(251, 191, 36, 0.35)');
+      grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(bx + slotW / 2, rowY + slotH / 2, slotW * 1.2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Slot box
+    if (isFound) {
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.22)';
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 3;
+    } else if (isMid) {
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.18)';
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.lineWidth = 2.5;
+    } else if (isDimmed) {
+      ctx.fillStyle = 'rgba(8, 30, 28, 0.5)';
+      ctx.strokeStyle = '#134e4a';
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 1;
+    } else {
+      ctx.fillStyle = 'rgba(10, 40, 36, 0.88)';
+      ctx.strokeStyle = '#0d9488';
+      ctx.lineWidth = 1.5;
+    }
+
+    ctx.beginPath(); ctx.roundRect(bx, rowY, slotW, slotH, 6); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = isDimmed ? 0.4 : 1.0;
+
+    // Value
+    ctx.font = 'bold ' + Math.max(13, Math.min(20, Math.round(slotW * 0.32))) + 'px "JetBrains Mono", monospace';
+    ctx.fillStyle = isFound ? '#fbbf24' : (isMid ? '#2dd4bf' : (isDimmed ? '#475569' : '#e2e8f0'));
+    ctx.textAlign = 'center';
+    ctx.fillText(val, bx + slotW / 2, rowY + slotH / 2 + 7);
+
+    ctx.globalAlpha = 1.0;
+
+    // Index below
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillStyle = isDimmed ? '#1e3a3a' : '#475569';
+    ctx.fillText('[' + k + ']', bx + slotW / 2, rowY + slotH + 14);
+
+    ctx.restore();
+  }
+
+  // Laser lines for low, mid, high
+  const drawLaser = (idx, color, label, above) => {
+    if (idx < 0 || idx >= n) return;
+    const lx = startX + idx * (slotW + 6) + slotW / 2;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(lx, rowY - 28);
+    ctx.lineTo(lx, rowY + slotH + 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, lx, above ? rowY - 32 : rowY + slotH + 30);
+    ctx.restore();
+  };
+
+  if (searchPhase !== 'notfound' && searchPhase !== 'found') {
+    drawLaser(bsLow, '#22c55e', 'low', true);
+    drawLaser(bsHigh, '#f97316', 'high', true);
+    if (bsMid >= 0) drawLaser(bsMid, '#2dd4bf', 'mid', false);
+  }
+
+  // Not found indicator
+  if (searchPhase === 'notfound') {
+    ctx.save();
+    ctx.font = 'bold 42px sans-serif';
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+    ctx.textAlign = 'center';
+    ctx.fillText('\u274C', worldX + worldW / 2, rowY + slotH / 2 + 14);
+    ctx.restore();
+  }
+
+  // HUD Pills
+  ctx.save();
+  const pillW = 130, pillH = 32, pillGap = 12;
+  const intervalSize = Math.max(0, bsHigh - bsLow + 1);
+  const pills = [
+    { label: 'COMPARISONS', val: snap.comparisons ?? 0, valColor: '#2dd4bf', border: '#0d9488' },
+    { label: 'INTERVAL SIZE', val: (searchPhase === 'found' || searchPhase === 'notfound') ? '-' : intervalSize, valColor: '#5eead4', border: '#0f766e' },
+    { label: 'TARGET', val: target, valColor: '#fbbf24', border: '#d97706' },
+    { label: 'COMPLEXITY', val: 'O(log n)', valColor: '#a78bfa', border: '#7c3aed' },
+  ];
+  const totalPW = pills.length * pillW + (pills.length - 1) * pillGap;
+  let px = worldX + (worldW - totalPW) / 2;
+  const py = worldY + worldH - 58;
+  pills.forEach(p => {
+    ctx.fillStyle = 'rgba(2, 20, 18, 0.9)';
+    ctx.strokeStyle = p.border;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(px, py, pillW, pillH, 6); ctx.fill(); ctx.stroke();
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.label, px + 8, py + 14);
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+    ctx.fillStyle = p.valColor;
+    ctx.textAlign = 'right';
+    ctx.fillText(p.val, px + pillW - 8, py + 26);
+    px += pillW + pillGap;
+  });
+
+  // Caption
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 12px "JetBrains Mono", monospace';
+  let caption = '';
+  const midVal = bsMid >= 0 && bsMid < n ? elems[bsMid] : '?';
+  if (searchPhase === 'halve') caption = `\u25ba Halved to interval [${bsLow}..${bsHigh}], mid=[${bsMid}] value=${midVal}`;
+  else if (searchPhase === 'probe') caption = `\u25ba Probing arr[${bsMid}]=${midVal} \u2014 is it ${target}?`;
+  else if (searchPhase === 'found') caption = `\u2728 TARGET ${target} found at index [${foundIdx}]!`;
+  else if (searchPhase === 'notfound') caption = `\u274C Target ${target} not in array — search space exhausted`;
+  else caption = `\u25ba Binary Search — halving the interval each step`;
+  ctx.fillStyle = '#5eead4';
+  ctx.fillText(caption, worldX + worldW / 2, worldY + worldH - 16);
+  ctx.restore();
+
+  ctx.restore();
+}
+
 // 6.8.4 Main Dispatcher
 function drawSortingVisualizer(snap) {
   const struct = STATE.structure;
@@ -3470,6 +4403,14 @@ function drawSortingVisualizer(snap) {
     drawDevAngeloBubbleSort(snap);
   } else if (struct === 'sorting_selection') {
     drawCodingChopsSelectionSort(snap);
+  } else if (struct === 'sorting_insertion') {
+    drawInsertionSortVisualizer(snap);
+  } else if (struct === 'sorting_quick') {
+    drawQuickSortVisualizer(snap);
+  } else if (struct === 'sorting_merge') {
+    drawMergeSortVisualizer(snap);
+  } else if (struct === 'sorting_binary_search') {
+    drawBinarySearchVisualizer(snap);
   } else {
     drawGenericSortingVisualizer(snap);
   }
@@ -4431,6 +5372,7 @@ function generateInsertionSortSteps() {
   const sortedIndices = [0];
 
   recordSnapshot({
+    insertPhase: 'idle',
     pointers: { i: 1 },
     highlights: [0],
     sortedIndices: [0],
@@ -4438,8 +5380,8 @@ function generateInsertionSortSteps() {
     swaps: 0,
     codeLine: 1,
     varState: `First element arr[0]=${arr[0]} is trivially sorted`,
-    complexity: 'O(n²)',
-    log: `Insertion Sort initiated on [${arr.join(', ')}]. Card-hand insertion technique. 🃏`
+    complexity: 'O(n\u00b2)',
+    log: `Insertion Sort initiated on [${arr.join(', ')}]. Card-hand insertion technique. \uD83C\uDCCF`
   });
 
   for (let i = 1; i < n; i++) {
@@ -4447,17 +5389,19 @@ function generateInsertionSortSteps() {
     let j = i - 1;
 
     STATE.elements = [...arr];
+    // PICK phase: card is lifted from slot i
     recordSnapshot({
-      pointers: { i, j, key: i },
+      insertPhase: 'pick',
+      liftedCard: { val: key, fromIdx: i },
+      pointers: { i, j },
       highlights: [i],
       sortedIndices: [...sortedIndices],
-      liftedKey: { val: key, idx: i },
       comparisons,
       swaps,
       codeLine: 2,
       varState: `Extracted key = ${key} at index [${i}]`,
-      complexity: 'O(n²)',
-      log: `🃏 Picked up card ${key} from index [${i}]. Scanning leftwards to find its insertion slot.`
+      complexity: 'O(n\u00b2)',
+      log: `\uD83C\uDCCF Picked up card ${key} from index [${i}]. Scanning leftwards to find its insertion slot.`
     });
 
     while (j >= 0 && arr[j] > key) {
@@ -4466,16 +5410,19 @@ function generateInsertionSortSteps() {
       arr[j + 1] = arr[j];
 
       STATE.elements = [...arr];
+      // SHIFT phase: a card moves right to make room
       recordSnapshot({
+        insertPhase: 'shift',
+        liftedCard: { val: key, fromIdx: i },
+        shiftTarget: j + 1,
         pointers: { i, j, shift: j + 1 },
         highlights: [j, j + 1],
         sortedIndices: [...sortedIndices],
-        liftedKey: { val: key, idx: i },
         comparisons,
         swaps,
         codeLine: 5,
-        varState: `arr[${j}]=${arr[j+1]} > key(${key}) → Shifted right to [${j+1}]`,
-        complexity: 'O(n²)',
+        varState: `arr[${j}]=${arr[j+1]} > key(${key}) \u2192 Shifted right to [${j+1}]`,
+        complexity: 'O(n\u00b2)',
         log: `Shifted larger card ${arr[j+1]} from [${j}] rightward into [${j+1}].`
       });
       j--;
@@ -4486,7 +5433,11 @@ function generateInsertionSortSteps() {
     sortedIndices.push(i);
 
     STATE.elements = [...arr];
+    // DROP phase: key card descends into its slot
     recordSnapshot({
+      insertPhase: 'drop',
+      liftedCard: null,
+      dropSlot: j + 1,
       pointers: { i, inserted: j + 1 },
       highlights: [j + 1],
       sortedIndices: [...sortedIndices],
@@ -4494,13 +5445,15 @@ function generateInsertionSortSteps() {
       swaps,
       codeLine: 7,
       varState: `Inserted key ${key} into vacant slot [${j+1}]`,
-      complexity: 'O(n²)',
-      log: `🃏 Dropped card ${key} into sorted slot [${j + 1}]. Sorted sub-array is now [0..${i}].`
+      complexity: 'O(n\u00b2)',
+      log: `\uD83C\uDCCF Dropped card ${key} into sorted slot [${j + 1}]. Sorted sub-array is now [0..${i}].`
     });
   }
 
   STATE.elements = [...arr];
   recordSnapshot({
+    insertPhase: 'done',
+    liftedCard: null,
     pointers: {},
     highlights: Array.from({ length: n }, (_, k) => k),
     sortedIndices: Array.from({ length: n }, (_, k) => k),
@@ -4508,8 +5461,8 @@ function generateInsertionSortSteps() {
     swaps,
     codeLine: 8,
     varState: `Insertion Sort Complete. Total Comparisons: ${comparisons}, Shifts: ${swaps}`,
-    complexity: 'O(n²)',
-    log: `🎉 Insertion Sort Complete! All cards sorted in hand.`
+    complexity: 'O(n\u00b2)',
+    log: `\uD83C\uDF89 Insertion Sort Complete! All cards sorted in hand.`
   });
 
   SoundFX.success();
@@ -4522,25 +5475,53 @@ function generateQuickSortSteps() {
   STATE.history = [];
   let comparisons = 0;
   let swaps = 0;
+  let recursionDepth = 0;
+  const lockedPivots = [];
 
-  function quickSort(low, high) {
+  function quickSort(low, high, depth) {
     if (low < high) {
-      const pIdx = partition(low, high);
-      quickSort(low, pIdx - 1);
-      quickSort(pIdx + 1, high);
+      recursionDepth = Math.max(recursionDepth, depth);
+      const pIdx = partition(low, high, depth);
+      quickSort(low, pIdx - 1, depth + 1);
+      quickSort(pIdx + 1, high, depth + 1);
+    } else if (low === high) {
+      // Single element is trivially sorted
+      lockedPivots.push(low);
+      STATE.elements = [...arr];
+      recordSnapshot({
+        quickPhase: 'pivot_land',
+        pivotIdx: low,
+        partitionLow: low,
+        partitionHigh: high,
+        lockedPivots: [...lockedPivots],
+        recursionDepth: depth,
+        pointers: { pivot: low },
+        highlights: [low],
+        comparisons,
+        swaps,
+        codeLine: 8,
+        varState: `Single element [${arr[low]}] trivially sorted`,
+        complexity: 'O(n log n)',
+        log: `Element [${arr[low]}] at index [${low}] is trivially in final position.`
+      });
     }
   }
 
-  function partition(low, high) {
+  function partition(low, high, depth) {
     const pivot = arr[high];
     let i = low - 1;
 
     STATE.elements = [...arr];
     recordSnapshot({
+      quickPhase: 'scan',
+      pivotIdx: high,
+      partitionLow: low,
+      partitionHigh: high,
+      lockedPivots: [...lockedPivots],
+      recursionDepth: depth,
       pointers: { i, j: low, pivot: high },
       comparisons,
       swaps,
-      callStack: [{ name: `quickSort(${low}, ${high})`, args: `p:${pivot}` }],
       codeLine: 2,
       varState: `low:${low}, high:${high}, pivot:${pivot}`,
       complexity: 'O(n log n)',
@@ -4552,6 +5533,12 @@ function generateQuickSortSteps() {
       const isSmaller = arr[j] <= pivot;
       STATE.elements = [...arr];
       recordSnapshot({
+        quickPhase: 'scan',
+        pivotIdx: high,
+        partitionLow: low,
+        partitionHigh: high,
+        lockedPivots: [...lockedPivots],
+        recursionDepth: depth,
         pointers: { i, j, pivot: high },
         highlights: [j],
         comparisons,
@@ -4568,12 +5555,20 @@ function generateQuickSortSteps() {
         const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
         STATE.elements = [...arr];
         recordSnapshot({
+          quickPhase: 'swap',
+          swapA: i,
+          swapB: j,
+          pivotIdx: high,
+          partitionLow: low,
+          partitionHigh: high,
+          lockedPivots: [...lockedPivots],
+          recursionDepth: depth,
           pointers: { i, j, pivot: high },
           highlights: [i, j],
           comparisons,
           swaps,
           codeLine: 6,
-          varState: `Swapped arr[${i}] and arr[${j}]`,
+          varState: `Swapped arr[${i}]=${arr[i]} and arr[${j}]=${arr[j]}`,
           complexity: 'O(n log n)',
           log: `Incremented i to ${i}; swapped ${arr[i]} and ${arr[j]}.`
         });
@@ -4581,42 +5576,234 @@ function generateQuickSortSteps() {
     }
 
     swaps++;
-    const tmp = arr[i + 1]; arr[i + 1] = arr[high]; arr[high] = tmp;
+    const finalPivotIdx = i + 1;
+    const tmp = arr[finalPivotIdx]; arr[finalPivotIdx] = arr[high]; arr[high] = tmp;
+    lockedPivots.push(finalPivotIdx);
     STATE.elements = [...arr];
     recordSnapshot({
-      pointers: { pivot: i + 1 },
-      highlights: [i + 1],
+      quickPhase: 'pivot_land',
+      pivotIdx: finalPivotIdx,
+      partitionLow: low,
+      partitionHigh: high,
+      lockedPivots: [...lockedPivots],
+      recursionDepth: depth,
+      pointers: { pivot: finalPivotIdx },
+      highlights: [finalPivotIdx],
       comparisons,
       swaps,
       codeLine: 8,
-      varState: `Pivot placed at final index [${i+1}]`,
+      varState: `Pivot placed at final index [${finalPivotIdx}]`,
       complexity: 'O(n log n)',
-      log: `Final partition swap: pivot ${pivot} locked at index [${i + 1}].`
+      log: `Final partition swap: pivot ${pivot} locked at index [${finalPivotIdx}].`
     });
-    return i + 1;
+    return finalPivotIdx;
   }
 
-  quickSort(0, arr.length - 1);
+  quickSort(0, arr.length - 1, 0);
+
+  // Final done snapshot
+  lockedPivots.length = 0;
+  for (let k = 0; k < arr.length; k++) lockedPivots.push(k);
+  STATE.elements = [...arr];
+  recordSnapshot({
+    quickPhase: 'done',
+    lockedPivots: [...lockedPivots],
+    recursionDepth,
+    pointers: {},
+    highlights: Array.from({ length: arr.length }, (_, k) => k),
+    comparisons,
+    swaps,
+    codeLine: 9,
+    varState: `Quick Sort Complete`,
+    complexity: 'O(n log n)',
+    log: `\uD83C\uDF89 Quick Sort Complete! ${comparisons} comparisons, ${swaps} swaps.`
+  });
+
   SoundFX.success();
   renderStep(0);
   playbackPlay();
 }
 
 function generateMergeSortSteps() {
-  const arr = [...STATE.elements];
+  const orig = [...STATE.elements];
+  if (orig.length === 0) {
+    STATE.elements = [38, 27, 43, 3, 9, 82, 10];
+    orig.push(...STATE.elements);
+  }
+  const arr = [...orig];
   STATE.history = [];
+  let comparisons = 0;
+  let merges = 0;
+  let totalDepth = 0;
+
   recordSnapshot({
+    mergePhase: 'idle',
+    mergeArr: [...arr],
+    leftArr: [], rightArr: [], mergedArr: [],
+    splitDepth: 0,
+    comparisons,
+    merges,
     codeLine: 1,
     complexity: 'O(n log n)',
-    log: `Merge Sort initiated on array [${arr.join(', ')}]. Divide and conquer recursion tree.`
+    log: `Merge Sort initiated on [${arr.join(', ')}]. Divide and conquer.`
   });
-  arr.sort((a, b) => a - b);
-  STATE.elements = arr;
+
+  function mergeSort(subArr, depth) {
+    totalDepth = Math.max(totalDepth, depth);
+    if (subArr.length <= 1) return subArr;
+    const mid = Math.floor(subArr.length / 2);
+    const left = subArr.slice(0, mid);
+    const right = subArr.slice(mid);
+
+    // SPLIT snapshot
+    recordSnapshot({
+      mergePhase: 'split',
+      leftArr: [...left],
+      rightArr: [...right],
+      mergedArr: [],
+      splitDepth: depth,
+      mergeArr: [...arr],
+      comparisons,
+      merges,
+      codeLine: 2,
+      varState: `Splitting [${subArr.join(',')}] → [${left.join(',')}] | [${right.join(',')}]`,
+      complexity: 'O(n log n)',
+      log: `Split [${subArr.join(', ')}] \u2192 left [${left.join(', ')}] | right [${right.join(', ')}] (depth ${depth})`
+    });
+
+    const sortedLeft = mergeSort(left, depth + 1);
+    const sortedRight = mergeSort(right, depth + 1);
+    return mergeParts(sortedLeft, sortedRight, depth);
+  }
+
+  function mergeParts(left, right, depth) {
+    const merged = [];
+    let li = 0, ri = 0;
+
+    while (li < left.length && ri < right.length) {
+      comparisons++;
+      // COMPARE snapshot
+      recordSnapshot({
+        mergePhase: 'compare',
+        leftArr: [...left],
+        rightArr: [...right],
+        leftPtr: li,
+        rightPtr: ri,
+        mergedArr: [...merged],
+        splitDepth: depth,
+        mergeArr: [...arr],
+        comparisons,
+        merges,
+        codeLine: 3,
+        varState: `Compare left[${li}]=${left[li]} vs right[${ri}]=${right[ri]}`,
+        complexity: 'O(n log n)',
+        log: `Compare ${left[li]} vs ${right[ri]}: pick ${left[li] <= right[ri] ? left[li] : right[ri]}`
+      });
+
+      const fromLeft = left[li] <= right[ri];
+      const pulledVal = fromLeft ? left[li++] : right[ri++];
+      merged.push(pulledVal);
+      merges++;
+
+      // PULL snapshot
+      recordSnapshot({
+        mergePhase: 'pull',
+        leftArr: [...left],
+        rightArr: [...right],
+        leftPtr: li,
+        rightPtr: ri,
+        pulledVal,
+        pulledFrom: fromLeft ? 'left' : 'right',
+        mergedArr: [...merged],
+        splitDepth: depth,
+        mergeArr: [...arr],
+        comparisons,
+        merges,
+        codeLine: 4,
+        varState: `Pulled ${pulledVal} from ${fromLeft ? 'left' : 'right'} into merged`,
+        complexity: 'O(n log n)',
+        log: `Pulled ${pulledVal} from ${fromLeft ? 'left' : 'right'} \u2192 merged: [${merged.join(', ')}]`
+      });
+    }
+
+    // Drain remaining
+    while (li < left.length) {
+      merged.push(left[li++]);
+      merges++;
+      recordSnapshot({
+        mergePhase: 'pull',
+        leftArr: [...left],
+        rightArr: [...right],
+        leftPtr: li,
+        rightPtr: ri,
+        pulledVal: merged[merged.length - 1],
+        pulledFrom: 'left',
+        mergedArr: [...merged],
+        splitDepth: depth,
+        mergeArr: [...arr],
+        comparisons,
+        merges,
+        codeLine: 5,
+        log: `Drain left: pulled ${merged[merged.length-1]}`
+      });
+    }
+    while (ri < right.length) {
+      merged.push(right[ri++]);
+      merges++;
+      recordSnapshot({
+        mergePhase: 'pull',
+        leftArr: [...left],
+        rightArr: [...right],
+        leftPtr: li,
+        rightPtr: ri,
+        pulledVal: merged[merged.length - 1],
+        pulledFrom: 'right',
+        mergedArr: [...merged],
+        splitDepth: depth,
+        mergeArr: [...arr],
+        comparisons,
+        merges,
+        codeLine: 5,
+        log: `Drain right: pulled ${merged[merged.length-1]}`
+      });
+    }
+
+    // DONE snapshot for this merge
+    recordSnapshot({
+      mergePhase: 'done',
+      leftArr: [...left],
+      rightArr: [...right],
+      mergedArr: [...merged],
+      splitDepth: depth,
+      mergeArr: [...arr],
+      comparisons,
+      merges,
+      codeLine: 6,
+      varState: `Merged [${merged.join(',')}] at depth ${depth}`,
+      complexity: 'O(n log n)',
+      log: `\u2713 Merged into [${merged.join(', ')}] at depth ${depth}`
+    });
+
+    return merged;
+  }
+
+  const sorted = mergeSort(arr, 0);
+  STATE.elements = sorted;
+
   recordSnapshot({
-    codeLine: 4,
+    mergePhase: 'final',
+    mergeArr: [...sorted],
+    leftArr: [], rightArr: [], mergedArr: [...sorted],
+    splitDepth: 0,
+    comparisons,
+    merges,
+    codeLine: 7,
+    highlights: Array.from({ length: sorted.length }, (_, k) => k),
+    varState: `Merge Sort Complete`,
     complexity: 'O(n log n)',
-    log: `Merged sub-arrays in O(n log n) linearithmic time.`
+    log: `\uD83C\uDF89 Merge Sort Complete! ${comparisons} comparisons, ${merges} merges.`
   });
+
   SoundFX.success();
   renderStep(0);
   playbackPlay();
@@ -4625,42 +5812,108 @@ function generateMergeSortSteps() {
 function generateBinarySearchSteps() {
   const arr = [...STATE.elements].sort((a, b) => a - b);
   STATE.elements = arr;
-  const target = parseInt(document.getElementById('ds-val-input').value) || arr[Math.floor(arr.length / 2)];
+  const inputVal = parseInt(document.getElementById('ds-val-input').value);
+  const target = (!isNaN(inputVal) && arr.includes(inputVal)) ? inputVal : arr[Math.floor(arr.length / 2)];
   STATE.history = [];
   let low = 0;
   let high = arr.length - 1;
   let comps = 0;
+  const n = arr.length;
+
+  recordSnapshot({
+    searchPhase: 'start',
+    bsLow: low,
+    bsMid: Math.floor((low + high) / 2),
+    bsHigh: high,
+    bsTarget: target,
+    pointers: { low, high },
+    highlights: [],
+    comparisons: comps,
+    codeLine: 1,
+    varState: `Binary Search for ${target} in sorted array`,
+    complexity: 'O(log n)',
+    log: `Binary Search started. Target: ${target}. Sorted array: [${arr.join(', ')}]`
+  });
 
   while (low <= high) {
     comps++;
     const mid = Math.floor((low + high) / 2);
+    const intervalSize = high - low + 1;
+
+    // HALVE snapshot: showing the new interval
     recordSnapshot({
+      searchPhase: 'halve',
+      bsLow: low,
+      bsMid: mid,
+      bsHigh: high,
+      bsTarget: target,
       pointers: { low, mid, high },
       highlights: [mid],
       comparisons: comps,
       codeLine: 3,
-      varState: `low:${low}, high:${high}, mid:${mid} val:${arr[mid]}`,
+      varState: `low:${low}, high:${high}, mid:${mid}, val:${arr[mid]}`,
       complexity: 'O(log n)',
-      log: `Interval halving: mid = [${mid}] (${arr[mid]}). Target: ${target}.`
+      log: `Interval [${low}..${high}] (size ${intervalSize}): mid=[${mid}] value=${arr[mid]}, target=${target}`
+    });
+
+    // PROBE snapshot: mid element under spotlight
+    recordSnapshot({
+      searchPhase: 'probe',
+      bsLow: low,
+      bsMid: mid,
+      bsHigh: high,
+      bsTarget: target,
+      pointers: { low, mid, high },
+      highlights: [mid],
+      comparisons: comps,
+      codeLine: 4,
+      varState: `Probing arr[${mid}]=${arr[mid]} vs target=${target}`,
+      complexity: 'O(log n)',
+      log: `Probing: arr[${mid}]=${arr[mid]} ${arr[mid] === target ? '==' : arr[mid] < target ? '<' : '>'} ${target}`
     });
 
     if (arr[mid] === target) {
       SoundFX.success();
       recordSnapshot({
+        searchPhase: 'found',
+        foundIdx: mid,
+        bsLow: low,
+        bsMid: mid,
+        bsHigh: high,
+        bsTarget: target,
         pointers: { match: mid },
         highlights: [mid],
         comparisons: comps,
-        codeLine: 4,
+        codeLine: 5,
+        varState: `FOUND: ${target} at index [${mid}]`,
         complexity: 'O(log n)',
-        log: `Key ${target} found at index [${mid}] in ${comps} comparisons!`
+        log: `\u2728 TARGET ${target} FOUND at index [${mid}] after ${comps} comparisons!`
       });
-      break;
+      renderStep(0);
+      playbackPlay();
+      return;
     } else if (arr[mid] < target) {
       low = mid + 1;
     } else {
       high = mid - 1;
     }
   }
+
+  // Not found
+  recordSnapshot({
+    searchPhase: 'notfound',
+    bsLow: low,
+    bsMid: -1,
+    bsHigh: high,
+    bsTarget: target,
+    pointers: {},
+    highlights: [],
+    comparisons: comps,
+    codeLine: 6,
+    varState: `${target} not found in array`,
+    complexity: 'O(log n)',
+    log: `\u274C Target ${target} not found after ${comps} comparisons. Search space exhausted.`
+  });
   renderStep(0);
   playbackPlay();
 }
