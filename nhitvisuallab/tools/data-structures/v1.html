@@ -150,8 +150,6 @@
         <button class="chip-btn" onclick="applyPreset('sorted-desc')">&#128201; Sorted Descending</button>
         <button class="chip-btn" onclick="applyPreset('duplicates')">&#128257; Duplicate Heavy</button>
         <button class="chip-btn" onclick="applyPreset('traversal-tree')" style="border-color:#00e676;color:#00e676;">&#127795; Tree Traversal [50,30,70,20,40,60,80]</button>
-        <button class="chip-btn" onclick="applyPreset('bubble-demo')" style="border-color:#ff9100;color:#ff9100;">&#129532; Bubble Array [5,2,8,1,7,3,6,4]</button>
-        <button class="chip-btn" onclick="applyPreset('bowling-pins')" style="border-color:#29b6f6;color:#29b6f6;">&#127923; Bowling Pins [64,25,12,22,11]</button>
       </div>
 
     </div>
@@ -929,12 +927,10 @@ const STRUCTURES_META = {
     { id: 'graph_dijkstra', name: 'Dijkstra Shortest Path' }
   ],
   sorting: [
-    { id: 'sorting_bubble', name: '① Bubble Sort (Adaptive Bubbling Up) 🫧' },
-    { id: 'sorting_selection', name: '② Selection Sort (Bowling Pins Min-Scan) 🎳' },
-    { id: 'sorting_insertion', name: '③ Insertion Sort (Hand-Card Slide & Insert) 🃏' },
-    { id: 'sorting_quick', name: '④ QuickSort (Lomuto Pivot Partition) ⚡' },
-    { id: 'sorting_merge', name: '⑤ Merge Sort (Divide & Conquer Tree) 🌳' },
-    { id: 'sorting_binary_search', name: '⑥ Binary Search (Interval Halving) 🎯' }
+    { id: 'sorting_quick', name: 'QuickSort (Lomuto Scheme)' },
+    { id: 'sorting_bubble', name: 'Bubble Sort (Adaptive)' },
+    { id: 'sorting_merge', name: 'Merge Sort (Divide & Conquer)' },
+    { id: 'sorting_binary_search', name: 'Binary Search (Interval Halving)' }
   ]
 };
 
@@ -1039,22 +1035,9 @@ function updateActionControls() {
     }
     addBtn('Reset Graph', 'outline', () => resetGraph());
   } else if (struct.startsWith('sorting')) {
-    const sortLabels = {
-      sorting_bubble: '▶ Run Bubble Sort 🫧',
-      sorting_selection: '▶ Run Selection Sort 🎳',
-      sorting_insertion: '▶ Run Insertion Sort 🃏',
-      sorting_quick: '▶ Run QuickSort ⚡',
-      sorting_merge: '▶ Run Merge Sort 🌳',
-      sorting_binary_search: '▶ Run Binary Search 🎯'
-    };
-    addBtn(sortLabels[struct] || '▶ Run Sorting', 'primary', () => opExecuteSort());
-    if (struct === 'sorting_bubble') {
-      addBtn('🫧 Apply Bubble Array [5,2,8,1,7,3,6,4]', 'warning', () => applyPreset('bubble-demo'));
-    } else if (struct === 'sorting_selection') {
-      addBtn('🎳 Apply Bowling Pins [64,25,12,22,11]', 'warning', () => applyPreset('bowling-pins'));
-    }
-    addBtn('🎲 Shuffle Array', 'outline', () => shuffleArray());
-    addBtn('↺ Reset', 'outline', () => resetData());
+    addBtn('Sort Sequence', 'primary', () => opExecuteSort());
+    addBtn('Shuffle / Scramble', 'warning', () => shuffleArray());
+    addBtn('Reset', 'outline', () => resetData());
   }
 
   // Update HUD text
@@ -1343,7 +1326,7 @@ function drawCanvas(snap) {
   } else if (struct.startsWith('graph')) {
     drawGraph(snap);
   } else if (struct.startsWith('sorting')) {
-    drawSortingVisualizer(snap);
+    drawSortingBars(snap);
   }
 
   ctx.restore();
@@ -1996,402 +1979,52 @@ function drawGraph(snap) {
   });
 }
 
-/* 6.8 Draw Sorting Visualizer (Bubble Sort Burbujeando & Selection Sort Bowling Pins) */
-function drawSortingVisualizer(snap) {
+/* 6.8 Draw Sorting Bars */
+function drawSortingBars(snap) {
   const elems = snap.elements;
-  const n = elems ? elems.length : 0;
-  if (!elems || n === 0) return;
-
-  const struct = STATE.structure;
+  const n = elems.length;
   const maxVal = Math.max(...elems, 100);
-  const canvasW = canvas.width;
-  const canvasH = canvas.height;
-
-  // 1. Top HUD Header Bar
-  ctx.save();
-  ctx.fillStyle = 'rgba(0, 33, 43, 0.92)';
-  ctx.strokeStyle = '#1e384c';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.roundRect(24, 14, canvasW - 48, 48, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  // Algorithm Title Badge on left of HUD
-  const isBubble = struct === 'sorting_bubble';
-  const isSelection = struct === 'sorting_selection';
-  const isInsertion = struct === 'sorting_insertion';
-  const isQuick = struct === 'sorting_quick';
-
-  ctx.font = 'bold 13px Segoe UI, sans-serif';
-  ctx.textAlign = 'left';
-  if (isBubble) {
-    ctx.fillStyle = '#ff9100';
-    ctx.fillText('🫧 BUBBLE SORT — "BURBUJEANDO" ADJACENT SCANNER', 38, 43);
-  } else if (isSelection) {
-    ctx.fillStyle = '#29b6f6';
-    ctx.fillText('🎳 SELECTION SORT — BOWLING PINS MINIMUM-SWEEP', 38, 43);
-  } else if (isInsertion) {
-    ctx.fillStyle = '#e040fb';
-    ctx.fillText('🃏 INSERTION SORT — HAND CARD SLIDE & INSERT', 38, 43);
-  } else if (isQuick) {
-    ctx.fillStyle = '#ff5252';
-    ctx.fillText('⚡ QUICKSORT — LOMUTO PIVOT PARTITION', 38, 43);
-  } else {
-    ctx.fillStyle = '#00e676';
-    ctx.fillText('📊 SORTING & SEARCH ENGINE', 38, 43);
-  }
-
-  // Telemetry Pills on right of HUD
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 12px JetBrains Mono, monospace';
-  const comps = snap.comparisons !== undefined ? snap.comparisons : 0;
-  const swaps = snap.swaps !== undefined ? snap.swaps : 0;
-  let hudInfo = `COMPS: ${comps}  |  SWAPS: ${swaps}`;
-  if (isBubble && snap.passNum) {
-    hudInfo = `PASS ${snap.passNum}/${snap.totalPasses || n-1}  |  SWAPPED: ${snap.swappedFlag ? 'YES ⇄' : 'NO'}  |  ${hudInfo}`;
-  } else if (isSelection && snap.minVal !== undefined) {
-    hudInfo = `MIN: ${snap.minVal}  |  TARGET: [${snap.targetSlot !== undefined ? snap.targetSlot : (snap.pointers.i || 0)}]  |  ${hudInfo}`;
-  }
-  ctx.fillStyle = '#aebfd4';
-  ctx.fillText(hudInfo, canvasW - 38, 43);
-  ctx.restore();
-
-  // Dimensions for items
-  const availW = canvasW - 120;
-  const barW = Math.min(56, Math.max(34, Math.floor(availW / n) - 12));
-  const spacing = (availW - (n * barW)) / (n > 1 ? (n - 1) : 1);
+  const chartH = 260;
+  const baseW = 680;
+  const barW = Math.min(50, Math.floor(baseW / n) - 8);
   const startX = 60;
-  const floorY = 380;
-  const maxBarH = 220;
+  const startY = 360;
 
-  const sortedSet = new Set(snap.sortedIndices || []);
-  const activePair = snap.activePair || [];
-
-  // 2. Dotted Partition Wall (for Selection Sort: Sorted Zone vs Unsorted Zone)
-  if (isSelection && snap.targetSlot !== undefined && snap.targetSlot > 0 && snap.targetSlot < n) {
-    const partX = startX + (snap.targetSlot * (barW + spacing)) - (spacing / 2);
-    ctx.save();
-    ctx.strokeStyle = '#00e676';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(partX, 74);
-    ctx.lineTo(partX, floorY + 40);
-    ctx.stroke();
-
-    ctx.font = 'bold 10px Segoe UI';
-    ctx.fillStyle = 'rgba(0, 230, 118, 0.85)';
-    ctx.textAlign = 'right';
-    ctx.fillText('SORTED ZONE 🔒', partX - 8, 90);
-    ctx.fillStyle = '#6b7f9c';
-    ctx.textAlign = 'left';
-    ctx.fillText('🔍 SEARCH POOL', partX + 8, 90);
-    ctx.restore();
-  }
-
-  // 3. Render Each Element
   elems.forEach((val, i) => {
-    const x = startX + (i * (barW + spacing));
-    const h = 48 + ((val / maxVal) * (maxBarH - 48));
-    const y = floorY - h;
+    const h = (val / maxVal) * chartH;
+    const x = startX + (i * (barW + 8));
+    const y = startY - h;
 
-    const isSorted = sortedSet.has(i);
-    const isTarget = isSelection && snap.targetSlot === i;
-    const isMin = isSelection && snap.pointers.minIdx === i;
-    const isJ = snap.pointers.j === i;
-    const isComparing = activePair.includes(i) || snap.highlights.includes(i);
     const isPivot = snap.pointers.pivot === i;
+    const isI = snap.pointers.i === i;
+    const isJ = snap.pointers.j === i;
+    const isHigh = snap.highlights.includes(i);
 
-    ctx.save();
-
-    if (isBubble) {
-      // ══════ BUBBLE SORT RENDERING (DevAngelo Style) ══════
-      const bubbleRadius = barW / 2;
-      const isSwapping = snap.swapActive && (snap.swapArc?.from === i || snap.swapArc?.to === i);
-
-      // Micro-bubbles rising around active elements
-      if (isComparing || isSwapping) {
-        ctx.fillStyle = 'rgba(255, 145, 0, 0.35)';
-        for (let b = 0; b < 3; b++) {
-          ctx.beginPath();
-          ctx.arc(x + bubbleRadius + (b * 6 - 6), y - 14 - (b * 12), 3 + b, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      // Bubble Capsule Fill & Glow
-      let fillColor, strokeColor;
-      if (isSorted) {
-        fillColor = ctx.createLinearGradient(x, y, x + barW, y + h);
-        fillColor.addColorStop(0, '#00e676');
-        fillColor.addColorStop(1, '#004d26');
-        strokeColor = '#b9f6ca';
-      } else if (isComparing) {
-        fillColor = ctx.createLinearGradient(x, y, x + barW, y + h);
-        fillColor.addColorStop(0, '#ff9100');
-        fillColor.addColorStop(1, '#663a00');
-        strokeColor = '#ffe57f';
-        ctx.shadowColor = '#ff9100';
-        ctx.shadowBlur = 14;
-      } else {
-        fillColor = ctx.createLinearGradient(x, y, x + barW, y + h);
-        fillColor.addColorStop(0, '#00b0ff');
-        fillColor.addColorStop(1, '#00264d');
-        strokeColor = '#80d8ff';
-      }
-
-      ctx.fillStyle = fillColor;
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = isComparing ? 2.5 : 1.5;
-      ctx.beginPath();
-      ctx.roundRect(x, y, barW, h, [barW / 2, barW / 2, 8, 8]);
-      ctx.fill();
-      ctx.stroke();
-
-      // Bubble Gloss Highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(x + bubbleRadius, y + 14, bubbleRadius * 0.45, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Value text inside capsule
-      ctx.fillStyle = isSorted ? '#001a0d' : '#ffffff';
-      ctx.font = 'bold 15px JetBrains Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x + bubbleRadius, y + (h > 60 ? 32 : h / 2 + 5));
-
-      // Sorted Padlock badge
-      if (isSorted) {
-        ctx.font = '12px Segoe UI';
-        ctx.fillText('🔒', x + bubbleRadius, y - 8);
-      }
-
-    } else if (isSelection) {
-      // ══════ SELECTION SORT RENDERING (Bowling Pins Style) ══════
-      const headR = Math.min(18, barW / 2 - 2);
-      const headY = y + headR + 4;
-      const bodyTopY = headY + headR;
-      const bodyH = floorY - bodyTopY;
-
-      // Target slot spotlight pedestal
-      if (isTarget) {
-        ctx.fillStyle = 'rgba(41, 182, 246, 0.2)';
-        ctx.strokeStyle = '#29b6f6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(x + barW / 2, floorY + 4, barW * 0.7, 8, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      // Pin body gradient
-      let pinGrad;
-      if (isSorted) {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#00e676');
-        pinGrad.addColorStop(1, '#00381f');
-      } else if (isMin) {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#ffd54f');
-        pinGrad.addColorStop(1, '#664d00');
-        ctx.shadowColor = '#ffd54f';
-        ctx.shadowBlur = 16;
-      } else if (isComparing) {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#ff9100');
-        pinGrad.addColorStop(1, '#552200');
-        ctx.shadowColor = '#ff9100';
-        ctx.shadowBlur = 12;
-      } else {
-        pinGrad = ctx.createLinearGradient(x, y, x + barW, floorY);
-        pinGrad.addColorStop(0, '#e0f7fa');
-        pinGrad.addColorStop(1, '#1b3b4f');
-      }
-
-      // Pin Head (Top Circle)
-      ctx.fillStyle = pinGrad;
-      ctx.strokeStyle = isMin ? '#fff9c4' : (isSorted ? '#b9f6ca' : '#4fc3f7');
-      ctx.lineWidth = (isMin || isTarget) ? 2.5 : 1.5;
-      ctx.beginPath();
-      ctx.arc(x + barW / 2, headY, headR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Bowling Pin Neck Stripe
-      ctx.fillStyle = isSorted ? '#00c853' : '#ff3d00';
-      ctx.fillRect(x + barW / 2 - headR * 0.7, headY + headR - 2, headR * 1.4, 4);
-
-      // Pin Body
-      ctx.fillStyle = pinGrad;
-      ctx.beginPath();
-      ctx.roundRect(x + 3, bodyTopY, barW - 6, bodyH, [headR * 0.5, headR * 0.5, 6, 6]);
-      ctx.fill();
-      ctx.stroke();
-
-      // Value text inside pin body
-      ctx.fillStyle = (isMin || isSorted) ? '#00141a' : '#ffffff';
-      ctx.font = 'bold 15px JetBrains Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x + barW / 2, bodyTopY + Math.min(28, bodyH / 2));
-
-      // Golden Crown 👑 on Min Element
-      if (isMin) {
-        ctx.font = '20px Segoe UI';
-        ctx.fillText('👑', x + barW / 2, y - 10);
-        ctx.font = 'bold 11px JetBrains Mono';
-        ctx.fillStyle = '#ffd54f';
-        ctx.fillText('MIN', x + barW / 2, y - 26);
-      }
-
-      // Target Slot Tag 🎯
-      if (isTarget && !isMin) {
-        ctx.font = '14px Segoe UI';
-        ctx.fillText('🎯', x + barW / 2, y - 8);
-      }
-
-      // Sorted strike badge 🎳
-      if (isSorted) {
-        ctx.font = 'bold 11px Segoe UI';
-        ctx.fillStyle = '#00e676';
-        ctx.fillText('✔', x + barW / 2, y - 8);
-      }
-
-    } else {
-      // ══════ OTHER SORTS (Quick, Insertion, Merge, Search) ══════
-      let fill = isPivot ? '#ff5252' : (isComparing ? '#ff9100' : (isSorted ? '#00e676' : '#29b6f6'));
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = isComparing ? 2 : 1;
-      ctx.beginPath();
-      ctx.roundRect(x, y, barW, h, [6, 6, 0, 0]);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px JetBrains Mono';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x + barW / 2, y - 8);
-    }
-
-    // Index & Pointer Annotations below Floor
-    ctx.fillStyle = '#8899b5';
-    ctx.font = '11px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText(`[${i}]`, x + barW / 2, floorY + 16);
-
-    let ptrStr = '';
-    if (isSelection) {
-      if (isTarget) ptrStr += 'tgt(i) ';
-      if (isJ) ptrStr += '▲ j ';
-      if (isMin) ptrStr += 'min ';
-    } else if (isBubble) {
-      if (snap.pointers.j === i) ptrStr += 'j ';
-      if (snap.pointers.jNext === i) ptrStr += 'j+1 ';
-    } else {
-      if (isPivot) ptrStr += 'P ';
-      if (snap.pointers.i === i) ptrStr += 'i ';
-      if (isJ) ptrStr += 'j ';
-    }
-
-    if (ptrStr) {
-      ctx.fillStyle = '#ffd54f';
-      ctx.font = 'bold 12px Segoe UI';
-      ctx.fillText(ptrStr.trim(), x + barW / 2, floorY + 34);
-    }
-
-    ctx.restore();
-  });
-
-  // 4. Comparator Laser Beam & Dynamic Connections (Selection Sort)
-  if (isSelection && snap.pointers.j !== undefined && snap.pointers.minIdx !== undefined && snap.pointers.j !== snap.pointers.minIdx) {
-    const minX = startX + (snap.pointers.minIdx * (barW + spacing)) + barW / 2;
-    const jX = startX + (snap.pointers.j * (barW + spacing)) + barW / 2;
-    const beamY = 105;
-
-    ctx.save();
-    ctx.strokeStyle = snap.newMinFound ? '#ff9100' : '#29b6f6';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 3]);
-    ctx.shadowColor = snap.newMinFound ? '#ff9100' : '#29b6f6';
-    ctx.shadowBlur = 10;
-
-    // Laser arch connecting minIdx and j
+    ctx.fillStyle = isPivot ? '#ff5252' : (isHigh ? '#ff9100' : (isI ? '#f5c842' : (isJ ? '#00e676' : '#29b6f6')));
     ctx.beginPath();
-    ctx.moveTo(minX, 130);
-    ctx.bezierCurveTo(minX, beamY, jX, beamY, jX, 130);
-    ctx.stroke();
-
-    // Laser center badge
-    const midX = (minX + jX) / 2;
-    ctx.fillStyle = snap.newMinFound ? 'rgba(255, 145, 0, 0.95)' : 'rgba(14, 23, 38, 0.9)';
-    ctx.strokeStyle = snap.newMinFound ? '#ffe57f' : '#29b6f6';
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.roundRect(midX - 70, beamY - 14, 140, 24, 6);
+    ctx.roundRect(x, y, barW, h, [6, 6, 0, 0]);
     ctx.fill();
-    ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px Segoe UI';
+    ctx.font = 'bold 13px JetBrains Mono';
     ctx.textAlign = 'center';
-    ctx.fillText(snap.newMinFound ? '★ NEW MIN FOUND!' : 'Comparing min vs j', midX, beamY + 3);
-    ctx.restore();
-  }
+    ctx.fillText(val, x + barW / 2, y - 8);
 
-  // 5. Swap Arc Trajectory (for both Bubble & Selection sort)
-  if (snap.swapActive && snap.swapArc) {
-    const fromIdx = snap.swapArc.from;
-    const toIdx = snap.swapArc.to;
-    const fromX = startX + (fromIdx * (barW + spacing)) + barW / 2;
-    const toX = startX + (toIdx * (barW + spacing)) + barW / 2;
-    const arcHeight = Math.min(90, Math.abs(fromIdx - toIdx) * 35 + 40);
-    const arcY = floorY - maxBarH - arcHeight;
-
-    ctx.save();
-    ctx.strokeStyle = '#ffd54f';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#ffd54f';
-    ctx.shadowBlur = 14;
-
-    ctx.beginPath();
-    ctx.moveTo(fromX, floorY - maxBarH);
-    ctx.bezierCurveTo(fromX, arcY, toX, arcY, toX, floorY - maxBarH);
-    ctx.stroke();
-
-    // Swap Badge
-    const midX = (fromX + toX) / 2;
-    ctx.fillStyle = 'rgba(255, 213, 79, 0.95)';
-    ctx.beginPath();
-    ctx.roundRect(midX - 55, arcY - 14, 110, 24, 6);
-    ctx.fill();
-
-    ctx.fillStyle = '#080c14';
-    ctx.font = 'bold 12px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('⇄ SWAP ACTIVE', midX, arcY + 3);
-    ctx.restore();
-  }
-
-  // 6. Early Exit Notification Banner
-  if (snap.earlyExit) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 230, 118, 0.95)';
-    ctx.strokeStyle = '#b9f6ca';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(canvasW / 2 - 220, floorY - 140, 440, 44, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#002613';
-    ctx.font = 'bold 14px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('🚀 ADAPTIVE EARLY EXIT: 0 Swaps in Pass!', canvasW / 2, floorY - 120);
+    ctx.fillStyle = '#8899b5';
     ctx.font = '11px Segoe UI';
-    ctx.fillText('Array is fully sorted in O(n) optimal linear time.', canvasW / 2, floorY - 104);
-    ctx.restore();
-  }
+    ctx.fillText(`[${i}]`, x + barW / 2, startY + 16);
+
+    // Pointer annotations below
+    let ptrLabel = '';
+    if (isPivot) ptrLabel += 'P ';
+    if (isI) ptrLabel += 'i ';
+    if (isJ) ptrLabel += 'j';
+    if (ptrLabel) {
+      ctx.fillStyle = '#ffd54f';
+      ctx.font = 'bold 12px Segoe UI';
+      ctx.fillText(ptrLabel.trim(), x + barW / 2, startY + 34);
+    }
+  });
 }
 
 /* ==========================================================================
@@ -2867,417 +2500,18 @@ function resetGraph() {
   renderStep(0);
 }
 
-/* 7.8 Sorting Algorithms (Bubble, Selection, Insertion, Quick, Merge, Binary Search) */
+/* 7.8 Sorting Algorithms (QuickSort Lomuto & Bubble) */
 function opExecuteSort() {
   const struct = STATE.structure;
-  if (struct === 'sorting_bubble') {
-    generateBubbleSortSteps();
-  } else if (struct === 'sorting_selection') {
-    generateSelectionSortSteps();
-  } else if (struct === 'sorting_insertion') {
-    generateInsertionSortSteps();
-  } else if (struct === 'sorting_quick') {
+  if (struct === 'sorting_quick') {
     generateQuickSortSteps();
+  } else if (struct === 'sorting_bubble') {
+    generateBubbleSortSteps();
   } else if (struct === 'sorting_merge') {
     generateMergeSortSteps();
   } else {
     generateBinarySearchSteps();
   }
-}
-
-function generateBubbleSortSteps() {
-  const arr = [...STATE.elements];
-  if (arr.length === 0) {
-    STATE.elements = [5, 2, 8, 1, 7, 3, 6, 4];
-    arr.push(...STATE.elements);
-  }
-  STATE.history = [];
-  let comparisons = 0;
-  let swaps = 0;
-  const n = arr.length;
-  const sortedIndices = [];
-
-  recordSnapshot({
-    pointers: { i: 0, j: 0 },
-    highlights: [],
-    comparisons: 0,
-    swaps: 0,
-    sortedIndices: [],
-    passNum: 1,
-    totalPasses: n - 1,
-    swappedFlag: false,
-    codeLine: 1,
-    varState: `i: 0, j: 0, swapped: false`,
-    complexity: 'O(n²)',
-    log: `Bubble Sort initiated on [${arr.join(', ')}]. "Burbujeando" adjacent elements to top.`
-  });
-
-  for (let i = 0; i < n - 1; i++) {
-    let swappedInPass = false;
-    for (let j = 0; j < n - i - 1; j++) {
-      comparisons++;
-      const shouldSwap = arr[j] > arr[j + 1];
-
-      // Pre-swap comparison snapshot
-      STATE.elements = [...arr];
-      recordSnapshot({
-        pointers: { i, j, jNext: j + 1 },
-        highlights: [j, j + 1],
-        activePair: [j, j + 1],
-        sortedIndices: [...sortedIndices],
-        comparisons,
-        swaps,
-        passNum: i + 1,
-        totalPasses: n - 1,
-        swappedFlag: swappedInPass,
-        codeLine: 4,
-        varState: `Comparing arr[${j}]=${arr[j]} > arr[${j+1}]=${arr[j+1]}: ${shouldSwap}`,
-        complexity: 'O(n²)',
-        log: `Pass ${i + 1}: Comparing adjacent pair arr[${j}] (${arr[j]}) and arr[${j + 1}] (${arr[j + 1]}). ${shouldSwap ? 'Left > Right → SWAP! 🫧' : 'In order → Keep.'}`
-      });
-
-      if (shouldSwap) {
-        swaps++;
-        swappedInPass = true;
-        const tmp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = tmp;
-
-        // Post-swap snapshot with arc
-        STATE.elements = [...arr];
-        recordSnapshot({
-          pointers: { i, j, jNext: j + 1 },
-          highlights: [j, j + 1],
-          activePair: [j, j + 1],
-          swapActive: true,
-          swapArc: { from: j, to: j + 1, valA: arr[j], valB: arr[j + 1] },
-          sortedIndices: [...sortedIndices],
-          comparisons,
-          swaps,
-          passNum: i + 1,
-          totalPasses: n - 1,
-          swappedFlag: true,
-          codeLine: 6,
-          varState: `Swapped! arr[${j}]=${arr[j]} ⇄ arr[${j+1}]=${arr[j+1]}`,
-          complexity: 'O(n²)',
-          log: `🫧 Bubbling up: Swapped arr[${j}] (${arr[j+1]} → ${arr[j]}) and arr[${j+1}].`
-        });
-      }
-    }
-
-    // End of pass: the element at n - 1 - i is now locked in sorted position
-    sortedIndices.unshift(n - 1 - i);
-    STATE.elements = [...arr];
-    recordSnapshot({
-      pointers: { i, locked: n - 1 - i },
-      highlights: [n - 1 - i],
-      sortedIndices: [...sortedIndices],
-      comparisons,
-      swaps,
-      passNum: i + 1,
-      totalPasses: n - 1,
-      swappedFlag: swappedInPass,
-      codeLine: 8,
-      varState: `Pass ${i+1} complete. Locked [${n - 1 - i}]=${arr[n - 1 - i]}`,
-      complexity: 'O(n²)',
-      log: `🔒 Pass ${i + 1} complete! Largest unsorted element ${arr[n - 1 - i]} locked into final position [${n - 1 - i}].`
-    });
-
-    // Adaptive early-exit optimization (DevAngelo reel feature!)
-    if (!swappedInPass) {
-      for (let k = 0; k < n - 1 - i; k++) {
-        if (!sortedIndices.includes(k)) sortedIndices.push(k);
-      }
-      STATE.elements = [...arr];
-      recordSnapshot({
-        pointers: {},
-        highlights: [...sortedIndices],
-        sortedIndices: [...sortedIndices],
-        comparisons,
-        swaps,
-        passNum: i + 1,
-        earlyExit: true,
-        codeLine: 10,
-        varState: `swapped == false: Early exit triggered!`,
-        complexity: 'O(n) Best-Case',
-        log: `🚀 Adaptive Optimization: 0 swaps in Pass ${i + 1}! Array is completely sorted. Early exit achieved in O(n) time!`
-      });
-      break;
-    }
-  }
-
-  for (let k = 0; k < n; k++) {
-    if (!sortedIndices.includes(k)) sortedIndices.push(k);
-  }
-  STATE.elements = [...arr];
-  recordSnapshot({
-    pointers: {},
-    highlights: [...sortedIndices],
-    sortedIndices: [...sortedIndices],
-    comparisons,
-    swaps,
-    codeLine: 12,
-    varState: `Bubble Sort Complete. Comparisons: ${comparisons}, Swaps: ${swaps}`,
-    complexity: 'O(n²)',
-    log: `🎉 Bubble Sort Finished! Array sorted in ${comparisons} comparisons and ${swaps} swaps.`
-  });
-
-  SoundFX.success();
-  renderStep(0);
-  playbackPlay();
-}
-
-function generateSelectionSortSteps() {
-  const arr = [...STATE.elements];
-  if (arr.length === 0) {
-    STATE.elements = [64, 25, 12, 22, 11];
-    arr.push(...STATE.elements);
-  }
-  STATE.history = [];
-  let comparisons = 0;
-  let swaps = 0;
-  const n = arr.length;
-  const sortedIndices = [];
-
-  recordSnapshot({
-    pointers: { i: 0, minIdx: 0, target: 0 },
-    highlights: [0],
-    comparisons: 0,
-    swaps: 0,
-    sortedIndices: [],
-    minVal: arr[0],
-    targetSlot: 0,
-    passNum: 1,
-    codeLine: 1,
-    varState: `i: 0, min_idx: 0, arr[min_idx]: ${arr[0]}`,
-    complexity: 'O(n²)',
-    log: `Bowling Pins Selection Sort initiated on [${arr.join(', ')}]. Finding minimums line-by-line. 🎳`
-  });
-
-  for (let i = 0; i < n - 1; i++) {
-    let minIdx = i;
-
-    STATE.elements = [...arr];
-    recordSnapshot({
-      pointers: { i, minIdx, target: i },
-      highlights: [i],
-      sortedIndices: [...sortedIndices],
-      comparisons,
-      swaps,
-      minVal: arr[minIdx],
-      targetSlot: i,
-      passNum: i + 1,
-      totalPasses: n - 1,
-      codeLine: 2,
-      varState: `Target slot [${i}] = ${arr[i]}. Initial min_idx: ${minIdx}`,
-      complexity: 'O(n²)',
-      log: `🎳 Pass ${i + 1}: Setting Target Slot to index [${i}] (${arr[i]}). Crown initialized to index [${i}] (${arr[minIdx]}).`
-    });
-
-    for (let j = i + 1; j < n; j++) {
-      comparisons++;
-      const isSmaller = arr[j] < arr[minIdx];
-      const oldMin = minIdx;
-      const oldVal = arr[minIdx];
-
-      if (isSmaller) {
-        minIdx = j;
-      }
-
-      STATE.elements = [...arr];
-      recordSnapshot({
-        pointers: { i, j, minIdx, target: i },
-        highlights: [j, minIdx],
-        activePair: [j, oldMin],
-        sortedIndices: [...sortedIndices],
-        comparisons,
-        swaps,
-        minVal: arr[minIdx],
-        targetSlot: i,
-        passNum: i + 1,
-        totalPasses: n - 1,
-        newMinFound: isSmaller,
-        codeLine: 4,
-        varState: `Comparing arr[${j}]=${arr[j]} < min(${oldVal}): ${isSmaller}`,
-        complexity: 'O(n²)',
-        log: isSmaller
-          ? `👑 NEW MINIMUM FOUND! arr[${j}] (${arr[j]}) < arr[${oldMin}] (${oldVal}). Crown moves to [${j}]! 🎳`
-          : `Scanning: arr[${j}] (${arr[j]}) ≥ min (${oldVal}). Crown stays at index [${minIdx}].`
-      });
-    }
-
-    if (minIdx !== i) {
-      swaps++;
-      const tmp = arr[i]; arr[i] = arr[minIdx]; arr[minIdx] = tmp;
-
-      STATE.elements = [...arr];
-      recordSnapshot({
-        pointers: { i, minIdx, target: i },
-        highlights: [i, minIdx],
-        swapActive: true,
-        swapArc: { from: minIdx, to: i, valA: arr[i], valB: arr[minIdx] },
-        sortedIndices: [...sortedIndices],
-        comparisons,
-        swaps,
-        minVal: arr[i],
-        targetSlot: i,
-        passNum: i + 1,
-        totalPasses: n - 1,
-        codeLine: 6,
-        varState: `Swapped target arr[${i}] with minimum arr[${minIdx}]`,
-        complexity: 'O(n²)',
-        log: `🎳 Exchange: Swapped target slot arr[${i}] with minimum element ${arr[i]} from [${minIdx}].`
-      });
-    } else {
-      recordSnapshot({
-        pointers: { i, minIdx: i, target: i },
-        highlights: [i],
-        sortedIndices: [...sortedIndices],
-        comparisons,
-        swaps,
-        minVal: arr[i],
-        targetSlot: i,
-        passNum: i + 1,
-        totalPasses: n - 1,
-        codeLine: 6,
-        varState: `arr[${i}]=${arr[i]} was already minimum. No swap needed.`,
-        complexity: 'O(n²)',
-        log: `Target slot arr[${i}] (${arr[i]}) was already the minimum! 0 swaps needed.`
-      });
-    }
-
-    sortedIndices.push(i);
-    STATE.elements = [...arr];
-    recordSnapshot({
-      pointers: { i, locked: i },
-      highlights: [i],
-      sortedIndices: [...sortedIndices],
-      comparisons,
-      swaps,
-      targetSlot: i,
-      passNum: i + 1,
-      totalPasses: n - 1,
-      codeLine: 8,
-      varState: `Element ${arr[i]} locked in sorted zone [0..${i}]`,
-      complexity: 'O(n²)',
-      log: `🔒 Bowling pin [${i}] (${arr[i]}) is now locked in sorted order! Sorted zone extends to [0..${i}].`
-    });
-  }
-
-  sortedIndices.push(n - 1);
-  STATE.elements = [...arr];
-  recordSnapshot({
-    pointers: {},
-    highlights: [...sortedIndices],
-    sortedIndices: [...sortedIndices],
-    comparisons,
-    swaps,
-    codeLine: 9,
-    varState: `Selection Sort Complete. Comparisons: ${comparisons}, Swaps: ${swaps}`,
-    complexity: 'O(n²)',
-    log: `🎳 STRIKE! All bowling pins lined up in perfect ascending order in ${comparisons} comparisons and ${swaps} swaps! ✔`
-  });
-
-  SoundFX.success();
-  renderStep(0);
-  playbackPlay();
-}
-
-function generateInsertionSortSteps() {
-  const arr = [...STATE.elements];
-  if (arr.length === 0) {
-    STATE.elements = [43, 21, 65, 12, 88, 34];
-    arr.push(...STATE.elements);
-  }
-  STATE.history = [];
-  let comparisons = 0;
-  let swaps = 0;
-  const n = arr.length;
-  const sortedIndices = [0];
-
-  recordSnapshot({
-    pointers: { i: 1 },
-    highlights: [0],
-    sortedIndices: [0],
-    comparisons: 0,
-    swaps: 0,
-    codeLine: 1,
-    varState: `First element arr[0]=${arr[0]} is trivially sorted`,
-    complexity: 'O(n²)',
-    log: `Insertion Sort initiated on [${arr.join(', ')}]. Card-hand insertion technique. 🃏`
-  });
-
-  for (let i = 1; i < n; i++) {
-    const key = arr[i];
-    let j = i - 1;
-
-    STATE.elements = [...arr];
-    recordSnapshot({
-      pointers: { i, j, key: i },
-      highlights: [i],
-      sortedIndices: [...sortedIndices],
-      liftedKey: { val: key, idx: i },
-      comparisons,
-      swaps,
-      codeLine: 2,
-      varState: `Extracted key = ${key} at index [${i}]`,
-      complexity: 'O(n²)',
-      log: `🃏 Picked up card ${key} from index [${i}]. Scanning leftwards to find its insertion slot.`
-    });
-
-    while (j >= 0 && arr[j] > key) {
-      comparisons++;
-      swaps++;
-      arr[j + 1] = arr[j];
-
-      STATE.elements = [...arr];
-      recordSnapshot({
-        pointers: { i, j, shift: j + 1 },
-        highlights: [j, j + 1],
-        sortedIndices: [...sortedIndices],
-        liftedKey: { val: key, idx: i },
-        comparisons,
-        swaps,
-        codeLine: 5,
-        varState: `arr[${j}]=${arr[j+1]} > key(${key}) → Shifted right to [${j+1}]`,
-        complexity: 'O(n²)',
-        log: `Shifted larger card ${arr[j+1]} from [${j}] rightward into [${j+1}].`
-      });
-      j--;
-    }
-    if (j >= 0) comparisons++;
-
-    arr[j + 1] = key;
-    sortedIndices.push(i);
-
-    STATE.elements = [...arr];
-    recordSnapshot({
-      pointers: { i, inserted: j + 1 },
-      highlights: [j + 1],
-      sortedIndices: [...sortedIndices],
-      comparisons,
-      swaps,
-      codeLine: 7,
-      varState: `Inserted key ${key} into vacant slot [${j+1}]`,
-      complexity: 'O(n²)',
-      log: `🃏 Dropped card ${key} into sorted slot [${j + 1}]. Sorted sub-array is now [0..${i}].`
-    });
-  }
-
-  STATE.elements = [...arr];
-  recordSnapshot({
-    pointers: {},
-    highlights: Array.from({ length: n }, (_, k) => k),
-    sortedIndices: Array.from({ length: n }, (_, k) => k),
-    comparisons,
-    swaps,
-    codeLine: 8,
-    varState: `Insertion Sort Complete. Total Comparisons: ${comparisons}, Shifts: ${swaps}`,
-    complexity: 'O(n²)',
-    log: `🎉 Insertion Sort Complete! All cards sorted in hand.`
-  });
-
-  SoundFX.success();
-  renderStep(0);
-  playbackPlay();
 }
 
 function generateQuickSortSteps() {
@@ -3360,6 +2594,52 @@ function generateQuickSortSteps() {
   }
 
   quickSort(0, arr.length - 1);
+  SoundFX.success();
+  renderStep(0);
+  playbackPlay();
+}
+
+function generateBubbleSortSteps() {
+  const arr = [...STATE.elements];
+  STATE.history = [];
+  let comparisons = 0;
+  let swaps = 0;
+  const n = arr.length;
+
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < n - i - 1; j++) {
+      comparisons++;
+      const shouldSwap = arr[j] > arr[j + 1];
+
+      STATE.elements = [...arr];
+      recordSnapshot({
+        pointers: { i, j },
+        highlights: [j, j + 1],
+        comparisons,
+        swaps,
+        codeLine: 3,
+        varState: `Comparing arr[${j}]=${arr[j]} > arr[${j+1}]=${arr[j+1]}`,
+        complexity: 'O(n²)',
+        log: `Comparing adjacent pair: ${arr[j]} > ${arr[j + 1]}: ${shouldSwap}.`
+      });
+
+      if (shouldSwap) {
+        swaps++;
+        const tmp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = tmp;
+        STATE.elements = [...arr];
+        recordSnapshot({
+          pointers: { i, j },
+          highlights: [j, j + 1],
+          comparisons,
+          swaps,
+          codeLine: 5,
+          varState: `Swapped pair (${arr[j]}, ${arr[j+1]})`,
+          complexity: 'O(n²)',
+          log: `Swapped pair (${arr[j]}, ${arr[j+1]}).`
+        });
+      }
+    }
+  }
   SoundFX.success();
   renderStep(0);
   playbackPlay();
@@ -3466,16 +2746,6 @@ function applyPreset(presetName) {
     // Classic balanced BST: 50→30,70→20,40,60,80  (perfect binary tree depth 3)
     selectCategory('trees');
     STATE.elements = [50, 30, 70, 20, 40, 60, 80];
-  } else if (presetName === 'bubble-demo') {
-    selectCategory('sorting');
-    document.getElementById('ds-select').value = 'sorting_bubble';
-    STATE.structure = 'sorting_bubble';
-    STATE.elements = [5, 2, 8, 1, 7, 3, 6, 4];
-  } else if (presetName === 'bowling-pins') {
-    selectCategory('sorting');
-    document.getElementById('ds-select').value = 'sorting_selection';
-    STATE.structure = 'sorting_selection';
-    STATE.elements = [64, 25, 12, 22, 11];
   }
   onStructureChange();
   recordSnapshot({
@@ -3726,80 +2996,6 @@ const CODE_LIBRARY = {
       "    this.data.push(value);",
       "}"
     ]
-  },
-  sorting_bubble: {
-    pseudo: [
-      "function bubbleSort(A):",
-      "    n = len(A)",
-      "    for i = 0 to n - 2 do:",
-      "        swapped = false",
-      "        for j = 0 to n - i - 2 do:",
-      "            if A[j] > A[j + 1] then:",
-      "                swap(A[j], A[j + 1])",
-      "                swapped = true",
-      "        if not swapped: break   # Early exit O(n)"
-    ],
-    cpp: ["// Bubble Sort with Adaptive Swapped Flag","void bubbleSort(vector<int>& A) {","    int n = A.size();","    for (int i = 0; i < n - 1; i++) {","        bool swapped = false;","        for (int j = 0; j < n - i - 1; j++) {","            if (A[j] > A[j + 1]) {","                swap(A[j], A[j + 1]);","                swapped = true;","            }","        }","        if (!swapped) break;","    }","}"],
-    py: ["def bubble_sort(arr):","    n = len(arr)","    for i in range(n - 1):","        swapped = False","        for j in range(n - i - 1):","            if arr[j] > arr[j + 1]:","                arr[j], arr[j + 1] = arr[j + 1], arr[j]","                swapped = True","        if not swapped:","            break  # Adaptive early exit","    return arr"],
-    js: ["function bubbleSort(arr) {","    const n = arr.length;","    for (let i = 0; i < n - 1; i++) {","        let swapped = false;","        for (let j = 0; j < n - i - 1; j++) {","            if (arr[j] > arr[j + 1]) {","                [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];","                swapped = true;","            }","        }","        if (!swapped) break;","    }","    return arr;","}"]
-  },
-  sorting_selection: {
-    pseudo: [
-      "function selectionSort(A):",
-      "    n = len(A)",
-      "    for i = 0 to n - 2 do:",
-      "        min_idx = i",
-      "        for j = i + 1 to n - 1 do:",
-      "            if A[j] < A[min_idx] then:",
-      "                min_idx = j",
-      "        if min_idx != i then:",
-      "            swap(A[i], A[min_idx])"
-    ],
-    cpp: ["// Selection Sort (Bowling Pins Min-Scan)","void selectionSort(vector<int>& A) {","    int n = A.size();","    for (int i = 0; i < n - 1; i++) {","        int min_idx = i;","        for (int j = i + 1; j < n; j++) {","            if (A[j] < A[min_idx]) min_idx = j;","        }","        if (min_idx != i) swap(A[i], A[min_idx]);","    }","}"],
-    py: ["def selection_sort(arr):","    n = len(arr)","    for i in range(n - 1):","        min_idx = i","        for j in range(i + 1, n):","            if arr[j] < arr[min_idx]:","                min_idx = j","        if min_idx != i:","            arr[i], arr[min_idx] = arr[min_idx], arr[i]","    return arr"],
-    js: ["function selectionSort(arr) {","    const n = arr.length;","    for (let i = 0; i < n - 1; i++) {","        let minIdx = i;","        for (let j = i + 1; j < n; j++) {","            if (arr[j] < arr[minIdx]) minIdx = j;","        }","        if (minIdx !== i) [arr[i], arr[minIdx]] = [arr[minIdx], arr[i]];","    }","    return arr;","}"]
-  },
-  sorting_insertion: {
-    pseudo: [
-      "function insertionSort(A):",
-      "    for i = 1 to len(A) - 1 do:",
-      "        key = A[i]; j = i - 1",
-      "        while j >= 0 and A[j] > key do:",
-      "            A[j + 1] = A[j]",
-      "            j = j - 1",
-      "        A[j + 1] = key"
-    ],
-    cpp: ["// Insertion Sort (Card Hand Insertion)","void insertionSort(vector<int>& A) {","    int n = A.size();","    for (int i = 1; i < n; i++) {","        int key = A[i], j = i - 1;","        while (j >= 0 && A[j] > key) {","            A[j + 1] = A[j]; j--;","        }","        A[j + 1] = key;","    }","}"],
-    py: ["def insertion_sort(arr):","    for i in range(1, len(arr)):","        key, j = arr[i], i - 1","        while j >= 0 and arr[j] > key:","            arr[j + 1] = arr[j]; j -= 1","        arr[j + 1] = key","    return arr"],
-    js: ["function insertionSort(arr) {","    for (let i = 1; i < arr.length; i++) {","        const key = arr[i]; let j = i - 1;","        while (j >= 0 && arr[j] > key) {","            arr[j + 1] = arr[j]; j--;","        }","        arr[j + 1] = key;","    }","    return arr;","}"]
-  },
-  sorting_merge: {
-    pseudo: [
-      "function mergeSort(A, left, right):",
-      "    if left < right then:",
-      "        mid = (left + right) / 2",
-      "        mergeSort(A, left, mid)",
-      "        mergeSort(A, mid + 1, right)",
-      "        merge(A, left, mid, right)"
-    ],
-    cpp: ["// Merge Sort (Divide & Conquer)","void mergeSort(vector<int>& A, int l, int r) {","    if (l >= r) return;","    int m = l + (r - l) / 2;","    mergeSort(A, l, m);","    mergeSort(A, m + 1, r);","    merge(A, l, m, r);","}"],
-    py: ["def merge_sort(arr):","    if len(arr) <= 1: return arr","    mid = len(arr) // 2","    left = merge_sort(arr[:mid])","    right = merge_sort(arr[mid:])","    return merge(left, right)"],
-    js: ["function mergeSort(arr) {","    if (arr.length <= 1) return arr;","    const mid = Math.floor(arr.length / 2);","    const left = mergeSort(arr.slice(0, mid));","    const right = mergeSort(arr.slice(mid));","    return merge(left, right);","}"]
-  },
-  sorting_binary_search: {
-    pseudo: [
-      "function binarySearch(A, target):",
-      "    low = 0; high = len(A) - 1",
-      "    while low <= high do:",
-      "        mid = (low + high) / 2",
-      "        if A[mid] == target: return mid",
-      "        else if A[mid] < target: low = mid + 1",
-      "        else: high = mid - 1",
-      "    return -1"
-    ],
-    cpp: ["// Binary Search (Interval Halving)","int binarySearch(const vector<int>& A, int target) {","    int low = 0, high = A.size() - 1;","    while (low <= high) {","        int mid = low + (high - low) / 2;","        if (A[mid] == target) return mid;","        if (A[mid] < target) low = mid + 1;","        else high = mid - 1;","    }","    return -1;","}"],
-    py: ["def binary_search(arr, target):","    low, high = 0, len(arr) - 1","    while low <= high:","        mid = (low + high) // 2","        if arr[mid] == target: return mid","        elif arr[mid] < target: low = mid + 1","        else: high = mid - 1","    return -1"],
-    js: ["function binarySearch(arr, target) {","    let low = 0, high = arr.length - 1;","    while (low <= high) {","        const mid = Math.floor((low + high) / 2);","        if (arr[mid] === target) return mid;","        if (arr[mid] < target) low = mid + 1;","        else high = mid - 1;","    }","    return -1;","}"]
   },
   sorting_quick: {
     pseudo: [
@@ -4118,15 +3314,10 @@ function updateCodeTerminal() {
   const container = document.getElementById('code-terminal-lines');
   container.innerHTML = '';
   let struct = STATE.structure;
-  if (CODE_LIBRARY[struct]) {
-    // Keep exact structure key (sorting_bubble, sorting_selection, traversal_*, etc.)
-  } else if (struct.startsWith('sorting')) {
-    struct = 'sorting_bubble';
-  } else if (struct === 'queue') {
-    struct = 'queue';
-  } else {
-    struct = 'stack';
-  }
+  if (struct.includes('sorting')) struct = 'sorting_quick';
+  else if (struct === 'queue') struct = 'queue';
+  else if (struct.startsWith('traversal_')) struct = struct; // keep traversal_* id
+  else struct = 'stack';
   const lines = (CODE_LIBRARY[struct] && CODE_LIBRARY[struct][STATE.codeLang]) || CODE_LIBRARY.stack.pseudo;
 
   lines.forEach(line => {
