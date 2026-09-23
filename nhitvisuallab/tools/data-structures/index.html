@@ -2400,6 +2400,12 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.roundRect(cx + 2, curTopY + 2, cardW - 4, cardH - 4, 6);
     ctx.stroke();
 
+    // Reset all shadow properties completely to eliminate any doubled or shaded text
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     // Value Numeral
     ctx.textAlign = 'center';
     ctx.font = 'bold ' + valFontSize + 'px "JetBrains Mono", monospace';
@@ -2524,27 +2530,22 @@ function drawCodingChopsSelectionSort(snap) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // 1. Dark Theatrical Spotlight Background
+  // 1. Dark Theatrical Spotlight Background (Vignette)
   ctx.save();
-  const bgGrad = ctx.createRadialGradient(w / 2, 180, 80, w / 2, 280, 500);
-  bgGrad.addColorStop(0, '#1a1f2b');
-  bgGrad.addColorStop(0.6, '#0f1218');
-  bgGrad.addColorStop(1, '#07080b');
+  const bgGrad = ctx.createRadialGradient(w / 2, 170, 70, w / 2, 270, 490);
+  bgGrad.addColorStop(0, '#191e2b');
+  bgGrad.addColorStop(0.6, '#0e1118');
+  bgGrad.addColorStop(1, '#06070a');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
-
-  // Subtle theatrical vertical guide beams
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
-  ctx.lineWidth = 1;
-  for (let x = 60; x <= w - 60; x += 60) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-  }
 
   // 2. Header: Coding Chops Title & Telemetry Pills
   ctx.textAlign = 'left';
   ctx.font = 'bold 10px "Segoe UI", sans-serif';
   ctx.fillStyle = '#f5c842';
+  ctx.letterSpacing = '1px';
   ctx.fillText('SORTING · VISUALIZED', 30, 36);
+  ctx.letterSpacing = '0px';
 
   ctx.font = '900 22px "Segoe UI", sans-serif';
   ctx.fillStyle = '#ffffff';
@@ -2553,6 +2554,8 @@ function drawCodingChopsSelectionSort(snap) {
   const comps = snap.comparisons !== undefined ? snap.comparisons : 0;
   const swaps = snap.swaps !== undefined ? snap.swaps : 0;
   const pass = snap.pointers.i !== undefined ? (snap.pointers.i + 1) : 1;
+  const maxComps = Math.floor((n * (n - 1)) / 2);
+  const maxSwaps = n - 1;
 
   const drawBadge = (rx, ry, rw, rh, fillCol, borderCol, textCol, label, val) => {
     ctx.fillStyle = fillCol;
@@ -2562,18 +2565,24 @@ function drawCodingChopsSelectionSort(snap) {
     ctx.roundRect(rx, ry, rw, rh, 6);
     ctx.fill();
     ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     ctx.font = 'bold 10px "JetBrains Mono", monospace';
     ctx.fillStyle = textCol;
     ctx.textAlign = 'center';
-    ctx.fillText(label + ': ' + val, rx + rw / 2, ry + 16);
+    ctx.fillText(label + ' ' + val, rx + rw / 2, ry + 16);
   };
 
   drawBadge(w - 380, 26, 115, 25, 'rgba(56, 189, 248, 0.12)', '#38bdf8', '#38bdf8', 'PASS', pass + '/' + n);
-  drawBadge(w - 255, 26, 110, 25, 'rgba(255, 255, 255, 0.1)', '#cbd5e1', '#ffffff', 'COMPARES', comps);
-  drawBadge(w - 135, 26, 105, 25, 'rgba(245, 158, 11, 0.15)', '#f59e0b', '#fbbf24', 'SWAPS', swaps);
+  drawBadge(w - 255, 26, 110, 25, 'rgba(255, 255, 255, 0.1)', '#cbd5e1', '#ffffff', 'COMPARES', comps + '/' + maxComps);
+  drawBadge(w - 135, 26, 105, 25, 'rgba(245, 158, 11, 0.15)', '#f59e0b', '#fbbf24', 'SWAPS', swaps + '/' + maxSwaps);
 
   // 3. Dynamic Proportional Layout for Bowling Pins (N = 4 to 16)
-  const laneY = 360;
+  const laneY = 350;
   const startX = 36;
   const availW = w - 72;
   const gap = Math.max(4, Math.min(18, Math.floor(140 / n)));
@@ -2587,49 +2596,18 @@ function drawCodingChopsSelectionSort(snap) {
   const sortedIdx = snap.pointers.i !== undefined ? snap.pointers.i : 0;
   const scanIdx = snap.pointers.j !== undefined ? snap.pointers.j : sortedIdx;
   const minIdx = snap.pointers.minIdx !== undefined ? snap.pointers.minIdx : sortedIdx;
+  const sortedSet = new Set(snap.sortedIndices || []);
 
-  // Active crane target position
-  const craneTargetIdx = (scanIdx >= 0 && scanIdx < n) ? scanIdx : minIdx;
-  const craneCenterX = getPinX(craneTargetIdx) + pinW / 2;
-
-  // 4. Overhead Industrial Crane & Conical Yellow Spotlight Beam
+  // 4. Overhead Industrial Crane Rail (at Y = 82)
   const railY = 82;
   const railH = 14;
   const railLeft = startX - 10;
   const railWidth = availW + 20;
 
-  // Conical Yellow Spotlight Beam projecting onto pin [j]
-  ctx.save();
-  const beamTopW = Math.max(16, Math.round(pinW * 0.65));
-  const beamBotW = Math.max(42, Math.round(pinW * 1.75));
-  const beamTopY = railY + railH + 68;
-  const beamBotY = laneY;
-
-  const spotGrad = ctx.createLinearGradient(0, beamTopY, 0, beamBotY);
-  spotGrad.addColorStop(0, 'rgba(253, 224, 71, 0.32)');
-  spotGrad.addColorStop(0.7, 'rgba(253, 224, 71, 0.14)');
-  spotGrad.addColorStop(1, 'rgba(253, 224, 71, 0.02)');
-
-  ctx.fillStyle = spotGrad;
-  ctx.beginPath();
-  ctx.moveTo(craneCenterX - beamTopW / 2, beamTopY);
-  ctx.lineTo(craneCenterX + beamTopW / 2, beamTopY);
-  ctx.lineTo(craneCenterX + beamBotW / 2, beamBotY);
-  ctx.lineTo(craneCenterX - beamBotW / 2, beamBotY);
-  ctx.closePath();
-  ctx.fill();
-
-  // Floor Spotlight Pool Ellipse
-  ctx.fillStyle = 'rgba(253, 224, 71, 0.2)';
-  ctx.beginPath();
-  ctx.ellipse(craneCenterX, laneY + 2, beamBotW / 2, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
   // Overhead Industrial Crane Rail
   ctx.save();
   const railGrad = ctx.createLinearGradient(0, railY, 0, railY + railH);
-  railGrad.addColorStop(0, '#333b4d');
+  railGrad.addColorStop(0, '#3a4456');
   railGrad.addColorStop(0.5, '#1e2430');
   railGrad.addColorStop(1, '#11151c');
   ctx.fillStyle = railGrad;
@@ -2648,121 +2626,163 @@ function drawCodingChopsSelectionSort(snap) {
   ctx.lineTo(railLeft + railWidth - 5, railY + railH / 2);
   ctx.stroke();
 
-  // Industrial Motorized Trolley
-  const trollW = Math.max(56, Math.min(84, pinW * 1.6));
-  const trollH = 22;
-  const trollY = railY - 4;
-  ctx.fillStyle = '#242a38';
-  ctx.strokeStyle = '#f5c842';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(craneCenterX - trollW / 2, trollY, trollW, trollH, 4);
-  ctx.fill();
-  ctx.stroke();
-
-  // Trolley hazard yellow bolts
-  ctx.fillStyle = '#f5c842';
-  [-trollW / 2 + 10, 0, trollW / 2 - 10].forEach(bx => {
+  // Dashed vertical alignment lines from rail to each pin socket
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  for (let k = 0; k < n; k++) {
+    const px = getPinX(k) + pinW / 2;
     ctx.beginPath();
-    ctx.arc(craneCenterX + bx, trollY + trollH / 2, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Vertical Telescoping Hydraulic Piston
-  const pistonTop = trollY + trollH;
-  const pistonBot = beamTopY;
-  const pistonGrad = ctx.createLinearGradient(craneCenterX - 5, 0, craneCenterX + 5, 0);
-  pistonGrad.addColorStop(0, '#94a3b8');
-  pistonGrad.addColorStop(0.5, '#f1f5f9');
-  pistonGrad.addColorStop(1, '#64748b');
-  ctx.fillStyle = pistonGrad;
-  ctx.fillRect(craneCenterX - 5, pistonTop, 10, pistonBot - pistonTop);
-
-  // Universal Gripper Claw Head
-  ctx.fillStyle = '#1e293b';
-  ctx.strokeStyle = '#f5c842';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(craneCenterX - 14, pistonBot - 6, 28, 12, 3);
-  ctx.fill();
-  ctx.stroke();
-
-  // Dual Claw Fingers Gripping Downward
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(craneCenterX - 10, pistonBot + 6);
-  ctx.lineTo(craneCenterX - 12, pistonBot + 18);
-  ctx.lineTo(craneCenterX - 6, pistonBot + 20);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(craneCenterX + 10, pistonBot + 6);
-  ctx.lineTo(craneCenterX + 12, pistonBot + 18);
-  ctx.lineTo(craneCenterX + 6, pistonBot + 20);
-  ctx.stroke();
+    ctx.moveTo(px, railY + railH);
+    ctx.lineTo(px, laneY - pinH);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
   ctx.restore();
 
-  // 5. Polished Wooden Bowling Lane Floor
+  // 5. Polished Wooden Bowling Lane Platform with Recessed Rectangular Sockets
   ctx.save();
-  const woodGrad = ctx.createLinearGradient(0, laneY, 0, laneY + 24);
-  woodGrad.addColorStop(0, '#543015');
-  woodGrad.addColorStop(0.5, '#3d200b');
-  woodGrad.addColorStop(1, '#1f0f04');
+  const socketH = 24;
+  const woodGrad = ctx.createLinearGradient(0, laneY, 0, laneY + socketH);
+  woodGrad.addColorStop(0, '#422410');
+  woodGrad.addColorStop(0.5, '#2b1608');
+  woodGrad.addColorStop(1, '#160a03');
   ctx.fillStyle = woodGrad;
-  ctx.fillRect(railLeft, laneY, railWidth, 24);
+  ctx.beginPath();
+  ctx.roundRect(railLeft, laneY, railWidth, socketH, 4);
+  ctx.fill();
 
-  // Top polished reflective floor highlight line
-  ctx.strokeStyle = 'rgba(245, 200, 66, 0.4)';
+  // Top polished floor rim
+  ctx.strokeStyle = 'rgba(245, 200, 66, 0.35)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(railLeft, laneY);
   ctx.lineTo(railLeft + railWidth, laneY);
   ctx.stroke();
 
-  // Recessed pin sockets on lane
+  // Draw Recessed Sockets for Each Pin
   for (let k = 0; k < n; k++) {
-    const px = getPinX(k) + pinW / 2;
-    ctx.fillStyle = '#140a02';
+    const px = getPinX(k);
+    const sockW = Math.max(18, Math.round(pinW * 0.88));
+    const sockX = px + (pinW - sockW) / 2;
+
+    const isSortedSocket = sortedSet.has(k) || k < sortedIdx;
+    const isTargetSocket = (k === sortedIdx && !isSortedSocket);
+    const isMinSocket = (k === minIdx);
+
+    // Socket interior
+    ctx.fillStyle = '#100702';
     ctx.beginPath();
-    ctx.ellipse(px, laneY + 4, pinW / 2 - 2, 4, 0, 0, Math.PI * 2);
+    ctx.roundRect(sockX, laneY + 2, sockW, socketH - 4, 3);
     ctx.fill();
+
+    // Socket Glowing Outline
+    if (isSortedSocket) {
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+    } else if (isTargetSocket) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+    } else if (isMinSocket && minIdx !== sortedIdx) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+    } else {
+      ctx.strokeStyle = '#351d0d';
+      ctx.lineWidth = 1;
+    }
+    ctx.stroke();
   }
   ctx.restore();
 
-  // 6. Vector Bowling Pins (Spherical Crown, Dual Red Neck Rings, Bulging Belly)
-  const valFontSize = Math.max(10, Math.min(20, Math.round(pinW * 0.42)));
-  const crownRadius = Math.max(7, Math.min(11, Math.round(pinW * 0.24)));
+  // Determine Crane Target & Phase
+  const cranePhase = snap.cranePhase || 'scan'; // 'scan', 'grip', 'lift', 'transit', 'drop', 'lock'
+  let craneTargetX = 0;
+  let clawBaseY = 180;
+  let isClawClosed = false;
 
-  for (let k = 0; k < n; k++) {
-    const val = elems[k];
-    const px = getPinX(k);
-    const pinCenterX = px + pinW / 2;
-    const pinTopY = laneY - pinH;
+  if (cranePhase === 'grip') {
+    craneTargetX = getPinX(minIdx) + pinW / 2;
+    clawBaseY = laneY - pinH + 8; // Extends all the way to pin head!
+    isClawClosed = true;
+  } else if (cranePhase === 'lift') {
+    craneTargetX = getPinX(minIdx) + pinW / 2;
+    clawBaseY = laneY - pinH - 40; // Retracts upward with pin!
+    isClawClosed = true;
+  } else if (cranePhase === 'transit') {
+    const xMin = getPinX(minIdx) + pinW / 2;
+    const xI = getPinX(sortedIdx) + pinW / 2;
+    craneTargetX = (xMin + xI) / 2; // Mid-way along rail
+    clawBaseY = laneY - pinH - 40;
+    isClawClosed = true;
+  } else if (cranePhase === 'drop') {
+    craneTargetX = getPinX(sortedIdx) + pinW / 2;
+    clawBaseY = laneY - pinH + 8; // Lowered directly into target socket i!
+    isClawClosed = true;
+  } else if (cranePhase === 'lock') {
+    craneTargetX = getPinX(sortedIdx) + pinW / 2;
+    clawBaseY = 175; // Retracted after dropping
+    isClawClosed = false;
+  } else {
+    // Normal scanning: crane follows scan pointer j
+    const activeScan = (scanIdx >= 0 && scanIdx < n) ? scanIdx : minIdx;
+    craneTargetX = getPinX(activeScan) + pinW / 2;
+    clawBaseY = 180;
+    isClawClosed = false;
+  }
 
-    const isSorted = (k < sortedIdx);
-    const isMin = (k === minIdx);
-    const isScan = (k === scanIdx);
+  // 6. Draw Conical Yellow Spotlight Beam (only when scanning or highlighting)
+  if (cranePhase === 'scan' || cranePhase === 'init_pass') {
+    ctx.save();
+    const beamTopW = Math.max(16, Math.round(pinW * 0.65));
+    const beamBotW = Math.max(38, Math.round(pinW * 1.75));
+    const beamTopY = clawBaseY + 6;
+    const beamBotY = laneY;
+
+    const spotGrad = ctx.createLinearGradient(0, beamTopY, 0, beamBotY);
+    spotGrad.addColorStop(0, 'rgba(253, 224, 71, 0.35)');
+    spotGrad.addColorStop(0.7, 'rgba(253, 224, 71, 0.15)');
+    spotGrad.addColorStop(1, 'rgba(253, 224, 71, 0.02)');
+
+    ctx.fillStyle = spotGrad;
+    ctx.beginPath();
+    ctx.moveTo(craneTargetX - beamTopW / 2, beamTopY);
+    ctx.lineTo(craneTargetX + beamTopW / 2, beamTopY);
+    ctx.lineTo(craneTargetX + beamBotW / 2, beamBotY);
+    ctx.lineTo(craneTargetX - beamBotW / 2, beamBotY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Floor spotlight reflection pool
+    ctx.fillStyle = 'rgba(253, 224, 71, 0.22)';
+    ctx.beginPath();
+    ctx.ellipse(craneTargetX, laneY + 2, beamBotW / 2, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Helper: Vector Bowling Pin Drawer with Brunswick Head, Red Neck Rings & White Oval Belly Badge
+  const drawPinAt = (pinCenterX, currentBaseY, val, isSortedPin, isMinPin, isScanPin) => {
+    const px = pinCenterX - pinW / 2;
+    const pinTopY = currentBaseY - pinH;
+    const valFontSize = Math.max(10, Math.min(20, Math.round(pinW * 0.42)));
+    const crownRadius = Math.max(7, Math.min(11, Math.round(pinW * 0.24)));
 
     ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 4;
 
     // Pin Silhouette Contour Path
     ctx.beginPath();
-    ctx.moveTo(pinCenterX - pinW / 2 + 5, laneY);
-    ctx.bezierCurveTo(pinCenterX - pinW / 2, laneY - pinH * 0.16, pinCenterX - pinW / 2, laneY - pinH * 0.36, pinCenterX - pinW / 2, laneY - pinH * 0.48);
-    ctx.bezierCurveTo(pinCenterX - pinW / 2 + 2, laneY - pinH * 0.64, pinCenterX - 8, laneY - pinH * 0.77, pinCenterX - 7, laneY - pinH * 0.84);
-    ctx.bezierCurveTo(pinCenterX - 8, laneY - pinH * 0.91, pinCenterX - crownRadius, pinTopY + crownRadius, pinCenterX - crownRadius, pinTopY + crownRadius);
+    ctx.moveTo(pinCenterX - pinW / 2 + 5, currentBaseY);
+    ctx.bezierCurveTo(pinCenterX - pinW / 2, currentBaseY - pinH * 0.16, pinCenterX - pinW / 2, currentBaseY - pinH * 0.36, pinCenterX - pinW / 2, currentBaseY - pinH * 0.48);
+    ctx.bezierCurveTo(pinCenterX - pinW / 2 + 2, currentBaseY - pinH * 0.64, pinCenterX - 8, currentBaseY - pinH * 0.77, pinCenterX - 7, currentBaseY - pinH * 0.84);
+    ctx.bezierCurveTo(pinCenterX - 8, currentBaseY - pinH * 0.91, pinCenterX - crownRadius, pinTopY + crownRadius, pinCenterX - crownRadius, pinTopY + crownRadius);
     ctx.arc(pinCenterX, pinTopY + crownRadius, crownRadius, Math.PI, 0, false);
-    ctx.bezierCurveTo(pinCenterX + crownRadius, pinTopY + crownRadius, pinCenterX + 8, laneY - pinH * 0.91, pinCenterX + 7, laneY - pinH * 0.84);
-    ctx.bezierCurveTo(pinCenterX + 8, laneY - pinH * 0.77, pinCenterX + pinW / 2 - 2, laneY - pinH * 0.64, pinCenterX + pinW / 2, laneY - pinH * 0.48);
-    ctx.bezierCurveTo(pinCenterX + pinW / 2, laneY - pinH * 0.36, pinCenterX + pinW / 2, laneY - pinH * 0.16, pinCenterX + pinW / 2 - 5, laneY);
+    ctx.bezierCurveTo(pinCenterX + crownRadius, pinTopY + crownRadius, pinCenterX + 8, currentBaseY - pinH * 0.91, pinCenterX + 7, currentBaseY - pinH * 0.84);
+    ctx.bezierCurveTo(pinCenterX + 8, currentBaseY - pinH * 0.77, pinCenterX + pinW / 2 - 2, currentBaseY - pinH * 0.64, pinCenterX + pinW / 2, currentBaseY - pinH * 0.48);
+    ctx.bezierCurveTo(pinCenterX + pinW / 2, currentBaseY - pinH * 0.36, pinCenterX + pinW / 2, currentBaseY - pinH * 0.16, pinCenterX + pinW / 2 - 5, currentBaseY);
     ctx.closePath();
 
     // Fill Lacquer Style
-    if (isSorted) {
+    if (isSortedPin) {
       const mintGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       mintGrad.addColorStop(0, '#059669');
       mintGrad.addColorStop(0.4, '#10b981');
@@ -2770,7 +2790,7 @@ function drawCodingChopsSelectionSort(snap) {
       ctx.fillStyle = mintGrad;
       ctx.strokeStyle = '#34d399';
       ctx.lineWidth = 2;
-    } else if (isMin) {
+    } else if (isMinPin) {
       const goldGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       goldGrad.addColorStop(0, '#d97706');
       goldGrad.addColorStop(0.4, '#f59e0b');
@@ -2778,7 +2798,7 @@ function drawCodingChopsSelectionSort(snap) {
       ctx.fillStyle = goldGrad;
       ctx.strokeStyle = '#fde047';
       ctx.lineWidth = 2.5;
-    } else if (isScan) {
+    } else if (isScanPin) {
       const whiteGrad = ctx.createLinearGradient(px, 0, px + pinW, 0);
       whiteGrad.addColorStop(0, '#f1f5f9');
       whiteGrad.addColorStop(0.3, '#ffffff');
@@ -2797,115 +2817,264 @@ function drawCodingChopsSelectionSort(snap) {
     }
     ctx.fill();
     ctx.stroke();
+
+    // Reset shadow completely before text and badges to eliminate doubling/shading
+    ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
     // Authentic Brunswick Dual Red Neck Stripes
     const stripeW = Math.max(12, Math.round(pinW * 0.38));
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(pinCenterX - stripeW / 2, laneY - pinH * 0.83, stripeW, 3);
-    ctx.fillRect(pinCenterX - (stripeW + 2) / 2, laneY - pinH * 0.77, stripeW + 2, 3);
+    ctx.fillRect(pinCenterX - stripeW / 2, currentBaseY - pinH * 0.83, stripeW, 3);
+    ctx.fillRect(pinCenterX - (stripeW + 2) / 2, currentBaseY - pinH * 0.77, stripeW + 2, 3);
 
-    // Value Numeral inside Belly
+    // Authentic White Oval Pill Badge on Belly (As shown in video!)
+    const badgeW = Math.max(16, Math.round(pinW * 0.58));
+    const badgeH = Math.max(22, Math.round(pinH * 0.28));
+    const badgeY = currentBaseY - pinH * 0.46;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(pinCenterX, badgeY, badgeW / 2, badgeH / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Value Numeral inside Badge (Razor-sharp, crisp, zero shadow!)
     ctx.font = 'bold ' + valFontSize + 'px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
-    if (isSorted) {
-      ctx.fillStyle = '#ffffff';
-    } else if (isMin) {
-      ctx.fillStyle = '#ffffff';
-    } else {
-      ctx.fillStyle = '#0f172a';
-    }
-    ctx.fillText(val, pinCenterX, laneY - pinH * 0.38);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(val, pinCenterX, badgeY + 1);
+    ctx.textBaseline = 'alphabetic';
 
     // Sorted Checkmark Badge above pin
-    if (isSorted) {
+    if (isSortedPin) {
       ctx.font = 'bold 10px "Segoe UI"';
       ctx.fillStyle = '#10b981';
       ctx.fillText('✓', pinCenterX, pinTopY - 6);
     }
 
-    // Sub-lane indicators below lane
-    ctx.font = 'bold 10px "JetBrains Mono", monospace';
-    if (k === sortedIdx) {
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText('▲ i', pinCenterX, laneY + 20);
-    }
-    if (k === minIdx) {
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillText('▲ min', pinCenterX, laneY + (k === sortedIdx ? 32 : 20));
-    }
-    if (k === scanIdx && scanIdx !== sortedIdx && scanIdx !== minIdx) {
-      ctx.fillStyle = '#facc15';
-      ctx.fillText('▲ j', pinCenterX, laneY + 20);
-    }
-
     ctx.restore();
+  };
+
+  // 7. Draw All Static Pins on the Wooden Lane
+  for (let k = 0; k < n; k++) {
+    // If this slot is currently vacant (pin is lifted in the air by crane), don't draw it on the socket!
+    if ((cranePhase === 'lift' || cranePhase === 'transit') && k === minIdx) continue;
+    if (cranePhase === 'transit' && k === sortedIdx) continue; // Sliding across lane
+
+    const val = elems[k];
+    const px = getPinX(k) + pinW / 2;
+    const isSortedPin = sortedSet.has(k) || k < sortedIdx;
+    const isMinPin = (k === minIdx && cranePhase !== 'drop' && cranePhase !== 'lock');
+    const isScanPin = (k === scanIdx && cranePhase === 'scan');
+
+    drawPinAt(px, laneY, val, isSortedPin, isMinPin, isScanPin);
   }
 
-  // 7. Full-Width Theatrical Telemetry & Live Pass Banner (Lower Canvas)
-  const hudY = 405;
-  const hudH = 95;
+  // If in transit phase, draw the displaced pin sliding horizontally along the wooden lane!
+  if (cranePhase === 'transit') {
+    const xMin = getPinX(minIdx) + pinW / 2;
+    const xI = getPinX(sortedIdx) + pinW / 2;
+    const transitSlideX = (xI + xMin) / 2;
+    const displacedVal = snap.displacedVal !== undefined ? snap.displacedVal : elems[sortedIdx];
+    drawPinAt(transitSlideX, laneY, displacedVal, false, false, false);
+  }
 
+  // If in lift or transit phase, draw the lifted minimum pin held in the crane claw!
+  if (cranePhase === 'lift' || cranePhase === 'transit') {
+    const liftedVal = snap.minVal !== undefined ? snap.minVal : elems[minIdx];
+    const liftedBaseY = clawBaseY + pinH - 8;
+    drawPinAt(craneTargetX, liftedBaseY, liftedVal, false, true, false);
+  }
+
+  // 8. Draw Industrial Motorized Crane Trolley & Telescoping Piston
   ctx.save();
-  ctx.fillStyle = 'rgba(11, 15, 23, 0.85)';
-  ctx.strokeStyle = '#263044';
-  ctx.lineWidth = 1.5;
+  const trollW = Math.max(56, Math.min(84, pinW * 1.6));
+  const trollH = 22;
+  const trollY = railY - 4;
+  ctx.fillStyle = '#242a38';
+  ctx.strokeStyle = '#f5c842';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(startX, hudY, availW, hudH, 8);
+  ctx.roundRect(craneTargetX - trollW / 2, trollY, trollW, trollH, 4);
   ctx.fill();
   ctx.stroke();
 
-  // Telemetry Header Bar
-  ctx.fillStyle = '#151d2c';
-  ctx.beginPath();
-  ctx.roundRect(startX, hudY, availW, 28, [8, 8, 0, 0]);
-  ctx.fill();
-  ctx.strokeStyle = '#263044';
-  ctx.beginPath();
-  ctx.moveTo(startX, hudY + 28);
-  ctx.lineTo(startX + availW, hudY + 28);
-  ctx.stroke();
-
-  ctx.font = 'bold 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#38bdf8';
-  ctx.textAlign = 'left';
-  const minValDisplay = (minIdx >= 0 && minIdx < n) ? elems[minIdx] : '-';
-  ctx.fillText('SELECTION SCAN STATUS  •  pass ' + pass + ' of ' + n + '  |  target [i]: ' + sortedIdx + '  |  scanning [j]: ' + scanIdx + '  |  min [min_idx]: ' + minIdx + ' (' + minValDisplay + ')', startX + 16, hudY + 18);
-
-  ctx.textAlign = 'right';
-  ctx.font = 'italic 11px "Segoe UI", sans-serif';
+  // Trolley hazard yellow bolts
   ctx.fillStyle = '#f5c842';
-  ctx.fillText('• finding the smallest pin in unsorted zone', startX + availW - 16, hudY + 18);
+  [-trollW / 2 + 10, 0, trollW / 2 - 10].forEach(bx => {
+    ctx.beginPath();
+    ctx.arc(craneTargetX + bx, trollY + trollH / 2, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
 
-  // Operational Explanation & Invariant summary
-  ctx.textAlign = 'left';
-  ctx.font = '12px "Segoe UI", sans-serif';
-  ctx.fillStyle = '#cbd5e1';
+  // Vertical Telescoping Hydraulic Piston
+  const pistonTop = trollY + trollH;
+  const pistonBot = clawBaseY;
+  const pistonGrad = ctx.createLinearGradient(craneTargetX - 5, 0, craneTargetX + 5, 0);
+  pistonGrad.addColorStop(0, '#94a3b8');
+  pistonGrad.addColorStop(0.5, '#f1f5f9');
+  pistonGrad.addColorStop(1, '#64748b');
+  ctx.fillStyle = pistonGrad;
+  ctx.fillRect(craneTargetX - 5, pistonTop, 10, Math.max(8, pistonBot - pistonTop));
 
-  let descText = '';
-  if (sortedIdx >= n - 1) {
-    descText = '🎉 Array is completely sorted! Every bowling pin is locked in monotonic non-decreasing order.';
-    ctx.fillStyle = '#34d399';
-  } else if (scanIdx === sortedIdx) {
-    descText = '🎯 Pass ' + pass + ' initialization: Setting initial candidate minimum pin to arr[' + sortedIdx + '] (' + elems[sortedIdx] + ').';
+  // Universal Gripper Claw Head
+  ctx.fillStyle = '#1e293b';
+  ctx.strokeStyle = '#f5c842';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(craneTargetX - 14, pistonBot - 6, 28, 12, 3);
+  ctx.fill();
+  ctx.stroke();
+
+  // Mechanical Claw Pincers (Closed when gripping/carrying, Open when scanning)
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2.5;
+
+  if (isClawClosed) {
+    // Closed fingers gripping head
+    ctx.beginPath();
+    ctx.moveTo(craneTargetX - 10, pistonBot + 6);
+    ctx.lineTo(craneTargetX - 8, pistonBot + 18);
+    ctx.lineTo(craneTargetX - 2, pistonBot + 20);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(craneTargetX + 10, pistonBot + 6);
+    ctx.lineTo(craneTargetX + 8, pistonBot + 18);
+    ctx.lineTo(craneTargetX + 2, pistonBot + 20);
+    ctx.stroke();
   } else {
-    descText = '🔍 Inspecting pin [' + scanIdx + '] (' + elems[scanIdx] + ') against current minimum [' + minIdx + '] (' + minValDisplay + '). ' + (elems[scanIdx] < minValDisplay ? 'Smaller element found! Updating min_idx.' : 'Greater than candidate minimum. Continuing scan.');
+    // Open claw
+    ctx.beginPath();
+    ctx.moveTo(craneTargetX - 10, pistonBot + 6);
+    ctx.lineTo(craneTargetX - 14, pistonBot + 16);
+    ctx.lineTo(craneTargetX - 8, pistonBot + 18);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(craneTargetX + 10, pistonBot + 6);
+    ctx.lineTo(craneTargetX + 14, pistonBot + 16);
+    ctx.lineTo(craneTargetX + 8, pistonBot + 18);
+    ctx.stroke();
   }
-  ctx.fillText(descText, startX + 16, hudY + 54);
+  ctx.restore();
 
-  // Metric pills at bottom
+  // 9. Sub-Lane Indices & Pointers (Clean, Single Line, Zero Doubling!)
+  ctx.save();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
   ctx.font = 'bold 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillText('Comparisons: ' + comps + '  |  Swaps: ' + swaps + '  |  Sorted Sub-array: [0..' + Math.max(0, sortedIdx - 1) + ']', startX + 16, hudY + 78);
+  ctx.textAlign = 'center';
 
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#f5c842';
-  ctx.fillText('@CodingChops Aesthetic Visualizer', startX + availW - 16, hudY + 78);
+  for (let k = 0; k < n; k++) {
+    const px = getPinX(k) + pinW / 2;
+    const isSortedPin = sortedSet.has(k) || k < sortedIdx;
+    const isTargetPin = (k === sortedIdx && !isSortedPin);
+    const isScanPin = (k === scanIdx && cranePhase === 'scan');
+
+    // Index numeral
+    if (isSortedPin) {
+      ctx.fillStyle = '#10b981';
+    } else if (isTargetPin) {
+      ctx.fillStyle = '#38bdf8';
+    } else if (isScanPin) {
+      ctx.fillStyle = '#ffffff';
+    } else {
+      ctx.fillStyle = '#64748b';
+    }
+    ctx.fillText(k, px, laneY + socketH + 16);
+
+    // Pointer symbols
+    if (isTargetPin) {
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('▲', px, laneY + socketH + 28);
+      ctx.fillText('i', px, laneY + socketH + 39);
+    } else if (isScanPin && scanIdx !== sortedIdx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('▲', px, laneY + socketH + 28);
+      ctx.fillText('j', px, laneY + socketH + 39);
+    }
+  }
+  ctx.restore();
+
+  // 10. Bottom Status Pills & Algorithm Caption (Matching Coding Chops Video!)
+  const botY = 445;
+  ctx.save();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Draw Status Pills: [ i  X ]   [ j  Y ]   [ min_idx  Z ]
+  const pillW = 76;
+  const pillH = 26;
+  const pillGap = 12;
+  const totalPillSpan = pillW * 3 + pillGap * 2;
+  const pillStartX = (w - totalPillSpan) / 2;
+
+  const drawStatusPill = (px, label, val, valColor, borderColor) => {
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(px, botY, pillW, pillH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, px + 8, botY + 17);
+
+    ctx.font = 'bold 12px "JetBrains Mono", monospace';
+    ctx.fillStyle = valColor;
+    ctx.textAlign = 'right';
+    ctx.fillText(val, px + pillW - 8, botY + 17);
+  };
+
+  const jValDisplay = (scanIdx !== undefined && scanIdx >= 0) ? scanIdx : '-';
+  const minValDisplay = (minIdx !== undefined && minIdx >= 0 && minIdx < n) ? elems[minIdx] : '-';
+
+  drawStatusPill(pillStartX, 'i', sortedIdx, '#38bdf8', '#0284c7');
+  drawStatusPill(pillStartX + pillW + pillGap, 'j', jValDisplay, '#ffffff', '#475569');
+  drawStatusPill(pillStartX + (pillW + pillGap) * 2, 'min', minValDisplay, '#f59e0b', '#d97706');
+
+  // Algorithm Step Caption
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 12px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#e2e8f0';
+
+  let caption = '• pass ' + pass + ' • finding the smallest';
+  if (cranePhase === 'grip') {
+    caption = '• gripping smallest pin ' + snap.minVal + ' at index [' + minIdx + ']';
+    ctx.fillStyle = '#fde047';
+  } else if (cranePhase === 'lift') {
+    caption = '• picking up pin ' + snap.minVal + ' off socket [' + minIdx + ']';
+    ctx.fillStyle = '#fde047';
+  } else if (cranePhase === 'transit') {
+    caption = '• transporting pin ' + snap.minVal + ' across to target slot [' + sortedIdx + ']';
+    ctx.fillStyle = '#fde047';
+  } else if (cranePhase === 'drop') {
+    caption = '• seating pin ' + snap.minVal + ' into sorted slot [' + sortedIdx + ']';
+    ctx.fillStyle = '#34d399';
+  } else if (cranePhase === 'lock') {
+    caption = '• slot [' + sortedIdx + '] locked in sorted order';
+    ctx.fillStyle = '#34d399';
+  }
+  ctx.fillText(caption, w / 2, botY + 48);
 
   ctx.restore();
 }
 
-// 6.8.3 Generic High-Contrast Sorting Visualizer (Insertion, Quick, Merge, Binary Search)
+// 6.8.3 Generic High-Contrast Sorting Visualizer
 function drawGenericSortingVisualizer(snap) {
   const elems = snap.elements;
   const n = elems ? elems.length : 0;
@@ -3680,6 +3849,7 @@ function generateSelectionSortSteps() {
   recordSnapshot({
     pointers: { i: 0, minIdx: 0, target: 0 },
     highlights: [0],
+    cranePhase: 'init_pass',
     comparisons: 0,
     swaps: 0,
     sortedIndices: [],
@@ -3699,6 +3869,7 @@ function generateSelectionSortSteps() {
     recordSnapshot({
       pointers: { i, minIdx, target: i },
       highlights: [i],
+      cranePhase: 'init_pass',
       sortedIndices: [...sortedIndices],
       comparisons,
       swaps,
@@ -3709,7 +3880,7 @@ function generateSelectionSortSteps() {
       codeLine: 2,
       varState: `Target slot [${i}] = ${arr[i]}. Initial min_idx: ${minIdx}`,
       complexity: 'O(n²)',
-      log: `🎳 Pass ${i + 1}: Setting Target Slot to index [${i}] (${arr[i]}). Crown initialized to index [${i}] (${arr[minIdx]}).`
+      log: `🎳 Pass ${i + 1}: Target Slot set to [${i}] (${arr[i]}). Candidate minimum initialized to index [${minIdx}].`
     });
 
     for (let j = i + 1; j < n; j++) {
@@ -3727,6 +3898,7 @@ function generateSelectionSortSteps() {
         pointers: { i, j, minIdx, target: i },
         highlights: [j, minIdx],
         activePair: [j, oldMin],
+        cranePhase: 'scan',
         sortedIndices: [...sortedIndices],
         comparisons,
         swaps,
@@ -3739,37 +3911,129 @@ function generateSelectionSortSteps() {
         varState: `Comparing arr[${j}]=${arr[j]} < min(${oldVal}): ${isSmaller}`,
         complexity: 'O(n²)',
         log: isSmaller
-          ? `👑 NEW MINIMUM FOUND! arr[${j}] (${arr[j]}) < arr[${oldMin}] (${oldVal}). Crown moves to [${j}]! 🎳`
-          : `Scanning: arr[${j}] (${arr[j]}) ≥ min (${oldVal}). Crown stays at index [${minIdx}].`
+          ? `👑 NEW MINIMUM FOUND! arr[${j}] (${arr[j]}) < arr[${oldMin}] (${oldVal}). Spotlight locks onto [${j}]! 🎳`
+          : `Scanning: arr[${j}] (${arr[j]}) ≥ min (${oldVal}). Candidate minimum stays at [${minIdx}].`
       });
     }
 
     if (minIdx !== i) {
-      swaps++;
-      const tmp = arr[i]; arr[i] = arr[minIdx]; arr[minIdx] = tmp;
+      const minVal = arr[minIdx];
+      const displacedVal = arr[i];
 
+      // Phase 1: Crane targets and grips minimum pin
       STATE.elements = [...arr];
       recordSnapshot({
         pointers: { i, minIdx, target: i },
         highlights: [i, minIdx],
-        swapActive: true,
-        swapArc: { from: minIdx, to: i, valA: arr[i], valB: arr[minIdx] },
+        cranePhase: 'grip',
+        minVal,
+        displacedVal,
         sortedIndices: [...sortedIndices],
         comparisons,
         swaps,
-        minVal: arr[i],
+        targetSlot: i,
+        passNum: i + 1,
+        totalPasses: n - 1,
+        codeLine: 5,
+        varState: `Crane moves to grip minimum pin ${minVal} at [${minIdx}]`,
+        complexity: 'O(n²)',
+        log: `🏗️ Universal crane aligns over minimum pin arr[${minIdx}] (${minVal}) and closes mechanical claw!`
+      });
+
+      // Phase 2: Crane picks up / lifts pin off socket into the air!
+      STATE.elements = [...arr];
+      recordSnapshot({
+        pointers: { i, minIdx, target: i },
+        highlights: [i, minIdx],
+        cranePhase: 'lift',
+        minVal,
+        displacedVal,
+        vacantSlot: minIdx,
+        sortedIndices: [...sortedIndices],
+        comparisons,
+        swaps,
         targetSlot: i,
         passNum: i + 1,
         totalPasses: n - 1,
         codeLine: 6,
-        varState: `Swapped target arr[${i}] with minimum arr[${minIdx}]`,
+        varState: `Crane lifts minimum pin ${minVal} off socket [${minIdx}] into the air!`,
         complexity: 'O(n²)',
-        log: `🎳 Exchange: Swapped target slot arr[${i}] with minimum element ${arr[i]} from [${minIdx}].`
+        log: `⬆️ Telescoping arm retracts, picking pin ${minVal} up off socket [${minIdx}]! Socket is now empty.`
       });
+
+      // Phase 3: Crane transports pin across rail, while displaced pin slides along lane
+      swaps++;
+      STATE.elements = [...arr];
+      recordSnapshot({
+        pointers: { i, minIdx, target: i },
+        highlights: [i, minIdx],
+        cranePhase: 'transit',
+        minVal,
+        displacedVal,
+        vacantSlot: minIdx,
+        sortedIndices: [...sortedIndices],
+        comparisons,
+        swaps,
+        targetSlot: i,
+        passNum: i + 1,
+        totalPasses: n - 1,
+        codeLine: 6,
+        varState: `Transporting pin ${minVal} across rail to slot [${i}]`,
+        complexity: 'O(n²)',
+        log: `⇄ Transiting: Crane carries pin ${minVal} across overhead rail to slot [${i}], while pin ${displacedVal} slides to socket [${minIdx}].`
+      });
+
+      // Swap in array
+      const tmp = arr[i]; arr[i] = arr[minIdx]; arr[minIdx] = tmp;
+
+      // Phase 4: Crane lowers and seats pin into target socket [i]
+      STATE.elements = [...arr];
+      recordSnapshot({
+        pointers: { i, minIdx, target: i },
+        highlights: [i, minIdx],
+        cranePhase: 'drop',
+        minVal: arr[i],
+        displacedVal: arr[minIdx],
+        sortedIndices: [...sortedIndices],
+        comparisons,
+        swaps,
+        targetSlot: i,
+        passNum: i + 1,
+        totalPasses: n - 1,
+        codeLine: 6,
+        varState: `Lowering minimum pin ${arr[i]} into target socket [${i}]`,
+        complexity: 'O(n²)',
+        log: `⬇️ Hydraulic cylinder lowers pin ${arr[i]} directly into target socket [${i}]. Claw releases!`
+      });
+
+      // Phase 5: Slot [i] locked into sorted zone!
+      sortedIndices.push(i);
+      STATE.elements = [...arr];
+      recordSnapshot({
+        pointers: { i, locked: i },
+        highlights: [i],
+        cranePhase: 'lock',
+        minVal: arr[i],
+        sortedIndices: [...sortedIndices],
+        comparisons,
+        swaps,
+        targetSlot: i,
+        passNum: i + 1,
+        totalPasses: n - 1,
+        codeLine: 6,
+        varState: `Slot [${i}] locked with pin ${arr[i]} in sorted order`,
+        complexity: 'O(n²)',
+        log: `🔒 Slot [${i}] locked with minimum pin ${arr[i]} in final sorted order!`
+      });
+
     } else {
+      // Pin was already minimum
+      sortedIndices.push(i);
+      STATE.elements = [...arr];
       recordSnapshot({
         pointers: { i, minIdx: i, target: i },
         highlights: [i],
+        cranePhase: 'lock',
         sortedIndices: [...sortedIndices],
         comparisons,
         swaps,
@@ -3778,42 +4042,29 @@ function generateSelectionSortSteps() {
         passNum: i + 1,
         totalPasses: n - 1,
         codeLine: 6,
-        varState: `arr[${i}]=${arr[i]} was already minimum. No swap needed.`,
+        varState: `arr[${i}]=${arr[i]} was already minimum. Locked in place.`,
         complexity: 'O(n²)',
-        log: `Target slot arr[${i}] (${arr[i]}) was already the minimum! 0 swaps needed.`
+        log: `Target slot arr[${i}] (${arr[i]}) was already the minimum! 0 swaps needed. Locked into sorted zone.`
       });
     }
-
-    sortedIndices.push(i);
-    STATE.elements = [...arr];
-    recordSnapshot({
-      pointers: { i, locked: i },
-      highlights: [i],
-      sortedIndices: [...sortedIndices],
-      comparisons,
-      swaps,
-      targetSlot: i,
-      passNum: i + 1,
-      totalPasses: n - 1,
-      codeLine: 8,
-      varState: `Element ${arr[i]} locked in sorted zone [0..${i}]`,
-      complexity: 'O(n²)',
-      log: `🔒 Bowling pin [${i}] (${arr[i]}) is now locked in sorted order! Sorted zone extends to [0..${i}].`
-    });
   }
 
-  sortedIndices.push(n - 1);
+  // Final complete state
+  for (let k = 0; k < n; k++) {
+    if (!sortedIndices.includes(k)) sortedIndices.push(k);
+  }
   STATE.elements = [...arr];
   recordSnapshot({
     pointers: {},
     highlights: [...sortedIndices],
+    cranePhase: 'lock',
     sortedIndices: [...sortedIndices],
     comparisons,
     swaps,
-    codeLine: 9,
-    varState: `Selection Sort Complete. Comparisons: ${comparisons}, Swaps: ${swaps}`,
+    codeLine: 6,
+    varState: `Selection Sort Complete! Total Comparisons: ${comparisons}, Swaps: ${swaps}`,
     complexity: 'O(n²)',
-    log: `🎳 STRIKE! All bowling pins lined up in perfect ascending order in ${comparisons} comparisons and ${swaps} swaps! ✔`
+    log: `🎉 Selection Sort Complete! All ${n} bowling pins sorted in monotonic order across ${comparisons} comparisons and ${swaps} swaps.`
   });
 
   SoundFX.success();
