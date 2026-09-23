@@ -1458,18 +1458,24 @@ function drawCanvas(snap) {
 
   ctx.clearRect(0, 0, w, h);
 
-  // Seamless base canvas background fill across full viewport so zoom/pan never shows empty borders
   const struct = STATE.structure;
+
+  // Bubble Sort and Selection Sort manage their own full-canvas rendering
+  // (including zoom/pan math internally). Call them on the raw canvas context —
+  // no global translate/scale wrapper, or they get double-transformed.
   if (struct === 'sorting_bubble') {
-    ctx.fillStyle = '#061325';
-    ctx.fillRect(0, 0, w, h);
-  } else if (struct === 'sorting_selection') {
-    ctx.fillStyle = '#06070a';
-    ctx.fillRect(0, 0, w, h);
-  } else {
-    ctx.fillStyle = '#050c18';
-    ctx.fillRect(0, 0, w, h);
+    drawDevAngeloBubbleSort(snap);
+    return;
   }
+  if (struct === 'sorting_selection') {
+    drawCodingChopsSelectionSort(snap);
+    return;
+  }
+
+  // For all other structures: apply pan/zoom transform then draw.
+  // Base background fill so zooming out never shows black edges.
+  ctx.fillStyle = '#050c18';
+  ctx.fillRect(0, 0, w, h);
 
   ctx.save();
   ctx.translate(STATE.panX, STATE.panY);
@@ -1492,7 +1498,7 @@ function drawCanvas(snap) {
   } else if (struct.startsWith('graph')) {
     drawGraph(snap);
   } else if (struct.startsWith('sorting')) {
-    drawSortingVisualizer(snap);
+    drawGenericSortingVisualizer(snap);
   }
 
   ctx.restore();
@@ -2156,43 +2162,44 @@ function drawDevAngeloBubbleSort(snap) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // 1. Engineering Blueprint Background & Technical Grid
+  // 1. Engineering Blueprint Background — drawn in raw screen coords (always fills full canvas)
   const z = STATE.scaleZoom || 1.0;
-  const worldX = -(STATE.panX || 0) / z;
-  const worldY = -(STATE.panY || 0) / z;
-  const worldW = w / z;
-  const worldH = h / z;
+  const panX = STATE.panX || 0;
+  const panY = STATE.panY || 0;
 
-  ctx.save();
+  // Full-canvas base fill (no transform needed — covers full physical canvas)
   ctx.fillStyle = '#061325';
-  ctx.fillRect(worldX, worldY, worldW, worldH);
+  ctx.fillRect(0, 0, w, h);
 
-  // Fine 24px Graph Grid covering entire visible viewport
+  // Grid drawn in raw screen coords for seamless coverage with no gaps
+  ctx.save();
   ctx.strokeStyle = '#0d223f';
-  ctx.lineWidth = 1;
-  const startGridX = Math.floor(worldX / 24) * 24;
-  const endGridX = worldX + worldW;
-  const startGridY = Math.floor(worldY / 24) * 24;
-  const endGridY = worldY + worldH;
-  for (let x = startGridX; x <= endGridX; x += 24) {
-    ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, endGridY); ctx.stroke();
+  ctx.lineWidth = 1 / z;
+  const gStep = 24;
+  const gridOffX = ((panX % (gStep * z)) + gStep * z) % (gStep * z);
+  const gridOffY = ((panY % (gStep * z)) + gStep * z) % (gStep * z);
+  for (let x = gridOffX - gStep * z; x <= w + gStep * z; x += gStep * z) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
   }
-  for (let y = startGridY; y <= endGridY; y += 24) {
-    ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(endGridX, y); ctx.stroke();
+  for (let y = gridOffY - gStep * z; y <= h + gStep * z; y += gStep * z) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
   }
   // Major 120px Technical Grid Accents
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
-  ctx.lineWidth = 1.2;
-  const startMajorX = Math.floor(worldX / 120) * 120;
-  const startMajorY = Math.floor(worldY / 120) * 120;
-  for (let x = startMajorX; x <= endGridX; x += 120) {
-    ctx.beginPath(); ctx.moveTo(x, worldY); ctx.lineTo(x, endGridY); ctx.stroke();
+  ctx.lineWidth = 1.2 / z;
+  const mStep = 120;
+  const mOffX = ((panX % (mStep * z)) + mStep * z) % (mStep * z);
+  const mOffY = ((panY % (mStep * z)) + mStep * z) % (mStep * z);
+  for (let x = mOffX - mStep * z; x <= w + mStep * z; x += mStep * z) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
   }
-  for (let y = startMajorY; y <= endGridY; y += 120) {
-    ctx.beginPath(); ctx.moveTo(worldX, y); ctx.lineTo(endGridX, y); ctx.stroke();
+  for (let y = mOffY - mStep * z; y <= h + mStep * z; y += mStep * z) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
   }
+  ctx.restore();
 
-  // Corner Engineering Alignment Marks (+)
+  // Corner Engineering Alignment Marks — fixed to screen corners (no pan/zoom)
+  ctx.save();
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
   ctx.lineWidth = 1.5;
   const cLen = 14;
@@ -2205,6 +2212,14 @@ function drawDevAngeloBubbleSort(snap) {
     ctx.lineTo(cx + sx * cLen, cy);
     ctx.stroke();
   });
+  ctx.restore();
+
+  // === All CONTENT below is drawn inside pan+zoom transform ===
+  ctx.save();
+  ctx.translate(panX, panY);
+  ctx.scale(z, z);
+
+
 
   // 2. Top Header Banner & DevAngelo Title
   ctx.textAlign = 'left';
@@ -2720,8 +2735,10 @@ function drawDevAngeloBubbleSort(snap) {
   drawMetricBox(startX + 12 + colW + 12, 'TOTAL SWAPS', swaps + ' exchanges', '#f59e0b');
   drawMetricBox(startX + 12 + (colW + 12) * 2, 'SORTED ELEMENTS', sortedSet.size + ' of ' + n + ' locked', '#10b981');
 
-  ctx.restore();
+  ctx.restore(); // close metric boxes save
+  ctx.restore(); // close pan+zoom content transform
 }
+
 
 // 6.8.2 Coding Chops Full-Canvas Selection Sort Visualizer (Bowling Pins, Spotlight & Universal Crane)
 function drawCodingChopsSelectionSort(snap) {
@@ -2732,26 +2749,29 @@ function drawCodingChopsSelectionSort(snap) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // 1. Dark Theatrical Spotlight Background (Vignette covering full world viewport)
+  // 1. Dark Theatrical Spotlight Background — drawn in raw screen coords
   const z = STATE.scaleZoom || 1.0;
-  const worldX = -(STATE.panX || 0) / z;
-  const worldY = -(STATE.panY || 0) / z;
-  const worldW = w / z;
-  const worldH = h / z;
+  const panX = STATE.panX || 0;
+  const panY = STATE.panY || 0;
 
-  ctx.save();
+  // Full-canvas base fill
   ctx.fillStyle = '#06070a';
-  ctx.fillRect(worldX, worldY, worldW, worldH);
+  ctx.fillRect(0, 0, w, h);
 
-  const maxR = Math.max(520, Math.sqrt(worldW * worldW + worldH * worldH) * 0.7);
-  const bgGrad = ctx.createRadialGradient(w / 2, 170, 70, w / 2, 270, maxR);
+  // Radial vignette spotlight — always centered on screen
+  const bgGrad = ctx.createRadialGradient(w / 2, h * 0.18, h * 0.07, w / 2, h * 0.29, Math.max(w, h) * 0.55);
   bgGrad.addColorStop(0, '#191e2b');
   bgGrad.addColorStop(0.5, '#0e1118');
   bgGrad.addColorStop(1, '#06070a');
   ctx.fillStyle = bgGrad;
-  ctx.fillRect(worldX, worldY, worldW, worldH);
+  ctx.fillRect(0, 0, w, h);
 
-  // 2. Header: Coding Chops Title & Telemetry Pills
+  // === All CONTENT below is drawn inside pan+zoom transform ===
+  ctx.save();
+  ctx.translate(panX, panY);
+  ctx.scale(z, z);
+
+
   ctx.textAlign = 'left';
   ctx.font = 'bold 10px "Segoe UI", sans-serif';
   ctx.fillStyle = '#f5c842';
@@ -3312,8 +3332,10 @@ function drawCodingChopsSelectionSort(snap) {
   }
   ctx.fillText(caption, w / 2, botY + 48);
 
-  ctx.restore();
+  ctx.restore(); // close bottom status save
+  ctx.restore(); // close pan+zoom content transform
 }
+
 
 // 6.8.3 Generic High-Contrast Sorting Visualizer
 function drawGenericSortingVisualizer(snap) {
