@@ -156,6 +156,183 @@
   };
 
   // ══════════════════════════════════════════════════════════════════════════
+  // 2B. INTERACTIVE CUSTOM NETLIST SANDBOX STATE MANAGER
+  // ══════════════════════════════════════════════════════════════════════════
+  const CustomSandbox = {
+    components: [],
+    wires: [],
+    selectedCompId: null,
+    selectedWireId: null,
+    wiringSource: null,
+    hoveredPin: null,
+    mousePos: { x: 0, y: 0 },
+    draggingComp: null,
+    dragOffset: { x: 0, y: 0 },
+    nextId: 1,
+
+    globalInputs: [
+      { name: 'IN0', val: '0', y: 100 },
+      { name: 'IN1', val: '1', y: 180 },
+      { name: 'IN2', val: '0', y: 260 },
+      { name: 'IN3', val: '0', y: 340 }
+    ],
+    globalOutputs: [
+      { name: 'OUT0', val: '0', y: 180 },
+      { name: 'OUT1', val: '0', y: 280 }
+    ],
+
+    getPinPos(ref) {
+      if (ref.compId === '__global_in__') {
+        const g = this.globalInputs[ref.pinIdx];
+        return { x: 50, y: g ? g.y : 100 };
+      }
+      if (ref.compId === '__global_out__') {
+        const g = this.globalOutputs[ref.pinIdx];
+        return { x: 770, y: g ? g.y : 180 };
+      }
+      const c = this.components.find(comp => comp.id === ref.compId);
+      if (!c) return { x: 0, y: 0 };
+      if (ref.isOutput) {
+        const pin = c.outPins[ref.pinIdx];
+        return { x: c.x + (pin ? pin.relX : c.w), y: c.y + (pin ? pin.relY : c.h / 2) };
+      } else {
+        const pin = c.inPins[ref.pinIdx];
+        return { x: c.x + (pin ? pin.relX : 0), y: c.y + (pin ? pin.relY : c.h / 2) };
+      }
+    },
+
+    createComponent(type, x, y) {
+      const id = 'gate_' + (this.nextId++);
+      let w = 70, h = 48;
+      let inPins = [];
+      let outPins = [];
+
+      if (type === 'NOT') {
+        w = 60; h = 42;
+        inPins = [{ name: 'A', relX: 0, relY: 21 }];
+        outPins = [{ name: 'Y', relX: 60, relY: 21 }];
+      } else if (type === 'AND' || type === 'OR' || type === 'NAND' || type === 'NOR' || type === 'XOR') {
+        w = 72; h = 50;
+        inPins = [
+          { name: 'A', relX: 0, relY: 15 },
+          { name: 'B', relX: 0, relY: 35 }
+        ];
+        outPins = [{ name: 'Y', relX: 72, relY: 25 }];
+      } else if (type === 'MUX') {
+        w = 84; h = 86;
+        inPins = [
+          { name: 'D0', relX: 0, relY: 14 },
+          { name: 'D1', relX: 0, relY: 28 },
+          { name: 'D2', relX: 0, relY: 42 },
+          { name: 'D3', relX: 0, relY: 56 },
+          { name: 'S0', relX: 28, relY: 86 },
+          { name: 'S1', relX: 56, relY: 86 }
+        ];
+        outPins = [{ name: 'Y', relX: 84, relY: 42 }];
+      } else if (type === 'JK') {
+        w = 84; h = 76;
+        inPins = [
+          { name: 'J', relX: 0, relY: 18 },
+          { name: 'CLK', relX: 0, relY: 38 },
+          { name: 'K', relX: 0, relY: 58 }
+        ];
+        outPins = [
+          { name: 'Q', relX: 84, relY: 22 },
+          { name: "Q'", relX: 84, relY: 54 }
+        ];
+      } else {
+        w = 70; h = 48;
+        inPins = [{ name: 'A', relX: 0, relY: 15 }, { name: 'B', relX: 0, relY: 33 }];
+        outPins = [{ name: 'Y', relX: 70, relY: 24 }];
+      }
+
+      return {
+        id,
+        type,
+        x: Math.round(x / 10) * 10,
+        y: Math.round(y / 10) * 10,
+        w,
+        h,
+        inPins,
+        outPins,
+        inVals: inPins.map(() => '0'),
+        outVals: outPins.map(() => '0'),
+        state: { q: '0', qBar: '1' }
+      };
+    },
+
+    initDefault() {
+      this.components = [];
+      this.wires = [];
+      this.selectedCompId = null;
+      this.selectedWireId = null;
+      this.wiringSource = null;
+      this.hoveredPin = null;
+      this.nextId = 1;
+
+      // Starter netlist: Half-Adder circuit for immediate interactive exploration
+      const xor1 = this.createComponent('XOR', 280, 110);
+      const and1 = this.createComponent('AND', 280, 240);
+      this.components.push(xor1, and1);
+
+      this.wires.push({
+        id: 'w1',
+        from: { compId: '__global_in__', pinIdx: 0, isOutput: true },
+        to: { compId: xor1.id, pinIdx: 0, isOutput: false }
+      });
+      this.wires.push({
+        id: 'w2',
+        from: { compId: '__global_in__', pinIdx: 0, isOutput: true },
+        to: { compId: and1.id, pinIdx: 0, isOutput: false }
+      });
+      this.wires.push({
+        id: 'w3',
+        from: { compId: '__global_in__', pinIdx: 1, isOutput: true },
+        to: { compId: xor1.id, pinIdx: 1, isOutput: false }
+      });
+      this.wires.push({
+        id: 'w4',
+        from: { compId: '__global_in__', pinIdx: 1, isOutput: true },
+        to: { compId: and1.id, pinIdx: 1, isOutput: false }
+      });
+      this.wires.push({
+        id: 'w5',
+        from: { compId: xor1.id, pinIdx: 0, isOutput: true },
+        to: { compId: '__global_out__', pinIdx: 0, isOutput: false }
+      });
+      this.wires.push({
+        id: 'w6',
+        from: { compId: and1.id, pinIdx: 0, isOutput: true },
+        to: { compId: '__global_out__', pinIdx: 1, isOutput: false }
+      });
+    },
+
+    deleteSelected() {
+      if (this.selectedCompId) {
+        this.components = this.components.filter(c => c.id !== this.selectedCompId);
+        this.wires = this.wires.filter(w => w.from.compId !== this.selectedCompId && w.to.compId !== this.selectedCompId);
+        this.selectedCompId = null;
+        return true;
+      }
+      if (this.selectedWireId) {
+        this.wires = this.wires.filter(w => w.id !== this.selectedWireId);
+        this.selectedWireId = null;
+        return true;
+      }
+      return false;
+    },
+
+    clear() {
+      this.components = [];
+      this.wires = [];
+      this.selectedCompId = null;
+      this.selectedWireId = null;
+      this.wiringSource = null;
+      this.hoveredPin = null;
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
   // 3. CIRCUIT DEFINITIONS & PRESET EXPERIMENTS
   // ══════════════════════════════════════════════════════════════════════════
   const CIRCUITS = {
@@ -358,6 +535,100 @@
       sop: 'Count Sequence: 00 &rarr; 01 &rarr; 10 &rarr; 11 &rarr; 00',
       pos: 'Frequency: f(Q0) = f_clk / 2; f(Q1) = f_clk / 4',
       chipName: 'SN7476N / SN7490 SYNCHRONOUS COUNTER'
+    },
+
+    custom_sandbox: {
+      name: 'Custom Netlist Sandbox (Interactive Wiring)',
+      icBadge: 'Dynamic Netlist &bull; Drag & Drop &bull; Manhattan Auto-Routing',
+      chipName: 'MODULAR TTL NETLIST ENGINE',
+      sop: 'Custom User Netlist Evaluated Live',
+      pos: 'Use palette to drop gates; Click pins to wire; Drag to arrange; Del to delete',
+      inputs: CustomSandbox.globalInputs,
+      outputs: CustomSandbox.globalOutputs,
+      state: {},
+      evaluate(inputs, state, isClockEdge) {
+        // Sync global input values
+        CustomSandbox.globalInputs.forEach((g, idx) => {
+          g.val = (inputs && inputs[idx] !== undefined) ? inputs[idx] : (g.val || '0');
+        });
+
+        // 5 propagation passes to resolve multi-tier gates
+        for (let pass = 0; pass < 5; pass++) {
+          CustomSandbox.components.forEach(comp => {
+            // Read input pin values from incoming wires
+            comp.inPins.forEach((pin, pIdx) => {
+              const wire = CustomSandbox.wires.find(w => w.to.compId === comp.id && w.to.pinIdx === pIdx);
+              if (!wire) {
+                comp.inVals[pIdx] = '0';
+              } else {
+                if (wire.from.compId === '__global_in__') {
+                  const srcIn = CustomSandbox.globalInputs[wire.from.pinIdx];
+                  comp.inVals[pIdx] = srcIn ? srcIn.val : '0';
+                } else {
+                  const srcComp = CustomSandbox.components.find(c => c.id === wire.from.compId);
+                  comp.inVals[pIdx] = (srcComp && srcComp.outVals[wire.from.pinIdx]) ? srcComp.outVals[wire.from.pinIdx] : '0';
+                }
+              }
+            });
+
+            // Evaluate gate function
+            const inA = comp.inVals[0] || '0';
+            const inB = comp.inVals[1] || '0';
+            if (comp.type === 'AND') comp.outVals[0] = Logic.AND(inA, inB);
+            else if (comp.type === 'OR') comp.outVals[0] = Logic.OR(inA, inB);
+            else if (comp.type === 'NOT') comp.outVals[0] = Logic.NOT(inA);
+            else if (comp.type === 'NAND') comp.outVals[0] = Logic.NAND(inA, inB);
+            else if (comp.type === 'NOR') comp.outVals[0] = Logic.NOR(inA, inB);
+            else if (comp.type === 'XOR') comp.outVals[0] = Logic.XOR(inA, inB);
+            else if (comp.type === 'MUX') {
+              const d0 = comp.inVals[0] || '0';
+              const d1 = comp.inVals[1] || '0';
+              const d2 = comp.inVals[2] || '0';
+              const d3 = comp.inVals[3] || '0';
+              const s0 = comp.inVals[4] || '0';
+              const s1 = comp.inVals[5] || '0';
+              const sel = (s1 === '1' ? 2 : 0) + (s0 === '1' ? 1 : 0);
+              comp.outVals[0] = [d0, d1, d2, d3][sel] || '0';
+            } else if (comp.type === 'JK') {
+              const j = comp.inVals[0] || '0';
+              const clk = comp.inVals[1] || '0';
+              const k = comp.inVals[2] || '0';
+              if (isClockEdge) {
+                let q = comp.state.q;
+                if (j === '0' && k === '0') { /* No change */ }
+                else if (j === '0' && k === '1') { q = '0'; }
+                else if (j === '1' && k === '0') { q = '1'; }
+                else if (j === '1' && k === '1') { q = (q === '1') ? '0' : '1'; }
+                comp.state.q = q;
+                comp.state.qBar = (q === '1') ? '0' : '1';
+              }
+              comp.outVals[0] = comp.state.q;
+              comp.outVals[1] = comp.state.qBar;
+            }
+          });
+        }
+
+        // Resolve global outputs
+        const outVals = CustomSandbox.globalOutputs.map((gOut, idx) => {
+          const wire = CustomSandbox.wires.find(w => w.to.compId === '__global_out__' && w.to.pinIdx === idx);
+          if (!wire) return '0';
+          if (wire.from.compId === '__global_in__') {
+            const srcIn = CustomSandbox.globalInputs[wire.from.pinIdx];
+            return srcIn ? srcIn.val : '0';
+          }
+          const srcComp = CustomSandbox.components.find(c => c.id === wire.from.compId);
+          return (srcComp && srcComp.outVals[wire.from.pinIdx]) ? srcComp.outVals[wire.from.pinIdx] : '0';
+        });
+
+        CustomSandbox.globalOutputs.forEach((g, idx) => {
+          g.val = outVals[idx];
+        });
+
+        return {
+          outputs: outVals,
+          internal: {}
+        };
+      }
     }
   };
 
@@ -600,6 +871,9 @@
       ctx.fillStyle = wireColor(q); ctx.fillText(`Q: ${q}`, 730, 180);
       ctx.fillStyle = wireColor(qBar); ctx.fillText(`Q': ${qBar}`, 730, 265);
 
+    } else if (circuitKey === 'custom_sandbox') {
+      drawCustomSandbox(ctx, w, h);
+      return;
     } else {
       // Generic MSI Block (MUX / Decoder / Counter)
       ctx.fillStyle = '#0a172e';
@@ -641,6 +915,217 @@
     ctx.font = 'bold 12px Inter, sans-serif';
     ctx.fillStyle = '#64748b';
     ctx.fillText(`Topological Reverse Kahn DAG Engine &bull; IEEE 1164 Logic Resolution`, 30, 30);
+  }
+
+  // Draw Interactive Custom Netlist Sandbox Canvas
+  function drawCustomSandbox(ctx, w, h) {
+    const wireColor = (val) => {
+      if (val === '1') return '#10b981';
+      if (val === '0') return '#475569';
+      if (val === 'Z') return '#06b6d4';
+      return '#ec4899';
+    };
+
+    // Top Instruction Banner
+    ctx.fillStyle = '#0b1329';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(80, 8, w - 160, 26, 6);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('\uD83D\uDEE0\uFE0F Custom Netlist Sandbox \u2022 Drag gates to move \u2022 Click pins to wire \u2022 Select gate/wire + Del to delete', w / 2, 25);
+
+    // 1. Draw Global Inputs on Left
+    CustomSandbox.globalInputs.forEach((gIn, idx) => {
+      const isHigh = gIn.val === '1';
+      const cardY = gIn.y - 18;
+      // Switch Card
+      ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.15)' : '#0b1329';
+      ctx.strokeStyle = isHigh ? '#10b981' : '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(10, cardY, 40, 36, 6);
+      ctx.fill(); ctx.stroke();
+
+      ctx.font = 'bold 10px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = isHigh ? '#10b981' : '#94a3b8';
+      ctx.fillText(gIn.name, 30, cardY + 15);
+      ctx.font = 'bold 13px "JetBrains Mono", monospace';
+      ctx.fillText(gIn.val, 30, cardY + 29);
+
+      // Pin Port on Right edge of card
+      const px = 50;
+      const py = gIn.y;
+      const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === '__global_in__' && CustomSandbox.wiringSource.pinIdx === idx;
+      const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === '__global_in__' && CustomSandbox.hoveredPin.pinIdx === idx;
+
+      ctx.fillStyle = isHigh ? '#10b981' : '#38bdf8';
+      ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
+
+      if (isSrc || isHov) {
+        ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.stroke();
+      }
+    });
+
+    // 2. Draw Global Outputs on Right
+    CustomSandbox.globalOutputs.forEach((gOut, idx) => {
+      const isHigh = gOut.val === '1';
+      const cardY = gOut.y - 18;
+      // Output Card
+      ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.15)' : '#0b1329';
+      ctx.strokeStyle = isHigh ? '#10b981' : '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(770, cardY, 40, 36, 6);
+      ctx.fill(); ctx.stroke();
+
+      ctx.font = 'bold 10px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = isHigh ? '#10b981' : '#94a3b8';
+      ctx.fillText(gOut.name, 790, cardY + 15);
+
+      // Mini LED status lamp
+      ctx.fillStyle = isHigh ? '#10b981' : '#334155';
+      ctx.beginPath(); ctx.arc(790, cardY + 26, 4.5, 0, Math.PI * 2); ctx.fill();
+
+      // Pin Port on Left edge of card
+      const px = 770;
+      const py = gOut.y;
+      const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === '__global_out__' && CustomSandbox.wiringSource.pinIdx === idx;
+      const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === '__global_out__' && CustomSandbox.hoveredPin.pinIdx === idx;
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
+
+      if (isSrc || isHov) {
+        ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.stroke();
+      }
+    });
+
+    // 3. Draw Completed Wires
+    CustomSandbox.wires.forEach(wire => {
+      const p1 = CustomSandbox.getPinPos(wire.from);
+      const p2 = CustomSandbox.getPinPos(wire.to);
+      let wireVal = '0';
+      if (wire.from.compId === '__global_in__') {
+        const srcIn = CustomSandbox.globalInputs[wire.from.pinIdx];
+        wireVal = srcIn ? srcIn.val : '0';
+      } else {
+        const srcComp = CustomSandbox.components.find(c => c.id === wire.from.compId);
+        wireVal = (srcComp && srcComp.outVals[wire.from.pinIdx]) ? srcComp.outVals[wire.from.pinIdx] : '0';
+      }
+
+      const isSelected = CustomSandbox.selectedWireId === wire.id;
+      if (isSelected) {
+        ctx.save();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        const midX = (p1.x + p2.x) / 2;
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(midX, p1.y);
+        ctx.lineTo(midX, p2.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawManhattanWire(ctx, p1.x, p1.y, p2.x, p2.y, wireColor(wireVal), wireVal);
+    });
+
+    // 4. Draw In-Progress Rubber-Band Wire
+    if (CustomSandbox.wiringSource) {
+      const p1 = CustomSandbox.getPinPos(CustomSandbox.wiringSource);
+      const p2 = CustomSandbox.mousePos;
+      ctx.save();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 4]);
+      const midX = (p1.x + p2.x) / 2;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(midX, p1.y);
+      ctx.lineTo(midX, p2.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // 5. Draw Placed Components
+    CustomSandbox.components.forEach(comp => {
+      const isSelected = CustomSandbox.selectedCompId === comp.id;
+
+      // Selection Halo
+      if (isSelected) {
+        ctx.save();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(comp.x - 5, comp.y - 5, comp.w + 10, comp.h + 10, 8);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Draw Gate Body
+      drawGateSymbol(ctx, comp.type, comp.x, comp.y, comp.w, comp.h, comp.inVals, comp.outVals[0], comp.type);
+
+      // Draw Input Pins
+      comp.inPins.forEach((pin, pIdx) => {
+        const px = comp.x + pin.relX;
+        const py = comp.y + pin.relY;
+        const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === comp.id && !CustomSandbox.wiringSource.isOutput && CustomSandbox.wiringSource.pinIdx === pIdx;
+        const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === comp.id && !CustomSandbox.hoveredPin.isOutput && CustomSandbox.hoveredPin.pinIdx === pIdx;
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+
+        if (isSrc || isHov) {
+          ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        // Pin Label
+        ctx.font = '9px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, px + 5, py + 3);
+      });
+
+      // Draw Output Pins
+      comp.outPins.forEach((pin, pIdx) => {
+        const px = comp.x + pin.relX;
+        const py = comp.y + pin.relY;
+        const outVal = comp.outVals[pIdx] || '0';
+        const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === comp.id && CustomSandbox.wiringSource.isOutput && CustomSandbox.wiringSource.pinIdx === pIdx;
+        const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === comp.id && CustomSandbox.hoveredPin.isOutput && CustomSandbox.hoveredPin.pinIdx === pIdx;
+
+        ctx.fillStyle = wireColor(outVal);
+        ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+
+        if (isSrc || isHov) {
+          ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        // Pin Label
+        ctx.font = '9px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'right';
+        ctx.fillText(pin.name, px - 5, py + 3);
+      });
+    });
   }
 
   // Draw Physical Solderless Breadboard Mode
@@ -708,7 +1193,6 @@
     ctx.fillText('TTL DIP-14 PACKAGE', icX + 90, icY + 52);
 
     // Colored Jumper Wires connecting to DIP pins
-    const jumperColors = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6'];
     inputVals.forEach((val, i) => {
       const color = (val === '1') ? '#10b981' : '#64748b';
       ctx.strokeStyle = color;
@@ -739,22 +1223,59 @@
   // Draw Gate Symbol Helper
   function drawGateSymbol(ctx, type, x, y, gw, gh, inVals, outVal, label) {
     ctx.fillStyle = '#0f172a';
-    ctx.strokeStyle = (outVal === '1') ? '#10b981' : '#38bdf8';
+    ctx.strokeStyle = (outVal === '1') ? '#10b981' : (outVal === 'X' ? '#ec4899' : '#38bdf8');
     ctx.lineWidth = 2.5;
 
     ctx.beginPath();
-    if (type === 'AND' || type === 'NAND') {
+    if (type === 'AND') {
       ctx.moveTo(x, y);
       ctx.lineTo(x + gw * 0.6, y);
       ctx.arc(x + gw * 0.6, y + gh / 2, gh / 2, -Math.PI / 2, Math.PI / 2);
       ctx.lineTo(x, y + gh);
       ctx.closePath();
-    } else if (type === 'OR' || type === 'NOR') {
+      ctx.fill(); ctx.stroke();
+    } else if (type === 'NAND') {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + gw * 0.55, y);
+      ctx.arc(x + gw * 0.55, y + gh / 2, gh / 2, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(x, y + gh);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // Invert bubble
+      ctx.beginPath();
+      ctx.arc(x + gw * 0.55 + gh / 2 + 4, y + gh / 2, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill(); ctx.stroke();
+    } else if (type === 'OR') {
       ctx.moveTo(x, y);
       ctx.quadraticCurveTo(x + gw * 0.7, y + gh * 0.1, x + gw, y + gh / 2);
       ctx.quadraticCurveTo(x + gw * 0.7, y + gh * 0.9, x, y + gh);
       ctx.quadraticCurveTo(x + gw * 0.3, y + gh / 2, x, y);
       ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    } else if (type === 'NOR') {
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + gw * 0.65, y + gh * 0.1, x + gw - 6, y + gh / 2);
+      ctx.quadraticCurveTo(x + gw * 0.65, y + gh * 0.9, x, y + gh);
+      ctx.quadraticCurveTo(x + gw * 0.3, y + gh / 2, x, y);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // Invert bubble
+      ctx.beginPath();
+      ctx.arc(x + gw - 1, y + gh / 2, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill(); ctx.stroke();
+    } else if (type === 'NOT') {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + gw - 10, y + gh / 2);
+      ctx.lineTo(x, y + gh);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // Invert bubble
+      ctx.beginPath();
+      ctx.arc(x + gw - 5, y + gh / 2, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill(); ctx.stroke();
     } else if (type === 'XOR') {
       // Curved back and double back line
       ctx.moveTo(x + 10, y);
@@ -762,16 +1283,26 @@
       ctx.quadraticCurveTo(x + gw * 0.7, y + gh * 0.9, x + 10, y + gh);
       ctx.quadraticCurveTo(x + gw * 0.3 + 10, y + gh / 2, x + 10, y);
       ctx.closePath();
-      ctx.stroke();
+      ctx.fill(); ctx.stroke();
       // Outer curved bar
       ctx.beginPath();
       ctx.arc(x, y + gh / 2, gh * 0.6, -Math.PI / 3, Math.PI / 3);
+      ctx.stroke();
+    } else if (type === 'MUX') {
+      // Trapezoid
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + gw, y + 10);
+      ctx.lineTo(x + gw, y + gh - 10);
+      ctx.lineTo(x, y + gh);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
     } else if (type === 'JK') {
       ctx.roundRect(x, y, gw, gh, 8);
+      ctx.fill(); ctx.stroke();
     } else {
       ctx.rect(x, y, gw, gh);
+      ctx.fill(); ctx.stroke();
     }
-    ctx.fill(); ctx.stroke();
 
     // Gate Label Inside
     ctx.fillStyle = '#ffffff';
@@ -814,6 +1345,7 @@
     },
 
     updateForCircuit(curCircuit) {
+      if (!curCircuit) return;
       // Populate K-map cells based on circuit truth table
       if (curCircuit.name === '1-Bit Full Adder') {
         // Sum values
@@ -821,6 +1353,15 @@
           ['0', '1', '1', '0'], // A=0, BC: 00(0), 01(1), 11(0), 10(1)
           ['1', '0', '1', '0']  // A=1, BC: 00(1), 01(0), 11(1), 10(0)
         ];
+      } else if (curCircuit.name && curCircuit.name.includes('Custom')) {
+        try {
+          this.cells = [
+            [curCircuit.evaluate(['0', '0', '0']).outputs[0], curCircuit.evaluate(['0', '0', '1']).outputs[0], curCircuit.evaluate(['0', '1', '1']).outputs[0], curCircuit.evaluate(['0', '1', '0']).outputs[0]],
+            [curCircuit.evaluate(['1', '0', '0']).outputs[0], curCircuit.evaluate(['1', '0', '1']).outputs[0], curCircuit.evaluate(['1', '1', '1']).outputs[0], curCircuit.evaluate(['1', '1', '0']).outputs[0]]
+          ];
+        } catch (e) {
+          this.cells = [['0', '0', '0', '0'], ['0', '0', '0', '0']];
+        }
       } else {
         this.cells = [
           ['0', '1', '0', '1'],
@@ -985,7 +1526,11 @@
 
     checkAnswer() {
       if (this.selectedIdx === -1) {
-        alert('Please select an option first!');
+        const container = document.getElementById('ch-options-container');
+        if (container) {
+          container.style.boxShadow = '0 0 0 2px #f43f5e';
+          setTimeout(() => { if (container) container.style.boxShadow = ''; }, 900);
+        }
         return;
       }
       const ch = this.challenges[this.currentIdx];
@@ -1350,15 +1895,312 @@
       });
     });
 
-    // Component Palette Buttons (Add gate indicator)
-    document.querySelectorAll('.btn-palette').forEach(btn => {
+    // ══════════════════════════════════════════════════════════════════════
+    // INTERACTIVE CUSTOM SANDBOX CANVAS CONTROLS & WIRING
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Helper: Map client mouse to canvas coordinates
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    // Helper: Pin hit test
+    function findHitPin(mx, my) {
+      // 1. Global inputs (source pins)
+      for (let i = 0; i < CustomSandbox.globalInputs.length; i++) {
+        const pos = CustomSandbox.getPinPos({ compId: '__global_in__', pinIdx: i, isOutput: true });
+        if (Math.hypot(mx - pos.x, my - pos.y) <= 12) {
+          return { compId: '__global_in__', pinIdx: i, isOutput: true, name: CustomSandbox.globalInputs[i].name };
+        }
+      }
+      // 2. Global outputs (sink pins)
+      for (let i = 0; i < CustomSandbox.globalOutputs.length; i++) {
+        const pos = CustomSandbox.getPinPos({ compId: '__global_out__', pinIdx: i, isOutput: false });
+        if (Math.hypot(mx - pos.x, my - pos.y) <= 12) {
+          return { compId: '__global_out__', pinIdx: i, isOutput: false, name: CustomSandbox.globalOutputs[i].name };
+        }
+      }
+      // 3. Components
+      for (const comp of CustomSandbox.components) {
+        // Inputs
+        for (let pIdx = 0; pIdx < comp.inPins.length; pIdx++) {
+          const pin = comp.inPins[pIdx];
+          const px = comp.x + pin.relX;
+          const py = comp.y + pin.relY;
+          if (Math.hypot(mx - px, my - py) <= 12) {
+            return { compId: comp.id, pinIdx: pIdx, isOutput: false, name: `${comp.type}.${pin.name}` };
+          }
+        }
+        // Outputs
+        for (let pIdx = 0; pIdx < comp.outPins.length; pIdx++) {
+          const pin = comp.outPins[pIdx];
+          const px = comp.x + pin.relX;
+          const py = comp.y + pin.relY;
+          if (Math.hypot(mx - px, my - py) <= 12) {
+            return { compId: comp.id, pinIdx: pIdx, isOutput: true, name: `${comp.type}.${pin.name}` };
+          }
+        }
+      }
+      return null;
+    }
+
+    // Helper: Component hit test
+    function findHitComponent(mx, my) {
+      for (let i = CustomSandbox.components.length - 1; i >= 0; i--) {
+        const c = CustomSandbox.components[i];
+        if (mx >= c.x - 4 && mx <= c.x + c.w + 4 && my >= c.y - 4 && my <= c.y + c.h + 4) {
+          return c;
+        }
+      }
+      return null;
+    }
+
+    // Helper: Wire hit test
+    function findHitWire(mx, my) {
+      for (let i = CustomSandbox.wires.length - 1; i >= 0; i--) {
+        const wire = CustomSandbox.wires[i];
+        const p1 = CustomSandbox.getPinPos(wire.from);
+        const p2 = CustomSandbox.getPinPos(wire.to);
+        const midX = (p1.x + p2.x) / 2;
+
+        const hitSeg1 = Math.abs(my - p1.y) <= 8 && mx >= Math.min(p1.x, midX) - 5 && mx <= Math.max(p1.x, midX) + 5;
+        const hitSeg2 = Math.abs(mx - midX) <= 8 && my >= Math.min(p1.y, p2.y) - 5 && my <= Math.max(p1.y, p2.y) + 5;
+        const hitSeg3 = Math.abs(my - p2.y) <= 8 && mx >= Math.min(midX, p2.x) - 5 && mx <= Math.max(midX, p2.x) + 5;
+
+        if (hitSeg1 || hitSeg2 || hitSeg3) {
+          return wire;
+        }
+      }
+      return null;
+    }
+
+    // Helper: Connect two pins
+    function connectPins(pA, pB) {
+      if (pA.isOutput === pB.isOutput) return false;
+      const src = pA.isOutput ? pA : pB;
+      const dst = pA.isOutput ? pB : pA;
+
+      if (src.compId === dst.compId) return false;
+
+      // Remove existing wire to destination input (single driver rule)
+      CustomSandbox.wires = CustomSandbox.wires.filter(w => !(w.to.compId === dst.compId && w.to.pinIdx === dst.pinIdx));
+
+      CustomSandbox.wires.push({
+        id: 'w_' + (++CustomSandbox.nextId),
+        from: { compId: src.compId, pinIdx: src.pinIdx, isOutput: true },
+        to: { compId: dst.compId, pinIdx: dst.pinIdx, isOutput: false }
+      });
+
+      return true;
+    }
+
+    // Canvas Mouse Interaction Handlers
+    canvas.addEventListener('mousedown', (e) => {
+      if (currentCircuitKey !== 'custom_sandbox' || currentViewMode !== 'schematic') return;
+      SoundFX.init();
+      const coords = getCanvasCoords(e);
+      const mx = coords.x, my = coords.y;
+
+      // 1. Check if clicking on Global Input Switch Card directly on canvas
+      for (let i = 0; i < CustomSandbox.globalInputs.length; i++) {
+        const gIn = CustomSandbox.globalInputs[i];
+        if (mx >= 10 && mx <= 50 && my >= gIn.y - 18 && my <= gIn.y + 18) {
+          gIn.val = (gIn.val === '1') ? '0' : '1';
+          SoundFX.switchClick();
+          syncUI();
+          return;
+        }
+      }
+
+      // 2. Check Pin Click (Wiring)
+      const hitPin = findHitPin(mx, my);
+      if (hitPin) {
+        if (!CustomSandbox.wiringSource) {
+          CustomSandbox.wiringSource = hitPin;
+          SoundFX.switchClick();
+        } else {
+          if (connectPins(CustomSandbox.wiringSource, hitPin)) {
+            SoundFX.successChord();
+          } else {
+            SoundFX.switchClick();
+          }
+          CustomSandbox.wiringSource = null;
+        }
+        syncUI();
+        return;
+      }
+
+      // If clicked elsewhere while wiring in progress, cancel wiring
+      if (CustomSandbox.wiringSource) {
+        CustomSandbox.wiringSource = null;
+        syncUI();
+        return;
+      }
+
+      // 3. Check Component Click (Select & Drag)
+      const hitComp = findHitComponent(mx, my);
+      if (hitComp) {
+        CustomSandbox.selectedCompId = hitComp.id;
+        CustomSandbox.selectedWireId = null;
+        CustomSandbox.draggingComp = hitComp;
+        CustomSandbox.dragOffset = { x: mx - hitComp.x, y: my - hitComp.y };
+        SoundFX.switchClick();
+        syncUI();
+        return;
+      }
+
+      // 4. Check Wire Click (Select Wire)
+      const hitWire = findHitWire(mx, my);
+      if (hitWire) {
+        CustomSandbox.selectedWireId = hitWire.id;
+        CustomSandbox.selectedCompId = null;
+        SoundFX.switchClick();
+        syncUI();
+        return;
+      }
+
+      // 5. Empty Canvas Click (Deselect)
+      CustomSandbox.selectedCompId = null;
+      CustomSandbox.selectedWireId = null;
+      syncUI();
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (currentCircuitKey !== 'custom_sandbox' || currentViewMode !== 'schematic') return;
+      const coords = getCanvasCoords(e);
+      CustomSandbox.mousePos = coords;
+
+      if (CustomSandbox.draggingComp) {
+        CustomSandbox.draggingComp.x = Math.max(70, Math.min(680, Math.round((coords.x - CustomSandbox.dragOffset.x) / 10) * 10));
+        CustomSandbox.draggingComp.y = Math.max(40, Math.min(410, Math.round((coords.y - CustomSandbox.dragOffset.y) / 10) * 10));
+        syncUI();
+        return;
+      }
+
+      // Update Hover
+      const hitPin = findHitPin(coords.x, coords.y);
+      const prevHovered = CustomSandbox.hoveredPin;
+      CustomSandbox.hoveredPin = hitPin;
+
+      if (hitPin) {
+        canvas.style.cursor = 'crosshair';
+      } else if (findHitComponent(coords.x, coords.y)) {
+        canvas.style.cursor = 'move';
+      } else if (findHitWire(coords.x, coords.y)) {
+        canvas.style.cursor = 'pointer';
+      } else {
+        canvas.style.cursor = 'default';
+      }
+
+      if (CustomSandbox.wiringSource || (hitPin && !prevHovered) || (!hitPin && prevHovered)) {
+        syncUI();
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      if (CustomSandbox.draggingComp) {
+        CustomSandbox.draggingComp = null;
+        syncUI();
+      }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      CustomSandbox.draggingComp = null;
+      CustomSandbox.hoveredPin = null;
+      canvas.style.cursor = 'default';
+      if (currentCircuitKey === 'custom_sandbox') {
+        syncUI();
+      }
+    });
+
+    // Keyboard Del / Backspace handler
+    window.addEventListener('keydown', (e) => {
+      if (currentCircuitKey === 'custom_sandbox') {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+          if (CustomSandbox.deleteSelected()) {
+            SoundFX.init();
+            SoundFX.switchClick();
+            syncUI();
+            e.preventDefault();
+          }
+        }
+      }
+    });
+
+    // Delete Button in Palette
+    const btnDel = document.getElementById('btn-delete-selected');
+    if (btnDel) {
+      btnDel.addEventListener('click', () => {
+        SoundFX.init();
+        if (CustomSandbox.deleteSelected()) {
+          SoundFX.switchClick();
+          syncUI();
+        }
+      });
+    }
+
+    // Clear Sandbox Button in Palette
+    const btnClear = document.getElementById('btn-clear-sandbox');
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        SoundFX.init();
+        CustomSandbox.clear();
+        SoundFX.switchClick();
+        syncUI();
+      });
+    }
+
+    // Component Palette Buttons: Spawn Gates in Custom Sandbox Mode
+    document.querySelectorAll('.btn-palette[data-add]').forEach(btn => {
       btn.addEventListener('click', () => {
         SoundFX.init();
         SoundFX.switchClick();
-        const gate = btn.dataset.add;
-        alert(`Palette Gate: ${gate} selected. Click on canvas or switch to 'Schematic' view.`);
+        const gateType = btn.dataset.add;
+        if (!gateType) return;
+
+        // Auto switch to custom sandbox mode if on preset
+        if (currentCircuitKey !== 'custom_sandbox') {
+          currentCircuitKey = 'custom_sandbox';
+          const presetSelect = document.getElementById('circuit-preset-select');
+          if (presetSelect) presetSelect.value = 'custom_sandbox';
+          const cur = getActiveCircuit();
+          const channelNames = ['CLK', ...cur.inputs.map(i => i.name), ...cur.outputs.map(o => o.name)];
+          analyzer.resetChannels(channelNames);
+        }
+
+        // Auto switch to schematic view if in breadboard view
+        if (currentViewMode !== 'schematic') {
+          currentViewMode = 'schematic';
+          document.querySelectorAll('#view-mode-tabs .view-pill').forEach(b => b.classList.toggle('active', b.dataset.view === 'schematic'));
+          const titleEl = document.getElementById('canvas-view-title');
+          const subtextEl = document.getElementById('canvas-view-subtext');
+          if (titleEl) titleEl.innerHTML = '&#128208; Vector Schematic Netlist Canvas';
+          if (subtextEl) subtextEl.textContent = '[IEEE / ANSI Symbols with 4-State Live Streamers]';
+        }
+
+        // Calculate spawn coordinate centered / staggered
+        const count = CustomSandbox.components.length;
+        const spawnX = 220 + (count % 4) * 60;
+        const spawnY = 90 + (count % 4) * 55;
+
+        const newComp = CustomSandbox.createComponent(gateType, spawnX, spawnY);
+        CustomSandbox.components.push(newComp);
+        CustomSandbox.selectedCompId = newComp.id;
+        CustomSandbox.selectedWireId = null;
+
+        syncUI();
       });
     });
+
+    // Initialize Default Custom Sandbox Netlist
+    CustomSandbox.initDefault();
 
     // Initialize Sub-Engines
     KMapModule.init(getActiveCircuit());
