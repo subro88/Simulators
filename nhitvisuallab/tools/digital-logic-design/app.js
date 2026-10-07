@@ -184,7 +184,7 @@
     getPinPos(ref) {
       if (ref.compId === '__global_in__') {
         const g = this.globalInputs[ref.pinIdx];
-        return { x: 50, y: g ? g.y : 100 };
+        return { x: 58, y: g ? g.y : 100 };
       }
       if (ref.compId === '__global_out__') {
         const g = this.globalOutputs[ref.pinIdx];
@@ -865,6 +865,73 @@
   // ══════════════════════════════════════════════════════════════════════════
   // 5. CANVAS SCHEMATIC & BREADBOARD RENDERER
   // ══════════════════════════════════════════════════════════════════════════
+  let hoveredPresetTerminal = null;
+
+  function getPresetInputTerminals(circuitKey, curCircuit) {
+    if (circuitKey === 'full_adder') {
+      return [
+        { name: 'A', idx: 0, wireX: 68, wireY: 90 },
+        { name: 'B', idx: 1, wireX: 68, wireY: 120 },
+        { name: 'Cin', idx: 2, wireX: 68, wireY: 160 }
+      ];
+    } else if (circuitKey === 'half_adder') {
+      return [
+        { name: 'A', idx: 0, wireX: 80, wireY: 120 },
+        { name: 'B', idx: 1, wireX: 80, wireY: 160 }
+      ];
+    } else if (circuitKey === 'jk_flip_flop') {
+      return [
+        { name: 'J', idx: 0, wireX: 80, wireY: 160 },
+        { name: 'CLK', idx: 2, wireX: 80, wireY: 220, isClk: true },
+        { name: 'K', idx: 1, wireX: 80, wireY: 275 }
+      ];
+    } else {
+      return (curCircuit && curCircuit.inputs ? curCircuit.inputs : []).map((inp, i) => ({
+        name: inp.name,
+        idx: i,
+        wireX: 100,
+        wireY: 170 + i * 26,
+        isClk: inp.name.toUpperCase().includes('CLK')
+      }));
+    }
+  }
+
+  function drawPresetInputCard(ctx, term, curVal, isHov) {
+    const isHigh = (curVal === '1');
+    const cardX = term.wireX - 58;
+    const cardY = term.wireY - 13;
+    const cardW = 54;
+    const cardH = 26;
+
+    ctx.save();
+    ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.22)' : '#0b1329';
+    ctx.strokeStyle = isHov ? '#38bdf8' : (isHigh ? '#10b981' : '#334155');
+    ctx.lineWidth = isHov ? 2.2 : 1.5;
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, 5);
+    ctx.fill();
+    ctx.stroke();
+
+    // Connector pin dot into the wire
+    ctx.fillStyle = isHigh ? '#10b981' : '#475569';
+    ctx.beginPath();
+    ctx.arc(term.wireX, term.wireY, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Terminal Name
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = isHigh ? '#10b981' : '#94a3b8';
+    ctx.fillText(term.name, cardX + 6, cardY + 16);
+
+    // Value Pill / Toggle Indicator
+    ctx.font = 'bold 11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = isHigh ? '#34d399' : '#64748b';
+    ctx.fillText(curVal, cardX + cardW - 6, cardY + 17);
+    ctx.restore();
+  }
+
   function drawSchematicCanvas(circuitKey, curCircuit, inputVals, outputVals, ctx, w, h) {
     if (circuitKey === 'custom_sandbox') {
       drawCustomSandbox(ctx, w, h);
@@ -937,9 +1004,9 @@
       drawGateSymbol(ctx, 'OR', 660, 280, 70, 50, [and1, and2], cout, 'OR (Cout)');
 
       // Manhattan Signal Wires with glowing levels
-      drawManhattanWire(ctx, 60, 90, 250, 90, wireColor(A), A);
-      drawManhattanWire(ctx, 60, 120, 250, 120, wireColor(B), B);
-      drawManhattanWire(ctx, 60, 160, 480, 160, wireColor(Cin), Cin);
+      drawManhattanWire(ctx, 68, 90, 250, 90, wireColor(A), A);
+      drawManhattanWire(ctx, 68, 120, 250, 120, wireColor(B), B);
+      drawManhattanWire(ctx, 68, 160, 480, 160, wireColor(Cin), Cin);
 
       // Connecting internal nets
       drawManhattanWire(ctx, 320, 110, 480, 120, wireColor(xor1), xor1);
@@ -950,14 +1017,17 @@
       drawManhattanWire(ctx, 550, 140, 760, 140, wireColor(sum), sum);
       drawManhattanWire(ctx, 730, 290, 770, 290, wireColor(cout), cout);
 
-      // Input / Output Terminals Text
-      ctx.font = 'bold 13px "JetBrains Mono", monospace';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = wireColor(A); ctx.fillText(`A: ${A}`, 50, 95);
-      ctx.fillStyle = wireColor(B); ctx.fillText(`B: ${B}`, 50, 125);
-      ctx.fillStyle = wireColor(Cin); ctx.fillText(`Cin: ${Cin}`, 50, 165);
+      // Interactive Clickable Input Cards
+      const terms = getPresetInputTerminals('full_adder', curCircuit);
+      terms.forEach(t => {
+        const val = inputVals[t.idx] || '0';
+        const isHov = hoveredPresetTerminal && hoveredPresetTerminal.idx === t.idx;
+        drawPresetInputCard(ctx, t, val, isHov);
+      });
 
+      // Output Terminals Text
       ctx.textAlign = 'left';
+      ctx.font = 'bold 13px "JetBrains Mono", monospace';
       ctx.fillStyle = wireColor(sum); ctx.fillText(`Sum: ${sum}`, 770, 145);
       ctx.fillStyle = wireColor(cout); ctx.fillText(`Cout: ${cout}`, 780, 295);
 
@@ -977,12 +1047,16 @@
       drawManhattanWire(ctx, 400, 150, 700, 150, wireColor(sum), sum);
       drawManhattanWire(ctx, 400, 300, 700, 300, wireColor(carry), carry);
 
-      ctx.font = 'bold 14px "JetBrains Mono", monospace';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = wireColor(A); ctx.fillText(`A: ${A}`, 70, 125);
-      ctx.fillStyle = wireColor(B); ctx.fillText(`B: ${B}`, 70, 165);
+      // Interactive Clickable Input Cards
+      const terms = getPresetInputTerminals('half_adder', curCircuit);
+      terms.forEach(t => {
+        const val = inputVals[t.idx] || '0';
+        const isHov = hoveredPresetTerminal && hoveredPresetTerminal.idx === t.idx;
+        drawPresetInputCard(ctx, t, val, isHov);
+      });
 
       ctx.textAlign = 'left';
+      ctx.font = 'bold 14px "JetBrains Mono", monospace';
       ctx.fillStyle = wireColor(sum); ctx.fillText(`Sum: ${sum}`, 710, 155);
       ctx.fillStyle = wireColor(carry); ctx.fillText(`Carry: ${carry}`, 710, 305);
 
@@ -1002,13 +1076,16 @@
       drawManhattanWire(ctx, 490, 175, 720, 175, wireColor(q), q);
       drawManhattanWire(ctx, 490, 260, 720, 260, wireColor(qBar), qBar);
 
-      ctx.font = 'bold 14px "JetBrains Mono", monospace';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = wireColor(j); ctx.fillText(`J: ${j}`, 70, 165);
-      ctx.fillStyle = '#f59e0b'; ctx.fillText(`CLK: ${clk}`, 70, 225);
-      ctx.fillStyle = wireColor(k); ctx.fillText(`K: ${k}`, 70, 280);
+      // Interactive Clickable Input Cards
+      const terms = getPresetInputTerminals('jk_flip_flop', curCircuit);
+      terms.forEach(t => {
+        const val = inputVals[t.idx] || '0';
+        const isHov = hoveredPresetTerminal && hoveredPresetTerminal.idx === t.idx;
+        drawPresetInputCard(ctx, t, val, isHov);
+      });
 
       ctx.textAlign = 'left';
+      ctx.font = 'bold 14px "JetBrains Mono", monospace';
       ctx.fillStyle = wireColor(q); ctx.fillText(`Q: ${q}`, 730, 180);
       ctx.fillStyle = wireColor(qBar); ctx.fillText(`Q': ${qBar}`, 730, 265);
 
@@ -1029,14 +1106,13 @@
       ctx.fillStyle = '#94a3b8';
       ctx.fillText(curCircuit.icBadge, 400, 145);
 
-      // Pins labels
-      ctx.font = '12px "JetBrains Mono", monospace';
-      inputVals.forEach((val, i) => {
-        const y = 170 + i * 26;
-        drawManhattanWire(ctx, 100, y, 280, y, wireColor(val), val);
-        ctx.fillStyle = wireColor(val);
-        ctx.textAlign = 'right';
-        ctx.fillText(`${curCircuit.inputs[i].name}: ${val}`, 90, y + 4);
+      // Interactive Clickable Input Cards and Wires
+      const terms = getPresetInputTerminals(circuitKey, curCircuit);
+      terms.forEach(t => {
+        const val = inputVals[t.idx] || '0';
+        drawManhattanWire(ctx, t.wireX, t.wireY, 280, t.wireY, wireColor(val), val);
+        const isHov = hoveredPresetTerminal && hoveredPresetTerminal.idx === t.idx;
+        drawPresetInputCard(ctx, t, val, isHov);
       });
 
       outputVals.forEach((val, i) => {
@@ -1044,6 +1120,7 @@
         drawManhattanWire(ctx, 520, y, 700, y, wireColor(val), val);
         ctx.fillStyle = wireColor(val);
         ctx.textAlign = 'left';
+        ctx.font = 'bold 12px "JetBrains Mono", monospace';
         ctx.fillText(`${curCircuit.outputs[i].name}: ${val}`, 710, y + 4);
       });
     }
@@ -1099,24 +1176,33 @@
     // 1. Draw Global Inputs on Left
     CustomSandbox.globalInputs.forEach((gIn, idx) => {
       const isHigh = gIn.val === '1';
-      const cardY = gIn.y - 17;
+      const cardY = gIn.y - 16;
       // Switch Card
-      ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.15)' : '#0b1329';
+      ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.22)' : '#0b1329';
       ctx.strokeStyle = isHigh ? '#10b981' : '#334155';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.roundRect(10, cardY, 40, 34, 6);
+      ctx.roundRect(10, cardY, 44, 32, 6);
       ctx.fill(); ctx.stroke();
 
       ctx.font = 'bold 10px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = isHigh ? '#10b981' : '#94a3b8';
-      ctx.fillText(gIn.name, 30, cardY + 14);
-      ctx.font = 'bold 13px "JetBrains Mono", monospace';
-      ctx.fillText(gIn.val, 30, cardY + 28);
+      ctx.fillText(gIn.name, 32, cardY + 13);
+      ctx.font = 'bold 12px "JetBrains Mono", monospace';
+      ctx.fillStyle = isHigh ? '#34d399' : '#64748b';
+      ctx.fillText(gIn.val, 32, cardY + 27);
+
+      // Wire lead from card right edge (54) to pin port (58)
+      ctx.strokeStyle = isHigh ? '#10b981' : '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(54, gIn.y);
+      ctx.lineTo(58, gIn.y);
+      ctx.stroke();
 
       // Pin Port on Right edge of card
-      const px = 50;
+      const px = 58;
       const py = gIn.y;
       const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === '__global_in__' && CustomSandbox.wiringSource.pinIdx === idx;
       const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === '__global_in__' && CustomSandbox.hoveredPin.pinIdx === idx;
@@ -1240,23 +1326,31 @@
       comp.inPins.forEach((pin, pIdx) => {
         const px = comp.x + pin.relX;
         const py = comp.y + pin.relY;
+        const inVal = comp.inVals[pIdx] || '0';
+        const isHigh = (inVal === '1');
         const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === comp.id && !CustomSandbox.wiringSource.isOutput && CustomSandbox.wiringSource.pinIdx === pIdx;
         const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === comp.id && !CustomSandbox.hoveredPin.isOutput && CustomSandbox.hoveredPin.pinIdx === pIdx;
 
-        ctx.fillStyle = '#94a3b8';
-        ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = isHigh ? '#10b981' : '#475569';
+        ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
 
-        if (isSrc || isHov) {
-          ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
-          ctx.lineWidth = 2;
+        if (isHigh) {
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+          ctx.lineWidth = 1.5;
           ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.stroke();
         }
 
-        // Pin Label
-        ctx.font = '9px "JetBrains Mono", monospace';
-        ctx.fillStyle = '#64748b';
+        if (isSrc || isHov) {
+          ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(px, py, 8.5, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        // Pin Label with live logic state
+        ctx.font = 'bold 9px "JetBrains Mono", monospace';
+        ctx.fillStyle = isHigh ? '#10b981' : '#64748b';
         ctx.textAlign = 'left';
-        ctx.fillText(pin.name, px + 5, py + 3);
+        ctx.fillText(`${pin.name}:${inVal}`, px + 6, py + 3);
       });
 
       // Draw Output Pins
@@ -1264,23 +1358,30 @@
         const px = comp.x + pin.relX;
         const py = comp.y + pin.relY;
         const outVal = comp.outVals[pIdx] || '0';
+        const isHigh = (outVal === '1');
         const isSrc = CustomSandbox.wiringSource && CustomSandbox.wiringSource.compId === comp.id && CustomSandbox.wiringSource.isOutput && CustomSandbox.wiringSource.pinIdx === pIdx;
         const isHov = CustomSandbox.hoveredPin && CustomSandbox.hoveredPin.compId === comp.id && CustomSandbox.hoveredPin.isOutput && CustomSandbox.hoveredPin.pinIdx === pIdx;
 
         ctx.fillStyle = wireColor(outVal);
-        ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
 
-        if (isSrc || isHov) {
-          ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
-          ctx.lineWidth = 2;
+        if (isHigh) {
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+          ctx.lineWidth = 1.5;
           ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.stroke();
         }
 
-        // Pin Label
-        ctx.font = '9px "JetBrains Mono", monospace';
-        ctx.fillStyle = '#64748b';
+        if (isSrc || isHov) {
+          ctx.strokeStyle = isSrc ? '#10b981' : '#f59e0b';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(px, py, 8.5, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        // Pin Label with live logic state
+        ctx.font = 'bold 9px "JetBrains Mono", monospace';
+        ctx.fillStyle = isHigh ? '#10b981' : '#64748b';
         ctx.textAlign = 'right';
-        ctx.fillText(pin.name, px - 5, py + 3);
+        ctx.fillText(`${pin.name}:${outVal}`, px - 6, py + 3);
       });
     });
 
@@ -1394,9 +1495,11 @@
 
   // Draw Gate Symbol Helper
   function drawGateSymbol(ctx, type, x, y, gw, gh, inVals, outVal, label) {
-    ctx.fillStyle = '#0f172a';
-    ctx.strokeStyle = (outVal === '1') ? '#10b981' : (outVal === 'X' ? '#ec4899' : '#38bdf8');
-    ctx.lineWidth = 2.5;
+    const isHigh = (outVal === '1');
+    const isContention = (outVal === 'X');
+    ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.18)' : (isContention ? 'rgba(236, 72, 153, 0.18)' : '#0f172a');
+    ctx.strokeStyle = isHigh ? '#10b981' : (isContention ? '#ec4899' : '#38bdf8');
+    ctx.lineWidth = isHigh ? 2.8 : 2.2;
 
     ctx.beginPath();
     if (type === 'AND') {
@@ -1477,7 +1580,7 @@
     }
 
     // Gate Label Inside
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = isHigh ? '#34d399' : '#ffffff';
     ctx.font = 'bold 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(label || type, x + gw / 2, y + gh / 2 + 4);
@@ -2195,7 +2298,7 @@
         // 1. Check if clicking on Global Input Switch Card directly on canvas
         for (let i = 0; i < CustomSandbox.globalInputs.length; i++) {
           const gIn = CustomSandbox.globalInputs[i];
-          if (worldCoords.x >= 10 && worldCoords.x <= 50 && worldCoords.y >= gIn.y - 17 && worldCoords.y <= gIn.y + 17) {
+          if (worldCoords.x >= 10 && worldCoords.x <= 54 && worldCoords.y >= gIn.y - 16 && worldCoords.y <= gIn.y + 16) {
             gIn.val = (gIn.val === '1') ? '0' : '1';
             SoundFX.switchClick();
             syncUI();
@@ -2253,6 +2356,24 @@
         // Deselect components & wires on empty space
         CustomSandbox.selectedCompId = null;
         CustomSandbox.selectedWireId = null;
+      } else {
+        // Check clicking on preset input terminal cards directly on canvas
+        const cur = getActiveCircuit();
+        const terms = getPresetInputTerminals(currentCircuitKey, cur);
+        for (const term of terms) {
+          const cardX = term.wireX - 58;
+          const cardY = term.wireY - 13;
+          if (worldCoords.x >= cardX && worldCoords.x <= cardX + 54 && worldCoords.y >= cardY && worldCoords.y <= cardY + 26) {
+            if (term.isClk) {
+              triggerClockPulse();
+            } else {
+              cur.inputs[term.idx].val = (cur.inputs[term.idx].val === '1') ? '0' : '1';
+              SoundFX.switchClick();
+              syncUI();
+            }
+            return;
+          }
+        }
       }
 
       // 5. Empty Canvas Click / Drag -> Pan Canvas View
@@ -2284,6 +2405,16 @@
           return;
         }
 
+        // Check if hovering over global input card
+        let isOverInputCard = false;
+        for (let i = 0; i < CustomSandbox.globalInputs.length; i++) {
+          const gIn = CustomSandbox.globalInputs[i];
+          if (worldCoords.x >= 10 && worldCoords.x <= 54 && worldCoords.y >= gIn.y - 16 && worldCoords.y <= gIn.y + 16) {
+            isOverInputCard = true;
+            break;
+          }
+        }
+
         // Update Pin & Component Hover
         const hitPin = findHitPin(worldCoords.x, worldCoords.y);
         const prevHovered = CustomSandbox.hoveredPin;
@@ -2291,6 +2422,8 @@
 
         if (hitPin) {
           canvas.style.cursor = 'crosshair';
+        } else if (isOverInputCard) {
+          canvas.style.cursor = 'pointer';
         } else if (findHitComponent(worldCoords.x, worldCoords.y)) {
           canvas.style.cursor = 'move';
         } else if (findHitWire(worldCoords.x, worldCoords.y)) {
@@ -2303,7 +2436,27 @@
           syncUI();
         }
       } else {
-        canvas.style.cursor = 'grab';
+        const cur = getActiveCircuit();
+        const terms = getPresetInputTerminals(currentCircuitKey, cur);
+        let hoveredTerm = null;
+        for (const term of terms) {
+          const cardX = term.wireX - 58;
+          const cardY = term.wireY - 13;
+          if (worldCoords.x >= cardX && worldCoords.x <= cardX + 54 && worldCoords.y >= cardY && worldCoords.y <= cardY + 26) {
+            hoveredTerm = term;
+            break;
+          }
+        }
+        const prevHov = hoveredPresetTerminal;
+        hoveredPresetTerminal = hoveredTerm;
+        if (hoveredTerm) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'grab';
+        }
+        if ((hoveredTerm && !prevHov) || (!hoveredTerm && prevHov) || (hoveredTerm && prevHov && hoveredTerm.idx !== prevHov.idx)) {
+          syncUI();
+        }
       }
     });
 
