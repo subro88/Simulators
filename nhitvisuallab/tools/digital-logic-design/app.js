@@ -305,6 +305,57 @@
         from: { compId: and1.id, pinIdx: 0, isOutput: true },
         to: { compId: '__global_out__', pinIdx: 1, isOutput: false }
       });
+      this.recalcTerminalPositions();
+    },
+
+    recalcTerminalPositions() {
+      const inCount = this.globalInputs.length;
+      const inSpacing = Math.min(65, 360 / Math.max(1, inCount));
+      const inStartY = 60 + Math.max(0, (360 - (inCount - 1) * inSpacing) / 2);
+      this.globalInputs.forEach((g, idx) => {
+        g.y = inStartY + idx * inSpacing;
+      });
+
+      const outCount = this.globalOutputs.length;
+      const outSpacing = Math.min(85, 360 / Math.max(1, outCount));
+      const outStartY = 80 + Math.max(0, (360 - (outCount - 1) * outSpacing) / 2);
+      this.globalOutputs.forEach((g, idx) => {
+        g.y = outStartY + idx * outSpacing;
+      });
+    },
+
+    addInput() {
+      if (this.globalInputs.length >= 8) return false;
+      const idx = this.globalInputs.length;
+      this.globalInputs.push({ name: `IN${idx}`, val: '0', y: 100 });
+      this.recalcTerminalPositions();
+      return true;
+    },
+
+    removeInput() {
+      if (this.globalInputs.length <= 1) return false;
+      const removedIdx = this.globalInputs.length - 1;
+      this.wires = this.wires.filter(w => !(w.from.compId === '__global_in__' && w.from.pinIdx === removedIdx));
+      this.globalInputs.pop();
+      this.recalcTerminalPositions();
+      return true;
+    },
+
+    addOutput() {
+      if (this.globalOutputs.length >= 4) return false;
+      const idx = this.globalOutputs.length;
+      this.globalOutputs.push({ name: `OUT${idx}`, val: '0', y: 180 });
+      this.recalcTerminalPositions();
+      return true;
+    },
+
+    removeOutput() {
+      if (this.globalOutputs.length <= 1) return false;
+      const removedIdx = this.globalOutputs.length - 1;
+      this.wires = this.wires.filter(w => !(w.to.compId === '__global_out__' && w.to.pinIdx === removedIdx));
+      this.globalOutputs.pop();
+      this.recalcTerminalPositions();
+      return true;
     },
 
     deleteSelected() {
@@ -329,6 +380,75 @@
       this.selectedWireId = null;
       this.wiringSource = null;
       this.hoveredPin = null;
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2C. CANVAS VIEW CONTROLLER (PAN & ZOOM ENGINE)
+  // ══════════════════════════════════════════════════════════════════════════
+  const canvasView = {
+    panX: 0,
+    panY: 0,
+    zoom: 1.0,
+    minZoom: 0.5,
+    maxZoom: 2.5,
+    isPanning: false,
+    panStart: { x: 0, y: 0 },
+
+    reset() {
+      this.panX = 0;
+      this.panY = 0;
+      this.zoom = 1.0;
+    },
+
+    zoomBy(factor, centerX, centerY) {
+      const prevZoom = this.zoom;
+      let nextZoom = Math.max(this.minZoom, Math.min(this.maxZoom, prevZoom * factor));
+      nextZoom = Math.round(nextZoom * 100) / 100;
+      if (nextZoom === prevZoom) return;
+
+      const cx = centerX !== undefined ? centerX : 410;
+      const cy = centerY !== undefined ? centerY : 240;
+
+      this.panX = cx - (cx - this.panX) * (nextZoom / prevZoom);
+      this.panY = cy - (cy - this.panY) * (nextZoom / prevZoom);
+      this.zoom = nextZoom;
+    },
+
+    fit(components) {
+      if (!components || components.length === 0) {
+        this.reset();
+        return;
+      }
+      let minX = 70, maxX = 750, minY = 70, maxY = 410;
+      components.forEach(c => {
+        minX = Math.min(minX, c.x);
+        maxX = Math.max(maxX, c.x + c.w);
+        minY = Math.min(minY, c.y);
+        maxY = Math.max(maxY, c.y + c.h);
+      });
+      const padding = 70;
+      const cw = 820, ch = 480;
+      const boundW = (maxX - minX) + padding * 2;
+      const boundH = (maxY - minY) + padding * 2;
+      const z = Math.max(this.minZoom, Math.min(1.3, Math.min(cw / boundW, ch / boundH)));
+      this.zoom = Math.round(z * 100) / 100;
+      this.panX = (cw - boundW * this.zoom) / 2 - (minX - padding) * this.zoom;
+      this.panY = (ch - boundH * this.zoom) / 2 - (minY - padding) * this.zoom;
+    },
+
+    toWorld(screenX, screenY) {
+      return {
+        x: (screenX - this.panX) / this.zoom,
+        y: (screenY - this.panY) / this.zoom
+      };
+    },
+
+    toScreen(worldX, worldY) {
+      return {
+        x: worldX * this.zoom + this.panX,
+        y: worldY * this.zoom + this.panY
+      };
     }
   };
 
@@ -746,19 +866,40 @@
   // 5. CANVAS SCHEMATIC & BREADBOARD RENDERER
   // ══════════════════════════════════════════════════════════════════════════
   function drawSchematicCanvas(circuitKey, curCircuit, inputVals, outputVals, ctx, w, h) {
+    if (circuitKey === 'custom_sandbox') {
+      drawCustomSandbox(ctx, w, h);
+      return;
+    }
+
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#030814';
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle Grid
+    ctx.save();
+    ctx.translate(canvasView.panX, canvasView.panY);
+    ctx.scale(canvasView.zoom, canvasView.zoom);
+
+    // Subtle Grid covering visible area
+    const leftWorld = -canvasView.panX / canvasView.zoom;
+    const topWorld = -canvasView.panY / canvasView.zoom;
+    const rightWorld = (w - canvasView.panX) / canvasView.zoom;
+    const bottomWorld = (h - canvasView.panY) / canvasView.zoom;
+
+    const startX = Math.floor(leftWorld / 25) * 25;
+    const endX = Math.ceil(rightWorld / 25) * 25;
+    const startY = Math.floor(topWorld / 25) * 25;
+    const endY = Math.ceil(bottomWorld / 25) * 25;
+
     ctx.strokeStyle = '#09152b';
     ctx.lineWidth = 1;
-    for (let x = 0; x < w; x += 25) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    ctx.beginPath();
+    for (let x = startX; x <= endX; x += 25) {
+      ctx.moveTo(x, startY); ctx.lineTo(x, endY);
     }
-    for (let y = 0; y < h; y += 25) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    for (let y = startY; y <= endY; y += 25) {
+      ctx.moveTo(startX, y); ctx.lineTo(endX, y);
     }
+    ctx.stroke();
 
     // Helper: Wire Color
     const wireColor = (val) => {
@@ -871,9 +1012,6 @@
       ctx.fillStyle = wireColor(q); ctx.fillText(`Q: ${q}`, 730, 180);
       ctx.fillStyle = wireColor(qBar); ctx.fillText(`Q': ${qBar}`, 730, 265);
 
-    } else if (circuitKey === 'custom_sandbox') {
-      drawCustomSandbox(ctx, w, h);
-      return;
     } else {
       // Generic MSI Block (MUX / Decoder / Counter)
       ctx.fillStyle = '#0a172e';
@@ -910,11 +1048,13 @@
       });
     }
 
+    ctx.restore();
+
     // Top Title & Annotation
     ctx.textAlign = 'left';
     ctx.font = 'bold 12px Inter, sans-serif';
     ctx.fillStyle = '#64748b';
-    ctx.fillText(`Topological Reverse Kahn DAG Engine &bull; IEEE 1164 Logic Resolution`, 30, 30);
+    ctx.fillText(`Topological Reverse Kahn DAG Engine &bull; IEEE 1164 Logic Resolution`, 30, 26);
   }
 
   // Draw Interactive Custom Netlist Sandbox Canvas
@@ -926,37 +1066,54 @@
       return '#ec4899';
     };
 
-    // Top Instruction Banner
-    ctx.fillStyle = '#0b1329';
-    ctx.strokeStyle = '#1e293b';
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#030814';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(canvasView.panX, canvasView.panY);
+    ctx.scale(canvasView.zoom, canvasView.zoom);
+
+    // Dynamic grid covering visible viewport
+    const leftWorld = -canvasView.panX / canvasView.zoom;
+    const topWorld = -canvasView.panY / canvasView.zoom;
+    const rightWorld = (w - canvasView.panX) / canvasView.zoom;
+    const bottomWorld = (h - canvasView.panY) / canvasView.zoom;
+
+    const startX = Math.floor(leftWorld / 25) * 25;
+    const endX = Math.ceil(rightWorld / 25) * 25;
+    const startY = Math.floor(topWorld / 25) * 25;
+    const endY = Math.ceil(bottomWorld / 25) * 25;
+
+    ctx.strokeStyle = '#09152b';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(80, 8, w - 160, 26, 6);
-    ctx.fill(); ctx.stroke();
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 11px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('\uD83D\uDEE0\uFE0F Custom Netlist Sandbox \u2022 Drag gates to move \u2022 Click pins to wire \u2022 Select gate/wire + Del to delete', w / 2, 25);
+    for (let x = startX; x <= endX; x += 25) {
+      ctx.moveTo(x, startY); ctx.lineTo(x, endY);
+    }
+    for (let y = startY; y <= endY; y += 25) {
+      ctx.moveTo(startX, y); ctx.lineTo(endX, y);
+    }
+    ctx.stroke();
 
     // 1. Draw Global Inputs on Left
     CustomSandbox.globalInputs.forEach((gIn, idx) => {
       const isHigh = gIn.val === '1';
-      const cardY = gIn.y - 18;
+      const cardY = gIn.y - 17;
       // Switch Card
       ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.15)' : '#0b1329';
       ctx.strokeStyle = isHigh ? '#10b981' : '#334155';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.roundRect(10, cardY, 40, 36, 6);
+      ctx.roundRect(10, cardY, 40, 34, 6);
       ctx.fill(); ctx.stroke();
 
       ctx.font = 'bold 10px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = isHigh ? '#10b981' : '#94a3b8';
-      ctx.fillText(gIn.name, 30, cardY + 15);
+      ctx.fillText(gIn.name, 30, cardY + 14);
       ctx.font = 'bold 13px "JetBrains Mono", monospace';
-      ctx.fillText(gIn.val, 30, cardY + 29);
+      ctx.fillText(gIn.val, 30, cardY + 28);
 
       // Pin Port on Right edge of card
       const px = 50;
@@ -977,23 +1134,23 @@
     // 2. Draw Global Outputs on Right
     CustomSandbox.globalOutputs.forEach((gOut, idx) => {
       const isHigh = gOut.val === '1';
-      const cardY = gOut.y - 18;
+      const cardY = gOut.y - 17;
       // Output Card
       ctx.fillStyle = isHigh ? 'rgba(16, 185, 129, 0.15)' : '#0b1329';
       ctx.strokeStyle = isHigh ? '#10b981' : '#334155';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.roundRect(770, cardY, 40, 36, 6);
+      ctx.roundRect(770, cardY, 40, 34, 6);
       ctx.fill(); ctx.stroke();
 
       ctx.font = 'bold 10px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = isHigh ? '#10b981' : '#94a3b8';
-      ctx.fillText(gOut.name, 790, cardY + 15);
+      ctx.fillText(gOut.name, 790, cardY + 14);
 
       // Mini LED status lamp
       ctx.fillStyle = isHigh ? '#10b981' : '#334155';
-      ctx.beginPath(); ctx.arc(790, cardY + 26, 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(790, cardY + 25, 4.5, 0, Math.PI * 2); ctx.fill();
 
       // Pin Port on Left edge of card
       const px = 770;
@@ -1126,6 +1283,21 @@
         ctx.fillText(pin.name, px - 5, py + 3);
       });
     });
+
+    ctx.restore();
+
+    // Top Instruction Banner (Screen Space)
+    ctx.fillStyle = '#0b1329';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(50, 8, w - 100, 26, 6);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('\uD83D\uDEE0\uFE0F Custom Netlist Sandbox \u2022 Drag gates \u2022 Drag canvas to pan \u2022 Wheel to zoom \u2022 Click pins to wire', w / 2, 25);
   }
 
   // Draw Physical Solderless Breadboard Mode
@@ -2000,110 +2172,146 @@
       return true;
     }
 
-    // Canvas Mouse Interaction Handlers
-    canvas.addEventListener('mousedown', (e) => {
-      if (currentCircuitKey !== 'custom_sandbox' || currentViewMode !== 'schematic') return;
-      SoundFX.init();
-      const coords = getCanvasCoords(e);
-      const mx = coords.x, my = coords.y;
+    // Canvas Zoom HUD Indicator Updater
+    function updateZoomHud() {
+      const valEl = document.getElementById('zoom-level-val');
+      if (valEl) valEl.textContent = `${Math.round(canvasView.zoom * 100)}%`;
+    }
 
-      // 1. Check if clicking on Global Input Switch Card directly on canvas
-      for (let i = 0; i < CustomSandbox.globalInputs.length; i++) {
-        const gIn = CustomSandbox.globalInputs[i];
-        if (mx >= 10 && mx <= 50 && my >= gIn.y - 18 && my <= gIn.y + 18) {
-          gIn.val = (gIn.val === '1') ? '0' : '1';
+    function updateCircuitChannels() {
+      const cur = getActiveCircuit();
+      const channelNames = ['CLK', ...cur.inputs.map(i => i.name), ...cur.outputs.map(o => o.name)];
+      analyzer.resetChannels(channelNames);
+    }
+
+    // Canvas Mouse Interaction Handlers with Pan & Zoom
+    canvas.addEventListener('mousedown', (e) => {
+      if (currentViewMode !== 'schematic') return;
+      SoundFX.init();
+      const screenCoords = getCanvasCoords(e);
+      const worldCoords = canvasView.toWorld(screenCoords.x, screenCoords.y);
+
+      if (currentCircuitKey === 'custom_sandbox') {
+        // 1. Check if clicking on Global Input Switch Card directly on canvas
+        for (let i = 0; i < CustomSandbox.globalInputs.length; i++) {
+          const gIn = CustomSandbox.globalInputs[i];
+          if (worldCoords.x >= 10 && worldCoords.x <= 50 && worldCoords.y >= gIn.y - 17 && worldCoords.y <= gIn.y + 17) {
+            gIn.val = (gIn.val === '1') ? '0' : '1';
+            SoundFX.switchClick();
+            syncUI();
+            return;
+          }
+        }
+
+        // 2. Check Pin Click (Wiring)
+        const hitPin = findHitPin(worldCoords.x, worldCoords.y);
+        if (hitPin) {
+          if (!CustomSandbox.wiringSource) {
+            CustomSandbox.wiringSource = hitPin;
+            SoundFX.switchClick();
+          } else {
+            if (connectPins(CustomSandbox.wiringSource, hitPin)) {
+              SoundFX.successChord();
+            } else {
+              SoundFX.switchClick();
+            }
+            CustomSandbox.wiringSource = null;
+          }
+          syncUI();
+          return;
+        }
+
+        // If clicked elsewhere while wiring in progress, cancel wiring
+        if (CustomSandbox.wiringSource) {
+          CustomSandbox.wiringSource = null;
+          syncUI();
+          return;
+        }
+
+        // 3. Check Component Click (Select & Drag)
+        const hitComp = findHitComponent(worldCoords.x, worldCoords.y);
+        if (hitComp) {
+          CustomSandbox.selectedCompId = hitComp.id;
+          CustomSandbox.selectedWireId = null;
+          CustomSandbox.draggingComp = hitComp;
+          CustomSandbox.dragOffset = { x: worldCoords.x - hitComp.x, y: worldCoords.y - hitComp.y };
           SoundFX.switchClick();
           syncUI();
           return;
         }
-      }
 
-      // 2. Check Pin Click (Wiring)
-      const hitPin = findHitPin(mx, my);
-      if (hitPin) {
-        if (!CustomSandbox.wiringSource) {
-          CustomSandbox.wiringSource = hitPin;
+        // 4. Check Wire Click (Select Wire)
+        const hitWire = findHitWire(worldCoords.x, worldCoords.y);
+        if (hitWire) {
+          CustomSandbox.selectedWireId = hitWire.id;
+          CustomSandbox.selectedCompId = null;
           SoundFX.switchClick();
-        } else {
-          if (connectPins(CustomSandbox.wiringSource, hitPin)) {
-            SoundFX.successChord();
-          } else {
-            SoundFX.switchClick();
-          }
-          CustomSandbox.wiringSource = null;
+          syncUI();
+          return;
         }
-        syncUI();
-        return;
-      }
 
-      // If clicked elsewhere while wiring in progress, cancel wiring
-      if (CustomSandbox.wiringSource) {
-        CustomSandbox.wiringSource = null;
-        syncUI();
-        return;
-      }
-
-      // 3. Check Component Click (Select & Drag)
-      const hitComp = findHitComponent(mx, my);
-      if (hitComp) {
-        CustomSandbox.selectedCompId = hitComp.id;
-        CustomSandbox.selectedWireId = null;
-        CustomSandbox.draggingComp = hitComp;
-        CustomSandbox.dragOffset = { x: mx - hitComp.x, y: my - hitComp.y };
-        SoundFX.switchClick();
-        syncUI();
-        return;
-      }
-
-      // 4. Check Wire Click (Select Wire)
-      const hitWire = findHitWire(mx, my);
-      if (hitWire) {
-        CustomSandbox.selectedWireId = hitWire.id;
+        // Deselect components & wires on empty space
         CustomSandbox.selectedCompId = null;
-        SoundFX.switchClick();
-        syncUI();
-        return;
+        CustomSandbox.selectedWireId = null;
       }
 
-      // 5. Empty Canvas Click (Deselect)
-      CustomSandbox.selectedCompId = null;
-      CustomSandbox.selectedWireId = null;
+      // 5. Empty Canvas Click / Drag -> Pan Canvas View
+      canvasView.isPanning = true;
+      canvasView.panStart = { x: screenCoords.x, y: screenCoords.y };
+      canvas.style.cursor = 'grabbing';
       syncUI();
     });
 
     canvas.addEventListener('mousemove', (e) => {
-      if (currentCircuitKey !== 'custom_sandbox' || currentViewMode !== 'schematic') return;
-      const coords = getCanvasCoords(e);
-      CustomSandbox.mousePos = coords;
+      if (currentViewMode !== 'schematic') return;
+      const screenCoords = getCanvasCoords(e);
+      const worldCoords = canvasView.toWorld(screenCoords.x, screenCoords.y);
+      CustomSandbox.mousePos = worldCoords;
 
-      if (CustomSandbox.draggingComp) {
-        CustomSandbox.draggingComp.x = Math.max(70, Math.min(680, Math.round((coords.x - CustomSandbox.dragOffset.x) / 10) * 10));
-        CustomSandbox.draggingComp.y = Math.max(40, Math.min(410, Math.round((coords.y - CustomSandbox.dragOffset.y) / 10) * 10));
+      if (canvasView.isPanning) {
+        canvasView.panX += (screenCoords.x - canvasView.panStart.x);
+        canvasView.panY += (screenCoords.y - canvasView.panStart.y);
+        canvasView.panStart = { x: screenCoords.x, y: screenCoords.y };
         syncUI();
         return;
       }
 
-      // Update Hover
-      const hitPin = findHitPin(coords.x, coords.y);
-      const prevHovered = CustomSandbox.hoveredPin;
-      CustomSandbox.hoveredPin = hitPin;
+      if (currentCircuitKey === 'custom_sandbox') {
+        if (CustomSandbox.draggingComp) {
+          CustomSandbox.draggingComp.x = Math.round((worldCoords.x - CustomSandbox.dragOffset.x) / 10) * 10;
+          CustomSandbox.draggingComp.y = Math.round((worldCoords.y - CustomSandbox.dragOffset.y) / 10) * 10;
+          syncUI();
+          return;
+        }
 
-      if (hitPin) {
-        canvas.style.cursor = 'crosshair';
-      } else if (findHitComponent(coords.x, coords.y)) {
-        canvas.style.cursor = 'move';
-      } else if (findHitWire(coords.x, coords.y)) {
-        canvas.style.cursor = 'pointer';
+        // Update Pin & Component Hover
+        const hitPin = findHitPin(worldCoords.x, worldCoords.y);
+        const prevHovered = CustomSandbox.hoveredPin;
+        CustomSandbox.hoveredPin = hitPin;
+
+        if (hitPin) {
+          canvas.style.cursor = 'crosshair';
+        } else if (findHitComponent(worldCoords.x, worldCoords.y)) {
+          canvas.style.cursor = 'move';
+        } else if (findHitWire(worldCoords.x, worldCoords.y)) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'grab';
+        }
+
+        if (CustomSandbox.wiringSource || (hitPin && !prevHovered) || (!hitPin && prevHovered)) {
+          syncUI();
+        }
       } else {
-        canvas.style.cursor = 'default';
-      }
-
-      if (CustomSandbox.wiringSource || (hitPin && !prevHovered) || (!hitPin && prevHovered)) {
-        syncUI();
+        canvas.style.cursor = 'grab';
       }
     });
 
     canvas.addEventListener('mouseup', () => {
+      if (canvasView.isPanning) {
+        canvasView.isPanning = false;
+        canvas.style.cursor = 'grab';
+      }
       if (CustomSandbox.draggingComp) {
         CustomSandbox.draggingComp = null;
         syncUI();
@@ -2111,13 +2319,64 @@
     });
 
     canvas.addEventListener('mouseleave', () => {
+      canvasView.isPanning = false;
       CustomSandbox.draggingComp = null;
       CustomSandbox.hoveredPin = null;
       canvas.style.cursor = 'default';
-      if (currentCircuitKey === 'custom_sandbox') {
-        syncUI();
-      }
+      syncUI();
     });
+
+    // Mouse Wheel Zoom centered at cursor
+    canvas.addEventListener('wheel', (e) => {
+      if (currentViewMode !== 'schematic') return;
+      e.preventDefault();
+      const screenCoords = getCanvasCoords(e);
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      canvasView.zoomBy(factor, screenCoords.x, screenCoords.y);
+      updateZoomHud();
+      syncUI();
+    }, { passive: false });
+
+    // Floating Zoom HUD Controls
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', () => {
+        canvasView.zoomBy(1.2);
+        updateZoomHud();
+        syncUI();
+      });
+    }
+
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', () => {
+        canvasView.zoomBy(0.83);
+        updateZoomHud();
+        syncUI();
+      });
+    }
+
+    const btnZoomReset = document.getElementById('btn-zoom-reset');
+    if (btnZoomReset) {
+      btnZoomReset.addEventListener('click', () => {
+        canvasView.reset();
+        updateZoomHud();
+        syncUI();
+      });
+    }
+
+    const btnZoomFit = document.getElementById('btn-zoom-fit');
+    if (btnZoomFit) {
+      btnZoomFit.addEventListener('click', () => {
+        if (currentCircuitKey === 'custom_sandbox') {
+          canvasView.fit(CustomSandbox.components);
+        } else {
+          canvasView.reset();
+        }
+        updateZoomHud();
+        syncUI();
+      });
+    }
 
     // Keyboard Del / Backspace handler
     window.addEventListener('keydown', (e) => {
@@ -2157,6 +2416,75 @@
       });
     }
 
+    // Dynamic Input and Output Terminal Management Buttons
+    function ensureCustomSandbox() {
+      if (currentCircuitKey !== 'custom_sandbox') {
+        currentCircuitKey = 'custom_sandbox';
+        const presetSelect = document.getElementById('circuit-preset-select');
+        if (presetSelect) presetSelect.value = 'custom_sandbox';
+      }
+      if (currentViewMode !== 'schematic') {
+        currentViewMode = 'schematic';
+        document.querySelectorAll('#view-mode-tabs .view-pill').forEach(b => b.classList.toggle('active', b.dataset.view === 'schematic'));
+        const titleEl = document.getElementById('canvas-view-title');
+        const subtextEl = document.getElementById('canvas-view-subtext');
+        if (titleEl) titleEl.innerHTML = '&#128208; Vector Schematic Netlist Canvas';
+        if (subtextEl) subtextEl.textContent = '[IEEE / ANSI Symbols with 4-State Live Streamers]';
+      }
+    }
+
+    const btnAddIn = document.getElementById('btn-add-input');
+    if (btnAddIn) {
+      btnAddIn.addEventListener('click', () => {
+        SoundFX.init();
+        ensureCustomSandbox();
+        if (CustomSandbox.addInput()) {
+          SoundFX.switchClick();
+          updateCircuitChannels();
+          syncUI();
+        }
+      });
+    }
+
+    const btnDelIn = document.getElementById('btn-del-input');
+    if (btnDelIn) {
+      btnDelIn.addEventListener('click', () => {
+        SoundFX.init();
+        ensureCustomSandbox();
+        if (CustomSandbox.removeInput()) {
+          SoundFX.switchClick();
+          updateCircuitChannels();
+          syncUI();
+        }
+      });
+    }
+
+    const btnAddOut = document.getElementById('btn-add-output');
+    if (btnAddOut) {
+      btnAddOut.addEventListener('click', () => {
+        SoundFX.init();
+        ensureCustomSandbox();
+        if (CustomSandbox.addOutput()) {
+          SoundFX.switchClick();
+          updateCircuitChannels();
+          syncUI();
+        }
+      });
+    }
+
+    const btnDelOut = document.getElementById('btn-del-output');
+    if (btnDelOut) {
+      btnDelOut.addEventListener('click', () => {
+        SoundFX.init();
+        ensureCustomSandbox();
+        if (CustomSandbox.removeOutput()) {
+          SoundFX.switchClick();
+          updateCircuitChannels();
+          syncUI();
+        }
+      });
+    }
+
     // Component Palette Buttons: Spawn Gates in Custom Sandbox Mode
     document.querySelectorAll('.btn-palette[data-add]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2165,25 +2493,7 @@
         const gateType = btn.dataset.add;
         if (!gateType) return;
 
-        // Auto switch to custom sandbox mode if on preset
-        if (currentCircuitKey !== 'custom_sandbox') {
-          currentCircuitKey = 'custom_sandbox';
-          const presetSelect = document.getElementById('circuit-preset-select');
-          if (presetSelect) presetSelect.value = 'custom_sandbox';
-          const cur = getActiveCircuit();
-          const channelNames = ['CLK', ...cur.inputs.map(i => i.name), ...cur.outputs.map(o => o.name)];
-          analyzer.resetChannels(channelNames);
-        }
-
-        // Auto switch to schematic view if in breadboard view
-        if (currentViewMode !== 'schematic') {
-          currentViewMode = 'schematic';
-          document.querySelectorAll('#view-mode-tabs .view-pill').forEach(b => b.classList.toggle('active', b.dataset.view === 'schematic'));
-          const titleEl = document.getElementById('canvas-view-title');
-          const subtextEl = document.getElementById('canvas-view-subtext');
-          if (titleEl) titleEl.innerHTML = '&#128208; Vector Schematic Netlist Canvas';
-          if (subtextEl) subtextEl.textContent = '[IEEE / ANSI Symbols with 4-State Live Streamers]';
-        }
+        ensureCustomSandbox();
 
         // Calculate spawn coordinate centered / staggered
         const count = CustomSandbox.components.length;
@@ -2195,6 +2505,7 @@
         CustomSandbox.selectedCompId = newComp.id;
         CustomSandbox.selectedWireId = null;
 
+        updateCircuitChannels();
         syncUI();
       });
     });
