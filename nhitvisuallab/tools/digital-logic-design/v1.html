@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Logic Design Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Digital Logic Design Lab for WBSCTE 3rd Sem CST. Build and test Adders, Subtractors, 4:1 Multiplexers, Decoders, JK Flip-Flops, and 4-Bit Binary Ripple Counters with interactive breadboard & 3D IC package model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 3rd Semester (CST/3/303)</span>
+  </nav>
+
+  <header>
+    <h1>Digital Logic Design Virtual Lab</h1>
+    <p class="subtitle">Adders, Multiplexers (MUX), Decoders, JK/D Flip-Flops &amp; 4-Bit Synchronous/Asynchronous Counters</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Logic Truth Tables</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IC Datasheets</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">Breadboard &amp; 74xx TTL IC Chips</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of solderless breadboard substrate, Dual In-Line Package (DIP-14/16) TTL logic chips (IC 7408, 7486, 74151, 7476), LED status monitors, and jumper routing.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="dld-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Circuit Experiment:</label>
+        <select id="circuit-select" class="dld-select">
+          <option value="full_adder">1. 1-Bit Full Adder (IC 7486 + IC 7408 + IC 7432)</option>
+          <option value="half_adder">2. Half Adder (XOR + AND)</option>
+          <option value="mux_4to1">3. 4-to-1 Multiplexer (IC 74151 / 74153)</option>
+          <option value="decoder_2to4">4. 2-to-4 Line Decoder (IC 74139)</option>
+          <option value="jk_flip_flop">5. Master-Slave JK Flip-Flop (IC 7476)</option>
+          <option value="counter_4bit">6. 4-Bit Binary Ripple Counter (IC 7490)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group" id="switches-group">
+        <span class="ctrl-label">Inputs:</span>
+        <button class="btn-toggle" id="sw-a" data-state="1">A: 1</button>
+        <button class="btn-toggle" id="sw-b" data-state="1">B: 1</button>
+        <button class="btn-toggle" id="sw-cin" data-state="0">Cin / Sel: 0</button>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-clk">Pulse Clock &#9654;</button>
+        <button class="btn-action warning" id="btn-reset">Reset</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Logic Results -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Live Logic Gate Schematic &amp; Signal State</span>
+          <span class="badge" id="ic-badge">IC 7486 + IC 7408</span>
+        </div>
+        <canvas id="dld-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Active Output Pins &amp; Truth Table Row</span>
+        </div>
+        <div class="out-grid">
+          <div class="out-box">
+            <span class="out-lbl" id="out-lbl1">Sum Output (S)</span>
+            <div class="led-indicator active" id="led-1"></div>
+            <span class="out-val" id="out-val1">HIGH (1)</span>
+          </div>
+          <div class="out-box">
+            <span class="out-lbl" id="out-lbl2">Carry Output (Cout)</span>
+            <div class="led-indicator active" id="led-2"></div>
+            <span class="out-val" id="out-val2">HIGH (1)</span>
+          </div>
+        </div>
+
+        <div class="expr-box">
+          <div class="expr-title">Boolean Expression:</div>
+          <div class="expr-code" id="bool-expr">Sum = A &#8853; B &#8853; Cin | Cout = AB + BCin + ACin</div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Logic Telemetry Log:</div>
+          <div class="console-log" id="dld-log">
+            &gt; Circuit: 1-Bit Binary Full Adder.<br>
+            &gt; Active Inputs: A=1, B=1, Cin=0.<br>
+            &gt; Evaluated: Sum = 1 &#8853; 1 &#8853; 0 = 0, Carry = (1&#183;1) + (1&#183;0) + (1&#183;0) = 1.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/3/303 Digital Logic Design Lab</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Combinational Arithmetic Circuits</h3>
+          <p><strong>Half Adder:</strong> Computes sum of two single-bit inputs. $S = A \oplus B$, $C = A \cdot B$.<br><strong>Full Adder:</strong> Adds three 1-bit binary inputs including previous carry: $S = A \oplus B \oplus C_{in}$, $C_{out} = AB + BC_{in} + AC_{in}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Data Routing: Multiplexers (MUX)</h3>
+          <p>Selects binary information from one of $2^n$ input data lines and directs it to a single output line based on $n$ select lines. Widely used for parallel-to-serial conversion and boolean function implementation.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Sequential Circuits: Flip-Flops</h3>
+          <p><strong>JK Flip-Flop:</strong> Eliminates the invalid state of the SR flip-flop. Characteristic equation: $Q_{next} = J\overline{Q} + \overline{K}Q$. When $J=K=1$, the output toggles on every clock edge.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Binary Counters &amp; Shift Registers</h3>
+          <p>Asynchronous (Ripple) and Synchronous counters built using cascaded T or JK flip-flops. A 4-bit counter counts through 16 states ($0000_2$ to $1111_2$, MOD-16).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('dld-canvas');
+const ctx = canvas.getContext('2d');
+let inA = 1, inB = 1, inCin = 0, clkCount = 0;
+let circuit = 'full_adder';
+
+function drawDLD() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0e1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (circuit === 'full_adder' || circuit === 'half_adder') {
+    // Draw XOR Gate
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 3;
+    ctx.fillStyle = '#0f2744';
+    ctx.beginPath();
+    ctx.arc(280, 140, 50, -Math.PI/2, Math.PI/2);
+    ctx.lineTo(240, 190);
+    ctx.arc(220, 140, 50, Math.PI/2, -Math.PI/2, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#80d8ff';
+    ctx.font = 'bold 15px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('XOR', 260, 145);
+
+    // Draw AND Gate
+    ctx.strokeStyle = '#00e676';
+    ctx.fillStyle = '#0f3824';
+    ctx.beginPath();
+    ctx.arc(280, 290, 45, -Math.PI/2, Math.PI/2);
+    ctx.lineTo(230, 335);
+    ctx.lineTo(230, 245);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#b9f6ca';
+    ctx.fillText('AND', 260, 295);
+
+    // Input wires
+    ctx.strokeStyle = inA ? '#00e676' : '#546e7a';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(60, 120); ctx.lineTo(230, 120); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillText(`A = ${inA}`, 40, 125);
+
+    ctx.strokeStyle = inB ? '#00e676' : '#546e7a';
+    ctx.beginPath(); ctx.moveTo(60, 160); ctx.lineTo(230, 160); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillText(`B = ${inB}`, 40, 165);
+
+    // Output wires
+    const sum = inA ^ inB ^ inCin;
+    const cout = (inA & inB) | (inB & inCin) | (inA & inCin);
+
+    ctx.strokeStyle = sum ? '#ff5252' : '#546e7a';
+    ctx.beginPath(); ctx.moveTo(330, 140); ctx.lineTo(550, 140); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillText(`SUM = ${sum}`, 600, 145);
+
+    ctx.strokeStyle = cout ? '#ff5252' : '#546e7a';
+    ctx.beginPath(); ctx.moveTo(325, 290); ctx.lineTo(550, 290); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillText(`CARRY = ${cout}`, 610, 295);
+  } else {
+    // Mux / Sequential
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(220, 80); ctx.lineTo(440, 130); ctx.lineTo(440, 290); ctx.lineTo(220, 340);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 16px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(circuit === 'mux_4to1' ? '4:1 MUX (IC 74151)' : 'JK FLIP-FLOP (IC 7476)', 330, 215);
+  }
+}
+
+// Switches
+const swA = document.getElementById('sw-a');
+const swB = document.getElementById('sw-b');
+const swCin = document.getElementById('sw-cin');
+const cSelect = document.getElementById('circuit-select');
+const logEl = document.getElementById('dld-log');
+
+function updateCircuit() {
+  circuit = cSelect.value;
+  const sum = inA ^ inB ^ inCin;
+  const cout = (inA & inB) | (inB & inCin) | (inA & inCin);
+
+  document.getElementById('out-val1').textContent = sum ? 'HIGH (1)' : 'LOW (0)';
+  document.getElementById('out-val2').textContent = cout ? 'HIGH (1)' : 'LOW (0)';
+  document.getElementById('led-1').className = 'led-indicator ' + (sum ? 'active' : '');
+  document.getElementById('led-2').className = 'led-indicator ' + (cout ? 'active' : '');
+
+  logEl.innerHTML += `<br>&gt; Evaluated ${circuit}: A=${inA}, B=${inB} => Output1=${sum}, Output2=${cout}.`;
+  drawDLD();
+}
+
+swA.addEventListener('click', () => { inA = 1 - inA; swA.textContent = `A: ${inA}`; swA.className = inA ? 'btn-toggle active' : 'btn-toggle'; updateCircuit(); });
+swB.addEventListener('click', () => { inB = 1 - inB; swB.textContent = `B: ${inB}`; swB.className = inB ? 'btn-toggle active' : 'btn-toggle'; updateCircuit(); });
+swCin.addEventListener('click', () => { inCin = 1 - inCin; swCin.textContent = `Cin: ${inCin}`; swCin.className = inCin ? 'btn-toggle active' : 'btn-toggle'; updateCircuit(); });
+cSelect.addEventListener('change', updateCircuit);
+
+document.getElementById('btn-clk').addEventListener('click', () => {
+  clkCount = (clkCount + 1) % 16;
+  logEl.innerHTML += `<br>&gt; Clock Edge Triggered! State transition: Pulse #${clkCount}.`;
+  drawDLD();
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  inA = 0; inB = 0; inCin = 0; clkCount = 0;
+  swA.textContent = 'A: 0'; swB.textContent = 'B: 0'; swCin.textContent = 'Cin: 0';
+  swA.className = 'btn-toggle'; swB.className = 'btn-toggle'; swCin.className = 'btn-toggle';
+  logEl.innerHTML = '&gt; Reset circuit inputs to 0.';
+  updateCircuit();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/digital_logic_design.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+updateCircuit();
+</script>
+</body>
+</html>
