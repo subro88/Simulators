@@ -505,7 +505,7 @@
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 5. UNIFIED DYNAMIC CANVAS RENDERER
+  // 5. UNIFIED DYNAMIC CANVAS RENDERER (High-Fidelity 2.5D Skeuomorphic Hardware)
   // ════════════════════════════════════════════════════════════════════════════
   class UnifiedCanvasRenderer {
     constructor(canvas, netEngine, subnetEngine, osiEngine) {
@@ -519,74 +519,133 @@
       this.zoom = 1.0;
       this.panX = 0;
       this.panY = 0;
-      this.isDragging = false;
-      this.dragStartX = 0;
-      this.dragStartY = 0;
+      this.isPanning = false;
+      this.panStartX = 0;
+      this.panStartY = 0;
       this.showGrid = true;
 
-      // Dragging nodes in Module 3
+      // Interaction
       this.draggedNode = null;
+      this.hoveredNode = null;
+      this.hoveredLink = null;
+      this.mouseCanvasX = 0;
+      this.mouseCanvasY = 0;
 
+      // Animation parameters
+      this.animTime = 0;
+      this.fanAngle = 0;
+      this.activeCallout = 'Topology Ready • Send Ping (PC1 → PC2) or Drag Nodes to reconfigure.';
+
+      this.cachedBitBoxes = [];
       this.initEvents();
     }
 
     initEvents() {
-      this.canvas.addEventListener('mousedown', (e) => {
+      // Mouse Move
+      this.canvas.addEventListener('mousemove', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const mx = (e.clientX - rect.left - this.panX) / this.zoom;
-        const my = (e.clientY - rect.top - this.panY) / this.zoom;
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        const mx = (clientX - this.panX) / this.zoom;
+        const my = (clientY - this.panY) / this.zoom;
+        this.mouseCanvasX = clientX;
+        this.mouseCanvasY = clientY;
+
+        if (this.isPanning) {
+          this.panX = clientX - this.panStartX;
+          this.panY = clientY - this.panStartY;
+          this.canvas.style.cursor = 'grabbing';
+          return;
+        }
 
         if (this.activeModule === 'topology') {
-          // Check if clicked scissors on a link
+          if (this.draggedNode) {
+            this.draggedNode.x = Math.round(mx);
+            this.draggedNode.y = Math.round(my);
+            this.canvas.style.cursor = 'grabbing';
+            return;
+          }
+
+          // Check node hover (radius 48px)
+          const foundNode = this.netEngine.nodes.find(n => Math.hypot(n.x - mx, n.y - my) < 48);
+          this.hoveredNode = foundNode || null;
+
+          // Check link hover
+          const foundLink = this.findLinkAt(mx, my);
+          this.hoveredLink = foundLink || null;
+
+          if (this.hoveredNode || this.hoveredLink) {
+            this.canvas.style.cursor = 'pointer';
+          } else {
+            this.canvas.style.cursor = 'grab';
+          }
+        } else {
+          this.canvas.style.cursor = 'default';
+        }
+      });
+
+      // Mouse Down
+      this.canvas.addEventListener('mousedown', (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        const mx = (clientX - this.panX) / this.zoom;
+        const my = (clientY - this.panY) / this.zoom;
+
+        if (this.activeModule === 'topology') {
+          // If cut tool active, sever/restore clicked link
           if (this.netEngine.cutToolActive) {
             const hitLink = this.findLinkAt(mx, my);
             if (hitLink) {
               hitLink.severed = !hitLink.severed;
               sound.playCutSnap();
-              this.render();
+              this.activeCallout = hitLink.severed ?
+                `⚠️ Cable Severed between ${hitLink.from} and ${hitLink.to} (Dynamic Routing rerouting...)` :
+                `✅ Cable Restored between ${hitLink.from} and ${hitLink.to} (Convergence in progress)`;
+              syncUI();
               return;
             }
           }
 
-          // Check if clicked a node to drag
-          const hitNode = this.netEngine.nodes.find(n => Math.hypot(n.x - mx, n.y - my) < 25);
+          // Check if clicked a node
+          const hitNode = this.netEngine.nodes.find(n => Math.hypot(n.x - mx, n.y - my) < 48);
           if (hitNode) {
             this.draggedNode = hitNode;
             this.netEngine.selectedNodeId = hitNode.id;
             sound.playClick();
-            syncUI();
+            const nodeSel = document.getElementById('table-node-select');
+            if (nodeSel) nodeSel.value = hitNode.id;
+            updateRoutingAndMacTables();
+            this.activeCallout = `Selected ${hitNode.id} (${hitNode.type}): IP ${hitNode.ip}, MAC ${hitNode.mac}`;
             return;
           }
-        } else if (this.activeModule === 'subnetting') {
-          // Check if clicked an interactive 32-bit bit box
-          this.checkBitClick(mx, my);
         }
 
-        this.isDragging = true;
-        this.dragStartX = e.clientX - this.panX;
-        this.dragStartY = e.clientY - this.panY;
+        // Otherwise initiate pan
+        this.isPanning = true;
+        this.panStartX = clientX - this.panX;
+        this.panStartY = clientY - this.panY;
+        this.canvas.style.cursor = 'grabbing';
       });
 
-      window.addEventListener('mousemove', (e) => {
-        if (this.draggedNode) {
-          const rect = this.canvas.getBoundingClientRect();
-          this.draggedNode.x = (e.clientX - rect.left - this.panX) / this.zoom;
-          this.draggedNode.y = (e.clientY - rect.top - this.panY) / this.zoom;
-          this.render();
-          return;
-        }
-
-        if (!this.isDragging) return;
-        this.panX = e.clientX - this.dragStartX;
-        this.panY = e.clientY - this.dragStartY;
-        this.render();
-      });
-
+      // Mouse Up & Leave
       window.addEventListener('mouseup', () => {
-        this.isDragging = false;
-        this.draggedNode = null;
+        if (this.isPanning) {
+          this.isPanning = false;
+          this.canvas.style.cursor = 'grab';
+        }
+        if (this.draggedNode) {
+          this.draggedNode = null;
+          this.canvas.style.cursor = 'grab';
+        }
       });
 
+      this.canvas.addEventListener('mouseleave', () => {
+        this.hoveredNode = null;
+        this.hoveredLink = null;
+      });
+
+      // Mouse Wheel Zoom centered under mouse
       this.canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const rect = this.canvas.getBoundingClientRect();
@@ -594,129 +653,86 @@
         const mouseY = e.clientY - rect.top;
 
         const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-        const newZoom = Math.min(Math.max(this.zoom * zoomFactor, 0.4), 3.0);
+        const newZoom = Math.max(0.4, Math.min(3.0, this.zoom * zoomFactor));
 
         this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
         this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
         this.zoom = newZoom;
 
-        const zoomEl = document.getElementById('hud-zoom-level');
-        if (zoomEl) zoomEl.textContent = `${Math.round(this.zoom * 100)}%`;
-        this.render();
-      });
+        const zoomBadge = document.getElementById('hud-zoom-level');
+        if (zoomBadge) zoomBadge.textContent = `${Math.round(this.zoom * 100)}%`;
+      }, { passive: false });
 
-      window.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        if (e.key === '+' || e.key === '=') this.zoomIn();
-        if (e.key === '-' || e.key === '_') this.zoomOut();
-        if (e.key === '0') this.resetZoom();
-        if (e.key.toLowerCase() === 'g') this.toggleGrid();
-        if (e.key.toLowerCase() === 'f') toggleFullscreen();
-      });
-    }
+      // Click on Subnetting bits in Module 1
+      this.canvas.addEventListener('click', (e) => {
+        if (this.activeModule !== 'subnetting') return;
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left - this.panX) / this.zoom;
+        const my = (e.clientY - rect.top - this.panY) / this.zoom;
 
-    zoomIn() {
-      this.zoom = Math.min(this.zoom * 1.2, 3.0);
-      document.getElementById('hud-zoom-level').textContent = `${Math.round(this.zoom * 100)}%`;
-      this.render();
-    }
-    zoomOut() {
-      this.zoom = Math.max(this.zoom * 0.8, 0.4);
-      document.getElementById('hud-zoom-level').textContent = `${Math.round(this.zoom * 100)}%`;
-      this.render();
-    }
-    resetZoom() {
-      this.zoom = 1.0;
-      this.panX = 0;
-      this.panY = 0;
-      document.getElementById('hud-zoom-level').textContent = '100%';
-      this.render();
-    }
-    fitView() {
-      this.zoom = 0.95;
-      this.panX = 20;
-      this.panY = 20;
-      document.getElementById('hud-zoom-level').textContent = `${Math.round(this.zoom * 100)}%`;
-      this.render();
-    }
-    toggleGrid() {
-      this.showGrid = !this.showGrid;
-      this.render();
+        if (this.cachedBitBoxes) {
+          const hit = this.cachedBitBoxes.find(b => mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h);
+          if (hit) {
+            sound.playClick();
+            this.subnetEngine.toggleBit(hit.bitIndex);
+            const ipIn = document.getElementById('ip-input');
+            if (ipIn) ipIn.value = this.subnetEngine.ipStr;
+            syncUI();
+          }
+        }
+      });
     }
 
     findLinkAt(x, y) {
-      for (const link of this.netEngine.links) {
+      return this.netEngine.links.find(link => {
         const fromNode = this.netEngine.nodes.find(n => n.id === link.from);
         const toNode = this.netEngine.nodes.find(n => n.id === link.to);
-        if (!fromNode || !toNode) continue;
+        if (!fromNode || !toNode) return false;
 
-        // Line segment distance
-        const dist = this.distToSegment({ x, y }, fromNode, toNode);
-        if (dist < 12) return link;
-      }
-      return null;
+        const dx = toNode.x - fromNode.x;
+        const dy = toNode.y - fromNode.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return false;
+
+        const t = Math.max(0, Math.min(1, ((x - fromNode.x) * dx + (y - fromNode.y) * dy) / lenSq));
+        const projX = fromNode.x + t * dx;
+        const projY = fromNode.y + t * dy;
+        return Math.hypot(x - projX, y - projY) < 16;
+      });
     }
 
-    distToSegment(p, v, w) {
-      const l2 = Math.hypot(v.x - w.x, v.y - w.y) ** 2;
-      if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-      let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-      t = Math.max(0, Math.min(1, t));
-      return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-    }
-
-    checkBitClick(mx, my) {
-      const bitBoxes = this.cachedBitBoxes || [];
-      for (const box of bitBoxes) {
-        if (mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
-          // Toggle bit in IP
-          const bitPos = 31 - box.bitIndex;
-          const currentIp = this.subnetEngine.ipToInt(this.subnetEngine.ipStr);
-          const newIp = (currentIp ^ (1 << bitPos)) >>> 0;
-          this.subnetEngine.ipStr = this.subnetEngine.intToIp(newIp);
-          sound.playClick();
-          document.getElementById('ip-input').value = this.subnetEngine.ipStr;
-          syncUI();
-          break;
-        }
-      }
-    }
-
+    // ── Main Render Pass ──────────────────────────────────────────────────
     render() {
       const w = this.canvas.width;
       const h = this.canvas.height;
       const ctx = this.ctx;
 
-      ctx.save();
-      ctx.clearRect(0, 0, w, h);
+      this.animTime = performance.now();
+      this.fanAngle = (this.animTime * 0.007) % (Math.PI * 2);
 
-      // Deep Obsidian Base
+      // Deep Space Engineering Background
       ctx.fillStyle = '#020712';
       ctx.fillRect(0, 0, w, h);
 
-      // Pan & Zoom
-      ctx.translate(this.panX, this.panY);
-      ctx.scale(this.zoom, this.zoom);
-
-      // Subtle Dot Matrix Grid (40px spacing at 12% opacity)
+      // Subtle Dot-Matrix Grid
       if (this.showGrid) {
-        const dotSpacing = 40;
-        const startX = Math.floor((-this.panX / this.zoom) / dotSpacing) * dotSpacing;
-        const startY = Math.floor((-this.panY / this.zoom) / dotSpacing) * dotSpacing;
-        const endX = startX + (w / this.zoom) + dotSpacing;
-        const endY = startY + (h / this.zoom) + dotSpacing;
-
         ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
-        for (let x = startX; x < endX; x += dotSpacing) {
-          for (let y = startY; y < endY; y += dotSpacing) {
+        const step = 32 * this.zoom;
+        const offsetX = (this.panX % step + step) % step;
+        const offsetY = (this.panY % step + step) % step;
+        for (let x = offsetX; x < w; x += step) {
+          for (let y = offsetY; y < h; y += step) {
             ctx.beginPath();
-            ctx.arc(x, y, 1.1, 0, Math.PI * 2);
+            ctx.arc(x, y, 1.0, 0, Math.PI * 2);
             ctx.fill();
           }
         }
       }
 
-      // Render Active Module Mode
+      ctx.save();
+      ctx.translate(this.panX, this.panY);
+      ctx.scale(this.zoom, this.zoom);
+
       if (this.activeModule === 'subnetting') {
         this.renderSubnettingCanvas(ctx, w, h);
       } else if (this.activeModule === 'osi') {
@@ -726,9 +742,17 @@
       }
 
       ctx.restore();
+
+      // Overlays (Non-scaled HUD elements)
+      if (this.activeModule === 'topology') {
+        this.drawPedagogicalCallout(ctx, w, h);
+        if (this.hoveredNode) {
+          this.drawNodeHoverTelemetry(ctx, this.hoveredNode);
+        }
+      }
     }
 
-    // ── Module 1 Canvas: 32-Bit CIDR & VLSM Visualizer ─────────────────────
+    // ── Module 1 Canvas: High-End 32-Bit CIDR & VLSM Visualizer ─────────────
     renderSubnettingCanvas(ctx, w, h) {
       const calc = this.subnetEngine.calculate(this.subnetEngine.ipStr, this.subnetEngine.prefix);
       this.cachedBitBoxes = [];
@@ -737,11 +761,11 @@
       ctx.strokeStyle = '#162238';
       ctx.lineWidth = 1.5;
       ctx.fillStyle = '#060d1c';
-      ctx.roundRect(40, 25, 800, 460, 10);
+      ctx.roundRect(40, 25, 800, 465, 10);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 12px JetBrains Mono';
       ctx.fillText('32-BIT BINARY IPV4 ADDRESS & CIDR PREFIX MASK MATRIX', 55, 50);
 
@@ -750,7 +774,7 @@
       const boxW = 20;
       const boxH = 34;
       const startX = 60;
-      const startY = 80;
+      const startY = 82;
 
       const ipInt = calc.ipInt;
       const p = calc.prefix;
@@ -761,11 +785,11 @@
 
         // Octet Decimal Header
         ctx.fillStyle = '#0f1b33';
-        ctx.roundRect(octetX, startY - 20, 168, 16, 4);
+        ctx.roundRect(octetX, startY - 22, 168, 18, 4);
         ctx.fill();
         ctx.fillStyle = '#38bdf8';
         ctx.font = 'bold 10px JetBrains Mono';
-        ctx.fillText(`Octet ${o + 1}: ${octetVal} (0x${octetVal.toString(16).toUpperCase().padStart(2, '0')})`, octetX + 12, startY - 8);
+        ctx.fillText(`Octet ${o + 1}: ${octetVal} (0x${octetVal.toString(16).toUpperCase().padStart(2, '0')})`, octetX + 10, startY - 9);
 
         for (let b = 0; b < 8; b++) {
           const bitIdx = o * 8 + b;
@@ -776,7 +800,7 @@
           // Color Scheme: Net bits (Blue/Cyan), Host bits (Emerald)
           ctx.fillStyle = isNetBit ? '#0f2445' : '#063829';
           ctx.strokeStyle = isNetBit ? '#2563eb' : '#059669';
-          ctx.lineWidth = 1;
+          ctx.lineWidth = 1.2;
           ctx.roundRect(bitX, startY, boxW, boxH, 4);
           ctx.fill();
           ctx.stroke();
@@ -788,7 +812,7 @@
           ctx.fillText(bitVal.toString(), bitX + boxW / 2, startY + 22);
 
           // Bit Index
-          ctx.fillStyle = '#475569';
+          ctx.fillStyle = '#64748b';
           ctx.font = '8px JetBrains Mono';
           ctx.fillText((31 - bitIdx).toString(), bitX + boxW / 2, startY + 44);
 
@@ -805,24 +829,24 @@
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.moveTo(markerX, startY - 22);
-        ctx.lineTo(markerX, startY + boxH + 10);
+        ctx.moveTo(markerX, startY - 24);
+        ctx.lineTo(markerX, startY + boxH + 12);
         ctx.stroke();
 
         ctx.fillStyle = '#f59e0b';
         ctx.font = 'bold 10px JetBrains Mono';
-        ctx.fillText(`/${p} DIVIDER`, markerX - 30, startY + boxH + 24);
+        ctx.fillText(`/${p} DIVIDER`, markerX - 30, startY + boxH + 26);
       }
 
       // Legend
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = '#94a3b8';
       ctx.font = '10px JetBrains Mono';
-      ctx.fillText('Legend: [ Blue = Network Bits (/p) ]  [ Green = Interactive Toggleable Host Bits ]', startX, startY + 80);
+      ctx.fillText('Legend: [ Blue = Network Bits (/p) ]  [ Green = Interactive Toggleable Host Bits ]', startX, startY + 84);
 
-      // VLSM Memory Map Allocation Bar (Horizontal proportional representation)
-      const vlsmY = startY + 110;
+      // VLSM Memory Map Allocation Bar
+      const vlsmY = startY + 116;
       ctx.fillStyle = '#0f1a30';
-      ctx.roundRect(startX, vlsmY, 760, 24, 4);
+      ctx.roundRect(startX, vlsmY, 760, 26, 4);
       ctx.fill();
       ctx.strokeStyle = '#1e2d4d';
       ctx.stroke();
@@ -836,42 +860,74 @@
       const palette = ['#2563eb', '#10b981', '#f59e0b', '#c084fc', '#06b6d4'];
 
       vlsmRes.allocations.forEach((alloc, idx) => {
-        const segW = Math.max(30, alloc.sizeRatio * 760);
+        const segW = Math.max(35, alloc.sizeRatio * 760);
         ctx.fillStyle = palette[idx % palette.length];
-        ctx.globalAlpha = 0.35;
-        ctx.fillRect(curBarX, vlsmY, segW, 24);
+        ctx.globalAlpha = 0.45;
+        ctx.fillRect(curBarX, vlsmY, segW, 26);
         ctx.globalAlpha = 1.0;
 
         ctx.strokeStyle = palette[idx % palette.length];
-        ctx.strokeRect(curBarX, vlsmY, segW, 24);
+        ctx.strokeRect(curBarX, vlsmY, segW, 26);
 
         ctx.fillStyle = '#f1f5f9';
         ctx.font = 'bold 9px JetBrains Mono';
-        ctx.fillText(`${alloc.name} (/${alloc.prefix})`, curBarX + 6, vlsmY + 16);
+        ctx.fillText(`${alloc.name} (/${alloc.prefix})`, curBarX + 6, vlsmY + 17);
 
         curBarX += segW;
       });
 
-      // Free Space if any
+      // Free space
       if (curBarX < startX + 760) {
         ctx.fillStyle = '#1e293b';
-        ctx.fillRect(curBarX, vlsmY, startX + 760 - curBarX, 24);
+        ctx.fillRect(curBarX, vlsmY, startX + 760 - curBarX, 26);
         ctx.fillStyle = '#64748b';
         ctx.font = '9px JetBrains Mono';
-        ctx.fillText('Unallocated Free Space', curBarX + 8, vlsmY + 16);
+        ctx.fillText('Unallocated Host Pool', curBarX + 10, vlsmY + 17);
       }
+
+      // Bitwise AND Diagnostic Card
+      const diagY = vlsmY + 54;
+      ctx.fillStyle = '#081226';
+      ctx.strokeStyle = '#1d325c';
+      ctx.roundRect(startX, diagY, 760, 160, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 11px JetBrains Mono';
+      ctx.fillText('BITWISE AND COMPUTATION DEMONSTRATOR:', startX + 16, diagY + 24);
+
+      ctx.fillStyle = '#cdd7ee';
+      ctx.font = '11px JetBrains Mono';
+      ctx.fillText(`IP Address (A):   ${calc.ipStr.padEnd(16)} = ${calc.ipBin.match(/.{1,8}/g).join('.')}`, startX + 16, diagY + 52);
+      ctx.fillText(`Subnet Mask (M):  ${calc.maskStr.padEnd(16)} = ${calc.maskBin.match(/.{1,8}/g).join('.')}`, startX + 16, diagY + 74);
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.moveTo(startX + 16, diagY + 86);
+      ctx.lineTo(startX + 740, diagY + 86);
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 11px JetBrains Mono';
+      ctx.fillText(`Network ID (N):   ${calc.networkStr.padEnd(16)} = ${calc.netBin.match(/.{1,8}/g).join('.')}   (Bitwise A & M)`, startX + 16, diagY + 106);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText(`Broadcast (B):    ${calc.broadcastStr.padEnd(16)} = (Network ID | Wildcard Mask ~M)`, startX + 16, diagY + 128);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText(`Usable Host IP Range: ${calc.firstHostStr} — ${calc.lastHostStr} (${calc.usableHosts.toLocaleString()} valid hosts)`, startX + 16, diagY + 148);
     }
 
-    // ── Module 2 Canvas: OSI 7-Layer Dual Tower with Header Snapping ─────────
+    // ── Module 2 Canvas: High-End OSI 7-Layer Visual Pipeline ──────────────
     renderOsiTowerCanvas(ctx, w, h) {
       ctx.strokeStyle = '#162238';
       ctx.lineWidth = 1.5;
       ctx.fillStyle = '#060d1c';
-      ctx.roundRect(40, 25, 800, 460, 10);
+      ctx.roundRect(40, 25, 800, 465, 10);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 12px JetBrains Mono';
       ctx.fillText('OSI 7-LAYER PROTOCOL ENCAPSULATION & DECAPSULATION PIPELINE', 55, 50);
 
@@ -879,22 +935,23 @@
         { num: 7, name: 'Application', pdu: 'Data', color: '#38bdf8' },
         { num: 6, name: 'Presentation', pdu: 'Data', color: '#60a5fa' },
         { num: 5, name: 'Session', pdu: 'Data', color: '#818cf8' },
-        { num: 4, name: 'Transport', pdu: 'Segment (TCP/UDP)', color: '#a78bfa' },
+        { num: 4, name: 'Transport', pdu: 'Segment (TCP)', color: '#a78bfa' },
         { num: 3, name: 'Network', pdu: 'Packet (IPv4)', color: '#f43f5e' },
         { num: 2, name: 'Data Link', pdu: 'Frame (Ethernet II)', color: '#f59e0b' },
         { num: 1, name: 'Physical', pdu: 'Bits (Signals)', color: '#10b981' }
       ];
 
-      // Sender Tower (Left)
-      ctx.fillStyle = '#94a3b8';
+      // Sender Host (Workstation PC)
+      ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 11px JetBrains Mono';
-      ctx.fillText('TRANSMITTER HOST (Encapsulation)', 100, 80);
+      ctx.fillText('💻 TRANSMITTER HOST A (Encapsulation)', 80, 80);
 
-      // Receiver Tower (Right)
-      ctx.fillText('RECEIVER HOST (Decapsulation)', 550, 80);
+      // Receiver Host (Server Rack)
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('🖥️ RECEIVER SERVER B (Decapsulation)', 540, 80);
 
-      const towerY = 95;
-      const rowH = 40;
+      const towerY = 96;
+      const rowH = 38;
 
       layers.forEach((l, idx) => {
         const y = towerY + idx * (rowH + 6);
@@ -902,193 +959,672 @@
         const isActiveReceiver = (this.osiEngine.currentLayer === l.num && this.osiEngine.direction === 'UP');
 
         // Sender Layer Block
-        ctx.fillStyle = isActiveSender ? 'rgba(56, 189, 248, 0.25)' : '#0a1426';
+        ctx.fillStyle = isActiveSender ? 'rgba(56, 189, 248, 0.28)' : '#0a1426';
         ctx.strokeStyle = isActiveSender ? '#38bdf8' : '#1c2844';
         ctx.lineWidth = isActiveSender ? 2 : 1;
-        ctx.roundRect(100, y, 240, rowH, 6);
+        ctx.roundRect(80, y, 230, rowH, 6);
         ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = l.color;
         ctx.font = 'bold 11px JetBrains Mono';
-        ctx.fillText(`L${l.num} ${l.name}`, 112, y + 18);
+        ctx.fillText(`L${l.num} ${l.name}`, 92, y + 17);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '9px JetBrains Mono';
-        ctx.fillText(`PDU: ${l.pdu}`, 112, y + 32);
+        ctx.fillText(`PDU: ${l.pdu}`, 92, y + 30);
 
         // Receiver Layer Block
-        ctx.fillStyle = isActiveReceiver ? 'rgba(16, 185, 129, 0.25)' : '#0a1426';
+        ctx.fillStyle = isActiveReceiver ? 'rgba(16, 185, 129, 0.28)' : '#0a1426';
         ctx.strokeStyle = isActiveReceiver ? '#10b981' : '#1c2844';
         ctx.lineWidth = isActiveReceiver ? 2 : 1;
-        ctx.roundRect(540, y, 240, rowH, 6);
+        ctx.roundRect(540, y, 230, rowH, 6);
         ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = l.color;
         ctx.font = 'bold 11px JetBrains Mono';
-        ctx.fillText(`L${l.num} ${l.name}`, 552, y + 18);
+        ctx.fillText(`L${l.num} ${l.name}`, 552, y + 17);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '9px JetBrains Mono';
-        ctx.fillText(`PDU: ${l.pdu}`, 552, y + 32);
+        ctx.fillText(`PDU: ${l.pdu}`, 552, y + 30);
       });
 
       // Physical Transmission Wire (Connecting L1 to L1)
-      const wireY = towerY + 6 * (rowH + 6) + 20;
+      const wireY = towerY + 6 * (rowH + 6) + 19;
       ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(340, wireY);
+      ctx.moveTo(310, wireY);
       ctx.lineTo(540, wireY);
       ctx.stroke();
-      ctx.setLineDash([]);
+
+      // Oscilloscopic Square Wave line coding across wire
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const waveStartX = 320;
+      const waveEndX = 530;
+      const waveY = wireY - 12;
+      const t = (this.animTime * 0.005) % 1;
+      for (let x = waveStartX; x < waveEndX; x += 16) {
+        const bit = Math.floor((x - waveStartX) / 16 + t * 4) % 2;
+        const yOff = bit ? -6 : 6;
+        ctx.lineTo(x, waveY + yOff);
+        ctx.lineTo(x + 16, waveY + yOff);
+      }
+      ctx.stroke();
 
       ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText('1000BASE-T Cat6 Copper Medium (Manchester / NRZ-I Line Coding)', 340, wireY - 8);
+      ctx.font = 'bold 9px JetBrains Mono';
+      ctx.fillText('1000BASE-T Cat6 Medium (NRZ-I Line Coding)', 320, wireY - 24);
 
-      // Central Header Snapping Envelope
-      ctx.fillStyle = '#0f1c36';
+      // Central Header Clamping & PDU Capsule
+      ctx.fillStyle = '#0c172d';
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 1.5;
-      ctx.roundRect(360, towerY + 50, 160, 140, 8);
+      ctx.roundRect(330, towerY + 30, 190, 170, 8);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText('ACTIVE PACKET FRAME', 370, towerY + 70);
+      ctx.fillText('ACTIVE PACKET FRAME PDU', 342, towerY + 50);
 
       // Header slices inside frame
-      const headers = ['[ETH] 14B', '[IP] 20B', '[TCP] 20B', '[DATA] 1200B', '[FCS] 4B'];
-      const sliceColors = ['#f59e0b', '#f43f5e', '#a78bfa', '#38bdf8', '#10b981'];
-      headers.forEach((hName, idx) => {
-        ctx.fillStyle = sliceColors[idx];
-        ctx.fillRect(370, towerY + 80 + idx * 20, 140, 16);
+      const headers = [
+        { tag: '[ETH II] 14B MACs', col: '#f59e0b' },
+        { tag: '[IPv4] 20B Header', col: '#f43f5e' },
+        { tag: '[TCP] 20B Ports', col: '#a78bfa' },
+        { tag: '[DATA] "GET /index.html"', col: '#38bdf8' },
+        { tag: '[FCS] 4B CRC-32', col: '#10b981' }
+      ];
+      headers.forEach((hObj, idx) => {
+        ctx.fillStyle = hObj.col;
+        ctx.fillRect(342, towerY + 62 + idx * 21, 166, 17);
         ctx.fillStyle = '#020712';
         ctx.font = 'bold 9px JetBrains Mono';
-        ctx.fillText(hName, 376, towerY + 92 + idx * 20);
+        ctx.fillText(hObj.tag, 348, towerY + 74 + idx * 21);
       });
     }
 
-    // ── Module 3 Canvas: Drag-and-Drop Topology & Dynamic Routing ──────────
+    // ── Module 3 Canvas: High-Fidelity 2.5D Skeuomorphic Topology ───────────
     renderTopologyCanvas(ctx, w, h) {
-      // 1. Draw Links
+      // 1. Draw Cables (Natural Catenary Curve with Molded RJ45 Boots)
       this.netEngine.links.forEach(link => {
         const fromNode = this.netEngine.nodes.find(n => n.id === link.from);
         const toNode = this.netEngine.nodes.find(n => n.id === link.to);
         if (!fromNode || !toNode) return;
 
-        ctx.lineWidth = 2;
-        if (link.severed) {
-          ctx.strokeStyle = '#ef4444';
-          ctx.setLineDash([4, 4]);
-        } else {
-          ctx.strokeStyle = (link.speed === '1G') ? '#38bdf8' : (link.speed === '100M' ? '#10b981' : '#f59e0b');
-          ctx.setLineDash([]);
-        }
+        this.drawRealisticCable(ctx, link, fromNode, toNode);
+      });
 
+      // 2. Draw Flying Energy Packets with Glowing Trails & Protocol Badges
+      this.drawRealisticPackets(ctx, this.netEngine.packets);
+
+      // 3. Draw Nodes as High-End Realistic Hardware Units
+      this.netEngine.nodes.forEach(node => {
+        const isSelected = (node.id === this.netEngine.selectedNodeId);
+        const isHovered = (this.hoveredNode && this.hoveredNode.id === node.id);
+
+        if (node.type === 'PC') {
+          this.drawRealisticPC(ctx, node, isSelected, isHovered);
+        } else if (node.type === 'SWITCH') {
+          this.drawRealisticSwitch(ctx, node, isSelected, isHovered);
+        } else if (node.type === 'ROUTER') {
+          this.drawRealisticRouter(ctx, node, isSelected, isHovered);
+        }
+      });
+    }
+
+    // ── Skeuomorphic PC Workstation ───────────────────────────────────────
+    drawRealisticPC(ctx, node, isSelected, isHovered) {
+      const x = node.x;
+      const y = node.y;
+
+      // Selection Halo
+      if (isSelected || isHovered) {
+        ctx.strokeStyle = isSelected ? '#38bdf8' : '#60a5fa';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 14;
         ctx.beginPath();
-        ctx.moveTo(fromNode.x, fromNode.y);
-        ctx.lineTo(toNode.x, toNode.y);
+        ctx.arc(x, y, 42, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // 1. Monitor Screen
+      const monX = x - 26;
+      const monY = y - 28;
+      const monW = 52;
+      const monH = 34;
+
+      // Monitor Bezel
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.roundRect(monX, monY, monW, monH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Screen Display (Glowing Terminal)
+      ctx.fillStyle = '#020f1e';
+      ctx.fillRect(monX + 3, monY + 3, monW - 6, monH - 6);
+
+      // Terminal Lines
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 7px JetBrains Mono';
+      ctx.fillText(`root@${node.id.toLowerCase()}:~#`, monX + 6, monY + 12);
+      ctx.fillStyle = '#34d399';
+      ctx.font = '6px JetBrains Mono';
+      ctx.fillText(`IP:${node.ip.split('.').slice(-2).join('.')}`, monX + 6, monY + 20);
+
+      // Cursor blink
+      if (Math.floor(this.animTime / 400) % 2 === 0) {
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(monX + 40, monY + 15, 3, 5);
+      }
+
+      // Stand Neck & Base
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(x - 4, monY + monH, 8, 8);
+      ctx.fillStyle = '#334155';
+      ctx.roundRect(x - 14, monY + monH + 8, 28, 4, 2);
+      ctx.fill();
+
+      // 2. Desktop Tower Chassis (Right side)
+      const towX = x + 28;
+      const towY = y - 24;
+      const towW = 16;
+      const towH = 42;
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.roundRect(towX, towY, towW, towH, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Power Button & Blue LED
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(towX + 8, towY + 8, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Drive bay slits
+      ctx.strokeStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.moveTo(towX + 3, towY + 15);
+      ctx.lineTo(towX + 13, towY + 15);
+      ctx.moveTo(towX + 3, towY + 20);
+      ctx.lineTo(towX + 13, towY + 20);
+      ctx.stroke();
+
+      // Rear NIC Green Link LED
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(towX + 8, towY + 34, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 3. Mini Keyboard & Optical Mouse
+      ctx.fillStyle = '#1e293b';
+      ctx.roundRect(x - 22, y + 18, 30, 4, 1);
+      ctx.fill();
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(x + 16, y + 20, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Device Tag Badge (Pill below)
+      ctx.fillStyle = '#020712';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+      ctx.roundRect(x - 42, y + 28, 84, 16, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 8px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${node.id}: ${node.ip}`, x, y + 39);
+      ctx.textAlign = 'left';
+    }
+
+    // ── Skeuomorphic 24-Port Managed Switch (1U Rack Unit) ─────────────────
+    drawRealisticSwitch(ctx, node, isSelected, isHovered) {
+      const x = node.x;
+      const y = node.y;
+      const swW = 104;
+      const swH = 32;
+      const swX = x - swW / 2;
+      const swY = y - swH / 2;
+
+      // Selection Glow
+      if (isSelected || isHovered) {
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.roundRect(swX - 4, swY - 4, swW + 8, swH + 8, 4);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Metallic Faceplate Gradient
+      const grad = ctx.createLinearGradient(swX, swY, swX, swY + swH);
+      grad.addColorStop(0, '#1e293b');
+      grad.addColorStop(0.5, '#0f172a');
+      grad.addColorStop(1, '#080e1a');
+
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.2;
+      ctx.roundRect(swX, swY, swW, swH, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      // Rack Ears with Screw Holes
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(swX - 7, swY, 7, swH);
+      ctx.fillRect(swX + swW, swY, 7, swH);
+      ctx.fillStyle = '#020712';
+      ctx.beginPath();
+      ctx.arc(swX - 3.5, swY + 8, 1.8, 0, Math.PI * 2);
+      ctx.arc(swX - 3.5, swY + swH - 8, 1.8, 0, Math.PI * 2);
+      ctx.arc(swX + swW + 3.5, swY + 8, 1.8, 0, Math.PI * 2);
+      ctx.arc(swX + swW + 3.5, swY + swH - 8, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Brand Silkscreen
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 6px JetBrains Mono';
+      ctx.fillText('NHIT-SW24-G', swX + 6, swY + 9);
+
+      // Status LEDs on left
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(swX + 8, swY + 18, 1.6, 0, Math.PI * 2); // PWR
+      ctx.arc(swX + 8, swY + 25, 1.6, 0, Math.PI * 2); // STAT
+      ctx.fill();
+
+      // Console Port
+      ctx.fillStyle = '#020612';
+      ctx.strokeStyle = '#0284c7';
+      ctx.strokeRect(swX + 16, swY + 16, 8, 10);
+      ctx.fillRect(swX + 16, swY + 16, 8, 10);
+
+      // 16 RJ45 Jack Receptacles (2 Rows of 8)
+      const portStartX = swX + 32;
+      const isSwitchActive = this.netEngine.packets.some(p => p.path[p.currentHopIndex] === node.id);
+
+      for (let r = 0; r < 2; r++) {
+        for (let p = 0; p < 8; p++) {
+          const px = portStartX + p * 8.4;
+          const py = swY + 7 + r * 12;
+
+          // Jack housing
+          ctx.fillStyle = '#020712';
+          ctx.fillRect(px, py, 6, 8);
+
+          // Copper Pin Contacts inside
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(px + 1.5, py + 1.5, 3, 2);
+
+          // Dynamic Link/Activity LED
+          const isBlinking = isSwitchActive && (Math.floor(this.animTime / 120 + p) % 2 === 0);
+          ctx.fillStyle = isBlinking ? '#f59e0b' : '#10b981';
+          ctx.beginPath();
+          ctx.arc(px + 3, py - 2.5, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Device Tag Badge (Pill below)
+      ctx.fillStyle = '#020712';
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1;
+      ctx.roundRect(x - 52, y + 22, 104, 16, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 8px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${node.id}: ${node.mac}`, x, y + 33);
+      ctx.textAlign = 'left';
+    }
+
+    // ── Skeuomorphic Core L3 Enterprise Router (2U Rack Unit) ──────────────
+    drawRealisticRouter(ctx, node, isSelected, isHovered) {
+      const x = node.x;
+      const y = node.y;
+      const rtW = 104;
+      const rtH = 40;
+      const rtX = x - rtW / 2;
+      const rtY = y - rtH / 2;
+
+      // Selection Glow
+      if (isSelected || isHovered) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.roundRect(rtX - 4, rtY - 4, rtW + 8, rtH + 8, 4);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Deep Metallic Chassis Gradient
+      const grad = ctx.createLinearGradient(rtX, rtY, rtX, rtY + rtH);
+      grad.addColorStop(0, '#1e3a5f');
+      grad.addColorStop(0.5, '#0d2238');
+      grad.addColorStop(1, '#05111c');
+
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.2;
+      ctx.roundRect(rtX, rtY, rtW, rtH, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      // Rack Mount Ears
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(rtX - 7, rtY, 7, rtH);
+      ctx.fillRect(rtX + rtW, rtY, 7, rtH);
+      ctx.fillStyle = '#020712';
+      ctx.beginPath();
+      ctx.arc(rtX - 3.5, rtY + 10, 1.8, 0, Math.PI * 2);
+      ctx.arc(rtX - 3.5, rtY + rtH - 10, 1.8, 0, Math.PI * 2);
+      ctx.arc(rtX + rtW + 3.5, rtY + 10, 1.8, 0, Math.PI * 2);
+      ctx.arc(rtX + rtW + 3.5, rtY + rtH - 10, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Brand Silkscreen
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 6.5px JetBrains Mono';
+      ctx.fillText('NHIT-R3800 CORE', rtX + 8, rtY + 10);
+
+      // Status Cluster (PWR, SYS, ACT)
+      const isRouterActive = this.netEngine.packets.some(p => p.path[p.currentHopIndex] === node.id);
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(rtX + 8, rtY + 20, 1.6, 0, Math.PI * 2); // PWR
+      ctx.arc(rtX + 8, rtY + 28, 1.6, 0, Math.PI * 2); // SYS
+      ctx.fill();
+
+      ctx.fillStyle = (isRouterActive && Math.floor(this.animTime / 100) % 2 === 0) ? '#f59e0b' : '#334155';
+      ctx.beginPath();
+      ctx.arc(rtX + 8, rtY + 34, 1.6, 0, Math.PI * 2); // ACT
+      ctx.fill();
+
+      // Modular WIC Expansion Bays (Center)
+      ctx.fillStyle = '#091524';
+      ctx.strokeStyle = '#1e3352';
+      ctx.strokeRect(rtX + 20, rtY + 14, 28, 20);
+      ctx.fillRect(rtX + 20, rtY + 14, 28, 20);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '5.5px JetBrains Mono';
+      ctx.fillText('WIC-1T', rtX + 23, rtY + 26);
+
+      // Gigabit LAN Ports (GE0/0, GE0/1)
+      ctx.fillStyle = '#020612';
+      ctx.strokeStyle = '#0284c7';
+      ctx.strokeRect(rtX + 54, rtY + 18, 9, 12);
+      ctx.fillRect(rtX + 54, rtY + 18, 9, 12);
+      ctx.strokeRect(rtX + 66, rtY + 18, 9, 12);
+      ctx.fillRect(rtX + 66, rtY + 18, 9, 12);
+
+      // Circular Cooling Fan Exhaust with ROTATING Blades
+      const fanCenterX = rtX + 88;
+      const fanCenterY = rtY + 24;
+      const fanRadius = 10;
+
+      ctx.fillStyle = '#020712';
+      ctx.beginPath();
+      ctx.arc(fanCenterX, fanCenterY, fanRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#334155';
+      ctx.stroke();
+
+      // Spinning 4 Blades
+      ctx.save();
+      ctx.translate(fanCenterX, fanCenterY);
+      ctx.rotate(this.fanAngle);
+      ctx.fillStyle = '#475569';
+      for (let b = 0; b < 4; b++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.fillRect(-2, 1, 4, 7);
+      }
+      ctx.restore();
+
+      // Fan Grille Wire
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
+      ctx.beginPath();
+      ctx.arc(fanCenterX, fanCenterY, 5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Device Tag Badge (Pill below)
+      ctx.fillStyle = '#020712';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1;
+      ctx.roundRect(x - 56, y + 26, 112, 16, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 8px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${node.id}: ${node.ip}`, x, y + 37);
+      ctx.textAlign = 'left';
+    }
+
+    // ── Realistic Catenary Cables with Molded RJ45 Boots ────────────────────
+    drawRealisticCable(ctx, link, fromNode, toNode) {
+      const x1 = fromNode.x;
+      const y1 = fromNode.y;
+      const x2 = toNode.x;
+      const y2 = toNode.y;
+
+      const midX = (x1 + x2) / 2;
+      const dist = Math.hypot(x2 - x1, y2 - y1);
+      const sag = Math.min(22, dist * 0.08);
+      const midY = (y1 + y2) / 2 + sag;
+
+      // Color scheme
+      let mainColor = '#1d4ed8'; // Cat6 Blue
+      let highlightColor = '#38bdf8';
+      if (link.speed === '100M') {
+        mainColor = '#047857';
+        highlightColor = '#10b981';
+      } else if (link.speed === '10M') {
+        mainColor = '#b45309';
+        highlightColor = '#f59e0b';
+      }
+
+      if (link.severed) {
+        // Severed Cable with Jagged Ends & Warning Sparks
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(midX - 20, midY, midX - 10, midY - 6);
+        ctx.moveTo(midX + 10, midY - 6);
+        ctx.quadraticCurveTo(midX + 20, midY, x2, y2);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Link Speed & Cost Label
-        const midX = (fromNode.x + toNode.x) / 2;
-        const midY = (fromNode.y + toNode.y) / 2;
-
-        ctx.fillStyle = '#070e1c';
-        ctx.fillRect(midX - 22, midY - 8, 44, 16);
-        ctx.strokeStyle = '#1e293b';
-        ctx.strokeRect(midX - 22, midY - 8, 44, 16);
-
-        ctx.fillStyle = link.severed ? '#ef4444' : '#94a3b8';
-        ctx.font = '9px JetBrains Mono';
+        // Spark explosion icon at cut point
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 12px Inter';
         ctx.textAlign = 'center';
-        ctx.fillText(link.severed ? 'CUT' : `${link.speed}`, midX, midY + 4);
-      });
+        ctx.fillText('⚡ SEVERED', midX, midY - 12);
+        return;
+      }
 
-      // 2. Draw Flying Packet Envelopes
-      this.netEngine.packets.forEach(pkt => {
+      // Cable Drop Shadow
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1 + 3);
+      ctx.quadraticCurveTo(midX, midY + 4, x2, y2 + 3);
+      ctx.stroke();
+
+      // Main Outer Cable Stroke
+      ctx.strokeStyle = mainColor;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(midX, midY, x2, y2);
+      ctx.stroke();
+
+      // Top Highlight Spine
+      ctx.strokeStyle = highlightColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1 - 0.5);
+      ctx.quadraticCurveTo(midX, midY - 0.5, x2, y2 - 0.5);
+      ctx.stroke();
+
+      // RJ45 Molded Boots at endpoints
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = highlightColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x1, y1, 5, 0, Math.PI * 2);
+      ctx.arc(x2, y2, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Link Speed Badge in center
+      ctx.fillStyle = '#030816';
+      ctx.strokeStyle = '#1e293b';
+      ctx.roundRect(midX - 22, midY - 8, 44, 16, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = highlightColor;
+      ctx.font = 'bold 8.5px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(link.speed, midX, midY + 4);
+      ctx.textAlign = 'left';
+    }
+
+    // ── Glowing Energy Packets with Live TTL & Protocol Badges ──────────────
+    drawRealisticPackets(ctx, packets) {
+      packets.forEach(pkt => {
         const fromId = pkt.path[pkt.currentHopIndex];
         const toId = pkt.path[pkt.currentHopIndex + 1];
         const fromNode = this.netEngine.nodes.find(n => n.id === fromId);
         const toNode = this.netEngine.nodes.find(n => n.id === toId);
 
         if (fromNode && toNode) {
-          const px = fromNode.x + (toNode.x - fromNode.x) * pkt.progress;
-          const py = fromNode.y + (toNode.y - fromNode.y) * pkt.progress;
+          // Compute curve position
+          const x1 = fromNode.x;
+          const y1 = fromNode.y;
+          const x2 = toNode.x;
+          const y2 = toNode.y;
+          const dist = Math.hypot(x2 - x1, y2 - y1);
+          const sag = Math.min(22, dist * 0.08);
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2 + sag;
 
-          // Glowing Packet Envelope
-          ctx.fillStyle = '#f59e0b';
-          ctx.shadowColor = '#f59e0b';
-          ctx.shadowBlur = 10;
+          const p = pkt.progress;
+          // Quadratic bezier formula: (1-p)^2 P0 + 2(1-p)p P1 + p^2 P2
+          const px = (1 - p) * (1 - p) * x1 + 2 * (1 - p) * p * midX + p * p * x2;
+          const py = (1 - p) * (1 - p) * y1 + 2 * (1 - p) * p * midY + p * p * y2;
+
+          // Glowing Photon Orb
+          const radGrad = ctx.createRadialGradient(px, py, 1, px, py, 10);
+          radGrad.addColorStop(0, '#fff');
+          radGrad.addColorStop(0.4, '#f59e0b');
+          radGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+
+          ctx.fillStyle = radGrad;
           ctx.beginPath();
-          ctx.arc(px, py, 7, 0, Math.PI * 2);
+          ctx.arc(px, py, 10, 0, Math.PI * 2);
           ctx.fill();
-          ctx.shadowBlur = 0;
 
-          // Live TTL Badge
-          ctx.fillStyle = '#020712';
-          ctx.roundRect(px - 14, py - 20, 28, 14, 3);
+          // Core Orb
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(px, py, 4.5, 0, Math.PI * 2);
           ctx.fill();
+
+          // Floating Protocol Badge & TTL
+          ctx.fillStyle = '#030816';
           ctx.strokeStyle = '#f59e0b';
           ctx.lineWidth = 1;
+          ctx.roundRect(px - 34, py - 24, 68, 16, 3);
+          ctx.fill();
           ctx.stroke();
+
           ctx.fillStyle = '#f59e0b';
-          ctx.font = 'bold 8px JetBrains Mono';
+          ctx.font = 'bold 7.5px JetBrains Mono';
           ctx.textAlign = 'center';
-          ctx.fillText(`TTL:${pkt.ttl}`, px, py - 10);
+          ctx.fillText(`${pkt.protocol} • TTL:${pkt.ttl}`, px, py - 13);
+          ctx.textAlign = 'left';
         }
       });
-      ctx.textAlign = 'left';
+    }
 
-      // 3. Draw Nodes (PC, Switch, Router)
-      this.netEngine.nodes.forEach(node => {
-        const isSelected = (node.id === this.netEngine.selectedNodeId);
+    // ── Floating Pedagogical Explanation Callout Balloon ───────────────────
+    drawPedagogicalCallout(ctx, w, h) {
+      const pad = 14;
+      const calloutW = 420;
+      const calloutH = 34;
+      const x = pad;
+      const y = h - calloutH - pad;
 
-        // Node Glow / Selection Ring
-        if (isSelected) {
-          ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 26, 0, Math.PI * 2);
-          ctx.stroke();
-        }
+      ctx.fillStyle = 'rgba(4, 10, 24, 0.9)';
+      ctx.strokeStyle = '#1e3358';
+      ctx.lineWidth = 1;
+      ctx.roundRect(x, y, calloutW, calloutH, 6);
+      ctx.fill();
+      ctx.stroke();
 
-        // Base Circle
-        ctx.fillStyle = (node.type === 'ROUTER') ? '#1e3a5f' : (node.type === 'SWITCH' ? '#064e3b' : '#312e81');
-        ctx.strokeStyle = (node.type === 'ROUTER') ? '#38bdf8' : (node.type === 'SWITCH' ? '#10b981' : '#818cf8');
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 9px JetBrains Mono';
+      ctx.fillText('📡 LAB TELEMETRY:', x + 10, y + 14);
 
-        // Node Icon Glyph
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px Inter';
-        ctx.textAlign = 'center';
-        const glyph = (node.type === 'ROUTER') ? '⇄' : (node.type === 'SWITCH' ? '⇅' : '💻');
-        ctx.fillText(glyph, node.x, node.y + 4);
+      ctx.fillStyle = '#cdd7ee';
+      ctx.font = '8.5px JetBrains Mono';
+      const text = this.activeCallout.length > 58 ? this.activeCallout.slice(0, 55) + '...' : this.activeCallout;
+      ctx.fillText(text, x + 10, y + 26);
+    }
 
-        // Node Label
-        ctx.fillStyle = '#f1f5f9';
-        ctx.font = 'bold 11px JetBrains Mono';
-        ctx.fillText(node.label, node.x, node.y + 34);
+    // ── Node Hover Inspection Telemetry Card ──────────────────────────────
+    drawNodeHoverTelemetry(ctx, node) {
+      const cardW = 190;
+      const cardH = 84;
+      let cardX = this.mouseCanvasX + 16;
+      let cardY = this.mouseCanvasY + 16;
 
-        // IP / MAC Sub-label
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '9px JetBrains Mono';
-        const sub = node.ip || node.eth0?.ip || (node.type === 'SWITCH' ? 'L2 Switch' : '');
-        ctx.fillText(sub, node.x, node.y + 46);
-      });
-      ctx.textAlign = 'left';
+      if (cardX + cardW > this.canvas.width - 10) cardX = this.mouseCanvasX - cardW - 16;
+      if (cardY + cardH > this.canvas.height - 10) cardY = this.mouseCanvasY - cardH - 16;
+
+      ctx.fillStyle = 'rgba(3, 9, 23, 0.94)';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+      ctx.roundRect(cardX, cardY, cardW, cardH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 10px JetBrains Mono';
+      ctx.fillText(`DEVICE: ${node.id} (${node.type})`, cardX + 10, cardY + 18);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '8.5px JetBrains Mono';
+      ctx.fillText(`IPv4: ${node.ip}/24`, cardX + 10, cardY + 34);
+      ctx.fillText(`MAC:  ${node.mac}`, cardX + 10, cardY + 48);
+      ctx.fillText(`GW:   ${node.gateway || '0.0.0.0'}`, cardX + 10, cardY + 62);
+      ctx.fillText(`L2 CAM Entries: ${node.macTable ? node.macTable.length : 'N/A'}`, cardX + 10, cardY + 76);
     }
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
   // 6. PROGRESSIVE TROUBLESHOOTING TICKETS & MASTER ASSESSMENT
   // ════════════════════════════════════════════════════════════════════════════
   const troubleshootingTickets = [
@@ -1311,10 +1847,14 @@
   ];
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 7. THREE.JS 3D MODEL WORKBENCH (42U Data Center Server Rack & Gigabit Switch)
+  
+  // 7. THREE.JS 3D MODEL WORKBENCH (42U Enterprise Server Rack & Gigabit Switch)
   // ════════════════════════════════════════════════════════════════════════════
   function initThree3DModel() {
-    if (window.three3DInitialized) return;
+    if (window.three3DInitialized) {
+      if (window.three3DResize) window.three3DResize();
+      return;
+    }
     window.three3DInitialized = true;
 
     const canvas = document.getElementById('sim3d-canvas');
@@ -1329,108 +1869,428 @@
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    controls.target.set(0, 0.5, 0);
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    // Dynamic Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(8, 15, 10);
     scene.add(dirLight);
-    const blueLight = new THREE.DirectionalLight(0x38bdf8, 0.8);
-    blueLight.position.set(-6, -4, -6);
-    scene.add(blueLight);
+
+    // Interior Rack LED Strip
+    const rackInteriorLight = new THREE.PointLight(0x38bdf8, 2.5, 6.0);
+    rackInteriorLight.position.set(0, 1.0, 0.5);
+    scene.add(rackInteriorLight);
 
     const rackGroup = new THREE.Group();
 
-    // 1. 42U Server Rack Steel Cabinet
-    const rackGeo = new THREE.BoxGeometry(2.4, 5.0, 2.0);
-    const rackMat = new THREE.MeshStandardMaterial({ color: 0x0b1324, roughness: 0.4, metalness: 0.8 });
-    const rackFrame = new THREE.Mesh(rackGeo, rackMat);
-    rackGroup.add(rackFrame);
+    // 1. 42U Steel Server Cabinet Frame (19-inch standard)
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x09101f, roughness: 0.35, metalness: 0.85 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x1f2e4d, roughness: 0.25, metalness: 0.9 });
 
-    // 2. 24-Port Managed Switch (1U)
-    const switchGeo = new THREE.BoxGeometry(2.1, 0.35, 1.6);
-    const switchMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3, metalness: 0.6 });
-    const switchMesh = new THREE.Mesh(switchGeo, switchMat);
-    switchMesh.position.set(0, 0.8, 0.2);
-    rackGroup.add(switchMesh);
-
-    // RJ45 Ports & LED indicators on Switch
-    const ledMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
-    for (let p = 0; p < 12; p++) {
-      const portX = -0.8 + p * 0.14;
-      const portMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.05), new THREE.MeshBasicMaterial({ color: 0x050b18 }));
-      portMesh.position.set(portX, 0.8, 1.02);
-      rackGroup.add(portMesh);
-
-      const ledMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), ledMat);
-      ledMesh.position.set(portX, 0.9, 1.02);
-      rackGroup.add(ledMesh);
+    // Upright corner pillars
+    for (let px of [-1.15, 1.15]) {
+      for (let pz of [-0.95, 0.95]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 4.8, 0.08), steelMat);
+        pillar.position.set(px, 0.5, pz);
+        rackGroup.add(pillar);
+      }
     }
 
-    // 3. Core L3 Enterprise Router (2U)
-    const routerGeo = new THREE.BoxGeometry(2.1, 0.65, 1.7);
-    const routerMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.7 });
-    const routerMesh = new THREE.Mesh(routerGeo, routerMat);
-    routerMesh.position.set(0, -0.2, 0.15);
-    rackGroup.add(routerMesh);
+    // Top and Bottom Plates
+    const plateGeo = new THREE.BoxGeometry(2.4, 0.1, 2.0);
+    const topPlate = new THREE.Mesh(plateGeo, steelMat);
+    topPlate.position.set(0, 2.9, 0);
+    const btmPlate = new THREE.Mesh(plateGeo, steelMat);
+    btmPlate.position.set(0, -1.9, 0);
+    rackGroup.add(topPlate);
+    rackGroup.add(btmPlate);
 
-    // 4. Cat6 Patch Panel (1U)
-    const patchMesh = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.3, 1.5), switchMat.clone());
-    patchMesh.position.set(0, 1.5, 0.2);
-    rackGroup.add(patchMesh);
+    // Side Panels
+    const sideGeo = new THREE.BoxGeometry(0.04, 4.7, 1.8);
+    const leftSide = new THREE.Mesh(sideGeo, steelMat);
+    leftSide.position.set(-1.18, 0.5, 0);
+    const rightSide = new THREE.Mesh(sideGeo, steelMat);
+    rightSide.position.set(1.18, 0.5, 0);
+    rackGroup.add(leftSide);
+    rackGroup.add(rightSide);
 
-    // Patch Cables (Colorful Cat6 jumpers)
-    const cableMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.6 });
+    // Vertical 19-inch Mounting Rails with U-tick divisions
+    for (let rx of [-0.95, 0.95]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 4.4, 0.04), railMat);
+      rail.position.set(rx, 0.5, 0.85);
+      rackGroup.add(rail);
+    }
+
+    // 2. Animated Tempered Glass Front Door
+    const doorPivot = new THREE.Group();
+    doorPivot.position.set(-1.18, 0.5, 0.95);
+
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0x0f2b48,
+      roughness: 0.1,
+      metalness: 0.2,
+      transparent: true,
+      opacity: 0.45
+    });
+
+    const glassMesh = new THREE.Mesh(new THREE.BoxGeometry(2.3, 4.6, 0.04), glassMat);
+    glassMesh.position.set(1.15, 0, 0);
+    doorPivot.add(glassMesh);
+
+    // Door Handle
+    const doorHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.95, roughness: 0.1 }));
+    doorHandle.position.set(2.2, 0, 0.05);
+    doorPivot.add(doorHandle);
+
+    rackGroup.add(doorPivot);
+
+    let isDoorOpen = false;
+    let targetDoorAngle = 0;
+
+    // 3. 24-Port Managed Enterprise Switch (1U) at y = 0.9
+    const switchGroup = new THREE.Group();
+    const switchMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.24, 1.4),
+      new THREE.MeshStandardMaterial({ color: 0x111c30, roughness: 0.25, metalness: 0.8 })
+    );
+    switchGroup.add(switchMesh);
+
+    // 24 RJ45 Jack Cutouts & Blinking LEDs
+    const switchLeds = [];
+    const ledMatGreen = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+
+    for (let r = 0; r < 2; r++) {
+      for (let p = 0; p < 12; p++) {
+        const px = -0.75 + p * 0.125;
+        const py = 0.04 - r * 0.08;
+
+        const portBox = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0x020712 }));
+        portBox.position.set(px, py, 0.71);
+        switchGroup.add(portBox);
+
+        const led = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.025, 0.02), ledMatGreen.clone());
+        led.position.set(px, py + 0.04, 0.71);
+        switchGroup.add(led);
+        switchLeds.push(led);
+      }
+    }
+    switchGroup.position.set(0, 0.9, 0.15);
+    rackGroup.add(switchGroup);
+
+    // 4. Core L3 Enterprise Router (2U) at y = 0.3
+    const routerGroup = new THREE.Group();
+    const routerMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.44, 1.5),
+      new THREE.MeshStandardMaterial({ color: 0x0b1a2f, roughness: 0.3, metalness: 0.75 })
+    );
+    routerGroup.add(routerMesh);
+
+    // Router Cooling Fans (Dual Exhausts)
+    const fanMeshes = [];
+    for (let fx of [0.55, 0.78]) {
+      const fanCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.02, 16), new THREE.MeshBasicMaterial({ color: 0x020712 }));
+      fanCyl.rotation.x = Math.PI / 2;
+      fanCyl.position.set(fx, 0.06, 0.76);
+      routerGroup.add(fanCyl);
+
+      const fanBlade = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.01), new THREE.MeshBasicMaterial({ color: 0x475569 }));
+      fanBlade.position.set(fx, 0.06, 0.77);
+      routerGroup.add(fanBlade);
+      fanMeshes.push(fanBlade);
+    }
+    routerGroup.position.set(0, 0.35, 0.1);
+    rackGroup.add(routerGroup);
+
+    // 5. Cat6 RJ45 Patch Panel (1U) at y = 1.45
+    const patchGroup = new THREE.Group();
+    const patchMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.22, 1.3),
+      new THREE.MeshStandardMaterial({ color: 0x16243d, roughness: 0.3, metalness: 0.7 })
+    );
+    patchGroup.add(patchMesh);
+    patchGroup.position.set(0, 1.45, 0.15);
+    rackGroup.add(patchGroup);
+
+    // 6. Curved Cat6 Patch Cords (TubeGeometry 3D Splines)
+    const cableColors = [0x38bdf8, 0xf59e0b, 0x10b981, 0x818cf8, 0x38bdf8, 0xf59e0b];
+    const patchCordsGroup = new THREE.Group();
+
     for (let c = 0; c < 6; c++) {
-      const curve = new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(-0.6 + c * 0.24, 1.5, 1.0),
-        new THREE.Vector3(-0.5 + c * 0.24, 1.15, 1.25),
-        new THREE.Vector3(-0.6 + c * 0.24, 0.8, 1.0)
+      const cx = -0.6 + c * 0.22;
+      const curve = new THREE.CubicBezierCurve3(
+        new THREE.Vector3(cx, 1.45, 0.85),
+        new THREE.Vector3(cx + 0.08, 1.25, 1.15),
+        new THREE.Vector3(cx - 0.04, 1.05, 1.12),
+        new THREE.Vector3(cx, 0.9, 0.86)
       );
-      const tubeGeo = new THREE.TubeGeometry(curve, 16, 0.02, 8, false);
-      const tubeMesh = new THREE.Mesh(tubeGeo, cableMat);
-      rackGroup.add(tubeMesh);
+      const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.016, 8, false);
+      const tubeMat = new THREE.MeshStandardMaterial({ color: cableColors[c], roughness: 0.4, metalness: 0.3 });
+      const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+      patchCordsGroup.add(tubeMesh);
     }
+    rackGroup.add(patchCordsGroup);
 
     scene.add(rackGroup);
 
-    // Components Aside
-    const components = [
-      { name: '42U Data Center Cabinet', desc: 'Standard 19-inch EIA-310-E steel server enclosure.' },
-      { name: '24-Port L2/L3 Gigabit Switch', desc: 'High-density switch with CAM hardware table learning.' },
-      { name: 'Enterprise Core Router', desc: 'Hardware routing engine supporting OSPF, RIP, and BGP.' },
-      { name: '48-Port Cat6 Patch Panel', desc: 'Structured cabling termination with RJ45 keystone jacks.' },
-      { name: 'Fiber SFP+ Transceivers', desc: '10GBASE-SR optical modules for high-speed uplink backbone.' }
+    // ── Raycasting & Component Inspector ──────────────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const hardwareRegistry = [
+      {
+        id: 'rack',
+        name: '42U Data Center Server Cabinet',
+        model: 'NHIT-RACK-42U Enterprise Standard',
+        form: '42U (EIA-310-E 19-inch)',
+        specs: 'Perforated front/rear doors with tinted tempered glass panel, dual vertical cable channels, 1200kg static load rating.',
+        power: 'Dual 30A 208V PDU rails',
+        temp: '21.5°C Ambient Intake',
+        status: 'Optimal Ventilation • Grounded',
+        camPos: { x: 3.8, y: 3.2, z: 4.5 },
+        camTarget: { x: 0, y: 0.5, z: 0 }
+      },
+      {
+        id: 'switch',
+        name: '24-Port Gigabit L2/L3 Managed Switch',
+        model: 'Catalyst 3850-24T Architecture',
+        form: '1U Rackmount Unit',
+        specs: '24x 10/100/1000BASE-T RJ45 with IEEE 802.3at PoE+, 4x 10G SFP+ uplinks, 92.4 Mpps forwarding throughput, 64 Gbps switching fabric.',
+        power: '350W Redundant AC Power Supply',
+        temp: '32.4°C Internal ASIC',
+        status: '24/24 Ports Operational • CAM Learned',
+        camPos: { x: 0.4, y: 1.1, z: 2.1 },
+        camTarget: { x: 0, y: 0.9, z: 0.2 }
+      },
+      {
+        id: 'router',
+        name: 'Enterprise Dual-Power L3 Core Router',
+        model: 'NHIT-R3800 Enterprise Edge',
+        form: '2U Rackmount Chassis',
+        specs: 'Modular Cisco-style architecture supporting OSPFv2, RIPv2, and BGP-4. Hardware-accelerated packet inspection with hardware NAT & firewall filtering.',
+        power: 'Dual Hot-Swap 450W PSUs (Active/Standby)',
+        temp: '38.1°C Core CPU',
+        status: 'OSPF Adjacency Full • Routing Active',
+        camPos: { x: 0.4, y: 0.45, z: 2.2 },
+        camTarget: { x: 0, y: 0.35, z: 0.1 }
+      },
+      {
+        id: 'patch',
+        name: '48-Port Cat6 RJ45 Keystone Patch Panel',
+        model: 'Panduit NetKey Cat6 Standard',
+        form: '1U High-Density Panel',
+        specs: 'EIA/TIA 568A/B universal color-coded 110-style punchdown blocks, gold-plated phosphor bronze contacts, rated for 250 MHz frequency.',
+        power: 'Passive Termination',
+        temp: '22.0°C Passive',
+        status: 'Channel Compliance Verified (ISO 11801)',
+        camPos: { x: 0.3, y: 1.7, z: 2.1 },
+        camTarget: { x: 0, y: 1.45, z: 0.2 }
+      },
+      {
+        id: 'cables',
+        name: 'Molded Cat6 Snagless UTP Patch Cords',
+        model: 'Belden Cat6 550 MHz CM-Rated',
+        form: 'Color-Coded Modular Cords',
+        specs: '24 AWG stranded copper with molded snagless strain-relief boots, 50-micron gold plated RJ45 connectors, Gigabit Ethernet certified.',
+        power: 'Signal Carrier',
+        temp: '23.1°C Ambient',
+        status: 'Insertion Loss < 0.2 dB per connection',
+        camPos: { x: 0.5, y: 1.25, z: 1.9 },
+        camTarget: { x: 0, y: 1.15, z: 0.5 }
+      }
     ];
 
-    compAside.innerHTML = '';
-    components.forEach((c, idx) => {
-      const btn = document.createElement('button');
-      btn.className = `sim3d-comp ${idx === 0 ? 'active' : ''}`;
-      btn.innerHTML = `<strong>${c.name}</strong><br><span style="font-size:0.7rem; color:#94a3b8;">${c.desc}</span>`;
+    function showComponentTelemetry(hw) {
+      compAside.innerHTML = `
+        <div style="background:#070e20; border:1px solid #1f3563; border-radius:8px; padding:14px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span class="status-pill highlight" style="font-size:0.7rem;">${hw.form}</span>
+            <span class="status-pill active" style="font-size:0.7rem;">${hw.status.split('•')[0]}</span>
+          </div>
+          <h4 style="color:#38bdf8; font-size:1.0rem; margin:6px 0;">${hw.name}</h4>
+          <p style="color:#94a3b8; font-size:0.76rem; font-family:'JetBrains Mono', monospace; margin-bottom:10px;">Model: ${hw.model}</p>
+          
+          <div style="font-size:0.8rem; color:#cdd7ee; line-height:1.45; margin-bottom:10px;">
+            ${hw.specs}
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; border-top:1px solid #162646; padding-top:8px; font-size:0.75rem; font-family:'JetBrains Mono', monospace;">
+            <div><span style="color:#64748b;">Power:</span><br><strong style="color:#38bdf8;">${hw.power}</strong></div>
+            <div><span style="color:#64748b;">Thermal:</span><br><strong style="color:#10b981;">${hw.temp}</strong></div>
+          </div>
+
+          <div style="margin-top:12px; border-top:1px solid #162646; padding-top:10px;">
+            <div style="font-size:0.72rem; color:#64748b; font-weight:700; text-transform:uppercase; margin-bottom:4px;">T568B RJ45 Pinout Matrix:</div>
+            <div style="font-size:0.7rem; color:#94a3b8; font-family:'JetBrains Mono', monospace; line-height:1.4;">
+              1=Wht/Or (Tx+) &bull; 2=Orange (Tx-)<br>
+              3=Wht/Grn (Rx+) &bull; 6=Green (Rx-)
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Camera Focus Tweening
+    function focusCameraOn(targetPos, lookAtPos) {
+      if (window.anime) {
+        anime({
+          targets: camera.position,
+          x: targetPos.x,
+          y: targetPos.y,
+          z: targetPos.z,
+          duration: 900,
+          easing: 'easeOutCubic'
+        });
+        anime({
+          targets: controls.target,
+          x: lookAtPos.x,
+          y: lookAtPos.y,
+          z: lookAtPos.z,
+          duration: 900,
+          easing: 'easeOutCubic'
+        });
+      } else {
+        camera.position.set(targetPos.x, targetPos.y, targetPos.z);
+        controls.target.set(lookAtPos.x, lookAtPos.y, lookAtPos.z);
+      }
+    }
+
+    // Default Telemetry
+    showComponentTelemetry(hardwareRegistry[0]);
+
+    // Quick Nav Buttons
+    document.querySelectorAll('.quick-nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.quick-nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        switchMesh.material.color.setHex(0x38bdf8);
-        setTimeout(() => switchMesh.material.color.setHex(0x1e293b), 400);
+        const targetKey = btn.getAttribute('data-target');
+        const hw = hardwareRegistry.find(h => h.id === targetKey);
+        if (hw) {
+          focusCameraOn(hw.camPos, hw.camTarget);
+          showComponentTelemetry(hw);
+          sound.playClick();
+        }
       });
-      compAside.appendChild(btn);
     });
 
+    // 🚪 Door Toggle Button
+    const doorBtn = document.getElementById('btn-3d-door');
+    if (doorBtn) {
+      doorBtn.addEventListener('click', () => {
+        isDoorOpen = !isDoorOpen;
+        targetDoorAngle = isDoorOpen ? 1.85 : 0; // ~106 degrees open
+        doorBtn.innerHTML = isDoorOpen ? '🚪 Toggle Door: Open' : '🚪 Toggle Door: Closed';
+        doorBtn.classList.toggle('active', isDoorOpen);
+        sound.playClick();
+      });
+    }
+
+    // 💡 Lighting Toggle Button
+    const lightBtn = document.getElementById('btn-3d-light');
+    let lightModeIdx = 0;
+    const lightModes = [
+      { name: 'Cyber Blue', color: 0x38bdf8, intensity: 2.5 },
+      { name: 'Cool White', color: 0xffffff, intensity: 3.0 },
+      { name: 'Amber Alert', color: 0xf59e0b, intensity: 2.5 },
+      { name: 'Stealth Off', color: 0x000000, intensity: 0.0 }
+    ];
+    if (lightBtn) {
+      lightBtn.addEventListener('click', () => {
+        lightModeIdx = (lightModeIdx + 1) % lightModes.length;
+        const mode = lightModes[lightModeIdx];
+        rackInteriorLight.color.setHex(mode.color);
+        rackInteriorLight.intensity = mode.intensity;
+        lightBtn.innerHTML = `💡 Light: ${mode.name}`;
+        sound.playClick();
+      });
+    }
+
+    // 🔍 Reset View Button
+    const resetBtn = document.getElementById('btn-3d-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        const hw = hardwareRegistry[0];
+        focusCameraOn(hw.camPos, hw.camTarget);
+        showComponentTelemetry(hw);
+        document.querySelectorAll('.quick-nav-btn').forEach((b, idx) => b.classList.toggle('active', idx === 0));
+        sound.playClick();
+      });
+    }
+
+    // Canvas Click Raycaster
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / canvas.clientWidth) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / canvas.clientHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(rackGroup.children, true);
+
+      if (intersects.length > 0) {
+        let hitObj = intersects[0].object;
+        let foundKey = 'rack';
+
+        let cur = hitObj;
+        while (cur && cur !== rackGroup) {
+          if (cur === switchGroup) { foundKey = 'switch'; break; }
+          if (cur === routerGroup) { foundKey = 'router'; break; }
+          if (cur === patchGroup) { foundKey = 'patch'; break; }
+          if (cur === patchCordsGroup) { foundKey = 'cables'; break; }
+          cur = cur.parent;
+        }
+
+        const hw = hardwareRegistry.find(h => h.id === foundKey);
+        if (hw) {
+          focusCameraOn(hw.camPos, hw.camTarget);
+          showComponentTelemetry(hw);
+          document.querySelectorAll('.quick-nav-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-target') === foundKey);
+          });
+          sound.playClick();
+        }
+      }
+    });
+
+    // Resize Handler
+    window.three3DResize = function() {
+      if (!canvas || canvas.clientWidth === 0) return;
+      camera.aspect = canvas.clientWidth / canvas.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    };
+    window.addEventListener('resize', window.three3DResize);
+
+    // Animation Loop
     function animate() {
       requestAnimationFrame(animate);
+
+      // Smooth door swing interpolation
+      doorPivot.rotation.y = THREE.MathUtils.lerp(doorPivot.rotation.y, targetDoorAngle, 0.08);
+
+      // Spin Router Cooling Fans
+      fanMeshes.forEach(fan => {
+        fan.rotation.z += 0.18;
+      });
+
+      // Blink Switch LEDs randomly for realism
+      if (Math.random() < 0.25) {
+        const idx = Math.floor(Math.random() * switchLeds.length);
+        switchLeds[idx].material.color.setHex(Math.random() > 0.5 ? 0xf59e0b : 0x10b981);
+      }
+
       controls.update();
       renderer.render(scene, camera);
     }
     animate();
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
   // 8. APPLICATION ORCHESTRATION & DOM BINDINGS
   // ════════════════════════════════════════════════════════════════════════════
   const subnetEngine = new IPv4SubnetEngine();
@@ -1457,6 +2317,7 @@
     setupChallengeEngine();
     setupQuizAssessment();
     setupFullscreenControls();
+    setupTheoryBlueprints();
 
     // Start Animation Loop for Packet Propagation
     startAnimationLoop();
@@ -1475,8 +2336,8 @@
             logWiresharkPacket(pkt, destNode, true);
           }
         );
-        if (canvasRenderer) canvasRenderer.render();
       }
+      if (canvasRenderer) canvasRenderer.render();
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);
@@ -2162,6 +3023,253 @@ Total Mac Addresses for this criterion: 2\n`;
       } else {
         routeBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b;">(No L3 routes for this node)</td></tr>';
       }
+    }
+  }
+
+
+  // ── Theory Interactive Blueprint Inspectors ─────────────────────────────
+  function setupTheoryBlueprints() {
+    // 1. Blueprint Sub-Tabs
+    const bpTabs = document.querySelectorAll('.bp-tab');
+    const panes = {
+      'ipv4': document.getElementById('bp-pane-ipv4'),
+      'tcp': document.getElementById('bp-pane-tcp'),
+      'dijkstra': document.getElementById('bp-pane-dijkstra')
+    };
+
+    bpTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        bpTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.getAttribute('data-bp');
+
+        Object.keys(panes).forEach(k => {
+          if (panes[k]) {
+            if (k === target) panes[k].classList.remove('hidden');
+            else panes[k].classList.add('hidden');
+          }
+        });
+        sound.playClick();
+      });
+    });
+
+    // 2. IPv4 Field Details Data
+    const v4FieldData = {
+      'v4_ver': {
+        title: 'IP Version (4 Bits)',
+        desc: 'Specifies the IP format. Value 4 (0100 in binary) signifies IPv4. Value 6 (0110) denotes IPv6. Routers immediately drop packets if the version number does not match their protocol engine.',
+        offset: 'Byte 0 (Bits 0-3)',
+        rfc: 'RFC 791',
+        val: 'Version: 4 (IPv4)'
+      },
+      'v4_ihl': {
+        title: 'Internet Header Length - IHL (4 Bits)',
+        desc: 'Length of IPv4 header in 32-bit (4-byte) words. Standard header without options has IHL=5 (5 × 4 = 20 bytes). Maximum IHL is 15 (60 bytes total).',
+        offset: 'Byte 0 (Bits 4-7)',
+        rfc: 'RFC 791',
+        val: 'IHL: 5 (20 Bytes)'
+      },
+      'v4_tos': {
+        title: 'Differentiated Services Code Point (DSCP) & ECN (8 Bits)',
+        desc: 'Upper 6 bits define DSCP Quality of Service (QoS) classification (e.g. Expedited Forwarding for VoIP). Lower 2 bits provide Explicit Congestion Notification (ECN) to signal router buffer congestion without dropping packets.',
+        offset: 'Byte 1 (Bits 8-15)',
+        rfc: 'RFC 2474 / RFC 3168',
+        val: 'DSCP: CS0 (Best Effort) • ECN: 00'
+      },
+      'v4_len': {
+        title: 'Total Length (16 Bits)',
+        desc: 'Defines entire packet size in bytes, including header and data payload. Minimum is 20 bytes; theoretical maximum is 65,535 bytes. Packets exceeding link MTU undergo fragmentation unless DF flag is set.',
+        offset: 'Bytes 2-3 (Bits 16-31)',
+        rfc: 'RFC 791',
+        val: '1254 Bytes (Fragmentable if MTU < 1254)'
+      },
+      'v4_id': {
+        title: 'Identification (16 Bits)',
+        desc: 'Unique integer assigned by the sender to distinguish fragments of one original IP datagram so the receiver can reassemble them.',
+        offset: 'Bytes 4-5 (Bits 32-47)',
+        rfc: 'RFC 791 / RFC 6864',
+        val: '0x3F2A (16170)'
+      },
+      'v4_flags': {
+        title: 'Flags (3 Bits)',
+        desc: 'Bit 0: Reserved (must be 0). Bit 1: DF (Don\'t Fragment) — if set, router drops packet with ICMP Type 3 Code 4 if MTU exceeded. Bit 2: MF (More Fragments) — set on all fragments except the final one.',
+        offset: 'Byte 6 (Bits 48-50)',
+        rfc: 'RFC 791',
+        val: 'DF=0, MF=0 (Unfragmented)'
+      },
+      'v4_frag': {
+        title: 'Fragment Offset (13 Bits)',
+        desc: 'Indicates the position of this fragment\'s payload relative to the beginning of the original unfragmented datagram, measured in units of 8-byte blocks.',
+        offset: 'Bytes 6-7 (Bits 51-63)',
+        rfc: 'RFC 791',
+        val: 'Offset: 0 (Byte 0)'
+      },
+      'v4_ttl': {
+        title: 'Time-To-Live - TTL (8 Bits)',
+        desc: 'Hop count limit to prevent routing loops. Every Layer-3 router decrements TTL by 1 before forwarding. When TTL hits 0, the router discards the packet and sends an ICMP Time Exceeded (Type 11 Code 0) back to the sender.',
+        offset: 'Byte 8 (Bits 64-71)',
+        rfc: 'RFC 791',
+        val: 'TTL: 64 (Standard Linux Default)'
+      },
+      'v4_proto': {
+        title: 'Upper-Layer Protocol (8 Bits)',
+        desc: 'Identifies which transport protocol payload is encapsulated inside: 1 = ICMP (Ping), 6 = TCP (Web/SSH), 17 = UDP (DNS/Streaming), 89 = OSPF.',
+        offset: 'Byte 9 (Bits 72-79)',
+        rfc: 'IANA Assigned Numbers',
+        val: 'Protocol: 6 (TCP)'
+      },
+      'v4_csum': {
+        title: 'Header Checksum (16 Bits)',
+        desc: '16-bit 1\'s complement sum computed over the IPv4 header only (not payload). Because TTL decrements at each hop, routers MUST recalculate the checksum at every hop.',
+        offset: 'Bytes 10-11 (Bits 80-95)',
+        rfc: 'RFC 1071',
+        val: '0x8F3D (Verified Valid)'
+      },
+      'v4_src': {
+        title: 'Source IPv4 Address (32 Bits)',
+        desc: 'The 32-bit logical network address of the original sending host. Examined by firewall ACLs and used by receiver as the destination address for replies.',
+        offset: 'Bytes 12-15 (Bits 96-127)',
+        rfc: 'RFC 791',
+        val: '192.168.1.10 (Class C Private)'
+      },
+      'v4_dst': {
+        title: 'Destination IPv4 Address (32 Bits)',
+        desc: 'The 32-bit address of the final destination endpoint. Routers inspect this address and search their FIB/routing table using Longest Prefix Match (LPM) to determine the next hop.',
+        offset: 'Bytes 16-19 (Bits 128-159)',
+        rfc: 'RFC 791',
+        val: '192.168.2.20 (Remote LAN)'
+      }
+    };
+
+    document.querySelectorAll('#bp-pane-ipv4 .bp-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        document.querySelectorAll('#bp-pane-ipv4 .bp-cell').forEach(c => c.classList.remove('active'));
+        cell.classList.add('active');
+        const fKey = cell.getAttribute('data-field');
+        const data = v4FieldData[fKey];
+        if (data) {
+          document.getElementById('bp-v4-title').textContent = data.title;
+          document.getElementById('bp-v4-desc').textContent = data.desc;
+          document.getElementById('bp-v4-val').textContent = data.val;
+          sound.playClick();
+        }
+      });
+    });
+
+    // Test in Simulator Button for IPv4
+    const btnTestV4 = document.getElementById('bp-btn-test-v4');
+    if (btnTestV4) {
+      btnTestV4.addEventListener('click', () => {
+        const simTab = document.querySelector('#mode-tabs .pill[data-mode="simulate"]');
+        if (simTab) simTab.click();
+        const osiMod = document.querySelector('.mod-pill[data-module="osi"]');
+        if (osiMod) osiMod.click();
+        sound.playClick();
+      });
+    }
+
+    // 3. TCP Field Details Data
+    const tcpFieldData = {
+      'tcp_src': {
+        title: 'Source Port (16 Bits)',
+        desc: 'Identifies the sending client process. Usually an ephemeral port dynamically assigned by the OS stack from range 49152–65535.',
+        offset: 'Bytes 0-1',
+        rfc: 'RFC 9293',
+        val: '54321 (Ephemeral Client Port)'
+      },
+      'tcp_dst': {
+        title: 'Destination Port (16 Bits)',
+        desc: 'Identifies the destination service process. Well-known ports: 80 (HTTP), 443 (HTTPS), 22 (SSH), 53 (DNS).',
+        offset: 'Bytes 2-3',
+        rfc: 'RFC 9293',
+        val: '80 (HTTP Web Server)'
+      },
+      'tcp_seq': {
+        title: 'Sequence Number (32 Bits)',
+        desc: 'Tracks position of the first data byte in this segment within the stream. In a SYN packet, this is the Initial Sequence Number (ISN) chosen randomly.',
+        offset: 'Bytes 4-7',
+        rfc: 'RFC 9293',
+        val: '1001 (Bytes Transmitted)'
+      },
+      'tcp_ack': {
+        title: 'Acknowledgment Number (32 Bits)',
+        desc: 'Valid if ACK flag is set. Identifies the next byte number the receiver expects to receive. Provides cumulative byte stream reliability.',
+        offset: 'Bytes 8-11',
+        rfc: 'RFC 9293',
+        val: '2001 (Next Expected Byte)'
+      },
+      'tcp_offset': {
+        title: 'Data Offset (4 Bits)',
+        desc: 'Number of 32-bit words in the TCP header. Specifies where the data payload begins. Standard header without options is 5 words (20 bytes).',
+        offset: 'Byte 12 (Bits 0-3)',
+        rfc: 'RFC 9293',
+        val: '5 Words (20 Bytes)'
+      },
+      'tcp_res': {
+        title: 'Reserved (3 Bits)',
+        desc: 'Reserved for future use. Must be 0 in standard implementations.',
+        offset: 'Byte 12 (Bits 4-6)',
+        rfc: 'RFC 9293',
+        val: '000'
+      },
+      'tcp_flags': {
+        title: 'Control Flags (9 Bits)',
+        desc: 'URG (Urgent), ACK (Acknowledgment valid), PSH (Push data to app), RST (Reset/abort connection), SYN (Synchronize sequence numbers), FIN (Finish connection).',
+        offset: 'Bytes 12-13',
+        rfc: 'RFC 9293',
+        val: 'ACK=1, PSH=1 (Data Transmission)'
+      },
+      'tcp_win': {
+        title: 'Receive Window Size (16 Bits)',
+        desc: 'Flow control mechanism. Number of bytes the sender is willing to receive without acknowledgment, based on available socket buffer space.',
+        offset: 'Bytes 14-15',
+        rfc: 'RFC 9293',
+        val: '65535 Bytes (Flow Window)'
+      },
+      'tcp_csum': {
+        title: 'TCP Checksum (16 Bits)',
+        desc: 'Mandatory 16-bit 1\'s complement sum computed over the TCP pseudo-header (IP source, IP dest, protocol, TCP length), TCP header, and data payload.',
+        offset: 'Bytes 16-17',
+        rfc: 'RFC 9293',
+        val: '0xA4F2 (Valid)'
+      },
+      'tcp_urg': {
+        title: 'Urgent Pointer (16 Bits)',
+        desc: 'Valid only if URG flag is set. Points to the offset from sequence number indicating the end of urgent out-of-band data (e.g. Telnet Ctrl+C interrupt).',
+        offset: 'Bytes 18-19',
+        rfc: 'RFC 9293',
+        val: '0 (Not Urgent)'
+      }
+    };
+
+    document.querySelectorAll('#bp-pane-tcp .bp-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        document.querySelectorAll('#bp-pane-tcp .bp-cell').forEach(c => c.classList.remove('active'));
+        cell.classList.add('active');
+        const fKey = cell.getAttribute('data-field');
+        const data = tcpFieldData[fKey];
+        if (data) {
+          document.getElementById('bp-tcp-title').textContent = data.title;
+          document.getElementById('bp-tcp-desc').textContent = data.desc;
+          document.getElementById('bp-tcp-specs').innerHTML = `
+            <div><span>Byte Offset:</span><strong>${data.offset}</strong></div>
+            <div><span>RFC Standard:</span><strong>${data.rfc}</strong></div>
+            <div><span>Live Lab State:</span><strong>${data.val}</strong></div>
+          `;
+          sound.playClick();
+        }
+      });
+    });
+
+    const btnTestTcp = document.getElementById('bp-btn-test-tcp');
+    if (btnTestTcp) {
+      btnTestTcp.addEventListener('click', () => {
+        const simTab = document.querySelector('#mode-tabs .pill[data-mode="simulate"]');
+        if (simTab) simTab.click();
+        const osiMod = document.querySelector('.mod-pill[data-module="osi"]');
+        if (osiMod) osiMod.click();
+        sound.playClick();
+      });
     }
   }
 
