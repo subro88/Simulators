@@ -4,338 +4,578 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PC Maintenance &amp; Hardware Assembly Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive PC Hardware Maintenance & Assembly Virtual Lab for WBSCTE 3rd Sem CST Professional Practice - I. Diagnose motherboard POST codes, calculate SMPS power budgets, assemble LGA CPU, DDR4/DDR5 RAM, and M.2 NVMe SSDs with interactive 3D hardware model.">
+  <meta name="description" content="Professional PC Hardware Maintenance, Desktop Assembly &amp; Fault-Diagnostics Virtual Laboratory for WBSCTE 3rd Sem CST (CST/3/PP-I). Hands-on ATX assembly, ZIF socket, thermal paste spread, dual-channel RAM, modular cabling, POST beep codes, Q-LEDs, and multimeter testing.">
+  <meta name="theme-color" content="#020814">
   <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
+<a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab Home">
   <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
 </a>
 
 <main id="app">
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav" aria-label="Breadcrumb">
     <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
-    <span class="nav-domain">Computer Science &amp; Technology &mdash; 3rd Semester (CST/3/PP-I)</span>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 3rd Semester (CST/3/PP-I: Hardware Lab)</span>
   </nav>
 
+  <!-- Page Header -->
   <header>
     <h1>PC Maintenance &amp; Hardware Assembly Lab</h1>
-    <p class="subtitle">Motherboard Architecture, LGA/AM4 Socket Assembly, Dual-Channel RAM, SMPS Wattage Sizing &amp; POST Diagnostics</p>
+    <p class="subtitle">Component Architecture &bull; Thermal Dynamics &bull; Modular Power Rails &bull; POST State Machine &bull; Multimeter Diagnostics</p>
   </header>
 
-  <!-- Mode tabs bar (UTM model structure) -->
+  <!-- Canonical V2 Mode Tabs (4-Mode System) -->
   <div class="controls-bar">
     <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
+      <span class="ctrl-label">Platform Mode</span>
       <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">Hardware Specifications</button>
-        <button class="pill" data-value="quiz">Quiz</button>
+        <button class="pill active" data-mode="simulate">&#9881; Workbench Simulator</button>
+        <button class="pill" data-mode="3d-model">&#128187; 3D Hardware Model</button>
+        <button class="pill" data-mode="explore">&#128218; Engineering Theory</button>
+        <button class="pill" data-mode="quiz">&#9733; Lab Certification Quiz</button>
       </div>
     </div>
     <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Assembly Checklist</a>
+      <button class="btn-sound" id="btn-sound-toggle" title="Toggle Synthesizer Sound">&#128264;</button>
+      <a class="btn-guide" href="#user-guide">&#128214; Laboratory Manual</a>
     </div>
   </div>
 
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       3D MODEL MODE (Canonical V2 Embed with Three.js)
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="model3d-wrapper" class="hidden">
     <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Hardware — <span id="sim3d-title">ATX Motherboard &amp; Core PC Components</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of ATX Motherboard PCB, LGA CPU Socket, DDR4/DDR5 DIMM slots, PCIe x16 expansion lanes, M.2 NVMe SSD shield, VRM cooling heatsinks, and 24-Pin ATX power connector.</p>
+      <button class="sim3d-fs-btn" id="sim3d-fs-toggle" title="Toggle Fullscreen">&#x2922; Fullscreen</button>
+      <h2>3D Hardware &mdash; <span id="sim3d-title">ATX Desktop Workstation &amp; Motherboard</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of ATX Mid-Tower Chassis, LGA1700/AM5 Motherboard PCB, Socket ZIF clamp, VRM heatsinks, DDR5 DIMM slots, PCIe 5.0 x16 graphics card, and modular power supply unit.</p>
       <div class="sim3d-layout">
         <div class="sim3d-wrap">
           <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+          <div class="sim3d-hint">Drag to rotate &bull; Scroll to zoom &bull; Right-click to pan</div>
+          <div class="sim3d-resize" id="sim3d-resize-handle" title="Drag to resize height"></div>
         </div>
         <aside id="sim3d-components" class="sim3d-components"></aside>
       </div>
     </section>
   </div>
 
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       SIMULATE MODE (Main Dual-Viewport Engineering Workbench)
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="sim-wrapper">
-    <div class="pc-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">CPU TDP (Watts):</label>
-        <input type="number" id="cpu-tdp" value="65" min="15" max="250" class="num-input">
+    <!-- Workbench Master Status Bar -->
+    <div class="wb-statusbar">
+      <div class="status-chip-group">
+        <div class="status-chip" id="chip-mode">
+          <span class="chip-dot dot-cyan"></span>
+          <span class="chip-label">MODE:</span>
+          <strong id="disp-mode-name">Guided Assembly</strong>
+        </div>
+        <div class="status-chip" id="chip-esd">
+          <span class="chip-dot dot-red" id="esd-indicator"></span>
+          <span class="chip-label">ESD STRAP:</span>
+          <strong id="disp-esd-status">UNGROUNDED (3.2 kV)</strong>
+        </div>
+        <div class="status-chip" id="chip-psu">
+          <span class="chip-dot dot-slate" id="psu-switch-indicator"></span>
+          <span class="chip-label">PSU ROCKER:</span>
+          <strong id="disp-psu-switch">OFF (0)</strong>
+        </div>
+        <div class="status-chip" id="chip-post">
+          <span class="chip-dot dot-amber" id="post-indicator"></span>
+          <span class="chip-label">POST STATE:</span>
+          <strong id="disp-post-stage">STANDBY</strong>
+        </div>
       </div>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">GPU TDP (Watts):</label>
-        <input type="number" id="gpu-tdp" value="180" min="0" max="450" class="num-input">
-      </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">RAM Sticks:</label>
-        <select id="ram-count" class="pc-select">
-          <option value="1">1 Stick (Single Channel)</option>
-          <option value="2" selected>2 Sticks (Dual Channel)</option>
-          <option value="4">4 Sticks (Quad/Dual)</option>
-        </select>
-      </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">POST Beep Code:</label>
-        <select id="beep-select" class="pc-select">
-          <option value="1_short">1 Short (Normal Boot)</option>
-          <option value="1_long_2_short">1 Long, 2 Short (GPU Fault)</option>
-          <option value="continuous_long">Continuous Long (RAM Fault)</option>
-          <option value="no_beep">No Beep (PSU / CPU Fault)</option>
-        </select>
-      </div>
-
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-calc">Calculate Budget</button>
-        <button class="btn-action success" id="btn-boot">Test POST Boot</button>
+      <!-- Quick Action Buttons -->
+      <div class="wb-actions">
+        <button class="btn-wb primary" id="btn-toggle-esd">&#128296; Toggle ESD Strap</button>
+        <button class="btn-wb warning" id="btn-psu-rocker">&#9889; PSU Switch [I/O]</button>
+        <button class="btn-wb success" id="btn-chassis-power">&#9195; Front Power [PWR_SW]</button>
+        <button class="btn-wb danger" id="btn-emergency-stop" title="Hard Power Cut">&#9209; Cut Power</button>
       </div>
     </div>
 
-    <!-- Dual Canvas & Power Calculations -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Motherboard Component Diagram &amp; Installation Status</span>
-          <span class="badge" id="post-status-badge">POST: Normal</span>
-        </div>
-        <canvas id="pc-canvas" width="700" height="420"></canvas>
+    <!-- Secondary Navigation & Sub-Mode Strip -->
+    <div class="submode-strip">
+      <div class="submode-pills" id="submode-tabs">
+        <button class="sub-pill active" data-submode="guided">&#128736; 1. Guided Assembly</button>
+        <button class="sub-pill" data-submode="sandbox">&#128640; 2. Free Build Sandbox</button>
+        <button class="sub-pill" data-submode="tickets">&#129302; 3. Troubleshooting Tickets (1–8)</button>
       </div>
 
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">System Power Budget &amp; Diagnostic Readout</span>
-        </div>
-        <div class="power-grid">
-          <div class="power-box"><span class="pwr-lbl">Total Estimated Draw</span><span class="pwr-val" id="total-pwr">335 W</span></div>
-          <div class="power-box"><span class="pwr-lbl">Recommended SMPS</span><span class="pwr-val" id="rec-psu">450 W (80+ Bronze)</span></div>
-          <div class="power-box"><span class="pwr-lbl">RAM Memory Bandwidth</span><span class="pwr-val" id="ram-bw">51.2 GB/s (Dual Ch)</span></div>
-          <div class="power-box"><span class="pwr-lbl">PCIe 4.0 x16 Throughput</span><span class="pwr-val">31.5 GB/s</span></div>
+      <!-- Zoom Presets -->
+      <div class="zoom-presets" id="zoom-presets-bar">
+        <span class="ctrl-label">Zoom Zone:</span>
+        <button class="btn-zoom-zone active" data-zone="chassis">&#127757; Full Chassis</button>
+        <button class="btn-zoom-zone" data-zone="cpu">&#9881; CPU Socket</button>
+        <button class="btn-zoom-zone" data-zone="ram">&#128190; RAM &amp; 24-Pin</button>
+        <button class="btn-zoom-zone" data-zone="pcie">&#127918; PCIe &amp; M.2</button>
+        <button class="btn-zoom-zone" data-zone="fpanel">&#128268; Front Panel Header</button>
+      </div>
+
+      <!-- Quick Preset Rig -->
+      <div class="rig-preset-select">
+        <span class="ctrl-label">Hardware Rig:</span>
+        <select id="rig-tier-select" class="wb-select">
+          <option value="cad_rig" selected>Engineering CAD Rig (Ryzen 7 7700X, RTX 4070 12GB, 750W 80+ Gold)</option>
+          <option value="office_pc">Office Workstation (Core i5-13400, UHD 730 Graphics, 450W Bronze)</option>
+          <option value="enthusiast">Workstation Extreme (Core i9-14900K, RTX 4090 24GB, 1000W Platinum)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         DUAL-VIEWPORT MAIN LAYOUT (Left 56% / Right 44%)
+         ══════════════════════════════════════════════════════════════════ -->
+    <div class="dual-viewport">
+
+      <!-- ── LEFT PANE (56%): Interactive Chassis & Motherboard Canvas ── -->
+      <div class="viewport-card left-card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <span class="card-title" id="workbench-canvas-title">&#128421; ATX Chassis &amp; Motherboard Interior</span>
+            <span class="card-subtext" id="workbench-canvas-subtext">[LGA Socket &bull; Dual-Channel DIMM &bull; PCIe 5.0 &bull; Modular Rails]</span>
+          </div>
+          <div class="header-badges">
+            <span class="badge badge-qled" id="qled-cpu" title="CPU Q-LED">CPU</span>
+            <span class="badge badge-qled" id="qled-dram" title="DRAM Q-LED">DRAM</span>
+            <span class="badge badge-qled" id="qled-vga" title="VGA Q-LED">VGA</span>
+            <span class="badge badge-qled" id="qled-boot" title="BOOT Q-LED">BOOT</span>
+          </div>
         </div>
 
-        <div class="diag-card">
-          <div class="diag-title">POST Diagnostic Meaning &amp; Action Plan:</div>
-          <div class="diag-text" id="diag-msg">POST Passed: All motherboard hardware subsystems (CPU, RAM, GPU, NVMe) responded within timing thresholds. System is ready to initialize boot loader.</div>
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="pc-workbench-canvas" width="860" height="520"></canvas>
+          
+          <!-- Floating Canvas Camera HUD -->
+          <div class="canvas-zoom-hud" id="canvas-zoom-hud">
+            <button id="btn-hud-zoom-in" title="Zoom In (+)">&#xFF0B;</button>
+            <span id="hud-zoom-val">100%</span>
+            <button id="btn-hud-zoom-out" title="Zoom Out (-)">&#xFF0D;</button>
+            <button id="btn-hud-reset" title="Reset Zoom (1:1)">1:1</button>
+            <button id="btn-hud-fit" title="Fit Chassis to View">Fit</button>
+            <button id="btn-hud-thermal" title="Toggle Thermal IR Overlay">&#127777; Thermal</button>
+          </div>
+
+          <!-- Dynamic Action Notification Banner -->
+          <div class="canvas-alert-banner hidden" id="canvas-alert-banner">
+            <span id="alert-banner-text">ESD Warning! Ground yourself before touching CPU.</span>
+          </div>
         </div>
 
-        <div class="console-box">
-          <div class="console-title">Hardware Telemetry Log:</div>
-          <div class="console-log" id="pc-log">
-            &gt; Initialized PC Hardware Virtual Lab.<br>
-            &gt; LGA1700 Socket ready. Dual-Channel DDR4 3200MHz memory profile loaded.<br>
-            &gt; Power Budget calculated with +30% continuous safety headroom.
+        <!-- Workbench Quick Telemetry Strip -->
+        <div class="wb-telemetry-tray">
+          <div class="tele-item">
+            <span class="tele-label">CPU Die Temp:</span>
+            <strong class="tele-val text-emerald" id="live-cpu-temp">32.4 &deg;C</strong>
+          </div>
+          <div class="tele-item">
+            <span class="tele-label">Cooler RPM:</span>
+            <strong class="tele-val text-cyan" id="live-fan-rpm">0 RPM</strong>
+          </div>
+          <div class="tele-item">
+            <span class="tele-label">Power Draw:</span>
+            <strong class="tele-val text-amber" id="live-power-draw">0 W / 750 W</strong>
+          </div>
+          <div class="tele-item">
+            <span class="tele-label">Memory Channel:</span>
+            <strong class="tele-val text-purple" id="live-mem-channel">None Installed</strong>
+          </div>
+          <div class="tele-item">
+            <span class="tele-label">Multimeter:</span>
+            <strong class="tele-val text-sky" id="live-dmm-val">Probes Lifted</strong>
           </div>
         </div>
       </div>
+
+      <!-- ── RIGHT PANE (44%): Tools, Telemetry & Diagnostic Instruments ── -->
+      <div class="viewport-card right-card">
+        
+        <!-- Tabbed Header -->
+        <div class="tab-headers" id="right-pane-tabs">
+          <button class="tab-btn active" data-tab="tab-inventory">&#128230; Component Shelf</button>
+          <button class="tab-btn" data-tab="tab-tools">&#129520; Toolkit &amp; DMM</button>
+          <button class="tab-btn" data-tab="tab-bios">&#128187; UEFI / BIOS Screen</button>
+          <button class="tab-btn" data-tab="tab-power">&#9889; Power Budget &amp; Rails</button>
+          <button class="tab-btn" data-tab="tab-tickets">&#127919; Lab Tickets</button>
+        </div>
+
+        <!-- TAB 1: Component & Modular Cable Shelf -->
+        <div class="tab-pane active" id="tab-inventory">
+          <div class="inventory-controls">
+            <span class="ctrl-label">Select Drawer:</span>
+            <div class="drawer-pills" id="drawer-tabs">
+              <button class="drawer-pill active" data-drawer="core">CPU &amp; Cooler</button>
+              <button class="drawer-pill" data-drawer="memory">RAM &amp; M.2</button>
+              <button class="drawer-pill" data-drawer="gpu">GPU &amp; PCIe</button>
+              <button class="drawer-pill" data-drawer="cables">PSU &amp; Cables</button>
+            </div>
+          </div>
+
+          <div class="component-grid" id="component-shelf-grid">
+            <!-- Dynamically populated component interactive cards -->
+          </div>
+
+          <!-- Component Detail Box -->
+          <div class="comp-detail-box" id="comp-detail-box">
+            <h4 id="detail-comp-title">AMD Ryzen 7 7700X Processor</h4>
+            <p id="detail-comp-desc">8 Cores, 16 Threads &bull; AM5 Socket &bull; 105W TDP &bull; Gold alignment triangle corner 1 &bull; Integrated RDNA2 graphics</p>
+            <div class="comp-actions" id="comp-actions-group">
+              <button class="btn-install primary" id="btn-install-part">&#128736; Install into Chassis</button>
+              <button class="btn-install secondary" id="btn-inspect-part">&#128065; Inspect Part</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Hardware Diagnostic Toolkit (DMM, Cleaning Tools) -->
+        <div class="tab-pane hidden" id="tab-tools">
+          <div class="dmm-panel">
+            <div class="dmm-display-bezel">
+              <div class="dmm-lcd">
+                <span class="dmm-lcd-mode" id="dmm-lcd-mode">DC VOLTS</span>
+                <span class="dmm-lcd-digits" id="dmm-lcd-digits">+0.00 V</span>
+                <span class="dmm-lcd-status" id="dmm-lcd-status">OPEN CIRCUIT</span>
+              </div>
+            </div>
+
+            <!-- DMM Dial & Mode Selectors -->
+            <div class="dmm-dial-row">
+              <span class="ctrl-label">Multimeter Mode:</span>
+              <div class="dmm-mode-pills" id="dmm-mode-pills">
+                <button class="dmm-pill active" data-dmm="v_dc">&#9107; DC Volts</button>
+                <button class="dmm-pill" data-dmm="continuity">&#128266; Continuity (&Omega;)</button>
+                <button class="dmm-pill" data-dmm="standby">&#128267; +5VSB Rail</button>
+              </div>
+            </div>
+
+            <!-- Probe Placement Controls -->
+            <div class="probe-target-box">
+              <span class="ctrl-label">Probe Test Points:</span>
+              <div class="probe-buttons-grid">
+                <button class="btn-probe" data-probe="atx24_12v">ATX 24-Pin (+12V Yellow)</button>
+                <button class="btn-probe" data-probe="atx24_5v">ATX 24-Pin (+5V Red)</button>
+                <button class="btn-probe" data-probe="atx24_3v3">ATX 24-Pin (+3.3V Orange)</button>
+                <button class="btn-probe" data-probe="atx24_pson">ATX 24-Pin (PS_ON# Green)</button>
+                <button class="btn-probe" data-probe="atx24_5vsb">ATX 24-Pin (+5VSB Purple)</button>
+                <button class="btn-probe" data-probe="eps_12v">8-Pin EPS CPU VRM (+12V)</button>
+                <button class="btn-probe" data-probe="pcie_12v">PCIe 8-Pin GPU Rail (+12V)</button>
+                <button class="btn-probe" data-probe="pwr_sw">Front Panel PWR_SW Pins</button>
+              </div>
+            </div>
+
+            <!-- Maintenance & Cleaning Kit -->
+            <div class="maint-kit-card">
+              <span class="ctrl-label">Service &amp; Cleaning Tools:</span>
+              <div class="maint-buttons-row">
+                <button class="btn-maint" id="btn-air-duster">&#128168; Compressed Air (Blow Dust)</button>
+                <button class="btn-maint" id="btn-ipa-swab">&#129529; 99% IPA Swab (Clean Old TIM)</button>
+                <button class="btn-maint" id="btn-peel-sticker">&#129658; Remove Cooler Peel Sticker</button>
+                <button class="btn-maint" id="btn-thermal-paste">&#128293; Apply Thermal Paste</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: Live UEFI / BIOS Setup & Thermal Monitor Screen -->
+        <div class="tab-pane hidden" id="tab-bios">
+          <div class="bios-monitor-wrap">
+            <div class="bios-screen-card" id="bios-screen-card">
+              <!-- BIOS Top Header Bar -->
+              <div class="bios-nav-bar">
+                <span>APTIO SETUP UTILITY &mdash; NHIT AMERICAN MEGATRENDS UEFI (Ver 2.41)</span>
+                <span id="bios-live-clock">11:45:00 AM</span>
+              </div>
+              <div class="bios-menu-bar">
+                <span class="bios-tab active">Main</span>
+                <span class="bios-tab">Ai Tweaker</span>
+                <span class="bios-tab">Advanced</span>
+                <span class="bios-tab">Monitor</span>
+                <span class="bios-tab">Boot</span>
+                <span class="bios-tab">Exit</span>
+              </div>
+
+              <!-- BIOS Content Display -->
+              <div class="bios-content" id="bios-content">
+                <div class="bios-data-grid">
+                  <div class="bios-row"><span>Processor Type:</span><strong id="bios-cpu-name">No CPU Detected</strong></div>
+                  <div class="bios-row"><span>Core Frequency:</span><strong id="bios-cpu-freq">0.00 GHz</strong></div>
+                  <div class="bios-row"><span>Total Memory:</span><strong id="bios-mem-size">0 MB</strong></div>
+                  <div class="bios-row"><span>Memory Channel Mode:</span><strong id="bios-mem-mode">Not Active</strong></div>
+                  <div class="bios-row"><span>XMP / EXPO Profile:</span><strong id="bios-xmp-state" class="text-amber">DISABLED (Auto 4800MT/s)</strong></div>
+                  <div class="bios-row"><span>Primary Display Adapter:</span><strong id="bios-gpu-name">Integrated / None</strong></div>
+                  <div class="bios-row"><span>Primary Boot Volume:</span><strong id="bios-boot-drive">No Bootable Storage</strong></div>
+                </div>
+
+                <!-- Live Temperature Graph Canvas -->
+                <div class="thermal-graph-box">
+                  <div class="graph-header">
+                    <span>CPU Die Temperature vs. Time (Lumped Thermodynamic Model)</span>
+                    <span id="graph-cur-temp" class="text-emerald">32.4 &deg;C</span>
+                  </div>
+                  <canvas id="thermal-history-canvas" width="480" height="110"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- BIOS Controls -->
+            <div class="bios-controls-row">
+              <button class="btn-bios" id="btn-toggle-xmp">&#9889; Toggle XMP/EXPO Profile</button>
+              <button class="btn-bios" id="btn-stress-cpu">&#128293; Run CPU Stress Test (100% Load)</button>
+              <button class="btn-bios" id="btn-reboot-bios">&#8635; Save &amp; Reset System</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: Electrical Power Budget & Rail Distribution Calculator -->
+        <div class="tab-pane hidden" id="tab-power">
+          <div class="power-calc-card">
+            <div class="power-summary-strip">
+              <div class="pwr-metric">
+                <span class="pwr-label">Total Peak Draw</span>
+                <span class="pwr-val text-amber" id="calc-total-watts">395 W</span>
+              </div>
+              <div class="pwr-metric">
+                <span class="pwr-label">Rated PSU Capacity</span>
+                <span class="pwr-val text-sky" id="calc-rated-psu">750 W (80+ Gold)</span>
+              </div>
+              <div class="pwr-metric">
+                <span class="pwr-label">Load Factor (&eta;)</span>
+                <span class="pwr-val text-emerald" id="calc-load-factor">52.7% (Optimal)</span>
+              </div>
+            </div>
+
+            <!-- Rail Distribution Breakdown -->
+            <div class="rails-breakdown-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>DC Rail</th>
+                    <th>Nominal Voltage</th>
+                    <th>Current Load</th>
+                    <th>Power Budget</th>
+                    <th>Target Subsystem</th>
+                  </tr>
+                </thead>
+                <tbody id="rails-tbody">
+                  <tr>
+                    <td><strong>+12V Rail</strong></td>
+                    <td>+12.08 V</td>
+                    <td id="rail-12v-amps">27.5 A</td>
+                    <td id="rail-12v-watts">330 W</td>
+                    <td>CPU VRM, GPU PCIe, Case Fans</td>
+                  </tr>
+                  <tr>
+                    <td><strong>+5V Rail</strong></td>
+                    <td>+5.02 V</td>
+                    <td id="rail-5v-amps">6.4 A</td>
+                    <td id="rail-5v-watts">32 W</td>
+                    <td>SATA SSD/HDD Logic, Motherboard I/O</td>
+                  </tr>
+                  <tr>
+                    <td><strong>+3.3V Rail</strong></td>
+                    <td>+3.31 V</td>
+                    <td id="rail-3v3-amps">5.8 A</td>
+                    <td id="rail-3v3-watts">19 W</td>
+                    <td>DIMM Memory SPD, M.2 NVMe Controller</td>
+                  </tr>
+                  <tr>
+                    <td><strong>+5VSB Rail</strong></td>
+                    <td>+5.05 V</td>
+                    <td>0.8 A</td>
+                    <td>4.0 W</td>
+                    <td>Standby Power, Front PWR_SW Logic</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- OCP Headroom Warning Box -->
+            <div class="ocp-notice" id="ocp-status-box">
+              <strong style="color:var(--accent-emerald);">&#10004; OCP Headroom Safe:</strong>
+              <span>Rated PSU provides 355W (47%) headroom above peak dynamic transient spikes. Over-Current Protection will not trip.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: Interactive Troubleshooting Tickets (1–8) -->
+        <div class="tab-pane hidden" id="tab-tickets">
+          <div class="tickets-container">
+            <div class="ticket-header-row">
+              <span class="ticket-badge" id="ticket-number-badge">TICKET #01 / 08</span>
+              <div class="ticket-stats">
+                <span>Solved: <strong id="ticket-solved-count" class="text-emerald">0</strong>/8</span>
+                <span>Accuracy: <strong id="ticket-accuracy-val" class="text-cyan">100%</strong></span>
+              </div>
+            </div>
+
+            <div class="ticket-card" id="ticket-active-card">
+              <h3 id="ticket-title">Ticket 01: Workstation Dead on Arrival (No Standby Power)</h3>
+              <p class="ticket-symptom" id="ticket-symptom">User reports brand-new desktop does not respond to chassis power button. Fans do not spin, no LEDs illuminate on the motherboard, and power supply fan is stationary.</p>
+              
+              <div class="ticket-telemetry-box">
+                <div class="tt-row"><span>Observed Q-LEDs:</span><strong id="ticket-tele-qled">All Dark (No Standby Light)</strong></div>
+                <div class="tt-row"><span>Diagnostic Speaker:</span><strong id="ticket-tele-beep">Silent (Zero Beeps)</strong></div>
+                <div class="tt-row"><span>Multimeter DMM Test:</span><strong id="ticket-tele-dmm">0.00V on +5VSB &amp; PS_ON#</strong></div>
+              </div>
+
+              <!-- Diagnosis Multiple Choice Options -->
+              <span class="ctrl-label" style="margin-top:10px;">Select Root Cause Diagnosis:</span>
+              <div class="ticket-options-list" id="ticket-options-list">
+                <!-- Dynamically populated 4 options -->
+              </div>
+
+              <div class="ticket-feedback hidden" id="ticket-feedback-box">
+                <!-- Feedback and technical explanation -->
+              </div>
+
+              <div class="ticket-action-row">
+                <button class="btn-ticket primary" id="btn-submit-ticket">&#9989; Submit Diagnosis &amp; Apply Fix</button>
+                <button class="btn-ticket secondary" id="btn-hint-ticket">&#128161; Show Hint</button>
+                <button class="btn-ticket success hidden" id="btn-next-ticket">&#10140; Next Ticket</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         BOTTOM PANE: Step-by-Step Assembly Checklist & Event Terminal
+         ══════════════════════════════════════════════════════════════════ -->
+    <div class="bottom-panel-row">
+      
+      <!-- Left: Standard Assembly & POST Audit Checklist -->
+      <div class="checklist-card">
+        <div class="checklist-header">
+          <span class="card-title">&#9745; Laboratory Assembly &amp; POST Audit Checklist (8 Standards)</span>
+          <span class="checklist-progress"><strong id="chk-completed-count">0</strong> / 8 Completed</span>
+        </div>
+        <div class="checklist-grid" id="assembly-checklist-grid">
+          <!-- Dynamically populated 8 standard items -->
+        </div>
+      </div>
+
+      <!-- Right: Real-time Motherboard POST & Hardware Diagnostics Terminal -->
+      <div class="terminal-card">
+        <div class="terminal-header">
+          <span class="card-title">&#128424; Motherboard POST &amp; Bus Diagnostics Event Log</span>
+          <button class="btn-clear-log" id="btn-clear-terminal">&#128465; Clear</button>
+        </div>
+        <div class="terminal-body" id="terminal-event-log">
+          <div class="log-line log-info">&gt; NHIT Hardware Lab Simulator initialized. Ready for workstation assembly.</div>
+          <div class="log-line log-dim">&gt; Warning: Anti-Static Wrist Strap is currently ungrounded. Mating PCBs will risk static discharge.</div>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       THEORY & HARDWARE SPECIFICATIONS MODE
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="explore-wrapper" class="hidden">
     <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE CST/3/PP-I Professional Practice - I (PC Maintenance)</h2>
+      <h2>&#128218; PC Maintenance &amp; Hardware Assembly Engineering Guide</h2>
+      <p class="theory-intro">Comprehensive laboratory textbook reference covering desktop computer architecture, electrical power rail distribution, thermodynamic heat dissipation, memory topology, and motherboard diagnostic state machines.</p>
+
       <div class="theory-grid">
         <div class="theory-item">
-          <h3>1. Motherboard Form Factors &amp; Architecture</h3>
-          <p><strong>ATX (305 × 244 mm):</strong> Standard desktop board with up to 7 expansion slots.<br><strong>Micro-ATX (244 × 244 mm):</strong> Compact board with 4 slots.<br>Components include: VRM MOSFETs, Chipset (PCH), LGA/PGA CPU socket, DIMM slots, and M.2 PCIe Gen 4/5 slots.</p>
+          <h3>&#9889; 1. Electrical Power Budget &amp; ATX Rail Distribution</h3>
+          <p>Modern PC components draw regulated DC current across three primary voltage rails: <strong>+12V</strong>, <strong>+5V</strong>, and <strong>+3.3V</strong>, with <strong>+5VSB</strong> (Standby) powered continuously.</p>
+          <p>&bull; <strong>+12V Rail Dominance:</strong> High-TDP modern CPUs (via 8-pin EPS) and discrete graphics cards (via PCIe 8-pin / 12VHPWR) draw over 85% of total system power from the +12V rail.<br>
+             &bull; <strong>Load Factor (&eta;<sub>load</sub>):</strong> Standard engineering sizing recommends sizing the PSU so peak dynamic load operates at 50%–70% capacity, where 80+ Gold/Platinum switching efficiency peaks.</p>
         </div>
+
         <div class="theory-item">
-          <h3>2. Dual-Channel Memory Interleaving</h3>
-          <p>Installing RAM modules in matched pairs (Slots A2 &amp; B2) doubles the memory bus width from 64-bit to 128-bit, effectively doubling aggregate theoretical memory bandwidth ($\text{Bandwidth} = \frac{\text{Clock} \times 8 \times 2}{1000}\text{ GB/s}$).</p>
+          <h3>&#127777; 2. Thermodynamic Heat Transfer &amp; TIM Physics</h3>
+          <p>Thermal dissipation across the CPU die is governed by Fourier's law and lumped-capacitance thermal resistance networks:</p>
+          <p>&bull; <strong>Thermal Interface Material (TIM):</strong> Fills microscopic air voids between the copper IHS and cooler cold plate. Air has a very poor thermal conductivity ($k \approx 0.026\text{ W/m}\cdot\text{K}$) versus silver/silicone paste ($k \approx 5\text{ to }8.5\text{ W/m}\cdot\text{K}$).<br>
+             &bull; <strong>Forgotten Plastic Peel Film:</strong> Retaining the factory protective plastic sticker introduces an insulating thermal barrier ($R_{\text{th}} > 0.85\ ^\circ\text{C/W}$), triggering emergency thermal throttling at $100^\circ\text{C}$ within seconds of boot.</p>
         </div>
+
         <div class="theory-item">
-          <h3>3. SMPS Power Supply Sizing</h3>
-          <p>Calculate peak TDP of CPU + GPU + 80W base peripheral load. Apply an industry standard <strong>1.25× to 1.35× continuous multiplier</strong> for peak transient spikes and 80 PLUS efficiency curves.</p>
+          <h3>&#128190; 3. Dual-Channel Memory Topology &amp; Interleaving</h3>
+          <p>Modern memory controllers provide two 64-bit independent channels (or four 32-bit sub-channels in DDR5):</p>
+          <p>&bull; <strong>Primary Pair (A2 + B2):</strong> In daisy-chain motherboard trace topologies, memory signals travel through slots A1/B1 to reach A2/B2. Populating slots 2 and 4 avoids open-stub signal reflections, ensuring signal integrity at high DDR5 transfer rates.<br>
+             &bull; <strong>Dual-Channel Bandwidth:</strong> Doubles effective memory bandwidth: $\text{BW} = \text{Clock} \times 8\text{ bytes} \times 2\text{ channels}$.</p>
         </div>
+
         <div class="theory-item">
-          <h3>4. BIOS / UEFI POST Diagnostics</h3>
-          <p><strong>Power-On Self-Test (POST)</strong> validates CPU registers, DMA controllers, system timer, DRAM, and video controller. Audible beep codes and diagnostic 7-segment Q-codes pinpoint failing hardware prior to video initialization.</p>
+          <h3>&#128266; 4. Motherboard POST State Machine &amp; Q-LED Hierarchy</h3>
+          <p>Upon chassis power button activation, the motherboard BIOS executes a 4-stage sequential hardware audit:</p>
+          <p>&bull; <strong>CPU Init (Red LED):</strong> Verifies VRM power delivery, socket contact continuity, and CPU clock generator.<br>
+             &bull; <strong>DRAM Training (Amber LED):</strong> Reads Serial Presence Detect (SPD) EEPROM and trains clock-to-data memory timings.<br>
+             &bull; <strong>VGA Init (White LED):</strong> Initializes primary PCIe display controller and handshakes VESA display output.<br>
+             &bull; <strong>BOOT Device (Green LED):</strong> Handshakes UEFI NVMe/SATA storage drives and transfers control to OS bootloader.</p>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       LAB CERTIFICATION QUIZ & PRACTICE MODE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" class="hidden">
+    <div class="quiz-card">
+      <div class="quiz-header">
+        <h2>&#9733; PC Maintenance &amp; Hardware Assembly Certification Quiz</h2>
+        <div class="quiz-score-badge">Score: <span id="quiz-score-val">0</span> / 10</div>
+      </div>
+      <p class="quiz-subtext">WBSCTE Diploma CST 3rd Semester Assessment: Test your diagnostic knowledge of POST beep codes, memory topologies, power rails, and safety standards.</p>
+      <div id="quiz-questions-list" class="quiz-list">
+        <!-- Dynamically generated 10 questions -->
+      </div>
+    </div>
+  </div>
+
+  <!-- User Guide Section -->
+  <section class="user-guide-section" id="user-guide">
+    <h2>&#128214; Laboratory Student Manual &amp; Operations Guide</h2>
+    <div class="guide-steps">
+      <p><strong>1. Electrostatic Discharge (ESD) Safety:</strong> Always click <em>Toggle ESD Strap</em> to ground yourself to the unpainted chassis frame ($V_{\text{static}} = 0\text{V}$) before installing sensitive microchips.</p>
+      <p><strong>2. CPU &amp; Thermal Cooler Installation:</strong> Open the CPU ZIF lever, orient gold triangle ($\blacktriangle$) to Pin 1, apply thermal paste, remove the cooler's protective peel film, and secure the heatsink.</p>
+      <p><strong>3. Dual-Channel RAM Installation:</strong> Seat matching memory sticks into slots <strong>DIMM_A2</strong> and <strong>DIMM_B2</strong> until both latches click firmly into place.</p>
+      <p><strong>4. Power Supply Cabling:</strong> Connect the 24-Pin ATX main connector, 8-Pin EPS CPU VRM cable, and PCIe 8-Pin GPU cable. Ensure front-panel `PWR_SW` is oriented to pin 6 &amp; 8.</p>
+      <p><strong>5. Diagnostic Verification:</strong> Turn on the rear PSU rocker switch, press the front-panel power button, and watch the Q-LED sweep sequence pass to hear <em>1 Short Beep (POST Pass)</em>.</p>
+    </div>
+  </section>
+
 </main>
 
+<!-- ══════════════════════════════════════════════════════════════════
+     SCRIPTS & PLATFORM DEPENDENCIES
+     ══════════════════════════════════════════════════════════════════ -->
+<script>
+window.$ = window.$ || function(id){ return document.getElementById(id); };
+window.V2_TOOL_ID = "pc-hardware-assembly";
+window.V2_MODEL = "pc_hardware_assembly";
+window.V2_COMPONENTS_URL = "/models/pc_hardware_assembly_components.json";
+</script>
+
+<!-- Anime.js CDN for cinematic micro-interactions & hardware timeline animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+<!-- Three.js CDN includes for 3D model embed -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="/js/v2_model_embed.js"></script>
 <script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
 
-const canvas = document.getElementById('pc-canvas');
-const ctx = canvas.getContext('2d');
-
-function drawMotherboard() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  // PCB Substrate
-  ctx.fillStyle = '#081c15';
-  ctx.fillRect(40, 30, 620, 360);
-  ctx.strokeStyle = '#1b4332';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(40, 30, 620, 360);
-
-  // CPU Socket
-  ctx.fillStyle = '#2d3748';
-  ctx.fillRect(180, 70, 140, 140);
-  ctx.strokeStyle = '#cbd5e0';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(180, 70, 140, 140);
-  ctx.fillStyle = '#f7fafc';
-  ctx.font = 'bold 13px Segoe UI';
-  ctx.textAlign = 'center';
-  ctx.fillText('LGA CPU SOCKET', 250, 135);
-  ctx.font = '11px Segoe UI';
-  ctx.fillStyle = '#68d391';
-  ctx.fillText('CPU INSTALLED [OK]', 250, 155);
-
-  // RAM Slots
-  for (let i = 0; i < 4; i++) {
-    const x = 360 + i * 28;
-    ctx.fillStyle = (i === 1 || i === 3) ? '#2b6cb0' : '#1a202c';
-    ctx.fillRect(x, 60, 18, 160);
-    ctx.strokeStyle = '#718096';
-    ctx.strokeRect(x, 60, 18, 160);
-  }
-  ctx.fillStyle = '#90cdf4';
-  ctx.font = '11px Segoe UI';
-  ctx.fillText('DDR4/DDR5 SLOTS (A1, A2, B1, B2)', 410, 235);
-
-  // PCIe Slots
-  ctx.fillStyle = '#c53030';
-  ctx.fillRect(120, 270, 260, 24);
-  ctx.strokeStyle = '#feb2b2';
-  ctx.strokeRect(120, 270, 260, 24);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 11px Segoe UI';
-  ctx.fillText('PCIe 4.0 x16 GRAPHICS SLOT', 250, 286);
-
-  // M.2 NVMe Slot
-  ctx.fillStyle = '#d69e2e';
-  ctx.fillRect(160, 320, 160, 20);
-  ctx.fillStyle = '#000';
-  ctx.fillText('M.2 NVMe PCIe SSD', 240, 334);
-
-  // 24-Pin Power
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(580, 90, 28, 130);
-  ctx.fillStyle = '#000';
-  ctx.font = '9px Segoe UI';
-  ctx.fillText('24-PIN', 594, 160);
-}
-
-const cpuIn = document.getElementById('cpu-tdp');
-const gpuIn = document.getElementById('gpu-tdp');
-const ramIn = document.getElementById('ram-count');
-const beepIn = document.getElementById('beep-select');
-const logEl = document.getElementById('pc-log');
-
-function calculatePower() {
-  const cpu = parseFloat(cpuIn.value) || 65;
-  const gpu = parseFloat(gpuIn.value) || 0;
-  const ramCount = parseInt(ramIn.value) || 2;
-  const total = cpu + gpu + 50 + 25 + 15 + (ramCount * 4);
-  const rec = Math.ceil((total * 1.30) / 50) * 50;
-  const bw = (3200 * 8 * (ramCount >= 2 ? 2 : 1)) / 1000;
-
-  document.getElementById('total-pwr').textContent = `${total.toFixed(0)} W`;
-  document.getElementById('rec-psu').textContent = `${rec} W (80+ Bronze)`;
-  document.getElementById('ram-bw').textContent = `${bw.toFixed(1)} GB/s (${ramCount >= 2 ? 'Dual Ch' : 'Single Ch'})`;
-
-  logEl.innerHTML += `<br>&gt; Computed Power Draw: ${total}W. Recommended SMPS PSU = ${rec}W.`;
-}
-
-document.getElementById('btn-calc').addEventListener('click', calculatePower);
-
-document.getElementById('btn-boot').addEventListener('click', () => {
-  const b = beepIn.value;
-  const msgEl = document.getElementById('diag-msg');
-  const badge = document.getElementById('post-status-badge');
-
-  if (b === '1_short') {
-    badge.textContent = 'POST: Normal (Pass)'; badge.style.background = '#00e676';
-    msgEl.textContent = 'POST Passed: System boot successful. Motherboard detected CPU, RAM in Dual Channel, and PCIe GPU.';
-    logEl.innerHTML += '<br>&gt; [POST 1 Short] Normal boot pass. Loading OS bootloader.';
-  } else if (b === '1_long_2_short') {
-    badge.textContent = 'POST: GPU Fault'; badge.style.background = '#ff5252';
-    msgEl.textContent = 'Video/Graphics Fault: No display signal from PCIe slot. Reseat GPU and check 8-Pin power cable.';
-    logEl.innerHTML += '<br>&gt; [POST 1 Long 2 Short] Display Adapter error detected.';
-  } else if (b === 'continuous_long') {
-    badge.textContent = 'POST: DRAM Fault'; badge.style.background = '#ff9100';
-    msgEl.textContent = 'DRAM Memory Error: RAM initialization failed. Reseat RAM modules in slots A2/B2.';
-    logEl.innerHTML += '<br>&gt; [POST Continuous Long] Memory parity / DRAM timing fault.';
-  } else {
-    badge.textContent = 'POST: Power / CPU Fault'; badge.style.background = '#e53935';
-    msgEl.textContent = 'Power Delivery Failure: Check 24-Pin ATX and 8-Pin EPS 12V connectors.';
-    logEl.innerHTML += '<br>&gt; [POST No Beep] Power supply or VRM circuit failure.';
-  }
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/pc_hardware_assembly.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
-      }
-    });
-  });
-
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
-
-drawMotherboard();
-</script>
+<!-- Core PC Hardware Assembly & Fault-Diagnostics Engine -->
+<script src="app.js"></script>
 </body>
 </html>

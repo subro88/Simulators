@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PC Maintenance &amp; Hardware Assembly Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive PC Hardware Maintenance & Assembly Virtual Lab for WBSCTE 3rd Sem CST Professional Practice - I. Diagnose motherboard POST codes, calculate SMPS power budgets, assemble LGA CPU, DDR4/DDR5 RAM, and M.2 NVMe SSDs with interactive 3D hardware model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 3rd Semester (CST/3/PP-I)</span>
+  </nav>
+
+  <header>
+    <h1>PC Maintenance &amp; Hardware Assembly Lab</h1>
+    <p class="subtitle">Motherboard Architecture, LGA/AM4 Socket Assembly, Dual-Channel RAM, SMPS Wattage Sizing &amp; POST Diagnostics</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Hardware Specifications</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Assembly Checklist</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">ATX Motherboard &amp; Core PC Components</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of ATX Motherboard PCB, LGA CPU Socket, DDR4/DDR5 DIMM slots, PCIe x16 expansion lanes, M.2 NVMe SSD shield, VRM cooling heatsinks, and 24-Pin ATX power connector.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="pc-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">CPU TDP (Watts):</label>
+        <input type="number" id="cpu-tdp" value="65" min="15" max="250" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">GPU TDP (Watts):</label>
+        <input type="number" id="gpu-tdp" value="180" min="0" max="450" class="num-input">
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">RAM Sticks:</label>
+        <select id="ram-count" class="pc-select">
+          <option value="1">1 Stick (Single Channel)</option>
+          <option value="2" selected>2 Sticks (Dual Channel)</option>
+          <option value="4">4 Sticks (Quad/Dual)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">POST Beep Code:</label>
+        <select id="beep-select" class="pc-select">
+          <option value="1_short">1 Short (Normal Boot)</option>
+          <option value="1_long_2_short">1 Long, 2 Short (GPU Fault)</option>
+          <option value="continuous_long">Continuous Long (RAM Fault)</option>
+          <option value="no_beep">No Beep (PSU / CPU Fault)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-calc">Calculate Budget</button>
+        <button class="btn-action success" id="btn-boot">Test POST Boot</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Power Calculations -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Motherboard Component Diagram &amp; Installation Status</span>
+          <span class="badge" id="post-status-badge">POST: Normal</span>
+        </div>
+        <canvas id="pc-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">System Power Budget &amp; Diagnostic Readout</span>
+        </div>
+        <div class="power-grid">
+          <div class="power-box"><span class="pwr-lbl">Total Estimated Draw</span><span class="pwr-val" id="total-pwr">335 W</span></div>
+          <div class="power-box"><span class="pwr-lbl">Recommended SMPS</span><span class="pwr-val" id="rec-psu">450 W (80+ Bronze)</span></div>
+          <div class="power-box"><span class="pwr-lbl">RAM Memory Bandwidth</span><span class="pwr-val" id="ram-bw">51.2 GB/s (Dual Ch)</span></div>
+          <div class="power-box"><span class="pwr-lbl">PCIe 4.0 x16 Throughput</span><span class="pwr-val">31.5 GB/s</span></div>
+        </div>
+
+        <div class="diag-card">
+          <div class="diag-title">POST Diagnostic Meaning &amp; Action Plan:</div>
+          <div class="diag-text" id="diag-msg">POST Passed: All motherboard hardware subsystems (CPU, RAM, GPU, NVMe) responded within timing thresholds. System is ready to initialize boot loader.</div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Hardware Telemetry Log:</div>
+          <div class="console-log" id="pc-log">
+            &gt; Initialized PC Hardware Virtual Lab.<br>
+            &gt; LGA1700 Socket ready. Dual-Channel DDR4 3200MHz memory profile loaded.<br>
+            &gt; Power Budget calculated with +30% continuous safety headroom.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE CST/3/PP-I Professional Practice - I (PC Maintenance)</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Motherboard Form Factors &amp; Architecture</h3>
+          <p><strong>ATX (305 × 244 mm):</strong> Standard desktop board with up to 7 expansion slots.<br><strong>Micro-ATX (244 × 244 mm):</strong> Compact board with 4 slots.<br>Components include: VRM MOSFETs, Chipset (PCH), LGA/PGA CPU socket, DIMM slots, and M.2 PCIe Gen 4/5 slots.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Dual-Channel Memory Interleaving</h3>
+          <p>Installing RAM modules in matched pairs (Slots A2 &amp; B2) doubles the memory bus width from 64-bit to 128-bit, effectively doubling aggregate theoretical memory bandwidth ($\text{Bandwidth} = \frac{\text{Clock} \times 8 \times 2}{1000}\text{ GB/s}$).</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. SMPS Power Supply Sizing</h3>
+          <p>Calculate peak TDP of CPU + GPU + 80W base peripheral load. Apply an industry standard <strong>1.25× to 1.35× continuous multiplier</strong> for peak transient spikes and 80 PLUS efficiency curves.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. BIOS / UEFI POST Diagnostics</h3>
+          <p><strong>Power-On Self-Test (POST)</strong> validates CPU registers, DMA controllers, system timer, DRAM, and video controller. Audible beep codes and diagnostic 7-segment Q-codes pinpoint failing hardware prior to video initialization.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('pc-canvas');
+const ctx = canvas.getContext('2d');
+
+function drawMotherboard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // PCB Substrate
+  ctx.fillStyle = '#081c15';
+  ctx.fillRect(40, 30, 620, 360);
+  ctx.strokeStyle = '#1b4332';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(40, 30, 620, 360);
+
+  // CPU Socket
+  ctx.fillStyle = '#2d3748';
+  ctx.fillRect(180, 70, 140, 140);
+  ctx.strokeStyle = '#cbd5e0';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(180, 70, 140, 140);
+  ctx.fillStyle = '#f7fafc';
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('LGA CPU SOCKET', 250, 135);
+  ctx.font = '11px Segoe UI';
+  ctx.fillStyle = '#68d391';
+  ctx.fillText('CPU INSTALLED [OK]', 250, 155);
+
+  // RAM Slots
+  for (let i = 0; i < 4; i++) {
+    const x = 360 + i * 28;
+    ctx.fillStyle = (i === 1 || i === 3) ? '#2b6cb0' : '#1a202c';
+    ctx.fillRect(x, 60, 18, 160);
+    ctx.strokeStyle = '#718096';
+    ctx.strokeRect(x, 60, 18, 160);
+  }
+  ctx.fillStyle = '#90cdf4';
+  ctx.font = '11px Segoe UI';
+  ctx.fillText('DDR4/DDR5 SLOTS (A1, A2, B1, B2)', 410, 235);
+
+  // PCIe Slots
+  ctx.fillStyle = '#c53030';
+  ctx.fillRect(120, 270, 260, 24);
+  ctx.strokeStyle = '#feb2b2';
+  ctx.strokeRect(120, 270, 260, 24);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillText('PCIe 4.0 x16 GRAPHICS SLOT', 250, 286);
+
+  // M.2 NVMe Slot
+  ctx.fillStyle = '#d69e2e';
+  ctx.fillRect(160, 320, 160, 20);
+  ctx.fillStyle = '#000';
+  ctx.fillText('M.2 NVMe PCIe SSD', 240, 334);
+
+  // 24-Pin Power
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(580, 90, 28, 130);
+  ctx.fillStyle = '#000';
+  ctx.font = '9px Segoe UI';
+  ctx.fillText('24-PIN', 594, 160);
+}
+
+const cpuIn = document.getElementById('cpu-tdp');
+const gpuIn = document.getElementById('gpu-tdp');
+const ramIn = document.getElementById('ram-count');
+const beepIn = document.getElementById('beep-select');
+const logEl = document.getElementById('pc-log');
+
+function calculatePower() {
+  const cpu = parseFloat(cpuIn.value) || 65;
+  const gpu = parseFloat(gpuIn.value) || 0;
+  const ramCount = parseInt(ramIn.value) || 2;
+  const total = cpu + gpu + 50 + 25 + 15 + (ramCount * 4);
+  const rec = Math.ceil((total * 1.30) / 50) * 50;
+  const bw = (3200 * 8 * (ramCount >= 2 ? 2 : 1)) / 1000;
+
+  document.getElementById('total-pwr').textContent = `${total.toFixed(0)} W`;
+  document.getElementById('rec-psu').textContent = `${rec} W (80+ Bronze)`;
+  document.getElementById('ram-bw').textContent = `${bw.toFixed(1)} GB/s (${ramCount >= 2 ? 'Dual Ch' : 'Single Ch'})`;
+
+  logEl.innerHTML += `<br>&gt; Computed Power Draw: ${total}W. Recommended SMPS PSU = ${rec}W.`;
+}
+
+document.getElementById('btn-calc').addEventListener('click', calculatePower);
+
+document.getElementById('btn-boot').addEventListener('click', () => {
+  const b = beepIn.value;
+  const msgEl = document.getElementById('diag-msg');
+  const badge = document.getElementById('post-status-badge');
+
+  if (b === '1_short') {
+    badge.textContent = 'POST: Normal (Pass)'; badge.style.background = '#00e676';
+    msgEl.textContent = 'POST Passed: System boot successful. Motherboard detected CPU, RAM in Dual Channel, and PCIe GPU.';
+    logEl.innerHTML += '<br>&gt; [POST 1 Short] Normal boot pass. Loading OS bootloader.';
+  } else if (b === '1_long_2_short') {
+    badge.textContent = 'POST: GPU Fault'; badge.style.background = '#ff5252';
+    msgEl.textContent = 'Video/Graphics Fault: No display signal from PCIe slot. Reseat GPU and check 8-Pin power cable.';
+    logEl.innerHTML += '<br>&gt; [POST 1 Long 2 Short] Display Adapter error detected.';
+  } else if (b === 'continuous_long') {
+    badge.textContent = 'POST: DRAM Fault'; badge.style.background = '#ff9100';
+    msgEl.textContent = 'DRAM Memory Error: RAM initialization failed. Reseat RAM modules in slots A2/B2.';
+    logEl.innerHTML += '<br>&gt; [POST Continuous Long] Memory parity / DRAM timing fault.';
+  } else {
+    badge.textContent = 'POST: Power / CPU Fault'; badge.style.background = '#e53935';
+    msgEl.textContent = 'Power Delivery Failure: Check 24-Pin ATX and 8-Pin EPS 12V connectors.';
+    logEl.innerHTML += '<br>&gt; [POST No Beep] Power supply or VRM circuit failure.';
+  }
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/pc_hardware_assembly.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawMotherboard();
+</script>
+</body>
+</html>
