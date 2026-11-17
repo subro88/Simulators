@@ -225,6 +225,9 @@
         broadcastStr: this.intToIp(broadcast),
         firstHostStr: this.intToIp(firstHost),
         lastHostStr: this.intToIp(lastHost),
+        ipBin: (ip >>> 0).toString(2).padStart(32, '0'),
+        maskBin: (mask >>> 0).toString(2).padStart(32, '0'),
+        netBin: (network >>> 0).toString(2).padStart(32, '0'),
         usableHosts,
         totalAddresses
       };
@@ -595,6 +598,14 @@
       this.showGrid = true;
       this.spacePressed = false;
 
+      // Independent camera views per module so zooming/panning in Topology
+      // does not throw Subnetting or OSI Stack off-screen
+      this.moduleViews = {
+        subnetting: { zoom: 1.0, panX: 0, panY: 0 },
+        osi: { zoom: 1.0, panX: 0, panY: 0 },
+        topology: { zoom: 1.0, panX: 0, panY: 0 }
+      };
+
       // Interaction
       this.draggedNode = null;
       this.hoveredNode = null;
@@ -609,14 +620,82 @@
 
       this.cachedBitBoxes = [];
       this.initEvents();
+      this.initResizeObserver();
+    }
+
+    initResizeObserver() {
+      this.resizeCanvas();
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          this.resizeCanvas();
+        });
+        this.resizeObserver.observe(this.canvas);
+      }
+      window.addEventListener('resize', () => this.resizeCanvas());
+    }
+
+    resizeCanvas() {
+      const rect = this.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+
+      if (this.canvas.width !== w || this.canvas.height !== h) {
+        const oldW = this.canvas.width;
+        const oldH = this.canvas.height;
+        this.canvas.width = w;
+        this.canvas.height = h;
+
+        if (this.activeModule === 'subnetting' || this.activeModule === 'osi') {
+          if (oldW && oldH && oldW !== 880) {
+            this.panX += (w - oldW) / 2;
+            this.panY += (h - oldH) / 2;
+          } else {
+            this.centerDiagram();
+          }
+        }
+        this.render();
+      }
+    }
+
+    centerDiagram() {
+      // Centers the ~880x520 content area within the canvas viewport
+      this.panX = Math.round(Math.max(0, (this.canvas.width - 880) / 2));
+      this.panY = Math.round(Math.max(0, (this.canvas.height - 520) / 2));
+    }
+
+    switchModule(newMod) {
+      if (this.activeModule === newMod) return;
+      // Save camera state of current module
+      this.moduleViews[this.activeModule] = {
+        zoom: this.zoom,
+        panX: this.panX,
+        panY: this.panY
+      };
+
+      this.activeModule = newMod;
+      const target = this.moduleViews[newMod];
+      if (target) {
+        this.zoom = target.zoom;
+        this.panX = target.panX;
+        this.panY = target.panY;
+      }
+
+      // If opening subnetting or osi with default pan (0,0), auto-center it
+      if ((newMod === 'subnetting' || newMod === 'osi') && this.panX === 0 && this.panY === 0) {
+        this.centerDiagram();
+      }
+
+      this.updateZoomHUD();
+      this.render();
     }
 
     initEvents() {
       // Mouse Move with canvas resolution scaling
       this.canvas.addEventListener('mousemove', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
         const clientX = (e.clientX - rect.left) * scaleX;
         const clientY = (e.clientY - rect.top) * scaleY;
         const mx = (clientX - this.panX) / this.zoom;
@@ -649,21 +728,23 @@
 
           if (this.hoveredNode || this.hoveredLink) {
             this.canvas.style.cursor = 'pointer';
-          } else if (this.spacePressed) {
-            this.canvas.style.cursor = 'grab';
           } else {
             this.canvas.style.cursor = 'grab';
           }
+        } else if (this.activeModule === 'subnetting') {
+          // Check hover over interactive bit boxes
+          const hitBit = this.cachedBitBoxes ? this.cachedBitBoxes.find(b => mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) : null;
+          this.canvas.style.cursor = hitBit ? 'pointer' : 'grab';
         } else {
-          this.canvas.style.cursor = 'default';
+          this.canvas.style.cursor = 'grab';
         }
       });
 
       // Mouse Down
       this.canvas.addEventListener('mousedown', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
         const clientX = (e.clientX - rect.left) * scaleX;
         const clientY = (e.clientY - rect.top) * scaleY;
         const mx = (clientX - this.panX) / this.zoom;
@@ -722,25 +803,33 @@
         this.hoveredLink = null;
       });
 
-      // Mouse Wheel Zoom centered under mouse
+      // Mouse Wheel Zoom centered under mouse with normalized continuous curve
       this.canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
         const mouseX = (e.clientX - rect.left) * scaleX;
         const mouseY = (e.clientY - rect.top) * scaleY;
 
-        const factor = e.deltaY < 0 ? 1.15 : 0.85;
-        this.setZoomAt(this.zoom * factor, mouseX, mouseY);
+        let delta = e.deltaY;
+        if (e.deltaMode === 1) delta *= 16;
+        else if (e.deltaMode === 2) delta *= 100;
+
+        // Clamp single event to prevent jumping on rapid spins
+        const clampedDelta = Math.max(-100, Math.min(100, delta));
+
+        // Smooth continuous exponential scaling factor (base 1.0015)
+        const zoomFactor = Math.pow(1.0015, -clampedDelta);
+        this.setZoomAt(this.zoom * zoomFactor, mouseX, mouseY);
       }, { passive: false });
 
       // Click on Subnetting bits in Module 1
       this.canvas.addEventListener('click', (e) => {
         if (this.activeModule !== 'subnetting') return;
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
         const clientX = (e.clientX - rect.left) * scaleX;
         const clientY = (e.clientY - rect.top) * scaleY;
         const mx = (clientX - this.panX) / this.zoom;
@@ -757,25 +846,116 @@
           }
         }
       });
+
+      // Touch Events for Mobile / Tablet / Touchscreen Laptops
+      let initialTouchDist = null;
+      let initialTouchZoom = 1.0;
+
+      this.canvas.addEventListener('touchstart', (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
+
+        if (e.touches.length === 1) {
+          const t = e.touches[0];
+          const clientX = (t.clientX - rect.left) * scaleX;
+          const clientY = (t.clientY - rect.top) * scaleY;
+          const mx = (clientX - this.panX) / this.zoom;
+          const my = (clientY - this.panY) / this.zoom;
+
+          if (this.activeModule === 'topology') {
+            const hitNode = this.netEngine.nodes.find(n => Math.hypot(n.x - mx, n.y - my) < 48);
+            if (hitNode) {
+              this.draggedNode = hitNode;
+              this.netEngine.selectedNodeId = hitNode.id;
+              sound.playClick();
+              const nodeSel = document.getElementById('table-node-select');
+              if (nodeSel) nodeSel.value = hitNode.id;
+              updateRoutingAndMacTables();
+              return;
+            }
+          }
+          this.isPanning = true;
+          this.panStartX = clientX - this.panX;
+          this.panStartY = clientY - this.panY;
+        } else if (e.touches.length === 2) {
+          e.preventDefault();
+          this.isPanning = false;
+          this.draggedNode = null;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          initialTouchDist = Math.hypot(dx, dy);
+          initialTouchZoom = this.zoom;
+        }
+      }, { passive: false });
+
+      this.canvas.addEventListener('touchmove', (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
+
+        if (e.touches.length === 1) {
+          const t = e.touches[0];
+          const clientX = (t.clientX - rect.left) * scaleX;
+          const clientY = (t.clientY - rect.top) * scaleY;
+          const mx = (clientX - this.panX) / this.zoom;
+          const my = (clientY - this.panY) / this.zoom;
+
+          if (this.draggedNode) {
+            this.draggedNode.x = Math.round(mx);
+            this.draggedNode.y = Math.round(my);
+            e.preventDefault();
+            return;
+          }
+          if (this.isPanning) {
+            this.panX = clientX - this.panStartX;
+            this.panY = clientY - this.panStartY;
+            e.preventDefault();
+            return;
+          }
+        } else if (e.touches.length === 2 && initialTouchDist) {
+          e.preventDefault();
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          const ratio = dist / initialTouchDist;
+          const targetZoom = initialTouchZoom * ratio;
+          const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) * scaleX;
+          const midY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) * scaleY;
+          this.setZoomAt(targetZoom, midX, midY);
+        }
+      }, { passive: false });
+
+      const endTouch = () => {
+        this.isPanning = false;
+        this.draggedNode = null;
+        initialTouchDist = null;
+      };
+      this.canvas.addEventListener('touchend', endTouch);
+      this.canvas.addEventListener('touchcancel', endTouch);
     }
 
     // ── Zoom & Viewport Facilities ─────────────────────────────────────────
     zoomIn() {
       const cx = this.canvas.width / 2;
       const cy = this.canvas.height / 2;
-      this.setZoomAt(this.zoom * 1.25, cx, cy);
+      this.setZoomAt(this.zoom * 1.2, cx, cy);
     }
 
     zoomOut() {
       const cx = this.canvas.width / 2;
       const cy = this.canvas.height / 2;
-      this.setZoomAt(this.zoom * 0.8, cx, cy);
+      this.setZoomAt(this.zoom * 0.8333, cx, cy);
     }
 
     resetZoom() {
       this.zoom = 1.0;
-      this.panX = 0;
-      this.panY = 0;
+      if (this.activeModule === 'subnetting' || this.activeModule === 'osi') {
+        this.centerDiagram();
+      } else {
+        this.panX = 0;
+        this.panY = 0;
+      }
       this.updateZoomHUD();
       this.render();
     }
@@ -793,14 +973,13 @@
         const h = Math.max(100, maxY - minY);
         const cw = this.canvas.width;
         const ch = this.canvas.height;
-        const fitZoom = Math.max(0.4, Math.min(2.0, Math.min((cw - 100) / w, (ch - 100) / h)));
+        const fitZoom = Math.max(0.4, Math.min(2.0, Math.min((cw - 120) / w, (ch - 120) / h)));
         this.zoom = fitZoom;
         this.panX = (cw - w * fitZoom) / 2 - minX * fitZoom;
         this.panY = (ch - h * fitZoom) / 2 - minY * fitZoom;
       } else {
         this.zoom = 1.0;
-        this.panX = 0;
-        this.panY = 0;
+        this.centerDiagram();
       }
       this.updateZoomHUD();
       this.render();
@@ -818,9 +997,16 @@
 
     setZoomAt(targetZoom, screenX, screenY) {
       const newZoom = Math.max(0.4, Math.min(3.0, targetZoom));
+      if (Math.abs(newZoom - this.zoom) < 0.0001) return;
+
       this.panX = screenX - (screenX - this.panX) * (newZoom / this.zoom);
       this.panY = screenY - (screenY - this.panY) * (newZoom / this.zoom);
       this.zoom = newZoom;
+
+      // Bound safety
+      this.panX = Math.max(-6000, Math.min(6000, this.panX));
+      this.panY = Math.max(-6000, Math.min(6000, this.panY));
+
       this.updateZoomHUD();
       this.render();
     }
@@ -1038,10 +1224,11 @@
       ctx.font = 'bold 11px JetBrains Mono';
       ctx.fillText('BITWISE AND COMPUTATION DEMONSTRATOR:', startX + 16, diagY + 24);
 
+      const fmtBin = (bin) => (bin || '').match(/.{1,8}/g)?.join('.') || '';
       ctx.fillStyle = '#cdd7ee';
       ctx.font = '11px JetBrains Mono';
-      ctx.fillText(`IP Address (A):   ${calc.ipStr.padEnd(16)} = ${calc.ipBin.match(/.{1,8}/g).join('.')}`, startX + 16, diagY + 52);
-      ctx.fillText(`Subnet Mask (M):  ${calc.maskStr.padEnd(16)} = ${calc.maskBin.match(/.{1,8}/g).join('.')}`, startX + 16, diagY + 74);
+      ctx.fillText(`IP Address (A):   ${calc.ipStr.padEnd(16)} = ${fmtBin(calc.ipBin)}`, startX + 16, diagY + 52);
+      ctx.fillText(`Subnet Mask (M):  ${calc.maskStr.padEnd(16)} = ${fmtBin(calc.maskBin)}`, startX + 16, diagY + 74);
 
       ctx.strokeStyle = '#38bdf8';
       ctx.beginPath();
@@ -1051,7 +1238,7 @@
 
       ctx.fillStyle = '#10b981';
       ctx.font = 'bold 11px JetBrains Mono';
-      ctx.fillText(`Network ID (N):   ${calc.networkStr.padEnd(16)} = ${calc.netBin.match(/.{1,8}/g).join('.')}   (Bitwise A & M)`, startX + 16, diagY + 106);
+      ctx.fillText(`Network ID (N):   ${calc.networkStr.padEnd(16)} = ${fmtBin(calc.netBin)}   (Bitwise A & M)`, startX + 16, diagY + 106);
       ctx.fillStyle = '#f59e0b';
       ctx.fillText(`Broadcast (B):    ${calc.broadcastStr.padEnd(16)} = (Network ID | Wildcard Mask ~M)`, startX + 16, diagY + 128);
       ctx.fillStyle = '#94a3b8';
@@ -2448,6 +2635,7 @@
     const canvas = document.getElementById('net-canvas');
     if (canvas) {
       canvasRenderer = new UnifiedCanvasRenderer(canvas, netEngine, subnetEngine, osiEngine);
+      window.canvasRenderer = canvasRenderer;
     }
 
     setupPlatformModeTabs();
@@ -2544,7 +2732,7 @@
         pills.forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         const mod = pill.getAttribute('data-module');
-        canvasRenderer.activeModule = mod;
+        canvasRenderer.switchModule(mod);
 
         // Auto-switch Right Inspector Tab according to context
         if (mod === 'subnetting') {
@@ -3032,15 +3220,14 @@ Total Mac Addresses for this criterion: 2\n`;
     const isFull = card.classList.toggle('is-fullscreen');
     document.getElementById('btn-fullscreen').innerHTML = isFull ? '🗗 Exit Fullscreen' : '⛶ Fullscreen';
 
-    const canvas = document.getElementById('net-canvas');
-    if (isFull) {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight - 50;
-    } else {
-      canvas.width = 880;
-      canvas.height = 520;
-    }
-    if (canvasRenderer) canvasRenderer.render();
+    setTimeout(() => {
+      if (canvasRenderer) {
+        canvasRenderer.resizeCanvas();
+        if (isFull) {
+          canvasRenderer.fitView();
+        }
+      }
+    }, 60);
   }
 
   // PDU Byte-Field Inspector Rendering
@@ -3457,6 +3644,12 @@ Total Mac Addresses for this criterion: 2\n`;
       } else if (e.key === 'g' || e.key === 'G') {
         e.preventDefault();
         if (canvasRenderer) canvasRenderer.toggleGrid();
+      } else if (e.key === 'Escape') {
+        const card = document.getElementById('canvas-card-container');
+        if (card && card.classList.contains('is-fullscreen')) {
+          e.preventDefault();
+          toggleFullscreen();
+        }
       } else if (e.code === 'Space') {
         if (canvasRenderer) {
           canvasRenderer.spacePressed = true;
