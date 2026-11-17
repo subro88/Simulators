@@ -818,26 +818,27 @@ function updatePillarViews() {
   const heading = document.getElementById('canvas-heading');
   const subtext = document.getElementById('canvas-subtext');
   const hudText = document.getElementById('floating-hud-text');
+  const shortcutHint = '<span style="color:#38bdf8;margin-left:12px;">[Space+Drag to Pan &bull; Wheel to Zoom &bull; Key \'F\' Fullscreen &bull; \'G\' Grid &bull; \'0\' Reset]</span>';
 
   if (p === 'sets') {
     heading.innerHTML = '📊 Interactive Venn Diagram &amp; Region Shading Engine';
     subtext.textContent = 'Click regions or drag element chips into subsets to verify Inclusion-Exclusion';
-    hudText.innerHTML = 'Tip: Click regions to toggle shading &bull; Click element chips to assign to subsets';
+    hudText.innerHTML = `Tip: Click regions to toggle shading &bull; Click element chips to assign to subsets ${shortcutHint}`;
     populatePresetsForSets();
   } else if (p === 'logic') {
     heading.innerHTML = '🌲 Propositional Logic Parse Tree &amp; Truth Wave Engine';
     subtext.textContent = 'Evaluate Boolean AST nodes bottom-up across truth valuations';
-    hudText.innerHTML = 'Tip: Toggle P, Q, R switches to watch signal propagation along parse tree';
+    hudText.innerHTML = `Tip: Toggle P, Q, R switches to watch signal propagation along parse tree ${shortcutHint}`;
     populatePresetsForLogic();
   } else if (p === 'relations') {
     heading.innerHTML = '🔗 Binary Relation Digraph &amp; Topological Poset Hasse Canvas';
     subtext.textContent = 'Click node pairs to toggle directed edges (u, v) or self-loops (u, u)';
-    hudText.innerHTML = 'Tip: Click node u then node v to toggle edge (u, v) &bull; One-click Hasse transform';
+    hudText.innerHTML = `Tip: Click node u then node v to toggle edge (u, v) &bull; One-click Hasse transform ${shortcutHint}`;
     populatePresetsForRelations();
   } else if (p === 'combinatorics') {
     heading.innerHTML = '🌳 Combinatorial Branching Tree &amp; Pigeonhole Visualizer';
     subtext.textContent = 'Permutations P(n,r), Combinations C(n,r), Dirichlet Pigeonhole bounds';
-    hudText.innerHTML = 'Tip: Toggle repetition and order flags to see branching space expand/contract';
+    hudText.innerHTML = `Tip: Toggle repetition and order flags to see branching space expand/contract ${shortcutHint}`;
     populatePresetsForCombinatorics();
   }
 
@@ -1043,14 +1044,19 @@ function exportLaTeX() {
 
 // ── Canvas Interaction (Pan, Zoom, Clicks) ────────────────────
 function setupCanvasInteraction() {
+  const card = document.querySelector('.canvas-card-container');
+  const btnFs = document.getElementById('btn-canvas-fullscreen');
+  let isSpacePressed = false;
+  let dragDist = 0;
+
   // Zoom Controls
   document.getElementById('btn-zoom-in').addEventListener('click', () => {
-    state.camera.zoom = Math.min(2.5, state.camera.zoom + 0.15);
+    state.camera.zoom = Math.min(3.0, state.camera.zoom + 0.15);
     updateZoomDisplay();
     renderAll();
   });
   document.getElementById('btn-zoom-out').addEventListener('click', () => {
-    state.camera.zoom = Math.max(0.5, state.camera.zoom - 0.15);
+    state.camera.zoom = Math.max(0.4, state.camera.zoom - 0.15);
     updateZoomDisplay();
     renderAll();
   });
@@ -1074,39 +1080,173 @@ function setupCanvasInteraction() {
     renderAll();
   });
 
-  // Mouse drag & clicks on canvas
+  // Fullscreen Facility
+  function toggleFullscreen() {
+    sfx.playClick();
+    if (!document.fullscreenElement && !card.classList.contains('is-fullscreen')) {
+      if (card.requestFullscreen) {
+        card.requestFullscreen().catch(() => card.classList.add('is-fullscreen'));
+      } else {
+        card.classList.add('is-fullscreen');
+      }
+      if (btnFs) { btnFs.innerHTML = '&#x2921; Exit Fullscreen'; btnFs.classList.add('active'); }
+      logMsg('Entered Workbench Fullscreen mode (Press Esc or F to exit).', 'info');
+    } else {
+      if (document.exitFullscreen && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => card.classList.remove('is-fullscreen'));
+      }
+      card.classList.remove('is-fullscreen');
+      if (btnFs) { btnFs.innerHTML = '&#x2922; Fullscreen'; btnFs.classList.remove('active'); }
+      logMsg('Exited Fullscreen mode.', 'info');
+    }
+    setTimeout(() => {
+      renderAll();
+    }, 100);
+  }
+
+  if (btnFs) {
+    btnFs.addEventListener('click', toggleFullscreen);
+  }
+
+  document.addEventListener('fullscreenchange', () => {
+    const isFs = !!document.fullscreenElement;
+    if (btnFs) {
+      btnFs.innerHTML = isFs ? '&#x2921; Exit Fullscreen' : '&#x2922; Fullscreen';
+      btnFs.classList.toggle('active', isFs);
+    }
+    card.classList.toggle('is-fullscreen', isFs);
+    setTimeout(renderAll, 60);
+  });
+
+  // Cursor-centered Wheel Zoom
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+    const oldZoom = state.camera.zoom;
+    const newZoom = Math.min(3.0, Math.max(0.4, oldZoom * zoomFactor));
+
+    if (newZoom !== oldZoom) {
+      // Calculate world coordinates under cursor
+      const worldX = (mouseX - canvas.width / 2 - state.camera.panX) / oldZoom + canvas.width / 2;
+      const worldY = (mouseY - canvas.height / 2 - state.camera.panY) / oldZoom + canvas.height / 2;
+
+      // Adjust pan so world coordinates remain under cursor
+      state.camera.panX = mouseX - canvas.width / 2 - (worldX - canvas.width / 2) * newZoom;
+      state.camera.panY = mouseY - canvas.height / 2 - (worldY - canvas.height / 2) * newZoom;
+      state.camera.zoom = newZoom;
+
+      updateZoomDisplay();
+      renderAll();
+    }
+  }, { passive: false });
+
+  // Mouse Dragging & Panning (Left click on empty space, Middle click, Right click, or Space+Drag)
   canvas.addEventListener('mousedown', (e) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
     const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    if (e.button === 2 || e.shiftKey) { // Right click or shift: pan
-      state.camera.isDragging = true;
-      state.camera.startX = mouseX - state.camera.panX;
-      state.camera.startY = mouseY - state.camera.panY;
-      return;
-    }
-
-    // Left click handling based on active pillar
-    handleCanvasClick(mouseX, mouseY);
+    state.camera.isDragging = true;
+    dragDist = 0;
+    state.camera.startX = mouseX - state.camera.panX;
+    state.camera.startY = mouseY - state.camera.panY;
+    canvas.classList.add('is-grabbing');
   });
 
   window.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
     if (state.camera.isDragging) {
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+      const dx = mouseX - state.camera.panX - state.camera.startX;
+      const dy = mouseY - state.camera.panY - state.camera.startY;
+      dragDist += Math.hypot(dx, dy);
+
       state.camera.panX = mouseX - state.camera.startX;
       state.camera.panY = mouseY - state.camera.startY;
+      renderAll();
+      return;
+    }
+
+    // Dynamic hover cursor when not dragging
+    if (rect.left <= e.clientX && e.clientX <= rect.right && rect.top <= e.clientY && e.clientY <= rect.bottom) {
+      const worldX = (mouseX - canvas.width / 2 - state.camera.panX) / state.camera.zoom + canvas.width / 2;
+      const worldY = (mouseY - canvas.height / 2 - state.camera.panY) / state.camera.zoom + canvas.height / 2;
+      const isHoveringInteractive = checkInteractiveHover(worldX, worldY);
+      canvas.classList.toggle('is-pointer', isHoveringInteractive);
+    }
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (state.camera.isDragging) {
+      state.camera.isDragging = false;
+      canvas.classList.remove('is-grabbing');
+
+      // If user merely clicked (moved less than 5px), treat as canvas click action!
+      if (dragDist < 5 && e.target === canvas && e.button === 0 && !isSpacePressed) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+        handleCanvasClick(mouseX, mouseY);
+      }
+    }
+  });
+
+  // Keyboard Shortcuts (Space, F, G, +, -, 0)
+  window.addEventListener('keydown', (e) => {
+    // Ignore when typing inside input elements
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+    if (e.code === 'Space') {
+      isSpacePressed = true;
+      canvas.classList.add('is-grabbing');
+    } else if (e.key === 'f' || e.key === 'F') {
+      toggleFullscreen();
+    } else if (e.key === 'g' || e.key === 'G') {
+      state.camera.showGrid = !state.camera.showGrid;
+      document.getElementById('btn-toggle-grid').classList.toggle('active', state.camera.showGrid);
+      renderAll();
+    } else if (e.key === '+' || e.key === '=') {
+      state.camera.zoom = Math.min(3.0, state.camera.zoom + 0.15);
+      updateZoomDisplay();
+      renderAll();
+    } else if (e.key === '-' || e.key === '_') {
+      state.camera.zoom = Math.max(0.4, state.camera.zoom - 0.15);
+      updateZoomDisplay();
+      renderAll();
+    } else if (e.key === '0') {
+      state.camera.zoom = 1.0;
+      state.camera.panX = 0;
+      state.camera.panY = 0;
+      updateZoomDisplay();
       renderAll();
     }
   });
 
-  window.addEventListener('mouseup', () => {
-    state.camera.isDragging = false;
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      isSpacePressed = false;
+      if (!state.camera.isDragging) canvas.classList.remove('is-grabbing');
+    }
   });
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+function checkInteractiveHover(worldX, worldY) {
+  if (state.activePillar === 'relations') {
+    const nodes = getRelationNodeCoordinates();
+    return nodes.some(n => Math.hypot(worldX - n.x, worldY - n.y) <= 24);
+  } else if (state.activePillar === 'sets') {
+    const code = getVennRegionCode(worldX, worldY);
+    return code !== null;
+  }
+  return false;
 }
 
 function updateZoomDisplay() {
