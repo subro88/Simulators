@@ -1341,141 +1341,186 @@
       ctx.save();
       ctx.clearRect(0, 0, w, h);
 
-      // Deep Engineering Canvas Background
-      ctx.fillStyle = '#030814';
+      // Deep Obsidian Canvas Background
+      ctx.fillStyle = '#020712';
       ctx.fillRect(0, 0, w, h);
 
       // Transform for Zoom & Pan
       ctx.translate(this.panX, this.panY);
       ctx.scale(this.zoom, this.zoom);
 
-      // Render Coordinate Grid
+      // Render Subtle Dot Matrix Grid (40px spacing, non-intrusive 12% opacity)
       if (this.showGrid) {
-        ctx.strokeStyle = '#0a162e';
-        ctx.lineWidth = 1;
-        const gridSize = 30;
-        const startX = -this.panX / this.zoom;
-        const startY = -this.panY / this.zoom;
-        const endX = startX + w / this.zoom;
-        const endY = startY + h / this.zoom;
+        const dotSpacing = 40;
+        const startX = Math.floor((-this.panX / this.zoom) / dotSpacing) * dotSpacing;
+        const startY = Math.floor((-this.panY / this.zoom) / dotSpacing) * dotSpacing;
+        const endX = startX + (w / this.zoom) + dotSpacing;
+        const endY = startY + (h / this.zoom) + dotSpacing;
 
-        ctx.beginPath();
-        for (let x = Math.floor(startX / gridSize) * gridSize; x < endX; x += gridSize) {
-          ctx.moveTo(x, startY);
-          ctx.lineTo(x, endY);
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+        for (let x = startX; x < endX; x += dotSpacing) {
+          for (let y = startY; y < endY; y += dotSpacing) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.1, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
-        for (let y = Math.floor(startY / gridSize) * gridSize; y < endY; y += gridSize) {
-          ctx.moveTo(startX, y);
-          ctx.lineTo(endX, y);
-        }
-        ctx.stroke();
       }
 
       // Draw Main 8085 IC Boundary Box
       this.drawChipFrame(ctx, 40, 30, 780, 440);
 
+      // Draw Subtle Interconnecting Bus Traces (Behind modules)
+      this.drawInterconnects(ctx);
+
       // 1. Control & Timing Unit
-      this.drawModule(ctx, 60, 55, 170, 160, 'TIMING & CONTROL', '#1e3a5f', '#38bdf8');
+      this.drawModule(ctx, 60, 55, 170, 160, 'TIMING & CONTROL');
       ctx.fillStyle = '#94a3b8';
       ctx.font = '10px JetBrains Mono';
-      ctx.fillText(`CLK: ${this.vm.CLK ? 'HIGH' : 'LOW'} (3.072 MHz)`, 72, 85);
-      ctx.fillText(`ALE: ${this.vm.ALE ? 'HIGH (1)' : 'LOW (0)'}`, 72, 105);
-      ctx.fillText(`IO/M#: ${this.vm.IOM}`, 72, 125);
-      ctx.fillText(`RD#: ${this.vm.RD} | WR#: ${this.vm.WR}`, 72, 145);
-      ctx.fillText(`S1: ${this.vm.S1} | S0: ${this.vm.S0}`, 72, 165);
-      ctx.fillText(`INTE: ${this.vm.INTE ? 'ON' : 'OFF'}`, 72, 185);
+      ctx.fillText(`CLK: ${this.vm.CLK ? 'HIGH' : 'LOW'} (3.072 MHz)`, 72, 90);
+      ctx.fillText(`ALE: ${this.vm.ALE ? 'HIGH (1)' : 'LOW (0)'}`, 72, 110);
+      ctx.fillText(`IO/M#: ${this.vm.IOM}`, 72, 130);
+      ctx.fillText(`RD#: ${this.vm.RD} | WR#: ${this.vm.WR}`, 72, 150);
+      ctx.fillText(`S1: ${this.vm.S1} | S0: ${this.vm.S0}`, 72, 170);
+      ctx.fillText(`INTE: ${this.vm.INTE ? 'ON' : 'OFF'}`, 72, 190);
 
       // 2. Instruction Register (IR) & Decoder
-      this.drawModule(ctx, 60, 235, 170, 100, 'INSTRUCTION DECODER', '#1f293d', '#818cf8');
-      ctx.fillStyle = '#e2e8f0';
+      this.drawModule(ctx, 60, 235, 170, 95, 'INSTRUCTION DECODER');
+      ctx.fillStyle = '#cbd5e1';
       ctx.font = '11px JetBrains Mono';
-      ctx.fillText(`IR: 0x${this.vm.hex2(this.vm.IR)} (${this.vm.currentOpcode.toString(16).toUpperCase()}H)`, 72, 270);
+      ctx.fillText(`IR: 0x${this.vm.hex2(this.vm.IR)} (${this.vm.currentOpcode.toString(16).toUpperCase()}H)`, 72, 275);
       ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 12px Inter';
-      ctx.fillText(`${this.vm.currentMCycleType} Cycle &bull; State: T${this.vm.currentTState}`, 72, 300);
+      ctx.font = 'bold 11px Inter';
+      ctx.fillText(`${this.vm.currentMCycleType} Cycle &bull; State: T${this.vm.currentTState}`, 72, 305);
 
       // 3. Central Bidirectional 8-bit Data Bus
-      this.drawBus(ctx, 255, 45, 18, 380, '#0284c7', 'INTERNAL 8-BIT DATA BUS');
+      const isBusDataActive = (this.vm.currentTState === 2 || this.vm.currentTState === 3);
+      this.drawBus(ctx, 255, 45, 22, 380, 'INTERNAL 8-BIT DATA BUS', isBusDataActive);
 
       // 4. ALU & Accumulator / Flags Section
-      this.drawModule(ctx, 300, 55, 230, 170, 'ARITHMETIC LOGIC UNIT (ALU)', '#064e3b', '#10b981');
+      this.drawModule(ctx, 305, 55, 230, 165, 'ARITHMETIC LOGIC UNIT (ALU)');
+      const isAluActive = (this.vm.currentOpcode >= 0x80 && this.vm.currentOpcode <= 0xBF) || this.vm.currentOpcode === 0x27;
       // Accumulator [A]
-      this.drawRegister(ctx, 315, 85, 95, 45, 'ACCUMULATOR [A]', this.vm.hex2(this.vm.A), '#10b981');
+      this.drawRegister(ctx, 318, 85, 95, 45, 'ACCUMULATOR [A]', `0x${this.vm.hex2(this.vm.A)}`, isAluActive);
       // Temp Reg [W/Z]
-      this.drawRegister(ctx, 420, 85, 95, 45, 'TEMP [W, Z]', `${this.vm.hex2(this.vm.W)}:${this.vm.hex2(this.vm.Z)}`, '#64748b');
+      this.drawRegister(ctx, 423, 85, 95, 45, 'TEMP [W, Z]', `${this.vm.hex2(this.vm.W)}:${this.vm.hex2(this.vm.Z)}`, false);
 
       // Flag Register Flip-Flops: S, Z, 0, AC, 0, P, 1, CY
-      this.drawFlagsBar(ctx, 315, 145, 200, 48);
+      this.drawFlagsBar(ctx, 318, 142, 204, 46);
 
       // 5. General-Purpose Register Array (B, C, D, E, H, L, SP, PC)
-      this.drawModule(ctx, 560, 55, 235, 275, 'REGISTER ARRAY', '#312e81', '#c084fc');
+      this.drawModule(ctx, 560, 55, 235, 275, 'REGISTER ARRAY');
       // B & C
-      this.drawRegister(ctx, 575, 85, 95, 40, 'REG B', this.vm.hex2(this.vm.B), '#c084fc');
-      this.drawRegister(ctx, 680, 85, 95, 40, 'REG C', this.vm.hex2(this.vm.C), '#c084fc');
+      this.drawRegister(ctx, 575, 85, 95, 40, 'REG B', `0x${this.vm.hex2(this.vm.B)}`, false);
+      this.drawRegister(ctx, 680, 85, 95, 40, 'REG C', `0x${this.vm.hex2(this.vm.C)}`, false);
       // D & E
-      this.drawRegister(ctx, 575, 135, 95, 40, 'REG D', this.vm.hex2(this.vm.D), '#c084fc');
-      this.drawRegister(ctx, 680, 135, 95, 40, 'REG E', this.vm.hex2(this.vm.E), '#c084fc');
+      this.drawRegister(ctx, 575, 135, 95, 40, 'REG D', `0x${this.vm.hex2(this.vm.D)}`, false);
+      this.drawRegister(ctx, 680, 135, 95, 40, 'REG E', `0x${this.vm.hex2(this.vm.E)}`, false);
       // H & L (Default Memory Pointer M)
-      this.drawRegister(ctx, 575, 185, 95, 40, 'REG H', this.vm.hex2(this.vm.H), '#f59e0b');
-      this.drawRegister(ctx, 680, 185, 95, 40, 'REG L', this.vm.hex2(this.vm.L), '#f59e0b');
+      const isHLActive = (this.vm.currentOpcode & 0x07) === 6 || ((this.vm.currentOpcode >> 3) & 0x07) === 6;
+      this.drawRegister(ctx, 575, 185, 95, 40, 'REG H (M)', `0x${this.vm.hex2(this.vm.H)}`, isHLActive);
+      this.drawRegister(ctx, 680, 185, 95, 40, 'REG L (M)', `0x${this.vm.hex2(this.vm.L)}`, isHLActive);
       // Stack Pointer (SP)
-      this.drawRegister(ctx, 575, 235, 200, 36, 'STACK POINTER [SP]', `0x${this.vm.hex4(this.vm.SP)}`, '#38bdf8');
+      this.drawRegister(ctx, 575, 235, 200, 36, 'STACK POINTER [SP]', `0x${this.vm.hex4(this.vm.SP)}`, false);
       // Program Counter (PC)
-      this.drawRegister(ctx, 575, 280, 200, 36, 'PROGRAM COUNTER [PC]', `0x${this.vm.hex4(this.vm.PC)}`, '#34d399');
+      const isPcActive = (this.vm.currentTState === 1 || this.vm.currentTState === 4);
+      this.drawRegister(ctx, 575, 280, 200, 36, 'PROGRAM COUNTER [PC]', `0x${this.vm.hex4(this.vm.PC)}`, isPcActive);
 
       // 6. External Demultiplexed Bus & 74LS373 Latch (Bottom Section)
-      this.drawDemultiplexingLogic(ctx, 300, 350, 495, 105);
+      this.drawDemultiplexingLogic(ctx, 305, 345, 490, 110);
 
       ctx.restore();
     }
 
     drawChipFrame(ctx, x, y, w, h) {
-      ctx.strokeStyle = '#1e2d4d';
-      ctx.lineWidth = 2;
-      ctx.fillStyle = '#060c1d';
+      ctx.strokeStyle = '#162238';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#050c18';
       ctx.roundRect(x, y, w, h, 12);
       ctx.fill();
       ctx.stroke();
 
       // Silkscreen Label
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 13px JetBrains Mono';
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'bold 12px JetBrains Mono';
       ctx.fillText('INTEL ® 8085AH-2 &bull; 8-BIT MICROPROCESSOR ARCHITECTURE', x + 16, y - 8);
     }
 
-    drawModule(ctx, x, y, w, h, title, bg, border) {
-      ctx.fillStyle = bg;
-      ctx.strokeStyle = border;
+    drawInterconnects(ctx) {
+      ctx.strokeStyle = '#141f33';
       ctx.lineWidth = 1.5;
+
+      // Trace: Decoder to Bus
+      ctx.beginPath();
+      ctx.moveTo(230, 275);
+      ctx.lineTo(255, 275);
+      ctx.stroke();
+
+      // Trace: ALU to Bus
+      ctx.beginPath();
+      ctx.moveTo(277, 105);
+      ctx.lineTo(305, 105);
+      ctx.stroke();
+
+      // Trace: Reg Array to Bus
+      ctx.beginPath();
+      ctx.moveTo(277, 155);
+      ctx.lineTo(560, 155);
+      ctx.stroke();
+
+      // Trace: Bus to Latch Demux
+      ctx.beginPath();
+      ctx.moveTo(266, 425);
+      ctx.lineTo(266, 400);
+      ctx.lineTo(305, 400);
+      ctx.stroke();
+    }
+
+    drawModule(ctx, x, y, w, h, title) {
+      // Unified Dark Obsidian Surface
+      ctx.fillStyle = '#091122';
+      ctx.strokeStyle = '#1c2844';
+      ctx.lineWidth = 1;
       ctx.roundRect(x, y, w, h, 8);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = border;
-      ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText(title, x + 8, y + 16);
+      // Sleek Header Pill
+      ctx.fillStyle = '#0f1a30';
+      ctx.strokeStyle = '#1a2848';
+      ctx.lineWidth = 1;
+      const pillW = Math.min(ctx.measureText(title).width + 16, w - 16);
+      ctx.roundRect(x + 8, y + 8, pillW, 18, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 9px JetBrains Mono';
+      ctx.fillText(title, x + 14, y + 20);
     }
 
-    drawRegister(ctx, x, y, w, h, label, val, accent) {
-      ctx.fillStyle = '#070f22';
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1;
+    drawRegister(ctx, x, y, w, h, label, val, isHighlighted = false) {
+      ctx.fillStyle = '#050a16';
+      ctx.strokeStyle = isHighlighted ? '#38bdf8' : '#141f33';
+      ctx.lineWidth = isHighlighted ? 1.5 : 1;
       ctx.roundRect(x, y, w, h, 6);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#94a3b8';
+      // Label
+      ctx.fillStyle = isHighlighted ? '#93c5fd' : '#64748b';
       ctx.font = '9px JetBrains Mono';
       ctx.fillText(label, x + 6, y + 13);
 
-      ctx.fillStyle = accent;
-      ctx.font = 'bold 14px JetBrains Mono';
+      // Value
+      ctx.fillStyle = isHighlighted ? '#38bdf8' : '#f8fafc';
+      ctx.font = 'bold 13px JetBrains Mono';
       ctx.fillText(val, x + 8, y + 31);
     }
 
     drawFlagsBar(ctx, x, y, w, h) {
-      ctx.fillStyle = '#081126';
-      ctx.strokeStyle = '#1d4ed8';
+      ctx.fillStyle = '#050a16';
+      ctx.strokeStyle = '#141f33';
       ctx.lineWidth = 1;
       ctx.roundRect(x, y, w, h, 6);
       ctx.fill();
@@ -1497,97 +1542,111 @@
         const fx = x + idx * itemW;
         ctx.fillStyle = '#64748b';
         ctx.font = '9px JetBrains Mono';
-        ctx.fillText(f.k, fx + 5, y + 14);
+        ctx.textAlign = 'center';
+        ctx.fillText(f.k, fx + itemW / 2, y + 13);
 
-        ctx.fillStyle = f.val ? '#10b981' : '#475569';
-        ctx.font = 'bold 12px JetBrains Mono';
-        ctx.fillText(f.val.toString(), fx + 7, y + 34);
+        if (f.val) {
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+          ctx.fillRect(fx + 2, y + 18, itemW - 4, 18);
+          ctx.fillStyle = '#10b981';
+        } else {
+          ctx.fillStyle = '#475569';
+        }
+        ctx.font = 'bold 11px JetBrains Mono';
+        ctx.fillText(f.val.toString(), fx + itemW / 2, y + 32);
 
         if (idx < 7) {
-          ctx.strokeStyle = '#172554';
+          ctx.strokeStyle = '#0f172a';
           ctx.beginPath();
           ctx.moveTo(fx + itemW, y + 4);
           ctx.lineTo(fx + itemW, y + h - 4);
           ctx.stroke();
         }
       });
+      ctx.textAlign = 'left';
     }
 
-    drawBus(ctx, x, y, w, h, color, label) {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.25;
+    drawBus(ctx, x, y, w, h, label, isActive = false) {
+      ctx.fillStyle = isActive ? 'rgba(56, 189, 248, 0.08)' : '#060d1a';
       ctx.fillRect(x, y, w, h);
-      ctx.globalAlpha = 1.0;
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = isActive ? '#38bdf8' : '#141f33';
+      ctx.lineWidth = isActive ? 1.5 : 1;
       ctx.strokeRect(x, y, w, h);
+
+      // Draw subtle directional chevrons when bus is active
+      if (isActive) {
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+        ctx.lineWidth = 1.5;
+        const spacing = 36;
+        for (let py = y + 20; py < y + h - 20; py += spacing) {
+          ctx.beginPath();
+          ctx.moveTo(x + 5, py);
+          ctx.lineTo(x + w / 2, py + 5);
+          ctx.lineTo(x + w - 5, py);
+          ctx.stroke();
+        }
+      }
 
       // Bus Label rotated vertically
       ctx.save();
-      ctx.translate(x + 12, y + h / 2);
+      ctx.translate(x + w / 2, y + h / 2);
       ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = '#e0f2fe';
+      ctx.fillStyle = isActive ? '#7dd3fc' : '#475569';
       ctx.font = 'bold 9px JetBrains Mono';
       ctx.textAlign = 'center';
-      ctx.fillText(label, 0, 0);
+      ctx.fillText(label, 0, 3);
       ctx.restore();
     }
 
     drawDemultiplexingLogic(ctx, x, y, w, h) {
-      ctx.fillStyle = '#081226';
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1;
-      ctx.roundRect(x, y, w, h, 8);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText('BUS DEMULTIPLEXING LOGIC &bull; 74LS373 OCTAL TRANSPARENT LATCH', x + 10, y + 16);
+      this.drawModule(ctx, x, y, w, h, 'BUS DEMULTIPLEXING LOGIC &bull; 74LS373 OCTAL LATCH');
 
       // 74LS373 Latch Box
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = this.vm.ALE ? '#f59e0b' : '#334155';
-      ctx.lineWidth = 2;
-      ctx.roundRect(x + 15, y + 30, 160, 58, 6);
+      const isLatchActive = (this.vm.ALE === 1);
+      ctx.fillStyle = '#050a16';
+      ctx.strokeStyle = isLatchActive ? '#fbbf24' : '#141f33';
+      ctx.lineWidth = isLatchActive ? 1.5 : 1;
+      ctx.roundRect(x + 15, y + 32, 155, 64, 6);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = this.vm.ALE ? '#f59e0b' : '#94a3b8';
-      ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText('74LS373 LATCH', x + 25, y + 48);
+      ctx.fillStyle = isLatchActive ? '#fbbf24' : '#94a3b8';
+      ctx.font = 'bold 9px JetBrains Mono';
+      ctx.fillText('74LS373 LATCH', x + 25, y + 50);
       ctx.fillStyle = '#64748b';
       ctx.font = '9px JetBrains Mono';
-      ctx.fillText(`LE (ALE) = ${this.vm.ALE ? 'HIGH (Latch open)' : 'LOW (Latched)'}`, x + 25, y + 62);
+      ctx.fillText(`ALE = ${this.vm.ALE ? 'HIGH (1)' : 'LOW (0)'}`, x + 25, y + 64);
       ctx.fillStyle = '#34d399';
-      ctx.fillText(`OUT: A0-A7 = 0x${this.vm.hex2(this.vm.latchA0_A7)}`, x + 25, y + 76);
+      ctx.fillText(`OUT: A0-A7 = 0x${this.vm.hex2(this.vm.latchA0_A7)}`, x + 25, y + 80);
 
       // High Address Bus A8-A15
-      ctx.fillStyle = '#1e293b';
-      ctx.roundRect(x + 190, y + 30, 135, 58, 6);
+      ctx.fillStyle = '#050a16';
+      ctx.strokeStyle = '#141f33';
+      ctx.lineWidth = 1;
+      ctx.roundRect(x + 185, y + 32, 135, 64, 6);
       ctx.fill();
-      ctx.strokeStyle = '#818cf8';
       ctx.stroke();
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 9px JetBrains Mono';
+      ctx.fillText('ADDR BUS [A15-A8]', x + 195, y + 50);
       ctx.fillStyle = '#818cf8';
-      ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText('ADDR BUS [A15-A8]', x + 200, y + 50);
-      ctx.fillStyle = '#fff';
-      ctx.font = '12px JetBrains Mono';
-      ctx.fillText(`0x${this.vm.hex2(this.vm.busA8_A15)}`, x + 200, y + 72);
+      ctx.font = 'bold 14px JetBrains Mono';
+      ctx.fillText(`0x${this.vm.hex2(this.vm.busA8_A15)}`, x + 195, y + 76);
 
       // Multiplexed Bus AD7-AD0
-      ctx.fillStyle = '#1e293b';
-      ctx.roundRect(x + 340, y + 30, 140, 58, 6);
+      ctx.fillStyle = '#050a16';
+      ctx.strokeStyle = '#141f33';
+      ctx.lineWidth = 1;
+      ctx.roundRect(x + 335, y + 32, 140, 64, 6);
       ctx.fill();
-      ctx.strokeStyle = '#34d399';
       ctx.stroke();
-      ctx.fillStyle = '#34d399';
-      ctx.font = 'bold 10px JetBrains Mono';
-      ctx.fillText(`MUX BUS [AD7-AD0]`, x + 350, y + 50);
-      ctx.fillStyle = '#fff';
-      ctx.font = '12px JetBrains Mono';
-      ctx.fillText(`${this.vm.adBusMode === 'ADDR' ? 'ADDR:' : 'DATA:'} 0x${this.vm.hex2(this.vm.busAD0_AD7)}`, x + 350, y + 72);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 9px JetBrains Mono';
+      ctx.fillText(`MUX BUS [AD7-AD0]`, x + 345, y + 50);
+      ctx.fillStyle = this.vm.adBusMode === 'ADDR' ? '#fbbf24' : '#34d399';
+      ctx.font = 'bold 13px JetBrains Mono';
+      ctx.fillText(`${this.vm.adBusMode}: 0x${this.vm.hex2(this.vm.busAD0_AD7)}`, x + 345, y + 76);
     }
   }
 
@@ -1607,7 +1666,7 @@
       const ctx = this.ctx;
 
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#030814';
+      ctx.fillStyle = '#020712';
       ctx.fillRect(0, 0, w, h);
 
       const history = this.vm.waveformHistory;
@@ -1615,10 +1674,10 @@
 
       const signals = [
         { label: 'CLK', color: '#38bdf8', getVal: (p) => p.clk },
-        { label: 'ALE', color: '#f59e0b', getVal: (p) => p.ale },
+        { label: 'ALE', color: '#fbbf24', getVal: (p) => p.ale },
         { label: 'IO/M#', color: '#f43f5e', getVal: (p) => p.iom },
-        { label: 'RD#', color: '#fb7185', getVal: (p) => p.rd },
-        { label: 'WR#', color: '#c084fc', getVal: (p) => p.wr }
+        { label: 'RD#', color: '#34d399', getVal: (p) => p.rd },
+        { label: 'WR#', color: '#a78bfa', getVal: (p) => p.wr }
       ];
 
       const rowH = 28;
@@ -1636,7 +1695,7 @@
         ctx.fillText(sig.label, startX - 8, baseY - 4);
 
         // Grid guideline
-        ctx.strokeStyle = '#0e1a38';
+        ctx.strokeStyle = '#091224';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(startX, baseY);
@@ -1645,7 +1704,7 @@
 
         // Digital Trace
         ctx.strokeStyle = sig.color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         for (let i = 0; i < history.length; i++) {
           const x = startX + i * stepX;
@@ -1674,7 +1733,10 @@
 
       for (let i = 0; i < history.length; i++) {
         const x = startX + i * stepX;
-        ctx.strokeStyle = '#10b981';
+        ctx.fillStyle = '#050a16';
+        ctx.fillRect(x, busY - 16, stepX - 1, 16);
+        ctx.strokeStyle = '#141f33';
+        ctx.lineWidth = 1;
         ctx.strokeRect(x, busY - 16, stepX - 1, 16);
         ctx.fillStyle = '#34d399';
         ctx.font = '8px JetBrains Mono';
