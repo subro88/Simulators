@@ -418,29 +418,31 @@
     // Trigger a Ping Packet from Source to Target
     triggerPing(srcId = 'PC1', dstIp = '192.168.2.20') {
       const srcNode = this.nodes.find(n => n.id === srcId);
-      if (!srcNode) return null;
+      if (!srcNode) return { success: false, reason: 'Source node not found' };
 
       sound.playPacketChirp();
 
-      // Check route / next-hop path
+      // Dynamic Dijkstra graph search for shortest active path
       const path = this.findPathTo(srcId, dstIp);
       if (!path || path.length < 2) {
         sound.playAlertTone();
-        return { success: false, reason: 'Destination Host Unreachable (No Route)' };
+        return { success: false, reason: 'Destination Host Unreachable (No Route or Link Cut)' };
       }
 
+      const speedMultiplier = this.simSpeed || 1.0;
       const pkt = {
         id: this.nextPacketId++,
         type: 'ICMP_ECHO_REQ',
+        protocol: 'ICMP Echo',
         srcNodeId: srcId,
         dstIp,
-        srcIp: srcNode.ip || srcNode.eth0?.ip,
+        srcIp: srcNode.ip || (srcNode.eth0 ? srcNode.eth0.ip : '192.168.1.10'),
         ttl: 64,
         path, // Array of node IDs: ['PC1', 'SW1', 'R1', 'R2', 'SW2', 'PC2']
         currentHopIndex: 0,
         progress: 0.0,
-        speed: 0.02,
-        info: `ICMP Echo Request (id=1, seq=1)`
+        speed: 0.02 * speedMultiplier,
+        info: `Echo Request (id=${this.nextPacketId}, seq=1)`
       };
 
       this.packets.push(pkt);
@@ -448,31 +450,79 @@
     }
 
     findPathTo(srcId, dstIp) {
-      // Direct graph search / routing lookup
-      if (srcId === 'PC1' && dstIp.startsWith('192.168.2.')) {
-        // Check if links are active
-        const l1 = this.links.find(l => l.id === 'L1');
-        const l2 = this.links.find(l => l.id === 'L2');
-        const l3 = this.links.find(l => l.id === 'L3');
-        const l4 = this.links.find(l => l.id === 'L4');
-        const l5 = this.links.find(l => l.id === 'L5');
-
-        if (l1?.severed || l2?.severed || l3?.severed || l4?.severed || l5?.severed) {
-          return null; // Link severed!
-        }
-        return ['PC1', 'SW1', 'R1', 'R2', 'SW2', 'PC2'];
+      // 1. Resolve destination node by IP or ID
+      let dstNode = this.nodes.find(n => n.ip === dstIp || (n.eth0 && n.eth0.ip === dstIp));
+      if (!dstNode) {
+        dstNode = this.nodes.find(n => n.id === dstIp);
       }
-      return null;
+      if (!dstNode) return null;
+      const dstId = dstNode.id;
+      if (srcId === dstId) return [srcId];
+
+      // 2. Build graph adjacency list from active (non-severed) links
+      const adj = {};
+      this.nodes.forEach(n => { adj[n.id] = []; });
+
+      this.links.forEach(l => {
+        if (!l.severed) {
+          const cost = (l.speed === '1G') ? 1 : ((l.speed === '100M') ? 10 : 100);
+          if (adj[l.from]) adj[l.from].push({ to: l.to, cost });
+          if (adj[l.to]) adj[l.to].push({ to: l.from, cost });
+        }
+      });
+
+      // 3. Dijkstra Shortest Path Search
+      const dist = {};
+      const prev = {};
+      const unvisited = new Set(this.nodes.map(n => n.id));
+
+      this.nodes.forEach(n => { dist[n.id] = Infinity; });
+      dist[srcId] = 0;
+
+      while (unvisited.size > 0) {
+        let minNode = null;
+        let minDist = Infinity;
+        for (const u of unvisited) {
+          if (dist[u] < minDist) {
+            minDist = dist[u];
+            minNode = u;
+          }
+        }
+        if (minNode === null || minDist === Infinity) break;
+        if (minNode === dstId) break;
+
+        unvisited.delete(minNode);
+
+        (adj[minNode] || []).forEach(edge => {
+          if (unvisited.has(edge.to)) {
+            const alt = dist[minNode] + edge.cost;
+            if (alt < dist[edge.to]) {
+              dist[edge.to] = alt;
+              prev[edge.to] = minNode;
+            }
+          }
+        });
+      }
+
+      if (dist[dstId] === Infinity) return null;
+
+      const path = [];
+      let curr = dstId;
+      while (curr) {
+        path.unshift(curr);
+        curr = prev[curr];
+      }
+      return path.length > 1 ? path : null;
     }
 
-    // Step packet simulation forward
+    // Step packet simulation forward with round-trip Echo Reply
     updatePackets(onPacketHopCallback, onPacketArrivalCallback) {
+      const speedMultiplier = this.simSpeed || 1.0;
       for (let i = this.packets.length - 1; i >= 0; i--) {
         const pkt = this.packets[i];
-        pkt.progress += pkt.speed;
+        pkt.progress += (pkt.speed || 0.02) * speedMultiplier;
 
         if (pkt.progress >= 1.0) {
-          // Packet arrived at next node in path
           pkt.progress = 0.0;
           pkt.currentHopIndex++;
 
@@ -480,7 +530,6 @@
           const currentNode = this.nodes.find(n => n.id === currentNodeId);
 
           if (currentNode && currentNode.type === 'ROUTER') {
-            // Decrement TTL at Layer 3 Router
             pkt.ttl -= 1;
             sound.playPacketChirp();
             if (pkt.ttl <= 0) {
@@ -492,10 +541,32 @@
           }
 
           if (pkt.currentHopIndex >= pkt.path.length - 1) {
-            // Arrived at final destination!
-            sound.playPingSuccess();
+            // Arrived at destination!
             this.packets.splice(i, 1);
             if (onPacketArrivalCallback) onPacketArrivalCallback(pkt, currentNode);
+
+            if (pkt.type === 'ICMP_ECHO_REQ') {
+              // Send ICMP Echo Reply back along reverse path
+              sound.playPacketChirp();
+              const replyPath = pkt.path.slice().reverse();
+              const replyPkt = {
+                id: this.nextPacketId++,
+                type: 'ICMP_ECHO_REPLY',
+                protocol: 'ICMP Reply',
+                srcNodeId: currentNodeId,
+                dstIp: pkt.srcIp,
+                srcIp: pkt.dstIp,
+                ttl: 64,
+                path: replyPath,
+                currentHopIndex: 0,
+                progress: 0.0,
+                speed: 0.02 * speedMultiplier,
+                info: `Echo Reply (id=${pkt.id}, seq=1, time<1ms)`
+              };
+              this.packets.push(replyPkt);
+            } else if (pkt.type === 'ICMP_ECHO_REPLY') {
+              sound.playPingSuccess();
+            }
           } else {
             if (onPacketHopCallback) onPacketHopCallback(pkt, 'HOP', currentNode);
           }
@@ -504,7 +575,6 @@
     }
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
   // 5. UNIFIED DYNAMIC CANVAS RENDERER (High-Fidelity 2.5D Skeuomorphic Hardware)
   // ════════════════════════════════════════════════════════════════════════════
   class UnifiedCanvasRenderer {
@@ -523,6 +593,7 @@
       this.panStartX = 0;
       this.panStartY = 0;
       this.showGrid = true;
+      this.spacePressed = false;
 
       // Interaction
       this.draggedNode = null;
@@ -541,11 +612,13 @@
     }
 
     initEvents() {
-      // Mouse Move
+      // Mouse Move with canvas resolution scaling
       this.canvas.addEventListener('mousemove', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const clientX = e.clientX - rect.left;
-        const clientY = e.clientY - rect.top;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const clientX = (e.clientX - rect.left) * scaleX;
+        const clientY = (e.clientY - rect.top) * scaleY;
         const mx = (clientX - this.panX) / this.zoom;
         const my = (clientY - this.panY) / this.zoom;
         this.mouseCanvasX = clientX;
@@ -576,6 +649,8 @@
 
           if (this.hoveredNode || this.hoveredLink) {
             this.canvas.style.cursor = 'pointer';
+          } else if (this.spacePressed) {
+            this.canvas.style.cursor = 'grab';
           } else {
             this.canvas.style.cursor = 'grab';
           }
@@ -587,8 +662,10 @@
       // Mouse Down
       this.canvas.addEventListener('mousedown', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const clientX = e.clientX - rect.left;
-        const clientY = e.clientY - rect.top;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const clientX = (e.clientX - rect.left) * scaleX;
+        const clientY = (e.clientY - rect.top) * scaleY;
         const mx = (clientX - this.panX) / this.zoom;
         const my = (clientY - this.panY) / this.zoom;
 
@@ -600,7 +677,7 @@
               hitLink.severed = !hitLink.severed;
               sound.playCutSnap();
               this.activeCallout = hitLink.severed ?
-                `⚠️ Cable Severed between ${hitLink.from} and ${hitLink.to} (Dynamic Routing rerouting...)` :
+                `⚠️ Cable Severed between ${hitLink.from} and ${hitLink.to} (Dynamic Routing recalculating...)` :
                 `✅ Cable Restored between ${hitLink.from} and ${hitLink.to} (Convergence in progress)`;
               syncUI();
               return;
@@ -609,7 +686,7 @@
 
           // Check if clicked a node
           const hitNode = this.netEngine.nodes.find(n => Math.hypot(n.x - mx, n.y - my) < 48);
-          if (hitNode) {
+          if (hitNode && !this.spacePressed) {
             this.draggedNode = hitNode;
             this.netEngine.selectedNodeId = hitNode.id;
             sound.playClick();
@@ -649,26 +726,25 @@
       this.canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const mouseX = (e.clientX - rect.left) * scaleX;
+        const mouseY = (e.clientY - rect.top) * scaleY;
 
-        const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-        const newZoom = Math.max(0.4, Math.min(3.0, this.zoom * zoomFactor));
-
-        this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
-        this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
-        this.zoom = newZoom;
-
-        const zoomBadge = document.getElementById('hud-zoom-level');
-        if (zoomBadge) zoomBadge.textContent = `${Math.round(this.zoom * 100)}%`;
+        const factor = e.deltaY < 0 ? 1.15 : 0.85;
+        this.setZoomAt(this.zoom * factor, mouseX, mouseY);
       }, { passive: false });
 
       // Click on Subnetting bits in Module 1
       this.canvas.addEventListener('click', (e) => {
         if (this.activeModule !== 'subnetting') return;
         const rect = this.canvas.getBoundingClientRect();
-        const mx = (e.clientX - rect.left - this.panX) / this.zoom;
-        const my = (e.clientY - rect.top - this.panY) / this.zoom;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const clientX = (e.clientX - rect.left) * scaleX;
+        const clientY = (e.clientY - rect.top) * scaleY;
+        const mx = (clientX - this.panX) / this.zoom;
+        const my = (clientY - this.panY) / this.zoom;
 
         if (this.cachedBitBoxes) {
           const hit = this.cachedBitBoxes.find(b => mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h);
@@ -681,6 +757,72 @@
           }
         }
       });
+    }
+
+    // ── Zoom & Viewport Facilities ─────────────────────────────────────────
+    zoomIn() {
+      const cx = this.canvas.width / 2;
+      const cy = this.canvas.height / 2;
+      this.setZoomAt(this.zoom * 1.25, cx, cy);
+    }
+
+    zoomOut() {
+      const cx = this.canvas.width / 2;
+      const cy = this.canvas.height / 2;
+      this.setZoomAt(this.zoom * 0.8, cx, cy);
+    }
+
+    resetZoom() {
+      this.zoom = 1.0;
+      this.panX = 0;
+      this.panY = 0;
+      this.updateZoomHUD();
+      this.render();
+    }
+
+    fitView() {
+      if (this.activeModule === 'topology' && this.netEngine.nodes.length > 0) {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        this.netEngine.nodes.forEach(n => {
+          minX = Math.min(minX, n.x - 70);
+          maxX = Math.max(maxX, n.x + 70);
+          minY = Math.min(minY, n.y - 60);
+          maxY = Math.max(maxY, n.y + 60);
+        });
+        const w = Math.max(100, maxX - minX);
+        const h = Math.max(100, maxY - minY);
+        const cw = this.canvas.width;
+        const ch = this.canvas.height;
+        const fitZoom = Math.max(0.4, Math.min(2.0, Math.min((cw - 100) / w, (ch - 100) / h)));
+        this.zoom = fitZoom;
+        this.panX = (cw - w * fitZoom) / 2 - minX * fitZoom;
+        this.panY = (ch - h * fitZoom) / 2 - minY * fitZoom;
+      } else {
+        this.zoom = 1.0;
+        this.panX = 0;
+        this.panY = 0;
+      }
+      this.updateZoomHUD();
+      this.render();
+    }
+
+    toggleGrid() {
+      this.showGrid = !this.showGrid;
+      this.render();
+    }
+
+    updateZoomHUD() {
+      const hud = document.getElementById('hud-zoom-level');
+      if (hud) hud.textContent = `${Math.round(this.zoom * 100)}%`;
+    }
+
+    setZoomAt(targetZoom, screenX, screenY) {
+      const newZoom = Math.max(0.4, Math.min(3.0, targetZoom));
+      this.panX = screenX - (screenX - this.panX) * (newZoom / this.zoom);
+      this.panY = screenY - (screenY - this.panY) * (newZoom / this.zoom);
+      this.zoom = newZoom;
+      this.updateZoomHUD();
+      this.render();
     }
 
     findLinkAt(x, y) {
@@ -752,7 +894,6 @@
       }
     }
 
-    // ── Module 1 Canvas: High-End 32-Bit CIDR & VLSM Visualizer ─────────────
     renderSubnettingCanvas(ctx, w, h) {
       const calc = this.subnetEngine.calculate(this.subnetEngine.ipStr, this.subnetEngine.prefix);
       this.cachedBitBoxes = [];
@@ -2318,6 +2459,8 @@
     setupQuizAssessment();
     setupFullscreenControls();
     setupTheoryBlueprints();
+    setupSpeedSlider();
+    setupKeyboardShortcuts();
 
     // Start Animation Loop for Packet Propagation
     startAnimationLoop();
@@ -2368,6 +2511,9 @@
 
         if (mode === '3d-model') {
           initThree3DModel();
+          setTimeout(() => {
+            if (window.three3DResize) window.three3DResize();
+          }, 60);
         } else if (mode === 'explore') {
           if (window.renderMathInElement && window.katex) {
             window.renderMathInElement(document.getElementById('explore-wrapper'));
@@ -2525,39 +2671,41 @@
   }
 
   function animateOsiDescending() {
-    if (window.anime) {
-      anime({
-        targets: osiEngine,
-        currentLayer: [7, 1],
-        round: 1,
-        easing: 'spring(1, 80, 10, 0)',
-        duration: 1800,
-        update: () => {
-          canvasRenderer.render();
-          renderPDUInspector();
-        },
-        complete: () => {
-          sound.playPacketChirp();
-          // Ascend to receiver
+    let current = 7;
+    osiEngine.direction = 'DOWN';
+    osiEngine.currentLayer = 7;
+    sound.playPacketChirp();
+    canvasRenderer.render();
+    renderPDUInspector();
+
+    const stepInterval = 320;
+    const downTimer = setInterval(() => {
+      current--;
+      osiEngine.currentLayer = current;
+      canvasRenderer.render();
+      renderPDUInspector();
+
+      if (current <= 1) {
+        clearInterval(downTimer);
+        sound.playPacketChirp();
+        // Pause on wire transmission then ascend to receiver
+        setTimeout(() => {
           osiEngine.direction = 'UP';
-          anime({
-            targets: osiEngine,
-            currentLayer: [1, 7],
-            round: 1,
-            easing: 'spring(1, 80, 10, 0)',
-            duration: 1800,
-            delay: 400,
-            update: () => {
-              canvasRenderer.render();
-              renderPDUInspector();
-            },
-            complete: () => {
+          let upLayer = 1;
+          const upTimer = setInterval(() => {
+            upLayer++;
+            osiEngine.currentLayer = upLayer;
+            canvasRenderer.render();
+            renderPDUInspector();
+
+            if (upLayer >= 7) {
+              clearInterval(upTimer);
               sound.playPingSuccess();
             }
-          });
-        }
-      });
-    }
+          }, stepInterval);
+        }, 500);
+      }
+    }, stepInterval);
   }
 
   // Right Deck Tab Switching
@@ -3271,6 +3419,62 @@ Total Mac Addresses for this criterion: 2\n`;
         sound.playClick();
       });
     }
+  }
+
+
+  // ── Speed Slider Control ────────────────────────────────────────────────
+  function setupSpeedSlider() {
+    const slider = document.getElementById('speed-slider');
+    const valLabel = document.getElementById('speed-val');
+    if (!slider || !valLabel) return;
+
+    slider.addEventListener('input', () => {
+      const val = parseInt(slider.value, 10);
+      const speeds = [0.2, 0.4, 0.6, 0.8, 1.0, 1.3, 1.6, 2.0, 2.5, 3.0];
+      const speed = speeds[val - 1] || 1.0;
+      netEngine.simSpeed = speed;
+      valLabel.innerHTML = `${speed.toFixed(1)}&times;`;
+    });
+  }
+
+  // ── Global Keyboard Shortcuts ───────────────────────────────────────────
+  function setupKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        if (canvasRenderer) canvasRenderer.zoomIn();
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        if (canvasRenderer) canvasRenderer.zoomOut();
+      } else if (e.key === '0') {
+        e.preventDefault();
+        if (canvasRenderer) canvasRenderer.resetZoom();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault();
+        if (canvasRenderer) canvasRenderer.toggleGrid();
+      } else if (e.code === 'Space') {
+        if (canvasRenderer) {
+          canvasRenderer.spacePressed = true;
+          canvasRenderer.canvas.style.cursor = 'grab';
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        if (canvasRenderer) {
+          canvasRenderer.spacePressed = false;
+          if (!canvasRenderer.isPanning) {
+            canvasRenderer.canvas.style.cursor = 'default';
+          }
+        }
+      }
+    });
   }
 
   // Boot Application on DOM Ready
