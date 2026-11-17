@@ -4,294 +4,464 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Computer Networks Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive Computer Networks Virtual Lab for WBSCTE 4th Sem CST. Calculate IPv4 Subnet Masks & CIDR ranges, visualize OSI 7-Layer encapsulation, simulate Dijkstra shortest-path routing, and inspect 3D server rack/switch model.">
+  <meta name="description" content="VisualLab V2 Computer Networks Virtual Laboratory. IPv4 Subnetting &amp; VLSM bit-calculator, animated OSI 7-layer encapsulation, drag-and-drop topologies, Dijkstra SPF &amp; Bellman-Ford routing, Wireshark packet capture, and interactive network CLI.">
+  <meta name="theme-color" content="#020712">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for High-Fidelity Math Typesetting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+
+  <!-- Core & Custom CSS -->
   <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
-  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+<a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab Home">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40">
 </a>
 
 <main id="app">
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav" aria-label="Breadcrumb">
     <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
-    <span class="nav-domain">Computer Science &amp; Technology &mdash; 4th Semester (CST/4/402)</span>
+    <span class="nav-domain">Computer Science &amp; Technology &mdash; 4th Semester (CST/4/402: Computer Networks)</span>
   </nav>
 
+  <!-- Header -->
   <header>
     <h1>Computer Networks Virtual Lab</h1>
-    <p class="subtitle">IPv4 Subnetting &amp; CIDR Calculator, OSI 7-Layer Protocol Stack, Topologies &amp; Routing Simulator</p>
+    <p class="subtitle">IPv4 Subnetting &amp; VLSM Calculator &bull; OSI 7-Layer Encapsulation &bull; L2 Switching &amp; L3 Dynamic Routing Simulator</p>
   </header>
 
-  <!-- Mode tabs bar (UTM model structure) -->
+  <!-- Canonical 4-Mode Platform Tabs Bar -->
   <div class="controls-bar">
     <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
+      <span class="ctrl-label">Platform Mode</span>
       <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">OSI &amp; TCP/IP Models</button>
-        <button class="pill" data-value="quiz">Quiz</button>
+        <button class="pill active" data-mode="simulate">&#9881; Simulate</button>
+        <button class="pill" data-mode="3d-model">&#128187; 3D Model</button>
+        <button class="pill" data-mode="explore">&#128218; Theorems &amp; Proofs</button>
+        <button class="pill" data-mode="quiz">&#9733; Quiz &amp; Practice</button>
       </div>
     </div>
     <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Subnet Cheat Sheet</a>
+      <button class="btn-sound-toggle" id="btn-sound-toggle" title="Toggle Sound FX">&#128266; Sound: ON</button>
+      <a class="btn-guide" href="#theory-section">&#128214; Subnet &amp; OSI Guide</a>
     </div>
   </div>
 
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       3D MODEL MODE (WebGL Three.js Embed)
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="model3d-wrapper" class="hidden">
     <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Infrastructure — <span id="sim3d-title">Network Server Rack &amp; Switch</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of 42U Data Center Server Rack, Gigabit Core Router, 24-Port Managed Switch, RJ45 Patch Panel, and Fiber Optic transceivers.</p>
+      <div class="challenge-title-group">
+        <h2>3D Infrastructure &mdash; <span id="sim3d-title">42U Data Center Server Rack &amp; Gigabit Switch</span></h2>
+        <p class="subtitle" style="text-align: left; margin: 4px 0 10px;">Interactive 3D model of a 42U Data Center Server Rack cabinet, 24-Port Managed Gigabit Switch with active LED port indicators, Core L3 Router with cooling fans, 48-port Cat6 RJ45 patch panel, and fiber optic transceivers.</p>
+      </div>
       <div class="sim3d-layout">
         <div class="sim3d-wrap">
           <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+          <div class="sim3d-hint">Left-drag to Orbit &bull; Scroll to Zoom &bull; Right-drag to Pan</div>
         </div>
-        <aside id="sim3d-components" class="sim3d-components"></aside>
+        <aside id="sim3d-components" class="sim3d-components">
+          <!-- Populated by Three.js Inspector -->
+        </aside>
       </div>
     </section>
   </div>
 
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       SIMULATE MODE (Core Workbench with STRICT 3:2 DUAL VIEWPORT)
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="sim-wrapper">
-    <div class="cn-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">IPv4 Address:</label>
-        <input type="text" id="ip-in" value="192.168.10.75" class="ip-input">
+    <!-- Simulation Sub-Toolbar -->
+    <div class="net-toolbar">
+      <div class="toolbar-actions">
+        <!-- 3 Core Module Selector -->
+        <div class="module-pill-selector">
+          <button class="mod-pill active" data-module="subnetting">&#128290; 1. IPv4 &amp; VLSM Lab</button>
+          <button class="mod-pill" data-module="osi">&#128230; 2. OSI 7-Layer Stack</button>
+          <button class="mod-pill" data-module="topology">&#127760; 3. Topology &amp; Routing</button>
+        </div>
+
+        <!-- Dynamic Action Buttons depending on active module -->
+        <div id="module-actions-container" style="display:flex; align-items:center; gap:8px;">
+          <!-- Populated dynamically via JS -->
+        </div>
       </div>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">CIDR Prefix:</label>
-        <select id="cidr-select" class="cn-select">
-          <option value="24">/24 (255.255.255.0 &mdash; 254 Hosts)</option>
-          <option value="26" selected>/26 (255.255.255.192 &mdash; 62 Hosts)</option>
-          <option value="28">/28 (255.255.255.240 &mdash; 14 Hosts)</option>
-          <option value="30">/30 (255.255.255.252 &mdash; 2 Hosts Point-to-Point)</option>
-        </select>
-      </div>
-
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-calc">Calculate Subnet</button>
-        <button class="btn-action success" id="btn-ping">Send ICMP Packet &#9654;</button>
+      <div class="speed-control">
+        <span class="ctrl-label">Speed:</span>
+        <input type="range" id="speed-slider" class="speed-slider" min="1" max="10" value="5">
+        <span class="speed-val" id="speed-val">1.0&times;</span>
       </div>
     </div>
 
-    <!-- Dual Canvas & Network Results -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Network Topology &amp; Packet Route Visualizer</span>
-          <span class="badge" id="net-badge">Subnet: /26</span>
+    <!-- STRICT 3:2 DUAL VIEWPORT WORKBENCH -->
+    <div class="dual-viewport">
+      
+      <!-- LEFT PANE (3 Parts / 60%): Interactive Multi-Modal Canvas -->
+      <div class="workbench-left">
+        <div class="canvas-card-container" id="canvas-card-container">
+          <div class="canvas-card-header">
+            <div class="canvas-title-group">
+              <span class="canvas-title" id="canvas-main-title">&#128290; IPv4 Subnetting &amp; Bit-Level Calculator</span>
+            </div>
+            <div class="canvas-badges">
+              <span class="status-pill highlight" id="badge-prefix">/24</span>
+              <span class="status-pill active" id="badge-pdu">PDU: Frame</span>
+              <span class="status-pill" id="badge-ttl">TTL: 64</span>
+              <span class="status-pill" id="badge-routing">PROTO: OSPF</span>
+            </div>
+            <div class="canvas-header-actions">
+              <button class="btn-fullscreen" id="btn-fullscreen" title="Toggle Canvas Fullscreen (F)">&#9974; Fullscreen</button>
+            </div>
+          </div>
+
+          <!-- Canvas Viewport with Pan, Zoom & Dot Matrix -->
+          <div class="canvas-viewport-wrapper" id="canvas-viewport-wrapper">
+            <canvas id="net-canvas" width="880" height="520"></canvas>
+            
+            <!-- Floating Zoom & Pan Navigation HUD -->
+            <div class="canvas-nav-hud">
+              <button class="hud-btn" id="hud-zoom-in" title="Zoom In (+)">&#65291;</button>
+              <button class="hud-btn" id="hud-zoom-out" title="Zoom Out (-)">&#65293;</button>
+              <button class="hud-btn" id="hud-zoom-1" title="Reset Zoom (0)">1:1</button>
+              <button class="hud-btn" id="hud-zoom-fit" title="Fit to View">Fit</button>
+              <button class="hud-btn" id="hud-grid-toggle" title="Toggle Grid (G)">&#8862; Grid</button>
+              <span class="hud-zoom-level" id="hud-zoom-level">100%</span>
+            </div>
+
+            <!-- Floating Topology Toolbox (Visible in Module 3) -->
+            <div class="canvas-floating-toolbox hidden" id="canvas-floating-toolbox">
+              <button class="toolbox-btn" id="tb-add-pc" title="Add PC Node">&#128187; + PC</button>
+              <button class="toolbox-btn" id="tb-add-switch" title="Add L2 Switch">&#9889; + Switch</button>
+              <button class="toolbox-btn" id="tb-add-router" title="Add L3 Router">&#128256; + Router</button>
+              <button class="toolbox-btn" id="tb-cut-tool" title="Sever link or click scissors on a link">&#9986; Cut Link</button>
+              <button class="toolbox-btn" id="tb-clear-tables" title="Clear ARP and MAC Tables">&#128465; Flush CAM/ARP</button>
+            </div>
+          </div>
         </div>
-        <canvas id="cn-canvas" width="700" height="420"></canvas>
       </div>
 
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Subnetting Telemetry &amp; IP Allocation</span>
+      <!-- RIGHT PANE (2 Parts / 40%): Context-Synchronized Inspector Deck -->
+      <div class="workbench-right">
+        <div class="right-card">
+          <div class="deck-tabs">
+            <button class="deck-tab active" data-tab="subnet">&#128202; Subnet &amp; VLSM</button>
+            <button class="deck-tab" data-tab="pdu">&#128269; PDU Byte Inspector</button>
+            <button class="deck-tab" data-tab="routing">&#128220; Routing &amp; MAC</button>
+            <button class="deck-tab" data-tab="cli">&#128187; CLI Terminal</button>
+          </div>
+
+          <!-- TAB 1: Subnet & VLSM Inspector -->
+          <div class="deck-body" id="tab-subnet">
+            <!-- IPv4 Address & CIDR Controls -->
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <label class="ctrl-label" style="min-width:70px;">IPv4 Addr:</label>
+                <input type="text" id="ip-input" value="192.168.10.65" class="cli-input" style="background:#050b18; border:1px solid var(--border-line); padding:6px 10px; border-radius:6px; font-weight:700; color:#38bdf8; font-family:var(--font-mono); font-size:0.85rem;">
+                <select id="class-select" class="challenge-select" style="max-width:110px;">
+                  <option value="custom">CIDR (/p)</option>
+                  <option value="A">Class A (/8)</option>
+                  <option value="B">Class B (/16)</option>
+                  <option value="C" selected>Class C (/24)</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label class="ctrl-label" style="min-width:70px;">Prefix (/p):</label>
+                <input type="range" id="cidr-slider" min="0" max="32" value="26" class="speed-slider" style="flex:1;">
+                <span class="speed-val" id="cidr-display" style="min-width:45px;">/26</span>
+              </div>
+            </div>
+
+            <!-- Bitwise Results Summary Grid -->
+            <div class="subnet-summary-grid">
+              <div class="sum-box"><span class="sum-lbl">Network ID</span><span class="sum-val" id="sum-net">192.168.10.64</span></div>
+              <div class="sum-box"><span class="sum-lbl">Broadcast IP</span><span class="sum-val" id="sum-bcast">192.168.10.127</span></div>
+              <div class="sum-box"><span class="sum-lbl">First Usable</span><span class="sum-val" id="sum-first">192.168.10.65</span></div>
+              <div class="sum-box"><span class="sum-lbl">Last Usable</span><span class="sum-val" id="sum-last">192.168.10.126</span></div>
+              <div class="sum-box"><span class="sum-lbl">Subnet Mask</span><span class="sum-val" id="sum-mask">255.255.255.192</span></div>
+              <div class="sum-box"><span class="sum-lbl">Wildcard Mask</span><span class="sum-val" id="sum-wild">0.0.0.63</span></div>
+              <div class="sum-box"><span class="sum-lbl">Usable Hosts</span><span class="sum-val" id="sum-hosts">62</span></div>
+              <div class="sum-box"><span class="sum-lbl">Total Block</span><span class="sum-val" id="sum-block">64 Addrs</span></div>
+            </div>
+
+            <!-- VLSM Requirement List & Table -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <span class="ctrl-label" style="color:var(--accent-amber);">VLSM Subnet Plan (Descending Hosts):</span>
+              <button class="btn-net secondary" id="btn-add-vlsm" style="padding:3px 8px; font-size:0.72rem;">+ Department</button>
+            </div>
+            <div class="vlsm-table-wrap">
+              <table class="vlsm-table" id="vlsm-table">
+                <thead>
+                  <tr>
+                    <th>Subnet / Dept</th>
+                    <th>Needed</th>
+                    <th>Prefix</th>
+                    <th>Network ID</th>
+                    <th>Usable Range</th>
+                    <th>Broadcast</th>
+                  </tr>
+                </thead>
+                <tbody id="vlsm-tbody">
+                  <!-- Populated by JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 2: PDU Byte-Field Inspector -->
+          <div class="deck-body hidden" id="tab-pdu">
+            <div class="pdu-inspector" id="pdu-inspector">
+              <!-- Dynamically populated layer-by-layer header fields -->
+            </div>
+            <!-- Live CRC-32 & Checksum Validator -->
+            <div class="sum-box" style="margin-top:6px;">
+              <span class="sum-lbl">Frame Check Sequence (CRC-32)</span>
+              <span class="sum-val" id="crc32-display">0x8F3D12A4 (Valid &bull; No Transmission Errors)</span>
+            </div>
+          </div>
+
+          <!-- TAB 3: Routing & MAC Tables -->
+          <div class="deck-body hidden" id="tab-routing">
+            <div class="table-inspector-wrap">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="ctrl-label">Select Node:</label>
+                <select id="table-node-select" class="challenge-select" style="max-width:160px;">
+                  <option value="R1">Router R1 (Core Gateway)</option>
+                  <option value="R2">Router R2 (Remote Branch)</option>
+                  <option value="SW1">Switch SW1 (Access Switch)</option>
+                  <option value="PC1">Host PC1</option>
+                  <option value="PC2">Host PC2</option>
+                </select>
+              </div>
+
+              <!-- Switch MAC Table -->
+              <div id="mac-table-container">
+                <div class="table-sub-header">
+                  <span>Switch CAM / MAC Address Table</span>
+                  <span class="status-pill active" id="mac-count">3 Entries</span>
+                </div>
+                <div class="vlsm-table-wrap" style="max-height:140px;">
+                  <table class="vlsm-table">
+                    <thead>
+                      <tr><th>VLAN</th><th>MAC Address</th><th>Type</th><th>Port</th><th>Age (s)</th></tr>
+                    </thead>
+                    <tbody id="mac-table-body">
+                      <!-- Populated via JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Router IP Routing Table -->
+              <div id="routing-table-container">
+                <div class="table-sub-header">
+                  <span>IP Routing Table (IPv4)</span>
+                  <span class="status-pill highlight">LPM Enabled</span>
+                </div>
+                <div class="vlsm-table-wrap" style="max-height:160px;">
+                  <table class="vlsm-table">
+                    <thead>
+                      <tr><th>Type</th><th>Destination Subnet</th><th>Next-Hop IP</th><th>Interface</th><th>Metric</th></tr>
+                    </thead>
+                    <tbody id="routing-table-body">
+                      <!-- Populated via JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: Interactive CLI Terminal -->
+          <div class="deck-body hidden" id="tab-cli">
+            <div class="cli-terminal" id="cli-terminal">
+              <div class="cli-output" id="cli-output">Cisco IOS Software, Enterprise Network Simulator (CST/4/402)
+Type "help" or "?" to list available diagnostic commands.
+Try: ping 192.168.2.20, traceroute 192.168.2.20, ipconfig /all, show ip route
+</div>
+              <div class="cli-prompt-line">
+                <span class="cli-prompt-str" id="cli-prompt-str">PC1&gt;</span>
+                <input type="text" id="cli-input" class="cli-input" autofocus autocomplete="off" spellcheck="false">
+              </div>
+            </div>
+          </div>
+
         </div>
-        <div class="sub-grid">
-          <div class="sub-box"><span class="sub-lbl">Subnet Mask</span><span class="sub-val" id="disp-mask">255.255.255.192</span></div>
-          <div class="sub-box"><span class="sub-lbl">Network ID</span><span class="sub-val" id="disp-net">192.168.10.64</span></div>
-          <div class="sub-box"><span class="sub-lbl">Broadcast Address</span><span class="sub-val" id="disp-bcast">192.168.10.127</span></div>
-          <div class="sub-box"><span class="sub-lbl">Usable Host Range</span><span class="sub-val" id="disp-range">192.168.10.65 - .126</span></div>
-          <div class="sub-box"><span class="sub-lbl">Total Usable Hosts</span><span class="sub-val" id="disp-hosts">62 Hosts</span></div>
-          <div class="sub-box"><span class="sub-lbl">IP Class</span><span class="sub-val">Class C (Private)</span></div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         BOTTOM PANE: Wireshark Live Packet Log & Progressive Challenge HUD
+         ══════════════════════════════════════════════════════════════════ -->
+    <div class="bottom-deck">
+      <!-- Wireshark-Style Live Packet Capture Table -->
+      <div class="wireshark-card">
+        <div class="wireshark-head">
+          <span class="wireshark-title">&#128450; Wireshark-Style Packet Event Capture Log</span>
+          <div class="wireshark-actions">
+            <button class="btn-ws-clear" id="btn-export-pcap">&#128190; Export PCAP (JSON)</button>
+            <button class="btn-ws-clear" id="btn-clear-pcap">&#10006; Clear Log</button>
+          </div>
+        </div>
+        <div class="ws-table-wrap">
+          <table class="ws-table" id="ws-table">
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Time (s)</th>
+                <th>Source IP / MAC</th>
+                <th>Destination IP / MAC</th>
+                <th>Proto</th>
+                <th>Len</th>
+                <th>Info Summary</th>
+              </tr>
+            </thead>
+            <tbody id="ws-tbody">
+              <!-- Populated dynamically as packets traverse links -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Progressive Challenge Engine Card -->
+      <div class="challenge-card">
+        <div class="challenge-header">
+          <div class="challenge-title-group">
+            <h2>&#127919; Network Troubleshooting Tickets</h2>
+          </div>
+          <span class="challenge-badge" id="challenge-badge">Solved: 0 / 8 Tickets</span>
         </div>
 
-        <div class="console-box">
-          <div class="console-title">Packet Routing &amp; Encapsulation Trace:</div>
-          <div class="console-log" id="cn-log">
-            &gt; Initialized Computer Networks Virtual Lab.<br>
-            &gt; Evaluated IP 192.168.10.75/26: Host bits = 6, Subnet bits = 2.<br>
-            &gt; Next-Hop Gateway determined via Dijkstra Shortest Path: Cost = 2 hops.
+        <div class="challenge-select-bar">
+          <select id="ticket-select" class="challenge-select">
+            <option value="ticket1">Ticket #01: Wrong Default Gateway Configured</option>
+            <option value="ticket2">Ticket #02: Mismatched Subnet Mask Breaking ARP</option>
+            <option value="ticket3">Ticket #03: Missing Return Route (Asymmetric Blackhole)</option>
+            <option value="ticket4">Ticket #04: RIP Metric Infinity (16 Hops) Poison</option>
+            <option value="ticket5">Ticket #05: Suboptimal OSPF Cost Routing onto 10M Backup</option>
+            <option value="ticket6">Ticket #06: MTU Fragmentation Exceeded with DF Bit Set</option>
+            <option value="ticket7">Ticket #07: Switch MAC Table CAM Overflow / Duplex Loop</option>
+            <option value="ticket8">Ticket #08: IP Address Conflict in DHCP Scope</option>
+          </select>
+          <button class="btn-net secondary" id="btn-load-ticket">&#128229; Load Scenario</button>
+        </div>
+
+        <div class="ticket-box" id="ticket-box">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <div class="ticket-actions-bar">
+          <button class="btn-net primary" id="btn-verify-ticket">&#10004; Run Network Audit &amp; Verify</button>
+          <span class="ticket-status-result" id="ticket-status-result"></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       THEOREMS & PROOFS / THEORY MODE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-container" id="theory-section">
+      <div class="theory-card">
+        <h2>Computer Networks Theoretical Formulations &amp; Architectures</h2>
+        <div class="theory-grid">
+          <div class="theory-item">
+            <h3>1. IPv4 Bitwise Mathematics, CIDR &amp; VLSM</h3>
+            <p>An IPv4 address is an unsigned 32-bit integer $A \in [0, 2^{32}-1]$. Given prefix length $p \in [0, 32]$:</p>
+            <p>$$\text{Subnet Mask } M = 2^{32} - 2^{32 - p}, \qquad \text{Wildcard Mask } W = \sim M = 2^{32 - p} - 1$$</p>
+            <p>$$\text{Network ID } N = A \ \& \ M, \qquad \text{Broadcast IP } B = N \ \vert \ W$$</p>
+            <p>$$\text{Usable Host Capacity} = 2^{32 - p} - 2 \quad (p \le 30)$$</p>
+            <p><strong>Variable Length Subnet Masking (VLSM):</strong> Departments sorted by host requirements $H_1 \ge H_2 \ge \dots \ge H_k$. For each subnet, minimum host bits $h_i = \lceil \log_2(H_i + 2) \rceil \implies p_i = 32 - h_i$.</p>
+          </div>
+
+          <div class="theory-item">
+            <h3>2. OSI 7-Layer vs TCP/IP Protocol Data Units</h3>
+            <p>Data descends the transmitter stack via encapsulation and ascends the receiver stack via decapsulation:</p>
+            <ul>
+              <li><strong>Layer 7–5 Application:</strong> Payload Data (HTTP GET, DNS query, ICMP echo).</li>
+              <li><strong>Layer 4 Transport:</strong> Adds TCP header ($20\text{ B}$) or UDP header ($8\text{ B}$). Ports route to specific processes; TCP adds sequence/ACK numbers and flags (SYN, ACK, FIN).</li>
+              <li><strong>Layer 3 Network:</strong> Adds IPv4 header ($20\text{ B}$). Carries 32-bit Source/Destination IP and TTL (Time-To-Live, decremented at every router hop).</li>
+              <li><strong>Layer 2 Data Link:</strong> Adds Ethernet II header ($14\text{ B}$) with 48-bit MAC addresses and Frame Check Sequence trailer ($4\text{ B}$ CRC-32).</li>
+              <li><strong>Layer 1 Physical:</strong> Converts bitstreams into Manchester / NRZ-I electrical signals on copper/fiber.</li>
+            </ul>
+          </div>
+
+          <div class="theory-item">
+            <h3>3. Dynamic Routing: Bellman-Ford (RIP) vs Dijkstra SPF (OSPF)</h3>
+            <p><strong>Distance-Vector (RIPv2):</strong> Each router $x$ updates distance vector $D_x(y)$ to destination $y$ via neighbor $v$ based on the Bellman-Ford equation:</p>
+            <p>$$D_x(y) = \min_{v} \left\{ c(x, v) + D_v(y) \right\}$$</p>
+            <p>Metric is hop count (maximum 15 hops; 16 = infinity / unreachable). Uses Split Horizon with Poison Reverse to prevent routing loops.</p>
+            <p style="margin-top:6px;"><strong>Link-State (OSPFv2):</strong> Routers flood Link-State Advertisements (LSAs) and run Dijkstra's Shortest Path First (SPF) algorithm:</p>
+            <p>$$\text{Cost} = \max\left(1, \left\lfloor \frac{100\text{ Mbps}}{\text{Link Bandwidth}} \right\rfloor\right)$$</p>
+          </div>
+
+          <div class="theory-item">
+            <h3>4. Layer-2 Switching &amp; Address Resolution Protocol (ARP)</h3>
+            <ul>
+              <li><strong>CAM Table Learning:</strong> When a frame enters port $P$, switch inspects Source MAC and records $\{ \text{Src MAC}, P, \text{timer} \}$.</li>
+              <li><strong>Forwarding:</strong> If Destination MAC is in CAM table, switch forwards exclusively to that port (Known Unicast). If missing, it floods the frame out all other ports (Unknown Unicast Flooding).</li>
+              <li><strong>ARP Operation:</strong> To resolve IP to MAC, sender broadcasts an ARP Request (`Who has 192.168.1.1? Tell 192.168.1.10`). Target unicasts an ARP Reply, populating sender's ARP cache.</li>
+            </ul>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
-  <div id="explore-wrapper" class="hidden">
-    <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE CST/4/402 Computer Networks</h2>
-      <div class="theory-grid">
-        <div class="theory-item">
-          <h3>1. OSI 7-Layer Reference Model</h3>
-          <p>Layer 7: Application (HTTP, DNS) &bull; Layer 6: Presentation (SSL/TLS) &bull; Layer 5: Session &bull; Layer 4: Transport (TCP/UDP) &bull; Layer 3: Network (IP, ICMP) &bull; Layer 2: Data Link (Ethernet MAC) &bull; Layer 1: Physical (Bits/Cables).</p>
+  <!-- ══════════════════════════════════════════════════════════════════
+       QUIZ & PRACTICE MODE (10 Rigorous Certification Questions)
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" class="hidden">
+    <div class="quiz-container">
+      <div class="quiz-head">
+        <div>
+          <h2>Computer Networks Certification Assessment</h2>
+          <p class="quiz-sub">Test your comprehensive knowledge of IPv4 subnetting, VLSM, OSI encapsulation, switching, and dynamic routing.</p>
         </div>
-        <div class="theory-item">
-          <h3>2. Classless Inter-Domain Routing (CIDR)</h3>
-          <p>Replaced rigid Class A, B, C allocations with flexible prefix lengths. Total assignable host addresses on subnet equals $2^{(32 - \text{prefix})} - 2$ (excluding network and broadcast addresses).</p>
+        <div class="quiz-score-badge">
+          <span>Score: </span><strong id="quiz-score-display">0 / 10</strong>
         </div>
-        <div class="theory-item">
-          <h3>3. Dijkstra Shortest Path Routing</h3>
-          <p>Used by Open Shortest Path First (OSPF) Link-State protocol. Maintains network graph topology and iteratively selects unvisited node with lowest cumulative distance from source.</p>
-        </div>
-        <div class="theory-item">
-          <h3>4. Sliding Window Flow Control</h3>
-          <p><strong>Go-Back-N:</strong> Sender window $N$, receiver window 1. Retransmits all frames from damaged frame onward.<br><strong>Selective Repeat:</strong> Individual frame ACK and selective retransmission.</p>
-        </div>
+      </div>
+
+      <div class="quiz-questions-list" id="quiz-questions-list">
+        <!-- Dynamically generated 10 questions with immediate KaTeX feedback -->
+      </div>
+
+      <div class="quiz-footer">
+        <button class="btn-net primary" id="btn-submit-quiz">Submit Assessment &amp; Calculate Grade</button>
+        <button class="btn-net secondary" id="btn-reset-quiz">Retake Assessment</button>
+      </div>
+
+      <div class="quiz-certificate-card hidden" id="quiz-certificate-card">
+        <h3>&#127891; Certificate of Computer Networks Proficiency</h3>
+        <p id="cert-text">Awarded to Student for demonstrating 100% mastery in IPv4 Subnetting, OSI 7-Layer Protocol Encapsulation, and Enterprise Routing.</p>
       </div>
     </div>
   </div>
+
 </main>
 
+<!-- External Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
 
-const canvas = document.getElementById('cn-canvas');
-const ctx = canvas.getContext('2d');
-let packetPos = 0;
-
-function drawNetwork() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#090d16';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Router A (Source)
-  ctx.fillStyle = '#1e3a8a';
-  ctx.beginPath(); ctx.arc(140, 200, 45, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'center';
-  ctx.fillText('Router A', 140, 195);
-  ctx.font = '10px monospace'; ctx.fillText('192.168.10.1', 140, 215);
-
-  // Switch (Intermediate)
-  ctx.fillStyle = '#065f46';
-  ctx.fillRect(310, 160, 80, 80);
-  ctx.strokeStyle = '#10b981'; ctx.strokeRect(310, 160, 80, 80);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Segoe UI';
-  ctx.fillText('Switch S1', 350, 195);
-  ctx.font = '10px Segoe UI'; ctx.fillText('Gigabit Hub', 350, 215);
-
-  // Router B (Destination)
-  ctx.fillStyle = '#7c2d12';
-  ctx.beginPath(); ctx.arc(560, 200, 45, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = '#f97316'; ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Segoe UI';
-  ctx.fillText('Router B', 560, 195);
-  ctx.font = '10px monospace'; ctx.fillText('192.168.10.65', 560, 215);
-
-  // Connecting cables
-  ctx.strokeStyle = '#475569'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(185, 200); ctx.lineTo(310, 200); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(390, 200); ctx.lineTo(515, 200); ctx.stroke();
-
-  // Packet animation
-  if (packetPos > 0 && packetPos < 370) {
-    const px = 185 + packetPos;
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(px, 190, 20, 20);
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 10px Segoe UI';
-    ctx.fillText('IP', px + 10, 204);
-  }
-}
-
-const ipInput = document.getElementById('ip-in');
-const cidrSelect = document.getElementById('cidr-select');
-const logEl = document.getElementById('cn-log');
-
-function updateSubnet() {
-  const p = parseInt(cidrSelect.value) || 26;
-  const hosts = Math.pow(2, 32 - p) - 2;
-  const masks = {24: '255.255.255.0', 26: '255.255.255.192', 28: '255.255.255.240', 30: '255.255.255.252'};
-
-  document.getElementById('disp-mask').textContent = masks[p] || '255.255.255.0';
-  document.getElementById('disp-net').textContent = `192.168.10.${p===26?64:(p===28?64:0)}`;
-  document.getElementById('disp-bcast').textContent = `192.168.10.${p===26?127:(p===28?79:255)}`;
-  document.getElementById('disp-hosts').textContent = `${hosts} Hosts`;
-  document.getElementById('net-badge').textContent = `Subnet: /${p}`;
-
-  logEl.innerHTML += `<br>&gt; Recalculated for CIDR /${p}: Usable range = ${hosts} assignable host addresses.`;
-  drawNetwork();
-}
-
-document.getElementById('btn-calc').addEventListener('click', updateSubnet);
-cidrSelect.addEventListener('change', updateSubnet);
-
-document.getElementById('btn-ping').addEventListener('click', () => {
-  packetPos = 0;
-  logEl.innerHTML += '<br>&gt; Sent ICMP Echo Request (Ping) -> 64 bytes from 192.168.10.1 to 192.168.10.65. RTT=4ms.';
-  const anim = setInterval(() => {
-    packetPos += 15;
-    drawNetwork();
-    if (packetPos >= 330) clearInterval(anim);
-  }, 30);
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/computer_networks.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
-      }
-    });
-  });
-
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
-
-drawNetwork();
-</script>
+<!-- Virtual Lab Engine -->
+<script src="app.js"></script>
 </body>
 </html>
