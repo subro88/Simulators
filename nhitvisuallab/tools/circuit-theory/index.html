@@ -4,294 +4,718 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Circuit Theory &amp; Networks Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive Circuit Theory & Networks Virtual Lab for WBSCTE 3rd Sem Electrical Engineering (EE/S3/CTN). Simulate Thevenin's Theorem, Maximum Power Transfer, RLC Series AC Resonance, and inspect 3D AC Resonance Tank model.">
+  <meta name="description" content="Interactive Circuit Theory virtual lab. Thevenin &amp; Norton Theorems, Maximum Power Transfer, R-L-C Series AC Resonance. WBSCTE 3rd Sem EE.">
+  <meta name="theme-color" content="#020712">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for High-Fidelity Math Typesetting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+
+  <!-- Core &amp; Custom CSS -->
   <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
-  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+<a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab Home">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40">
 </a>
 
 <main id="app">
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav" aria-label="Breadcrumb">
     <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
     <span class="nav-domain">Electrical Engineering &mdash; 3rd Semester (EE/S3/CTN)</span>
   </nav>
 
+  <!-- Header -->
   <header>
     <h1>Circuit Theory &amp; Networks Virtual Lab</h1>
-    <p class="subtitle">Thevenin &amp; Norton Theorems, Maximum Power Transfer &amp; R-L-C Series AC Resonance</p>
+    <p class="subtitle">Thevenin &amp; Norton &middot; Maximum Power Transfer &middot; R-L-C Series AC Resonance</p>
   </header>
 
-  <!-- Mode tabs bar (UTM model structure) -->
+  <!-- Canonical 4-Mode Platform Tabs Bar -->
   <div class="controls-bar">
     <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
+      <span class="ctrl-label">Platform Mode</span>
       <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">Circuit Laws</button>
-        <button class="pill" data-value="quiz">Quiz</button>
+        <button class="pill active" data-mode="simulate">&#9881; Simulate</button>
+        <button class="pill" data-mode="3d-model">&#128187; 3D Model</button>
+        <button class="pill" data-mode="explore">&#128218; Theorems &amp; Proofs</button>
+        <button class="pill" data-mode="quiz">&#9733; Quiz &amp; Practice</button>
       </div>
     </div>
     <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Network Theorems</a>
+      <button class="btn-sound-toggle" id="btn-sound-toggle" title="Toggle Sound FX">&#128266; Sound: ON</button>
+      <a class="btn-guide" href="#theory-section">&#128214; Circuit Theory Guide</a>
     </div>
   </div>
 
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       SIMULATE MODE (Core Workbench with STRICT 3:2 DUAL VIEWPORT)
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <!-- Simulation Sub-Toolbar -->
+    <div class="net-toolbar">
+      <div class="toolbar-actions">
+        <!-- 3 Core Module Selector -->
+        <div class="module-pill-selector">
+          <button class="mod-pill active" data-module="thevenin">&#9889; 1. Thevenin &amp; Norton</button>
+          <button class="mod-pill" data-module="mpt">&#128200; 2. Max Power Transfer</button>
+          <button class="mod-pill" data-module="rlc">〰 3. RLC Resonance</button>
+        </div>
+
+        <!-- Dynamic Action Buttons depending on active module -->
+        <div id="module-actions-container" style="display:flex; align-items:center; gap:8px;">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- STRICT 3:2 DUAL VIEWPORT WORKBENCH -->
+    <div class="dual-viewport" style="display:grid; grid-template-columns:3fr 2fr; gap:14px; align-items:stretch;">
+
+      <!-- LEFT PANE (3 Parts / 60%): Interactive Circuit Canvas -->
+      <div class="workbench-left">
+        <div class="canvas-card-container" id="canvas-card-container">
+          <div class="canvas-card-header">
+            <div class="canvas-title-group">
+              <span class="canvas-title" id="canvas-main-title">&#9889; Thevenin &amp; Norton Equivalent Circuit</span>
+            </div>
+            <div class="canvas-badges">
+              <span class="status-pill highlight" id="badge-module">Module: Thevenin</span>
+              <span class="status-pill active" id="badge-vth">Vth: —</span>
+              <span class="status-pill" id="badge-pf">PF: —</span>
+            </div>
+            <div class="canvas-header-actions">
+              <button class="btn-fullscreen" id="btn-fullscreen" title="Toggle Canvas Fullscreen (F)">&#9974; Fullscreen</button>
+            </div>
+          </div>
+
+          <!-- Canvas Viewport with Pan, Zoom & Grid -->
+          <div class="canvas-viewport-wrapper" id="canvas-viewport-wrapper">
+            <canvas id="circuit-canvas" width="880" height="520"></canvas>
+
+            <!-- Floating Zoom & Pan Navigation HUD -->
+            <div class="canvas-nav-hud">
+              <button class="hud-btn" id="hud-zoom-in" title="Zoom In (+)">&#65291;</button>
+              <button class="hud-btn" id="hud-zoom-out" title="Zoom Out (-)">&#65293;</button>
+              <button class="hud-btn" id="hud-zoom-1" title="Reset Zoom (0)">1:1</button>
+              <button class="hud-btn" id="hud-zoom-fit" title="Fit to View">Fit</button>
+              <button class="hud-btn" id="hud-grid-toggle" title="Toggle Grid (G)">&#8862; Grid</button>
+              <span class="hud-zoom-level" id="hud-zoom-level">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── PARAMETER CONTROLS PANEL (below canvas, inside workbench-left) ── -->
+        <div class="param-panel" id="param-panel">
+
+          <!-- SUB-PANEL 1: Thevenin & Norton Parameters -->
+          <div class="params-subpanel" id="params-thevenin">
+            <div class="param-panel-header">
+              <span class="param-panel-title">&#9889; Thevenin &amp; Norton Parameters</span>
+            </div>
+            <div class="param-grid">
+              <!-- Sliders -->
+              <div class="param-row">
+                <label class="param-label" for="sl-vs">V<sub>s</sub> (V)</label>
+                <input type="range" id="sl-vs" class="param-slider" min="0" max="50" value="24" step="0.5">
+                <span class="param-val" id="sl-vs-val">24 V</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-r1">R<sub>1</sub> (Ω)</label>
+                <input type="range" id="sl-r1" class="param-slider" min="1" max="100" value="10" step="1">
+                <span class="param-val" id="sl-r1-val">10 Ω</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-r2">R<sub>2</sub> (Ω)</label>
+                <input type="range" id="sl-r2" class="param-slider" min="1" max="100" value="20" step="1">
+                <span class="param-val" id="sl-r2-val">20 Ω</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-r3">R<sub>3</sub> (Ω)</label>
+                <input type="range" id="sl-r3" class="param-slider" min="1" max="100" value="30" step="1">
+                <span class="param-val" id="sl-r3-val">30 Ω</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-r4">R<sub>4</sub> (Ω)</label>
+                <input type="range" id="sl-r4" class="param-slider" min="1" max="100" value="15" step="1">
+                <span class="param-val" id="sl-r4-val">15 Ω</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-rl">R<sub>L</sub> (Ω)</label>
+                <input type="range" id="sl-rl" class="param-slider" min="0" max="200" value="50" step="1">
+                <span class="param-val" id="sl-rl-val">50 Ω</span>
+              </div>
+
+              <!-- Switch Toggles -->
+              <div class="param-row switch-row">
+                <label class="param-label">S<sub>1</sub></label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="sw-s1" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="param-val" id="sw-s1-val">CLOSED</span>
+
+                <label class="param-label" style="margin-left:12px;">S<sub>2</sub></label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="sw-s2">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="param-val" id="sw-s2-val">OPEN</span>
+
+                <label class="param-label" style="margin-left:12px;">S<sub>3</sub></label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="sw-s3" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="param-val" id="sw-s3-val">CLOSED</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANEL 2: Maximum Power Transfer Parameters -->
+          <div class="params-subpanel hidden" id="params-mpt">
+            <div class="param-panel-header">
+              <span class="param-panel-title">&#128200; Max Power Transfer Parameters</span>
+            </div>
+            <div class="param-grid">
+              <div class="param-row">
+                <label class="param-label" for="sl-mpt-vth">V<sub>th</sub> (V)</label>
+                <input type="range" id="sl-mpt-vth" class="param-slider" min="1" max="30" value="12" step="0.5">
+                <span class="param-val" id="sl-mpt-vth-val">12 V</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-mpt-rth">R<sub>th</sub> (Ω)</label>
+                <input type="range" id="sl-mpt-rth" class="param-slider" min="1" max="100" value="20" step="1">
+                <span class="param-val" id="sl-mpt-rth-val">20 Ω</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-mpt-rl">R<sub>L</sub> sweep (Ω)</label>
+                <input type="range" id="sl-mpt-rl" class="param-slider" min="0" max="500" value="20" step="1">
+                <span class="param-val" id="sl-mpt-rl-val">20 Ω</span>
+              </div>
+              <div class="param-row">
+                <button class="btn-net primary" id="btn-mpt-sweep" style="padding:5px 14px; font-size:0.82rem;">&#128200; Run RL Sweep &amp; Plot P(RL)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANEL 3: RLC Resonance Parameters -->
+          <div class="params-subpanel hidden" id="params-rlc">
+            <div class="param-panel-header">
+              <span class="param-panel-title">〰 RLC Series AC Resonance Parameters</span>
+            </div>
+            <div class="param-grid">
+              <div class="param-row">
+                <label class="param-label" for="sl-rlc-v">V<sub>rms</sub> (V)</label>
+                <input type="range" id="sl-rlc-v" class="param-slider" min="1" max="20" value="10" step="0.5">
+                <span class="param-val" id="sl-rlc-v-val">10 V</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-rlc-f">f (Hz)</label>
+                <input type="range" id="sl-rlc-f" class="param-slider" min="10" max="10000" value="1000" step="10">
+                <span class="param-val" id="sl-rlc-f-val">1000 Hz</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-rlc-r">R (Ω)</label>
+                <input type="range" id="sl-rlc-r" class="param-slider" min="1" max="100" value="10" step="1">
+                <span class="param-val" id="sl-rlc-r-val">10 Ω</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-rlc-l">L (mH)</label>
+                <input type="range" id="sl-rlc-l" class="param-slider" min="1" max="100" value="25" step="0.1">
+                <span class="param-val" id="sl-rlc-l-val">25.33 mH</span>
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="sl-rlc-c">C (μF)</label>
+                <input type="range" id="sl-rlc-c" class="param-slider" min="0.1" max="100" value="1" step="0.1">
+                <span class="param-val" id="sl-rlc-c-val">1.0 μF</span>
+              </div>
+              <div class="param-row" style="gap:8px;">
+                <button class="btn-net primary" id="btn-rlc-sweep" style="padding:5px 14px; font-size:0.82rem;">〰 Frequency Sweep</button>
+                <button class="btn-net secondary" id="btn-rlc-auto" style="padding:5px 14px; font-size:0.82rem;">&#9654; Auto-Tune to f<sub>r</sub></button>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /#param-panel -->
+      </div><!-- /.workbench-left -->
+
+      <!-- RIGHT PANE (2 Parts / 40%): Context-Synchronized Inspector Deck -->
+      <div class="workbench-right">
+        <div class="right-card">
+          <div class="deck-tabs">
+            <button class="deck-tab active" data-tab="meters">&#128202; Meters</button>
+            <button class="deck-tab" data-tab="mpt-graph">&#128200; P(R<sub>L</sub>)</button>
+            <button class="deck-tab" data-tab="resonance">〰 Resonance</button>
+            <button class="deck-tab" data-tab="oscilloscope">&#128250; Scope</button>
+            <button class="deck-tab" data-tab="phasor">&#128260; Phasor</button>
+          </div>
+
+          <!-- TAB 1: Digital Multimeter Displays -->
+          <div class="deck-body" id="tab-meters">
+            <div class="meter-grid">
+              <!-- Voltage Meter -->
+              <div class="dmm-display">
+                <div class="dmm-label">&#9014; Voltage</div>
+                <div class="dmm-value" id="mm-voltage">0.000</div>
+                <div class="dmm-unit">V</div>
+              </div>
+              <!-- Current Meter -->
+              <div class="dmm-display">
+                <div class="dmm-label">&#9100; Current</div>
+                <div class="dmm-value" id="mm-current">0.000</div>
+                <div class="dmm-unit">A</div>
+              </div>
+              <!-- Resistance Meter -->
+              <div class="dmm-display">
+                <div class="dmm-label">&#937; Resistance</div>
+                <div class="dmm-value" id="mm-resistance">0.000</div>
+                <div class="dmm-unit">Ω</div>
+              </div>
+            </div>
+
+            <!-- Thevenin / Norton Result Boxes -->
+            <div class="result-box-grid" style="margin-top:12px;">
+              <div class="result-box">
+                <span class="result-label">V<sub>th</sub> (Thevenin Voltage)</span>
+                <span class="result-val" id="result-vth">— V</span>
+              </div>
+              <div class="result-box">
+                <span class="result-label">R<sub>th</sub> (Thevenin Resistance)</span>
+                <span class="result-val" id="result-rth">— Ω</span>
+              </div>
+              <div class="result-box">
+                <span class="result-label">I<sub>N</sub> (Norton Current)</span>
+                <span class="result-val" id="result-in">— A</span>
+              </div>
+              <div class="result-box">
+                <span class="result-label">V<sub>N</sub> (Norton Voltage)</span>
+                <span class="result-val" id="result-vn">— V</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: Maximum Power Transfer P(RL) Graph -->
+          <div class="deck-body hidden" id="tab-mpt-graph">
+            <canvas id="mpt-canvas" width="420" height="260" style="width:100%; background:#050b17; border-radius:6px;"></canvas>
+            <div class="mpt-summary-wrap" style="margin-top:10px;">
+              <table class="vlsm-table" id="mpt-table">
+                <thead>
+                  <tr>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                    <th>Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>P<sub>max</sub></td><td id="mpt-pmax">—</td><td>W</td></tr>
+                  <tr><td>R<sub>L</sub> optimal</td><td id="mpt-rl-opt">—</td><td>Ω</td></tr>
+                  <tr><td>Efficiency η at R<sub>L</sub>=R<sub>th</sub></td><td id="mpt-eta">50</td><td>%</td></tr>
+                  <tr><td>V<sub>L</sub> at MPT</td><td id="mpt-vl">—</td><td>V</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 3: RLC Resonance Frequency Response -->
+          <div class="deck-body hidden" id="tab-resonance">
+            <canvas id="resonance-canvas" width="420" height="260" style="width:100%; background:#050b17; border-radius:6px;"></canvas>
+            <div class="resonance-summary-wrap" style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+              <div class="sum-box"><span class="sum-lbl">f<sub>r</sub> (Resonant Freq)</span><span class="sum-val" id="res-fr">— Hz</span></div>
+              <div class="sum-box"><span class="sum-lbl">Q (Quality Factor)</span><span class="sum-val" id="res-q">—</span></div>
+              <div class="sum-box"><span class="sum-lbl">BW (Bandwidth)</span><span class="sum-val" id="res-bw">— Hz</span></div>
+              <div class="sum-box"><span class="sum-lbl">f<sub>1</sub> (Lower −3dB)</span><span class="sum-val" id="res-f1">— Hz</span></div>
+              <div class="sum-box"><span class="sum-lbl">f<sub>2</sub> (Upper −3dB)</span><span class="sum-val" id="res-f2">— Hz</span></div>
+            </div>
+          </div>
+
+          <!-- TAB 4: Oscilloscope -->
+          <div class="deck-body hidden" id="tab-oscilloscope">
+            <canvas id="osc-canvas" width="420" height="260" style="width:100%; background:#050b17; border-radius:6px;"></canvas>
+            <div class="osc-controls" style="margin-top:8px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <label class="ctrl-label" style="font-size:0.78rem;">Time/Div:</label>
+              <select id="osc-timediv" class="challenge-select" style="max-width:120px;">
+                <option value="0.0001">0.1 ms/div</option>
+                <option value="0.0005">0.5 ms/div</option>
+                <option value="0.001" selected>1 ms/div</option>
+                <option value="0.005">5 ms/div</option>
+                <option value="0.01">10 ms/div</option>
+              </select>
+              <label class="ctrl-label" style="font-size:0.78rem;">Trigger:</label>
+              <select id="osc-trigger" class="challenge-select" style="max-width:110px;">
+                <option value="auto">Auto</option>
+                <option value="rising">Rising Edge</option>
+                <option value="falling">Falling Edge</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- TAB 5: Phasor Diagram -->
+          <div class="deck-body hidden" id="tab-phasor">
+            <canvas id="phasor-canvas" width="420" height="260" style="width:100%; background:#050b17; border-radius:6px;"></canvas>
+            <div class="phasor-table-wrap" style="margin-top:10px;">
+              <table class="vlsm-table" id="phasor-table">
+                <thead>
+                  <tr><th>Quantity</th><th>Magnitude</th><th>Angle</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>V<sub>s</sub> (Source)</td><td id="ph-vs-mag">—</td><td id="ph-vs-ang">0°</td></tr>
+                  <tr><td>V<sub>R</sub> (Resistor)</td><td id="ph-vr-mag">—</td><td id="ph-vr-ang">—</td></tr>
+                  <tr><td>V<sub>L</sub> (Inductor)</td><td id="ph-vl-mag">—</td><td id="ph-vl-ang">+90°</td></tr>
+                  <tr><td>V<sub>C</sub> (Capacitor)</td><td id="ph-vc-mag">—</td><td id="ph-vc-ang">−90°</td></tr>
+                  <tr><td>I (Current)</td><td id="ph-i-mag">—</td><td id="ph-i-ang">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /.right-card -->
+      </div><!-- /.workbench-right -->
+
+    </div><!-- /.dual-viewport -->
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         BOTTOM PANE: Lab Measurement Log & Progressive Lab Challenge HUD
+         ══════════════════════════════════════════════════════════════════ -->
+    <div class="bottom-deck">
+      <!-- Lab Measurement Log Card -->
+      <div class="wireshark-card">
+        <div class="wireshark-head">
+          <span class="wireshark-title">&#128450; Lab Measurement Log</span>
+          <div class="wireshark-actions">
+            <button class="btn-ws-clear" id="btn-export-log">&#128190; Export Log (CSV)</button>
+            <button class="btn-ws-clear" id="btn-clear-log">&#10006; Clear Log</button>
+          </div>
+        </div>
+        <div class="ws-table-wrap">
+          <table class="ws-table" id="lab-log-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Module</th>
+                <th>Measurement</th>
+                <th>Value</th>
+                <th>Unit</th>
+              </tr>
+            </thead>
+            <tbody id="lab-log-tbody">
+              <!-- Populated dynamically as measurements are taken -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Progressive Lab Challenge Card -->
+      <div class="challenge-card">
+        <div class="challenge-header">
+          <div class="challenge-title-group">
+            <h2>&#127919; Circuit Theory Lab Exercises</h2>
+          </div>
+          <span class="challenge-badge" id="challenge-badge">Solved: 0 / 9 Labs</span>
+        </div>
+
+        <div class="challenge-select-bar">
+          <select id="lab-select" class="challenge-select">
+            <option value="lab1">Lab 1: Verify Thevenin's Theorem (R Network)</option>
+            <option value="lab2">Lab 2: Norton Equivalent — Short-Circuit Current</option>
+            <option value="lab3">Lab 3: Thevenin-Norton Conversion Duality</option>
+            <option value="lab4">Lab 4: Maximum Power Transfer Condition (R<sub>L</sub>=R<sub>th</sub>)</option>
+            <option value="lab5">Lab 5: Power Efficiency Curve — η vs R<sub>L</sub>/R<sub>th</sub></option>
+            <option value="lab6">Lab 6: RLC Series Resonance — Find f<sub>r</sub></option>
+            <option value="lab7">Lab 7: Quality Factor Q Measurement (BW Method)</option>
+            <option value="lab8">Lab 8: Half-Power Frequencies f<sub>1</sub> &amp; f<sub>2</sub></option>
+            <option value="lab9">Lab 9: Phasor Diagram — Phase Angle Between V &amp; I</option>
+          </select>
+          <button class="btn-net secondary" id="btn-load-lab">&#128229; Load Lab</button>
+        </div>
+
+        <div class="ticket-box" id="lab-box">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <div class="ticket-actions-bar">
+          <button class="btn-net primary" id="btn-verify-lab">&#10004; Verify Lab Results</button>
+          <span class="ticket-status-result" id="lab-status-result"></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#sim-wrapper -->
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       3D MODEL MODE (WebGL Three.js Embed)
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="model3d-wrapper" class="hidden">
     <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Hardware — <span id="sim3d-title">AC Resonance Tank &amp; Thevenin Source</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Circuit Breadboard Chassis, Thevenin Voltage Source, Inductor Coil Toroid, Ceramic Capacitor Bank, and Rheostat Slider Load.</p>
+      <div class="challenge-title-group" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h2>3D Circuit Components &mdash; Circuit Breadboard &amp; RLC Tank</h2>
+          <p class="subtitle" style="text-align: left; margin: 4px 0 10px;">Photorealistic 3D interactive models with physically based materials (PBR): Solderless Breadboard, Inductor Coil, Electrolytic Capacitor, and Rheostat (variable resistor). Click any component to inspect its physical parameters and construction.</p>
+        </div>
+        <div class="sim3d-controls-bar">
+          <button class="btn-3d-ctrl" id="btn-3d-explode">&#128161; Exploded View</button>
+          <button class="btn-3d-ctrl" id="btn-3d-label">&#127991; Component Labels</button>
+          <button class="btn-3d-ctrl" id="btn-3d-reset">&#128269; Reset View</button>
+        </div>
+      </div>
       <div class="sim3d-layout">
         <div class="sim3d-wrap">
           <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+          <div class="sim3d-hint">Left-drag: Orbit &bull; Scroll: Zoom &bull; Right-drag: Pan &bull; Click any 3D component to inspect</div>
+          <div class="sim3d-quick-nav">
+            <span class="quick-nav-label">Quick Focus:</span>
+            <button class="quick-nav-btn active" data-target="breadboard">Breadboard</button>
+            <button class="quick-nav-btn" data-target="inductor">Inductor (L)</button>
+            <button class="quick-nav-btn" data-target="capacitor">Capacitor (C)</button>
+            <button class="quick-nav-btn" data-target="rheostat">Rheostat (R)</button>
+          </div>
         </div>
-        <aside id="sim3d-components" class="sim3d-components"></aside>
+        <aside id="sim3d-components" class="sim3d-components">
+          <!-- Populated by Three.js Inspector -->
+        </aside>
       </div>
     </section>
   </div>
 
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
-  <div id="sim-wrapper">
-    <div class="ct-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">Analysis Mode:</label>
-        <select id="mode-select" class="ct-select">
-          <option value="resonance">1. RLC Series AC Resonance Curve (fr = 1/2&pi;&radic;LC)</option>
-          <option value="thevenin">2. Thevenin Theorem &amp; Max Power (RL = Rth)</option>
-        </select>
-      </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">Inductance L (mH):</label>
-        <input type="number" id="ind-in" value="50" min="1" max="500" class="num-input">
-      </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">Capacitance C (&mu;F):</label>
-        <input type="number" id="cap-in" value="10" min="1" max="100" class="num-input">
-      </div>
-
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-calc-ct">Calculate Resonance &#9654;</button>
-        <button class="btn-action success" id="btn-max-power">Match RL = Rth</button>
-      </div>
-    </div>
-
-    <!-- Dual Canvas & Resonance Curve -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">RLC Series AC Resonance &amp; Current Response I(f)</span>
-          <span class="badge" id="res-badge">fr = 225.08 Hz</span>
-        </div>
-        <canvas id="ct-canvas" width="700" height="420"></canvas>
-      </div>
-
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Network Parameters &amp; AC Impedance</span>
-        </div>
-        <div class="ct-grid">
-          <div class="ct-box"><span class="ct-lbl">Resonant Frequency (fr)</span><span class="ct-val" id="disp-fr">225.08 Hz</span></div>
-          <div class="ct-box"><span class="ct-lbl">Inductive Reactance (XL)</span><span class="ct-val" id="disp-xl">70.71 &Omega;</span></div>
-          <div class="ct-box"><span class="ct-lbl">Capacitive Reactance (XC)</span><span class="ct-val" id="disp-xc">70.71 &Omega;</span></div>
-          <div class="ct-box"><span class="ct-lbl">Quality Factor (Q)</span><span class="ct-val" id="disp-q">7.07 (Sharp)</span></div>
-          <div class="ct-box"><span class="ct-lbl">Max Power (Pmax)</span><span class="ct-val">12.00 W (RL=Rth)</span></div>
-          <div class="ct-box"><span class="ct-lbl">Net Impedance (Z0)</span><span class="ct-val">10.00 &Omega; (Purely Resistive)</span></div>
-        </div>
-
-        <div class="console-box">
-          <div class="console-title">Circuit Analysis Engine Log:</div>
-          <div class="console-log" id="ct-log">
-            &gt; Initialized Circuit Theory &amp; Networks Virtual Lab.<br>
-            &gt; Series RLC values: R = 10.0&Omega;, L = 50.0mH, C = 10.0&mu;F.<br>
-            &gt; Resonance: XL = XC = 70.71&Omega; at fr = 225.08 Hz. Power factor = 1.00 (Unity).<br>
-            &gt; Thevenin Vth = 24.0V, Rth = 12.0&Omega;. Maximum power transfer Pmax = 12.0W at RL = 12.0&Omega;.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       THEOREMS & PROOFS / THEORY MODE
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="explore-wrapper" class="hidden">
-    <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE EE/S3/CTN Circuit Theory &amp; Networks</h2>
-      <div class="theory-grid">
-        <div class="theory-item">
-          <h3>1. Network Theorems</h3>
-          <p><strong>Thevenin's Theorem:</strong> Linear two-terminal circuit replaced by $V_{th}$ in series with $R_{th}$.<br><strong>Maximum Power Transfer:</strong> Maximum power delivered to load when $R_L = R_{th}$, giving $P_{max} = \frac{V_{th}^2}{4 R_{th}}$.</p>
+    <div class="theory-container" id="theory-section">
+      <div class="theory-card">
+        <h2>Circuit Theory &amp; Networks Theoretical Formulations</h2>
+        <div class="theory-grid">
+
+          <!-- Theory Item 1: MNA -->
+          <div class="theory-item">
+            <h3>1. Modified Nodal Analysis (MNA) — Systematic Circuit Solution</h3>
+            <p>MNA combines Kirchhoff's Current Law (KCL) with Ohm's Law to solve circuits with $n$ nodes and $b$ branches. With node voltages $\mathbf{v}$ as unknowns:</p>
+            <p>$$\mathbf{G}\,\mathbf{v} = \mathbf{i}_s$$</p>
+            <p>where the conductance matrix $\mathbf{G}$ has diagonal entries $G_{kk} = \sum_j g_{kj}$ (sum of conductances incident to node $k$) and off-diagonal entries $G_{kj} = -g_{kj}$ (negative conductance between nodes $k$ and $j$). KCL at each node $k$:</p>
+            <p>$$\sum_{j \in \mathcal{N}(k)} \frac{v_k - v_j}{R_{kj}} = I_{s,k}$$</p>
+            <p>Voltage sources are introduced as branches with current unknowns, extending $\mathbf{G}$ to a stamp matrix. The solution $\mathbf{v} = \mathbf{G}^{-1}\,\mathbf{i}_s$ yields all node potentials and branch currents.</p>
+          </div>
+
+          <!-- Theory Item 2: Thevenin & Norton -->
+          <div class="theory-item">
+            <h3>2. Thevenin &amp; Norton Equivalent Theorems</h3>
+            <p><strong>Thevenin's Theorem:</strong> Any linear, bilateral two-terminal network can be replaced by a single ideal voltage source $V_{th}$ in series with a single resistance $R_{th}$:</p>
+            <p>$$V_{th} = V_{oc} \quad \text{(Open-circuit voltage at terminals A-B)}$$</p>
+            <p>$$R_{th} = \frac{V_{oc}}{I_{sc}} = R_{eq}\big|_{\text{all independent sources killed}}$$</p>
+            <p><strong>Norton's Theorem:</strong> Equivalent to Thevenin but with current source $I_N$ in parallel with $R_{th}$:</p>
+            <p>$$I_N = I_{sc} = \frac{V_{th}}{R_{th}}$$</p>
+            <p><strong>Load current:</strong> $I_L = \dfrac{V_{th}}{R_{th} + R_L}$, &nbsp; <strong>Load voltage:</strong> $V_L = V_{th} \cdot \dfrac{R_L}{R_{th} + R_L}$</p>
+          </div>
+
+          <!-- Theory Item 3: Maximum Power Transfer -->
+          <div class="theory-item">
+            <h3>3. Maximum Power Transfer (MPT) Theorem</h3>
+            <p>Power delivered to load resistance $R_L$ from a Thevenin equivalent is:</p>
+            <p>$$P_L(R_L) = I_L^2\,R_L = \left(\frac{V_{th}}{R_{th}+R_L}\right)^2 R_L$$</p>
+            <p>Differentiating $\frac{dP_L}{dR_L} = 0$ yields the condition for maximum power transfer:</p>
+            <p>$$\boxed{R_L = R_{th}} \implies P_{max} = \frac{V_{th}^2}{4\,R_{th}}$$</p>
+            <p>At MPT, source efficiency $\eta = \dfrac{P_L}{P_{source}} = 50\%$. For AC circuits, maximum power transfer requires $Z_L = Z_{th}^*$ (complex conjugate matching):</p>
+            <p>$$R_L = R_{th}, \quad X_L = -X_{th}$$</p>
+          </div>
+
+          <!-- Theory Item 4: RLC Resonance -->
+          <div class="theory-item">
+            <h3>4. R-L-C Series AC Resonance</h3>
+            <p>In a series RLC circuit driven by $v_s = V_m\sin(\omega t)$, impedance is:</p>
+            <p>$$Z(\omega) = R + j\left(\omega L - \frac{1}{\omega C}\right) = R + j\,X_{net}$$</p>
+            <p><strong>Resonant frequency</strong> (when $X_L = X_C$, $\angle Z = 0$):</p>
+            <p>$$f_r = \frac{1}{2\pi\sqrt{LC}} \,\text{Hz}, \qquad \omega_r = \frac{1}{\sqrt{LC}} \,\text{rad/s}$$</p>
+            <p><strong>Quality Factor</strong> (sharpness of resonance):</p>
+            <p>$$Q = \frac{\omega_r L}{R} = \frac{1}{\omega_r C R} = \frac{1}{R}\sqrt{\frac{L}{C}}$$</p>
+            <p><strong>Bandwidth</strong> and half-power (−3 dB) frequencies:</p>
+            <p>$$BW = f_2 - f_1 = \frac{f_r}{Q} = \frac{R}{2\pi L}$$</p>
+            <p>$$f_{1,2} = f_r\left(\sqrt{1 + \frac{1}{4Q^2}} \mp \frac{1}{2Q}\right)$$</p>
+            <p>At resonance, $|Z|_{min} = R$, current is maximum $I_{max} = V_s/R$, and $V_L = V_C = Q\cdot V_s$ (voltage magnification).</p>
+          </div>
+
+        </div><!-- /.theory-grid -->
+
+        <!-- ── Interactive Blueprint Selector ────────────────── -->
+        <div class="theory-blueprint-container" style="margin-top:24px;">
+          <div class="blueprint-header-row">
+            <div>
+              <h3 style="color:var(--accent-cyan); font-size:1.15rem; margin-bottom:4px;">&#128269; Interactive Circuit Blueprints</h3>
+              <p style="color:#94a3b8; font-size:0.82rem;">Click any component or node in the blueprint diagrams below to inspect its role in circuit analysis, measurement procedure, and typical laboratory values.</p>
+            </div>
+            <div class="blueprint-selector-tabs">
+              <button class="bp-tab active" data-bp="thevenin-ckt">Thevenin Circuit</button>
+              <button class="bp-tab" data-bp="mpt-curve">MPT Power Curve</button>
+              <button class="bp-tab" data-bp="rlc-circuit">RLC Series Circuit</button>
+            </div>
+          </div>
+
+          <!-- Blueprint 1: Thevenin Circuit ASCII Diagram -->
+          <div class="bp-content-pane" id="bp-pane-thevenin-ckt">
+            <div style="background:#050b17; border:1px solid var(--border-line); border-radius:8px; padding:14px; margin-bottom:12px;">
+              <h4 style="color:var(--accent-cyan); font-size:0.95rem; margin-bottom:8px;">Thevenin Equivalent Derivation — Clickable Network Map</h4>
+              <div class="bp-field-row" style="flex-wrap:wrap; gap:6px;">
+                <button class="bp-cell" style="flex:auto;" data-field="thev_vs">V<sub>s</sub><br><span>Ideal Voltage Source</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="thev_r1">R<sub>1</sub><br><span>Series Arm 1</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="thev_r2">R<sub>2</sub><br><span>Shunt Branch</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="thev_r3">R<sub>3</sub><br><span>Series Arm 2</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="thev_rl">R<sub>L</sub><br><span>Load (Terminals A-B)</span></button>
+                <button class="bp-cell active" style="flex:auto;" data-field="thev_vth">V<sub>th</sub><br><span>Open-Circuit Voltage</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="thev_rth">R<sub>th</sub><br><span>Thevenin Resistance</span></button>
+              </div>
+              <pre style="color:#94a3b8; font-family:'JetBrains Mono',monospace; font-size:0.75rem; margin-top:12px; line-height:1.6; overflow-x:auto;">
+  A ──┬── R1 ──┬── R3 ──┬── B
+      |        |         |
+      Vs       R2        RL   (A-B = terminals)
+      |        |         |
+  A'──┴────────┴─────────┴── B'
+  
+  Step 1: Remove RL → Find Voc = Vth  (Superposition / Node Analysis)
+  Step 2: Kill Vs (short) → Find Rth = Req seen from A-B
+  Step 3: Norton: IN = Vth/Rth  (Short A-B, measure ISC)
+              </pre>
+            </div>
+            <div class="bp-detail-card" id="bp-detail-thev">
+              <div class="bp-detail-title-row">
+                <h4 id="bp-thev-title">V<sub>th</sub> — Open-Circuit Terminal Voltage</h4>
+                <button class="btn-net secondary" id="bp-btn-test-thev" style="padding:4px 10px; font-size:0.75rem;">&#9654; Test in Simulator</button>
+              </div>
+              <p id="bp-thev-desc" style="color:#cdd7ee; font-size:0.85rem; line-height:1.5;">The Thevenin voltage is the open-circuit voltage appearing across terminals A-B with the load disconnected. It equals the Superposition of contributions from all independent sources in the network. With R2 shunting the mid-node: $V_{th} = V_s \cdot \dfrac{R_2 \| R_3}{R_1 + R_2 \| R_3}$ (simplified 3-resistor case).</p>
+              <div class="bp-specs-grid" id="bp-thev-specs">
+                <div><span>Measurement Method:</span><strong>Voltmeter across A-B, RL open</strong></div>
+                <div><span>Theorem Source:</span><strong>L. C. Thévenin, 1883</strong></div>
+                <div><span>Live Lab Value:</span><strong id="bp-thev-val">Adjust sliders in Simulate mode</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blueprint 2: MPT Power Curve -->
+          <div class="bp-content-pane hidden" id="bp-pane-mpt-curve">
+            <div style="background:#050b17; border:1px solid var(--border-line); border-radius:8px; padding:14px; margin-bottom:12px;">
+              <h4 style="color:var(--accent-amber); font-size:0.95rem; margin-bottom:8px;">Maximum Power Transfer — P vs R<sub>L</sub> Curve Regions</h4>
+              <div class="bp-field-row" style="flex-wrap:wrap; gap:6px;">
+                <button class="bp-cell" style="flex:auto;" data-field="mpt_rising">Rising Region<br><span>R<sub>L</sub> &lt; R<sub>th</sub>, P increasing</span></button>
+                <button class="bp-cell active" style="flex:auto;" data-field="mpt_peak">Peak (MPT)<br><span>R<sub>L</sub> = R<sub>th</sub>, P<sub>max</sub></span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="mpt_falling">Falling Region<br><span>R<sub>L</sub> &gt; R<sub>th</sub>, P decreasing</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="mpt_sc">Short Circuit<br><span>R<sub>L</sub>=0, P=0, I=I<sub>max</sub></span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="mpt_oc">Open Circuit<br><span>R<sub>L</sub>=∞, P=0, V=V<sub>th</sub></span></button>
+              </div>
+              <pre style="color:#94a3b8; font-family:'JetBrains Mono',monospace; font-size:0.75rem; margin-top:12px; line-height:1.6; overflow-x:auto;">
+  P<sub>L</sub>(R<sub>L</sub>)
+   ↑
+  P<sub>max</sub> │          ●  ← R<sub>L</sub>=R<sub>th</sub>, η=50%
+       │       ╱   ╲
+       │      ╱     ╲
+       │     ╱       ╲___________
+       │    ╱
+       │___╱
+       └────────────────────────→ R<sub>L</sub>
+            0   R<sub>th</sub>    2R<sub>th</sub>  ∞
+              </pre>
+            </div>
+            <div class="bp-detail-card" id="bp-detail-mpt">
+              <div class="bp-detail-title-row">
+                <h4 id="bp-mpt-title">Peak Point — R<sub>L</sub> = R<sub>th</sub></h4>
+                <button class="btn-net secondary" id="bp-btn-test-mpt" style="padding:4px 10px; font-size:0.75rem;">&#9654; Test in Simulator</button>
+              </div>
+              <p id="bp-mpt-desc" style="color:#cdd7ee; font-size:0.85rem; line-height:1.5;">Maximum power is delivered when load resistance equals Thevenin resistance. At this conjugate-matched condition, $P_{max} = V_{th}^2/(4R_{th})$ and exactly half the total generated power is consumed by the load, the other half dissipated internally. Use the MPT sweep in the Simulate tab to visualize this parabolic-like curve in real time.</p>
+              <div class="bp-specs-grid">
+                <div><span>Condition:</span><strong>R<sub>L</sub> = R<sub>th</sub></strong></div>
+                <div><span>Efficiency at MPT:</span><strong>50 %</strong></div>
+                <div><span>Live Lab P<sub>max</sub>:</span><strong id="bp-mpt-val">Run MPT Sweep in Simulate mode</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blueprint 3: RLC Series Circuit -->
+          <div class="bp-content-pane hidden" id="bp-pane-rlc-circuit">
+            <div style="background:#050b17; border:1px solid var(--border-line); border-radius:8px; padding:14px; margin-bottom:12px;">
+              <h4 style="color:#10b981; font-size:0.95rem; margin-bottom:8px;">RLC Series Circuit — Component Inspector</h4>
+              <div class="bp-field-row" style="flex-wrap:wrap; gap:6px;">
+                <button class="bp-cell" style="flex:auto;" data-field="rlc_vs">V<sub>s</sub><br><span>AC Sinusoidal Source</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="rlc_r">R<br><span>Resistance (Ω) — real power</span></button>
+                <button class="bp-cell active" style="flex:auto;" data-field="rlc_l">L<br><span>Inductance (H) — X<sub>L</sub>=ωL</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="rlc_c">C<br><span>Capacitance (F) — X<sub>C</sub>=1/ωC</span></button>
+                <button class="bp-cell" style="flex:auto;" data-field="rlc_res">f<sub>r</sub><br><span>Resonance point: X<sub>L</sub>=X<sub>C</sub></span></button>
+              </div>
+              <pre style="color:#94a3b8; font-family:'JetBrains Mono',monospace; font-size:0.75rem; margin-top:12px; line-height:1.6; overflow-x:auto;">
+   Vs(ac) ──── R ──── L ──── C ──── (back to Vs)
+                              ↑ Series path: same I flows through R, L, C
+  
+  At resonance (f = fr):   X_L = X_C → Z = R (purely resistive)
+  Below fr:    X_C > X_L  → Capacitive (I leads V)
+  Above fr:    X_L > X_C  → Inductive  (I lags V)
+  
+  Voltage magnification:   V_L = V_C = Q × Vs  (can exceed source!)
+              </pre>
+            </div>
+            <div class="bp-detail-card" id="bp-detail-rlc">
+              <div class="bp-detail-title-row">
+                <h4 id="bp-rlc-title">L — Inductor (Inductive Reactance X<sub>L</sub>)</h4>
+                <button class="btn-net secondary" id="bp-btn-test-rlc" style="padding:4px 10px; font-size:0.75rem;">&#9654; Test in Simulator</button>
+              </div>
+              <p id="bp-rlc-desc" style="color:#cdd7ee; font-size:0.85rem; line-height:1.5;">An inductor stores energy in a magnetic field. Its inductive reactance $X_L = 2\pi f L\,\Omega$ increases linearly with frequency. Voltage across inductor leads current by exactly 90°. At resonance, $X_L = X_C$ so they cancel in the impedance equation, leaving only resistance $R$. This produces minimum impedance and maximum current in the series circuit.</p>
+              <div class="bp-specs-grid">
+                <div><span>Reactance Formula:</span><strong>X<sub>L</sub> = 2πfL Ω</strong></div>
+                <div><span>Phase Shift:</span><strong>V leads I by 90°</strong></div>
+                <div><span>Live Lab X<sub>L</sub>:</span><strong id="bp-rlc-val">Adjust f &amp; L sliders in RLC module</strong></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /.theory-blueprint-container -->
+      </div><!-- /.theory-card -->
+    </div><!-- /.theory-container -->
+  </div><!-- /#explore-wrapper -->
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       QUIZ & PRACTICE MODE (10 Rigorous Certification Questions)
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" class="hidden">
+    <div class="quiz-container">
+      <div class="quiz-head">
+        <div>
+          <h2>Circuit Theory &amp; Networks Certification Assessment</h2>
+          <p class="quiz-sub">Test your comprehensive knowledge of Thevenin &amp; Norton Theorems, Maximum Power Transfer, and R-L-C Series AC Resonance. WBSCTE 3rd Semester EE.</p>
         </div>
-        <div class="theory-item">
-          <h3>2. Series RLC AC Resonance</h3>
-          <p>At resonant frequency $f_r = \frac{1}{2\pi\sqrt{LC}}$, inductive reactance cancels capacitive reactance ($X_L = X_C$). Impedance is minimized ($Z = R$), current is maximized, and power factor is unity ($\cos \phi = 1$).</p>
+        <div class="quiz-score-badge">
+          <span>Score: </span><strong id="quiz-score-display">0 / 10</strong>
         </div>
-        <div class="theory-item">
-          <h3>3. Quality Factor &amp; Bandwidth</h3>
-          <p>Quality factor $Q = \frac{\omega_0 L}{R} = \frac{1}{R}\sqrt{\frac{L}{C}}$ defines voltage magnification and selectivity. Half-power bandwidth $BW = f_2 - f_1 = \frac{f_r}{Q}$.</p>
-        </div>
-        <div class="theory-item">
-          <h3>4. Star-Delta Transformation</h3>
-          <p>Three-phase network equivalence: $R_{ab} = R_a + R_b + \frac{R_a R_b}{R_c}$ and $R_a = \frac{R_{ab} R_{ca}}{R_{ab} + R_{bc} + R_{ca}}$.</p>
-        </div>
+      </div>
+
+      <div class="quiz-questions-list" id="quiz-questions-list">
+        <!-- Dynamically generated 10 questions with immediate KaTeX feedback -->
+      </div>
+
+      <div class="quiz-footer">
+        <button class="btn-net primary" id="btn-submit-quiz">Submit Assessment &amp; Calculate Grade</button>
+        <button class="btn-net secondary" id="btn-reset-quiz">Retake Assessment</button>
+      </div>
+
+      <div class="quiz-certificate-card hidden" id="quiz-certificate-card">
+        <h3>&#127891; Certificate of Circuit Theory Proficiency</h3>
+        <p id="cert-text">Awarded to Student for demonstrating mastery in Thevenin &amp; Norton Theorems, Maximum Power Transfer, and R-L-C Series AC Resonance.</p>
       </div>
     </div>
   </div>
+
 </main>
 
+<!-- External Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
 
-const canvas = document.getElementById('ct-canvas');
-const ctx = canvas.getContext('2d');
-let currentFr = 225.08;
-
-function drawResonance() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0a0f1d';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Axes
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(60, 340); ctx.lineTo(640, 340); ctx.stroke(); // Freq axis
-  ctx.beginPath(); ctx.moveTo(60, 40); ctx.lineTo(60, 340); ctx.stroke();  // Current axis
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '11px monospace';
-  ctx.fillText('Frequency f (Hz)', 540, 365);
-  ctx.fillText('Current I (A)', 70, 55);
-
-  // Resonance Bell Curve I(f) = V / sqrt(R^2 + (wL - 1/wC)^2)
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (let px = 60; px <= 640; px += 2) {
-    const f = (px - 60) * 1.0;
-    const diff = Math.abs(f - currentFr);
-    const iVal = 2.4 / Math.sqrt(1 + Math.pow(diff / 25, 2));
-    const py = 340 - iVal * 110;
-    if (px === 60) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.stroke();
-
-  // Peak Marker
-  const peakX = 60 + currentFr;
-  ctx.fillStyle = '#f59e0b';
-  ctx.beginPath(); ctx.arc(peakX, 76, 7, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 12px Segoe UI';
-  ctx.fillText(`I_max = 2.40 A at fr = ${currentFr.toFixed(1)} Hz`, peakX - 50, 60);
-
-  // Dotted Line to Axis
-  ctx.strokeStyle = '#f59e0b';
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(peakX, 76); ctx.lineTo(peakX, 340); ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-const indIn = document.getElementById('ind-in');
-const capIn = document.getElementById('cap-in');
-const logEl = document.getElementById('ct-log');
-
-document.getElementById('btn-calc-ct').addEventListener('click', () => {
-  const l = (parseFloat(indIn.value) || 50) * 1e-3;
-  const c = (parseFloat(capIn.value) || 10) * 1e-6;
-  const fr = 1.0 / (2.0 * Math.PI * Math.sqrt(l * c));
-  currentFr = Math.min(500, Math.max(10, fr));
-
-  const xl = 2 * Math.PI * fr * l;
-  const q = xl / 10.0;
-
-  document.getElementById('disp-fr').textContent = `${fr.toFixed(2)} Hz`;
-  document.getElementById('disp-xl').textContent = `${xl.toFixed(2)} Ω`;
-  document.getElementById('disp-xc').textContent = `${xl.toFixed(2)} Ω`;
-  document.getElementById('disp-q').textContent = `${q.toFixed(2)}`;
-  document.getElementById('res-badge').textContent = `fr = ${fr.toFixed(2)} Hz`;
-
-  logEl.innerHTML += `<br>&gt; Computed RLC Resonance: L = ${(l*1000).toFixed(1)}mH, C = ${(c*1e6).toFixed(1)}&mu;F &rarr; fr = ${fr.toFixed(2)}Hz, Q = ${q.toFixed(2)}.`;
-  drawResonance();
-});
-
-document.getElementById('btn-max-power').addEventListener('click', () => {
-  logEl.innerHTML += '<br>&gt; [MAX POWER TRANSFER] Load resistance matched RL = Rth = 12.0&Omega;. Maximum power delivered Pmax = 12.00 W (Efficiency = 50%).';
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/circuit_theory.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
-      }
-    });
-  });
-
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
-
-drawResonance();
-</script>
+<!-- Virtual Lab Engine -->
+<script src="app.js"></script>
 </body>
 </html>
