@@ -4,317 +4,1352 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Electrical Workshop Practice Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive Electrical Workshop Practice Virtual Lab for WBSCTE 3rd Sem EE (EE/S3/WS). Simulate Staircase 2-Way Wiring, Godown Wiring, Megger Earth Resistance Measurement, and inspect 3D Wiring Board model.">
+  <meta name="description" content="Interactive Electrical Workshop Practice & Domestic/Industrial Wiring Virtual Laboratory: staircase and godown multi-way wiring, 500 V Megger insulation and fall-of-potential earth testing, and MCB thermal-magnetic trip protection with IE Rules / IS 732 safety audits.">
   <link rel="stylesheet" href="../../shared/site.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#00212b; --surface:#052a35; --surface-2:#073542; --surface-3:#04242e;
+      --border:rgba(125,211,220,.18); --border-hi:rgba(125,211,220,.34);
+      --accent:#22d3ee; --accent-2:#34d399; --warn:#fbbf24; --danger:#fb7185;
+      --text:#e4f4f6; --dim:#89aeb6; --muted:#5f838c;
+      --phase:#f87171; --neutral:#60a5fa; --earth:#34d399; --strap:#fbbf24;
+      --font:'Inter','Segoe UI',system-ui,sans-serif;
+      --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+      --r:12px; --r-sm:7px;
+    }
+    html{scroll-behavior:smooth}
+    body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;padding:78px 18px 48px;overflow-x:hidden}
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background-image:linear-gradient(rgba(125,211,220,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,220,.035) 1px,transparent 1px);
+      background-size:32px 32px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.5),transparent 70%)}
+    #app{position:relative;z-index:1;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+    .skip-link{position:absolute;left:-9999px;top:0;background:var(--accent);color:#001820;padding:8px 14px;z-index:2000}
+    .skip-link:focus{left:12px;top:12px}
+    .logo-fixed{position:fixed;top:12px;left:14px;z-index:1000;display:block;padding:5px;border-radius:11px;
+      background:rgba(4,36,46,.72);backdrop-filter:blur(8px);border:1px solid var(--border);transition:transform .16s ease-out,border-color .16s}
+    .logo-fixed:hover{transform:scale(1.06);border-color:var(--accent)}
+    .logo-fixed img{display:block;width:42px;height:42px}
+    .site-nav{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:.78rem;color:var(--dim)}
+    .site-nav a{color:var(--dim);text-decoration:none}
+    .site-nav a:hover{color:var(--accent)}
+    .site-nav-back{padding:5px 11px;border:1px solid var(--border);border-radius:20px;background:var(--surface-3)}
+    .nav-sep{color:var(--muted)}
+    .tool-header{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
+      background:linear-gradient(135deg,var(--surface) 0%,var(--surface-3) 100%);
+      border:1px solid var(--border);border-radius:var(--r);padding:20px 22px}
+    .badges{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+    .badge-code,.badge-topic,.badge-wbscte{font-size:.67rem;font-weight:700;letter-spacing:.02em;padding:4px 9px;border-radius:5px}
+    .badge-code{background:rgba(34,211,238,.13);color:var(--accent);border:1px solid rgba(34,211,238,.3)}
+    .badge-topic{background:rgba(52,211,153,.1);color:var(--accent-2);border:1px solid rgba(52,211,153,.25)}
+    .badge-wbscte{background:rgba(251,191,36,.1);color:var(--warn);border:1px solid rgba(251,191,36,.25)}
+    .tool-header h1{font-size:clamp(1.5rem,2.6vw,2.1rem);font-weight:750;letter-spacing:-.02em;line-height:1.15}
+    .tool-header .subtitle{color:var(--dim);font-size:.88rem;margin-top:7px;max-width:74ch;line-height:1.5}
+    .header-actions{display:flex;flex-wrap:wrap;gap:8px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 13px;
+      font-family:var(--font);font-size:.8rem;font-weight:600;border-radius:var(--r-sm);cursor:pointer;
+      border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+      transition:background .14s ease-out,border-color .14s ease-out,transform .07s ease-out,filter .14s}
+    .btn:hover{background:#0b4352;border-color:var(--border-hi)}
+    .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .btn:active{transform:scale(.97)}
+    .btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+    .btn.primary{background:var(--accent);color:#00212b;border-color:transparent;font-weight:700}
+    .btn.primary:hover{filter:brightness(1.08);background:#67e8f9}
+    .btn.ghost{background:transparent}
+    .btn.success{background:rgba(52,211,153,.13);color:var(--accent-2);border-color:rgba(52,211,153,.35)}
+    .btn.danger{background:rgba(251,113,133,.13);color:var(--danger);border-color:rgba(251,113,133,.35)}
+    .btn svg{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .mode-bar,.module-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px;
+      background:var(--surface-3);border:1px solid var(--border);border-radius:10px}
+    .mode-bar .bar-label,.module-bar .bar-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;
+      color:var(--muted);font-weight:700;padding:0 11px 0 8px}
+    .pill{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid transparent;border-radius:7px;
+      background:transparent;color:var(--dim);font:600 .8rem var(--font);cursor:pointer;
+      transition:background .14s,color .14s,transform .07s}
+    .pill:hover{background:var(--surface-2);color:var(--text)}
+    .pill:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+    .pill:active{transform:scale(.97)}
+    .pill.active{background:var(--accent);color:#00212b;font-weight:750;box-shadow:0 2px 14px rgba(34,211,238,.2)}
+    .pill .num{font:700 .66rem var(--mono);opacity:.8}
+    .view-section{display:none;flex-direction:column;gap:16px;animation:sec .18s ease-out}
+    .view-section.show{display:flex}
+    @keyframes sec{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .module-bar{background:transparent;border:none;padding:0}
+    .module-bar .pill{background:var(--surface-3);border:1px solid var(--border)}
+    .module-bar .pill.active{background:var(--accent);border-color:transparent}
+    .sim-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(320px,2fr);gap:16px;align-items:start}
+    .pane{display:flex;flex-direction:column;gap:16px;min-width:0}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+      padding:10px 13px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+    .card-title{font-size:.82rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+    .card-title .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+    .card-sub{font-size:.7rem;color:var(--muted);font-family:var(--mono)}
+    .toolset{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+    .tool-btn{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;
+      background:var(--surface-3);color:var(--dim);cursor:pointer;font:700 .8rem var(--mono)}
+    .tool-btn:hover{color:var(--accent);border-color:var(--border-hi)}
+    .tool-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+    .tool-btn:active{transform:scale(.94)}
+    .tool-btn.on{background:var(--accent);color:#00212b}
+    .canvas-wrap{position:relative;background:#001b23;line-height:0}
+    canvas{display:block;width:100%;height:auto;touch-action:none}
+    #ws-canvas{cursor:crosshair;aspect-ratio:900/500}
+    #ws-canvas.grabbing{cursor:grabbing}
+    #instrument-canvas{aspect-ratio:640/230}
+    #plot-canvas{aspect-ratio:560/400}
+    .canvas-card.fullscreen{position:fixed;inset:0;z-index:3000;border-radius:0;margin:0;display:flex;flex-direction:column;background:var(--bg)}
+    .canvas-card.fullscreen .canvas-wrap{flex:1;min-height:0;line-height:normal}
+    .canvas-card.fullscreen canvas{height:100%;width:100%;object-fit:contain}
+    .overlay-badges{position:absolute;top:9px;left:9px;display:flex;flex-wrap:wrap;gap:6px;max-width:72%;
+      background:rgba(2,28,36,.55);backdrop-filter:blur(6px);border:1px solid var(--border);border-radius:7px;padding:5px 7px;
+      transition:opacity .2s}
+    .overlay-badges.is-collapsed{opacity:.13}
+    .overlay-badges:hover{opacity:.9}
+    .ov-badge{font:600 .67rem var(--mono);color:var(--accent-2);padding:2px 6px;border-radius:4px;background:rgba(52,211,153,.1)}
+    .ov-badge.warn{color:var(--warn);background:rgba(251,191,36,.1)}
+    .ov-badge.danger{color:var(--danger);background:rgba(251,113,133,.12)}
+    .zoom-pill{position:absolute;right:10px;bottom:10px;font:600 .68rem var(--mono);color:var(--dim);
+      background:rgba(2,28,36,.7);border:1px solid var(--border);padding:3px 8px;border-radius:5px;line-height:1.4}
+    .ctrl-panel{padding:14px}
+    .ctrl-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+    .ctrl-head h3{font-size:.86rem;font-weight:700;color:var(--accent)}
+    .ctrl-head span{font:600 .67rem var(--mono);color:var(--muted)}
+    .ctrl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 16px}
+    .ctrl{display:flex;flex-direction:column;gap:6px}
+    .ctrl-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+    .ctrl label{font-size:.74rem;color:var(--dim);font-weight:600}
+    .ctrl-val{font:700 .78rem var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}
+    input[type=range]{width:100%;height:5px;appearance:none;border-radius:4px;background:linear-gradient(90deg,var(--accent),#0c4d5a);outline:none;cursor:pointer}
+    input[type=range]::-webkit-slider-thumb{appearance:none;width:15px;height:15px;border-radius:50%;background:#e6feff;border:2px solid var(--accent);cursor:grab}
+    input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#e6feff;border:2px solid var(--accent);cursor:grab}
+    input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+    select{width:100%;background:var(--surface-3);color:var(--text);border:1px solid var(--border);
+      padding:7px 9px;border-radius:7px;font:600 .8rem var(--mono);outline:none}
+    select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+    .switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;
+      background:var(--surface-3);border:1px solid var(--border);border-radius:7px}
+    .switch-row span{font-size:.74rem;color:var(--dim);font-weight:600}
+    .switch{position:relative;width:42px;height:22px;flex:none}
+    .switch input{opacity:0;width:0;height:0}
+    .slider{position:absolute;inset:0;background:#0b3944;border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:background .16s}
+    .slider::before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;border-radius:50%;background:var(--dim);transition:transform .16s,background .16s}
+    .switch input:checked+.slider{background:rgba(52,211,153,.25);border-color:var(--accent-2)}
+    .switch input:checked+.slider::before{transform:translateX(20px);background:var(--accent-2)}
+    .switch input:focus-visible+.slider{outline:2px solid var(--accent);outline-offset:2px}
+    .spools{display:flex;flex-wrap:wrap;gap:6px}
+    .spool{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;
+      background:var(--surface-3);color:var(--dim);cursor:pointer;font:700 .7rem var(--mono);transition:all .14s}
+    .spool:hover{border-color:var(--border-hi);color:var(--text)}
+    .spool:active{transform:scale(.97)}
+    .spool:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+    .spool.active{color:#00212b;font-weight:800}
+    .spool.active[data-c="phase"]{background:var(--phase);border-color:var(--phase)}
+    .spool.active[data-c="neutral"]{background:var(--neutral);border-color:var(--neutral)}
+    .spool.active[data-c="earth"]{background:var(--earth);border-color:var(--earth)}
+    .spool.active[data-c="strap"]{background:var(--strap);border-color:var(--strap)}
+    .spool i{width:9px;height:9px;border-radius:50%;display:inline-block}
+    .ctrl-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:13px;border-top:1px solid var(--border)}
+    .dmm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .dmm{background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:10px 11px;position:relative;overflow:hidden}
+    .dmm::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+    .dmm.good::after{background:var(--accent-2)} .dmm.warn::after{background:var(--warn)} .dmm.bad::after{background:var(--danger)}
+    .dmm-lbl{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+    .dmm-val{font:700 1.06rem var(--mono);color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .dmm-val small{font-size:.62rem;color:var(--dim);font-weight:600}
+    .dmm-sub{font:500 .62rem var(--mono);color:var(--dim);margin-top:3px}
+    .dmm.good .dmm-sub{color:var(--accent-2)} .dmm.warn .dmm-sub{color:var(--warn)} .dmm.bad .dmm-sub{color:var(--danger)}
+    .subtabs{display:flex;gap:4px;padding:3px;background:var(--surface-3);border-radius:7px;flex-wrap:wrap}
+    .subtab{padding:5px 9px;border:none;background:transparent;color:var(--dim);border-radius:5px;cursor:pointer;font:600 .68rem var(--font)}
+    .subtab:hover{color:var(--text)} .subtab.active{background:var(--surface-2);color:var(--accent)}
+    .subtab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+    .derivation-card{padding:14px}
+    .derivation-card h3{font-size:.82rem;color:var(--accent-2);margin-bottom:9px;display:flex;align-items:center;gap:7px}
+    .step{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed var(--border)}
+    .step:last-child{border-bottom:none}
+    .step-num{flex:none;width:20px;height:20px;border-radius:50%;background:rgba(34,211,238,.12);color:var(--accent);
+      display:grid;place-items:center;font:700 .65rem var(--mono)}
+    .step-body{font-size:.76rem;color:var(--dim);line-height:1.65;overflow-x:auto}
+    .step-body b{color:var(--text)}
+    .step-body .katex{color:var(--text)}
+    .katex-display{margin:.3em 0!important}
+    .legend{display:flex;flex-wrap:wrap;gap:12px;padding:8px 13px;background:var(--surface-3);border-top:1px solid var(--border);font:600 .68rem var(--mono);color:var(--dim)}
+    .legend i{display:inline-block;width:11px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+    .notebook{padding:14px}
+    .notebook-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:11px}
+    .notebook-head h3{font-size:.9rem;color:var(--accent)}
+    .table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:8px}
+    table{width:100%;border-collapse:collapse;font:500 .73rem var(--mono);min-width:680px}
+    th{background:var(--surface-2);color:var(--dim);text-align:left;padding:8px 10px;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    td{padding:8px 10px;border-top:1px solid var(--border);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+    tbody tr:hover{background:var(--surface-2)}
+    .empty-row td{text-align:center;color:var(--muted);padding:18px;font-family:var(--font)}
+    .challenge{background:linear-gradient(135deg,var(--surface-2),var(--surface-3));border:1px solid rgba(251,191,36,.25);border-radius:9px;padding:13px}
+    .challenge-tag{font:700 .64rem var(--mono);color:var(--warn);letter-spacing:.05em}
+    .challenge h4{font-size:.86rem;margin:5px 0 7px;color:var(--text)}
+    .audit{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+    .audit-row{display:flex;justify-content:space-between;gap:10px;align-items:center;font:600 .7rem var(--mono);
+      padding:6px 9px;background:var(--surface-3);border-radius:6px;border:1px solid var(--border)}
+    .audit-row .ok{color:var(--accent-2)} .audit-row .no{color:var(--danger)}
+    .compliance{padding:12px 15px;border-left:3px solid var(--accent-2);background:rgba(52,211,153,.06);border-radius:0 8px 8px 0;
+      font-size:.77rem;color:var(--dim);line-height:1.6}
+    .compliance.violation{border-left-color:var(--danger);background:rgba(251,113,133,.08);color:var(--danger)}
+    .progress-line{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+    .progress-track{flex:1;min-width:120px;height:6px;background:var(--surface-3);border-radius:6px;overflow:hidden}
+    .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .3s ease-out}
+    .progress-text{font:700 .7rem var(--mono);color:var(--dim)}
+    .lab-layout{display:grid;grid-template-columns:minmax(230px,1fr) minmax(0,2fr);gap:16px}
+    .lab-list{display:flex;flex-direction:column;gap:7px}
+    .lab-item{display:flex;gap:10px;align-items:flex-start;text-align:left;padding:11px 12px;border:1px solid var(--border);
+      border-radius:9px;background:var(--surface);color:var(--dim);cursor:pointer;transition:background .14s,border-color .14s,transform .07s}
+    .lab-item:hover{background:var(--surface-2);border-color:var(--border-hi)}
+    .lab-item:active{transform:scale(.985)}
+    .lab-item.active{border-color:var(--accent);background:rgba(34,211,238,.08);color:var(--text)}
+    .lab-item .li-num{flex:none;width:23px;height:23px;border-radius:6px;background:var(--surface-3);display:grid;place-items:center;font:700 .7rem var(--mono);color:var(--accent)}
+    .lab-item.done .li-num{background:var(--accent-2);color:#002b1d}
+    .lab-item .li-t{font-size:.78rem;font-weight:700;line-height:1.3;display:block}
+    .lab-item .li-s{font-size:.66rem;color:var(--muted);margin-top:3px;display:block}
+    .lab-detail{padding:18px}
+    .lab-detail h3{font-size:1.05rem;color:var(--accent);margin-bottom:4px}
+    .lab-detail .track{font:700 .66rem var(--mono);color:var(--warn);letter-spacing:.05em;margin-bottom:11px}
+    .lab-detail .brief{font-size:.82rem;color:var(--dim);line-height:1.6;max-width:70ch}
+    .target-box{margin:12px 0;padding:10px 12px;background:rgba(251,191,36,.06);border-left:2px solid var(--warn);border-radius:0 7px 7px 0}
+    .target-box b{font:700 .7rem var(--mono);color:var(--warn)}
+    .target-box p{font-size:.78rem;color:var(--text);margin-top:4px;line-height:1.5}
+    .theory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+    .theory-card{padding:17px}
+    .theory-card h3{font-size:.94rem;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+    .theory-card h3 .ic{width:26px;height:26px;border-radius:6px;background:rgba(34,211,238,.1);display:grid;place-items:center;font:700 .72rem var(--mono)}
+    .theory-card p,.theory-card li{font-size:.8rem;color:var(--dim);line-height:1.7}
+    .theory-card ul{padding-left:18px;margin:7px 0}
+    .theory-card .formula{background:var(--surface-3);border:1px solid var(--border);border-radius:7px;padding:9px;margin:9px 0;overflow-x:auto;font-size:.8rem}
+    .quiz-list{display:flex;flex-direction:column;gap:12px}
+    .quiz-card{padding:15px}
+    .quiz-q{font-size:.88rem;font-weight:700;margin-bottom:10px;line-height:1.5}
+    .quiz-q span{color:var(--accent);font-family:var(--mono);margin-right:7px}
+    .opts{display:grid;gap:7px}
+    .opt{display:flex;gap:10px;align-items:center;padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface-3);color:var(--dim);cursor:pointer;font-size:.79rem;text-align:left}
+    .opt:hover{border-color:var(--border-hi);color:var(--text)}
+    .opt:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+    .opt.correct{border-color:var(--accent-2);background:rgba(52,211,153,.12);color:var(--accent-2)}
+    .opt.wrong{border-color:var(--danger);background:rgba(251,113,133,.1);color:var(--danger)}
+    .opt .key{font:700 .68rem var(--mono);opacity:.7}
+    .explain{margin-top:9px;font-size:.75rem;color:var(--accent-2);line-height:1.55;display:none}
+    .explain.show{display:block}
+    .score-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 15px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px}
+    .score-bar b{font:700 1.1rem var(--mono);color:var(--accent)}
+    .sim3d-section{padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);position:relative}
+    .sim3d-section h2{margin-bottom:6px;font-size:1.1rem;color:var(--accent)}
+    .sim3d-blurb{margin-bottom:12px;font-size:.82rem;color:var(--dim);line-height:1.5}
+    .sim3d-layout{display:flex;gap:14px;align-items:flex-start}
+    .sim3d-wrap{position:relative;flex:1;min-width:0}
+    .sim3d-canvas{width:100%;height:460px;display:block;background:#00171e;border-radius:8px;touch-action:none;cursor:grab}
+    .sim3d-hint{position:absolute;right:10px;bottom:8px;font:600 .68rem var(--mono);color:var(--muted);background:rgba(0,0,0,.3);padding:2px 8px;border-radius:6px}
+    .sim3d-components{flex:0 0 190px;width:190px;max-height:460px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+    .sim3d-comp{display:flex;flex-direction:column;gap:4px;padding:9px;border:1px solid var(--border);background:var(--surface-3);color:var(--dim);border-radius:8px;cursor:pointer;font-size:.76rem;text-align:left}
+    .sim3d-comp:hover{background:var(--surface-2)} .sim3d-comp.active{background:var(--accent);color:#00212b;font-weight:700}
+    .sim3d-thumb{width:100%;height:80px;object-fit:cover;background:#00171e;border-radius:5px;display:block}
+    .sim3d-resize{height:10px;cursor:ns-resize;background:linear-gradient(var(--border),transparent);border-radius:0 0 8px 8px;margin-top:2px}
+    .sim3d-section.fullscreen{position:fixed;inset:0;z-index:9998;margin:0;border-radius:0;background:var(--bg);display:flex;flex-direction:column;padding:0}
+    .sim3d-section.fullscreen .sim3d-layout{flex:1;min-height:0;margin:0;padding:10px}
+    .sim3d-section.fullscreen .sim3d-wrap,.sim3d-section.fullscreen .sim3d-canvas{height:100%!important}
+    .user-guide{padding:17px;font-size:.79rem;color:var(--dim);line-height:1.7}
+    .user-guide h3{color:var(--accent);margin-bottom:8px;font-size:.92rem}
+    .user-guide ol{padding-left:20px} .user-guide li{margin-bottom:5px}
+    .site-footer{padding:14px;text-align:center;font-size:.72rem;color:var(--muted);border-top:1px solid var(--border)}
+    @media(max-width:1000px){.sim-grid{grid-template-columns:1fr}.lab-layout{grid-template-columns:1fr}}
+    @media(max-width:620px){
+      body{padding:70px 11px 36px}
+      .tool-header{padding:15px}
+      .ctrl-grid{grid-template-columns:1fr}
+      .sim3d-layout{flex-direction:column}.sim3d-components{flex:none;width:100%;max-height:none;flex-direction:row;flex-wrap:wrap}
+      .sim3d-comp{flex:1 1 130px}
+      .btn,.pill{min-height:40px}
+    }
+  </style>
 </head>
 <body>
-<a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
-  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
-</a>
+  <a href="#app" class="skip-link">Skip to content</a>
+  <a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab home">
+    <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab">
+  </a>
 
-<main id="app">
-  <nav class="site-nav" aria-label="Breadcrumb">
-    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
-    <span class="nav-domain">Electrical Engineering &mdash; 3rd Semester (EE/S3/WS)</span>
-  </nav>
+  <main id="app">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+      <span class="nav-sep">/</span><a href="../../electrical/index.html">Electrical Engineering</a>
+      <span class="nav-sep">/</span><span>Semester 3</span>
+      <span class="nav-sep">/</span><span aria-current="page">Electrical Workshop Practice Virtual Lab</span>
+    </nav>
 
-  <header>
-    <h1>Electrical Workshop Practice Virtual Lab</h1>
-    <p class="subtitle">Staircase &amp; Godown 2-Way Wiring, Megger Earth Electrode Testing &amp; MCB Trip Protection</p>
-  </header>
-
-  <!-- Mode tabs bar (UTM model structure) -->
-  <div class="controls-bar">
-    <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
-      <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">Indian Electricity Rules</button>
-        <button class="pill" data-value="quiz">Quiz</button>
-      </div>
-    </div>
-    <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IE Wiring Rules</a>
-    </div>
-  </div>
-
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
-  <div id="model3d-wrapper" class="hidden">
-    <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Hardware — <span id="sim3d-title">House Wiring Board &amp; Megger</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of House Wiring Wooden Board, MCB Circuit Breaker Unit, Staircase 2-Way Toggle Switch, Megger Earth Tester Spike, and Fluorescent Choke Ballast.</p>
-      <div class="sim3d-layout">
-        <div class="sim3d-wrap">
-          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+    <header class="tool-header">
+      <div>
+        <div class="badges">
+          <span class="badge-code">EE/S3/WS</span>
+          <span class="badge-topic">Wiring &amp; Protection Practice</span>
+          <span class="badge-wbscte">WBSCTE 3rd Semester</span>
         </div>
-        <aside id="sim3d-components" class="sim3d-components"></aside>
+        <h1>Electrical Workshop Practice Virtual Lab</h1>
+        <p class="subtitle">Multi-way conduit wiring, 500 V Megger insulation and fall-of-potential earthing, and MCB thermal-magnetic protection — with live IE Rules / IS 732 safety auditing.</p>
       </div>
-    </section>
-  </div>
-
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
-  <div id="sim-wrapper">
-    <div class="ws-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">Wiring Circuit:</label>
-        <select id="wire-select" class="ws-select">
-          <option value="staircase">1. Staircase Wiring (2-Way Switches S1 &amp; S2)</option>
-          <option value="godown">2. Godown Sequential Lighting Circuit</option>
-          <option value="megger">3. Earth Electrode Resistance Megger Test</option>
-        </select>
+      <div class="header-actions">
+        <button class="btn ghost" id="btn-audio" aria-pressed="true" title="Toggle workshop sounds">
+          <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+          <span id="audio-label">Sound on</span>
+        </button>
+        <button class="btn" id="btn-guide-jump">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+          Workshop manual
+        </button>
       </div>
+    </header>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">Switch 1 (S1):</label>
-        <select id="s1-select" class="ws-select">
-          <option value="pos_a">Position UP (L1)</option>
-          <option value="pos_b">Position DOWN (L2)</option>
-        </select>
-      </div>
+    <nav class="mode-bar" id="mode-tabs" aria-label="Laboratory modes">
+      <span class="bar-label">Workspace</span>
+      <button class="pill active" data-mode="sim">Interactive Bench</button>
+      <button class="pill" data-mode="3d">3D Hardware Twin</button>
+      <button class="pill" data-mode="theory">IE Rules &amp; Theory</button>
+      <button class="pill" data-mode="labs">Guided Practicals <span class="num" id="lab-count">0/9</span></button>
+      <button class="pill" data-mode="quiz">Trade Quiz</button>
+    </nav>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">Switch 2 (S2):</label>
-        <select id="s2-select" class="ws-select">
-          <option value="pos_a">Position UP (L1)</option>
-          <option value="pos_b">Position DOWN (L2)</option>
-        </select>
-      </div>
+    <!-- ═══ INTERACTIVE BENCH ═══ -->
+    <section id="section-sim" class="view-section show" aria-label="Interactive workshop bench">
+      <nav class="module-bar" id="module-tabs" aria-label="Workshop module">
+        <span class="bar-label">Module</span>
+        <button class="pill active" data-module="wiring"><span class="num">01</span> Staircase &amp; Godown Wiring</button>
+        <button class="pill" data-module="megger"><span class="num">02</span> Megger &amp; Earth Electrode</button>
+        <button class="pill" data-module="mcb"><span class="num">03</span> MCB Trip Protection</button>
+      </nav>
 
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-toggle-sw">Toggle Switches &#9654;</button>
-        <button class="btn-action danger" id="btn-trip-mcb">Simulate MCB Trip</button>
-      </div>
-    </div>
+      <div class="sim-grid">
+        <div class="pane">
+          <div class="card canvas-card" id="schematic-card">
+            <div class="card-head">
+              <div class="card-title"><span class="dot"></span><span id="schematic-title">Conduit Wiring Board — Live Netlist</span></div>
+              <div class="toolset" id="board-tools">
+                <button class="tool-btn" id="btn-grid" title="Toggle grid (G)">▦</button>
+                <button class="tool-btn" id="btn-zoom-out" title="Zoom out (-)">−</button>
+                <button class="tool-btn" id="btn-zoom-in" title="Zoom in (+)">+</button>
+                <button class="tool-btn" id="btn-fit" title="Fit view (0)">⤢</button>
+                <button class="tool-btn" id="btn-hud" title="Toggle readouts">◉</button>
+                <button class="tool-btn" id="btn-fs-schematic" title="Fullscreen (F)" aria-label="Fullscreen board">⛶</button>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="ws-canvas" width="900" height="500" aria-label="Interactive wiring board canvas"></canvas>
+              <div class="overlay-badges" id="hud-badges"></div>
+              <div class="zoom-pill" id="zoom-pill">100% · drag to pan</div>
+            </div>
+          </div>
 
-    <!-- Dual Canvas & Wiring Schematic -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Live Wiring Circuit &amp; Current Continuity Path</span>
-          <span class="badge" id="lamp-badge" style="background:#10b981;">LAMP: ILLUMINATED (ON)</span>
+          <div class="card ctrl-panel" id="ctrl-panel">
+            <div class="ctrl-head"><h3 id="ctrl-title">Workshop Controls</h3><span id="ctrl-hint">Select a wire spool, then click two brass terminals</span></div>
+            <div class="ctrl-grid" id="ctrl-grid"></div>
+            <div class="ctrl-actions">
+              <button class="btn primary" id="btn-log">
+                <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v3h16v-3"/></svg>
+                Log reading
+              </button>
+              <button class="btn" id="btn-sweep">Auto-sweep curve</button>
+              <button class="btn" id="btn-clear">Clear table</button>
+              <button class="btn success" id="btn-export">Export report</button>
+            </div>
+          </div>
+
+          <div class="card canvas-card" id="instrument-card">
+            <div class="card-head">
+              <div class="card-title"><span class="dot" style="background:var(--warn);box-shadow:0 0 8px var(--warn)"></span>Workshop Instruments</div>
+              <div class="toolset">
+                <button class="tool-btn" id="btn-buzzer" title="Continuity buzzer">♫</button>
+                <button class="tool-btn" id="btn-fs-instrument" title="Fullscreen" aria-label="Fullscreen instruments">⛶</button>
+              </div>
+            </div>
+            <div class="canvas-wrap"><canvas id="instrument-canvas" width="640" height="230" aria-label="Virtual test instruments"></canvas></div>
+            <div class="legend">
+              <span id="instrument-legend">Continuity / Voltage / Insulation instruments</span>
+              <span id="instrument-mode">MODE: DMM</span>
+            </div>
+          </div>
         </div>
-        <canvas id="ws-canvas" width="700" height="420"></canvas>
-      </div>
 
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Safety Telemetry &amp; Earth Resistance</span>
-        </div>
-        <div class="ws-grid">
-          <div class="ws-box"><span class="ws-lbl">Lamp Status</span><span class="ws-val" id="disp-lamp" style="color:#10b981;font-weight:700;">ON (230V AC)</span></div>
-          <div class="ws-box"><span class="ws-lbl">Earth Electrode R</span><span class="ws-val" id="disp-rearth">3.42 &Omega; (IS 3043 Safe)</span></div>
-          <div class="ws-box"><span class="ws-lbl">Insulation Resistance</span><span class="ws-val">&gt; 250 M&Omega; (Megger)</span></div>
-          <div class="ws-box"><span class="ws-lbl">MCB Protection</span><span class="ws-val" id="disp-mcb" style="color:#10b981;">CLOSED (Type C 16A)</span></div>
-          <div class="ws-box"><span class="ws-lbl">Supply Phase</span><span class="ws-val">Single Phase 230V 50Hz</span></div>
-          <div class="ws-box"><span class="ws-lbl">Conduit Type</span><span class="ws-val">PVC Surface Conduit</span></div>
-        </div>
+        <div class="pane">
+          <div class="dmm-grid" id="dmm-bank" aria-label="Workshop telemetry bank"></div>
 
-        <div class="console-box">
-          <div class="console-title">Electrical Workshop Diagnostic Console:</div>
-          <div class="console-log" id="ws-log">
-            &gt; Initialized Electrical Workshop Practice Virtual Lab.<br>
-            &gt; Staircase 2-Way Wiring initialized: S1 = UP, S2 = UP.<br>
-            &gt; Complete closed loop formed across Phase &rarr; S1(L1) &rarr; S2(L1) &rarr; Lamp &rarr; Neutral.<br>
-            &gt; Earth Resistance Measured: 3.42 &Omega; (Compliant with Indian Electricity Rule 61).
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title" id="plot-title">Switching Truth Table</div>
+              <div class="subtabs" id="plot-tabs"></div>
+            </div>
+            <div class="canvas-wrap"><canvas id="plot-canvas" width="560" height="400" aria-label="Characteristic plot"></canvas></div>
+          </div>
+
+          <div class="card derivation-card">
+            <h3><svg viewBox="0 0 24 24" width="15" height="15" style="stroke:currentColor;fill:none;stroke-width:1.8"><path d="M4 7h16M4 12h10M4 17h16"/></svg>Step-by-step derivation</h3>
+            <div id="derivation"></div>
+          </div>
+
+          <div class="card notebook">
+            <div class="notebook-head"><h3>Practical Record</h3><span class="card-sub" id="row-count">0 readings logged</span></div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>#</th><th>Module</th><th>Setting</th><th>Reading</th><th>Figure</th><th>Verdict</th></tr></thead>
+                <tbody id="obs-body"><tr class="empty-row"><td colspan="6">No readings yet — adjust a control and choose “Log reading”.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="challenge" style="margin-top:12px">
+              <div class="challenge-tag">LIVE SAFETY AUDIT</div>
+              <h4 id="bench-challenge-title">IE Rule compliance</h4>
+              <div class="audit" id="bench-audit"></div>
+              <div class="compliance" id="compliance-banner" style="margin-top:10px">Awaiting energisation — verify netlist before switching ON the main DP.</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
-  <div id="explore-wrapper" class="hidden">
-    <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE EE/S3/WS Electrical Workshop Practice</h2>
-      <div class="theory-grid">
-        <div class="theory-item">
-          <h3>1. Staircase &amp; Godown Wiring</h3>
-          <p>Two-way SPDT switch wiring allows independent control of a single corridor/staircase lamp from two different locations (top and bottom of staircase).</p>
-        </div>
-        <div class="theory-item">
-          <h3>2. Earthing Systems (Pipe &amp; Plate)</h3>
-          <p>Pipe electrode earthing uses perforated GI pipe surrounded by charcoal and salt layers. Indian Standard IS 3043 requires domestic earth resistance $R \le 5.0 \Omega$ and substation $R \le 1.0 \Omega$.</p>
-        </div>
-        <div class="theory-item">
-          <h3>3. Megger Earth Tester</h3>
-          <p>Hand-driven DC generator (500V/1000V) or electronic digital insulation tester measuring mega-ohm insulation resistance between phase conductors and earth.</p>
-        </div>
-        <div class="theory-item">
-          <h3>4. MCB &amp; ELCB/RCCB Protection</h3>
-          <p><strong>MCB:</strong> Bimetallic strip for thermal overload and electromagnetic solenoid for short-circuit trip.<br><strong>RCCB:</strong> Detects residual leakage current $\ge 30\text{mA}$ to prevent fatal electrocution.</p>
+    <!-- ═══ 3D MODEL ═══ -->
+    <section id="section-3d" class="view-section" aria-label="3D hardware twin">
+      <div id="model3d-wrapper" data-v2-inline="1">
+        <div class="sim3d-section" id="sim3d-section">
+          <h2>3D Hardware Twin — <span id="sim3d-title">Workshop Wiring Board &amp; Test Rig</span></h2>
+          <p class="sim3d-blurb">Inspect the physical workshop assembly: wiring board, MCB distribution unit, 2-way toggle switches, lamp holder, Megger tester and earth spike. Select a component, then drag to rotate · scroll to zoom · right-drag to pan.</p>
+          <div class="sim3d-layout">
+            <div class="sim3d-wrap">
+              <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+              <div class="sim3d-hint">Drag to rotate · Scroll to zoom</div>
+            </div>
+            <aside id="sim3d-components" class="sim3d-components" aria-label="3D components"></aside>
+          </div>
+          <div class="sim3d-resize" id="sim3d-resize"></div>
         </div>
       </div>
-    </div>
-  </div>
-</main>
+    </section>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
+    <!-- ═══ THEORY ═══ -->
+    <section id="section-theory" class="view-section" aria-label="IE rules and theory">
+      <div class="theory-grid">
+        <article class="theory-card">
+          <h3><span class="ic">01</span>Multi-Way Switching Logic</h3>
+          <p>Two SPDT two-way switches control one lamp from two positions. With strappers between <span data-tex="$L_1$"></span> and <span data-tex="$L_2$"></span>, the lamp is ON when both switches occupy the same throw:</p>
+          <div class="formula" data-tex="$$Y=S_1\odot S_2=\overline{S_1\oplus S_2}$$"></div>
+          <ul>
+            <li>Phase must pass through the switches; the neutral goes directly to the lamp holder — this is the IS 732 polarity requirement.</li>
+            <li>The Carter method puts phase and neutral on the outer terminals and leaves the holder live when OFF: <b>IE Rule violation</b>.</li>
+            <li>An intermediate (DPDT) switch extends two-way control to three or more positions.</li>
+          </ul>
+        </article>
+        <article class="theory-card">
+          <h3><span class="ic">02</span>Insulation Resistance &amp; IE Rule 48</h3>
+          <p>A 500 V DC Megger drives the test. Leakage current and the minimum permissible insulation resistance are:</p>
+          <div class="formula" data-tex="$$I_{\text{leak}}=\frac{V_{\text{supply}}}{R_{\text{IR}}},\qquad R_{\text{IR,min}}=\frac{50\,\text{M}\Omega}{N_{\text{outlets}}}\ \ (\ge 1.0\,\text{M}\Omega\ \text{per IS 732})$$"></div>
+          <p>Healthy PVC conduit runs read above <span data-tex="$200\,\text{M}\Omega$"></span>; moisture ingress or a nicked cable can collapse the reading to <span data-tex="$0.2\,\text{M}\Omega$"></span>, which fails the rule.</p>
+        </article>
+        <article class="theory-card">
+          <h3><span class="ic">03</span>Fall-of-Potential Earth Testing</h3>
+          <p>For a vertical electrode of length <span data-tex="$L$"></span> and radius <span data-tex="$r$"></span> in soil of resistivity <span data-tex="$\rho$"></span>:</p>
+          <div class="formula" data-tex="$$R_E=\frac{\rho}{2\pi L}\ln\!\left(\frac{4L}{r}\right)$$"></div>
+          <p>Moving the potential spike <span data-tex="$P_2$"></span> to distance <span data-tex="$x$"></span> between electrode and current spike <span data-tex="$C_2$"></span> at <span data-tex="$D$"></span> gives:</p>
+          <div class="formula" data-tex="$$R(x)=R_E+\frac{\rho}{2\pi}\left(\frac{1}{D-x}-\frac{1}{x}\right)$$"></div>
+          <p>At the <b>62% point</b> <span data-tex="$x=0.618D$"></span> the two hemisphere terms cancel and the flat plateau reads true <span data-tex="$R_E$"></span> (IS 3043: <span data-tex="$\le5\,\Omega$"></span> domestic, <span data-tex="$\le1\,\Omega$"></span> substation).</p>
+        </article>
+        <article class="theory-card">
+          <h3><span class="ic">04</span>MCB Thermal-Magnetic Tripping</h3>
+          <p>Bimetallic heating obeys a first-order lag in overload multiple <span data-tex="$m=I/I_n$"></span>:</p>
+          <div class="formula" data-tex="$$\tau_{\text{th}}\frac{d\theta}{dt}+\theta=K_{\text{th}}(m^2-1),\qquad t_{\text{trip}}=-\tau_{\text{th}}\ln\!\left(1-\frac{\theta_{\text{trip}}}{K_{\text{th}}(m^2-1)}\right)$$"></div>
+          <ul>
+            <li><span data-tex="$m\le1.13$"></span>: no trip; <span data-tex="$m=1.45$"></span>: trip under 1 hour.</li>
+            <li>Instantaneous magnetic pickup: <b>B</b> 3–5<span data-tex="$I_n$"></span>, <b>C</b> 5–10<span data-tex="$I_n$"></span>, <b>D</b> 10–20<span data-tex="$I_n$"></span>.</li>
+            <li>A motor's 6&times; inrush needs a C or D curve to avoid nuisance tripping.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
 
-const canvas = document.getElementById('ws-canvas');
-const ctx = canvas.getContext('2d');
-let isLampOn = true;
+    <!-- ═══ GUIDED PRACTICALS ═══ -->
+    <section id="section-labs" class="view-section" aria-label="Guided workshop practicals">
+      <div class="lab-layout">
+        <div class="card" style="padding:12px"><div class="lab-list" id="lab-list"></div></div>
+        <div class="card lab-detail" id="lab-detail"></div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="progress-line">
+          <span class="progress-text">Practical mastery</span>
+          <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+          <span class="progress-text" id="progress-text">0 / 9 complete</span>
+          <span class="progress-text" id="rank-text">Rank: Apprentice</span>
+        </div>
+      </div>
+    </section>
 
-function drawWiring() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0a0f1d';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    <!-- ═══ QUIZ ═══ -->
+    <section id="section-quiz" class="view-section" aria-label="Trade quiz">
+      <div class="score-bar"><span>Score</span><b id="quiz-score">0 / 5</b><span id="quiz-verdict" style="color:var(--dim);font-size:.8rem">Answer all five questions.</span><button class="btn" id="btn-quiz-reset" style="margin-left:auto">Reset quiz</button></div>
+      <div class="quiz-list" id="quiz-list"></div>
+    </section>
 
-  // Supply Lines
-  ctx.fillStyle = '#ef4444';
-  ctx.font = 'bold 12px Segoe UI';
-  ctx.fillText('Phase (230V AC)', 50, 80);
-  ctx.strokeStyle = '#ef4444';
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(50, 95); ctx.lineTo(160, 95); ctx.stroke();
+    <section class="card user-guide" id="user-guide">
+      <h3>Standard operating procedure</h3>
+      <ol>
+        <li>Select a workshop module, then use the wire spools to connect brass terminals on the wiring board; press the main DP only after the safety audit passes.</li>
+        <li>For insulation tests, isolate the mains, select the lead pair, hold the 500 V crank and read the Megger in mega-ohms.</li>
+        <li>For earth testing, drag the potential spike along the tape, log seven readings, and pick the 62% plateau value.</li>
+        <li>For MCB studies, choose a curve and rating, switch workshop loads, and watch the thermal/magnetic trip on the log-log curve.</li>
+        <li>Log readings into the practical record, export the report, and attempt the nine assessed tasks and trade quiz.</li>
+      </ol>
+    </section>
+    <footer class="site-footer">NHIT VisualLab · Electrical Workshop Practice · EE/S3/WS · IE Rules / IS 732</footer>
+  </main>
 
-  ctx.fillStyle = '#38bdf8';
-  ctx.fillText('Neutral (N)', 50, 320);
-  ctx.strokeStyle = '#38bdf8';
-  ctx.beginPath(); ctx.moveTo(50, 335); ctx.lineTo(550, 335); ctx.lineTo(550, 240); ctx.stroke();
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+  <script>window.$=window.$||function(id){return document.getElementById(id)};window.V2_TOOL_ID="electrical-wiring-workshop";window.V2_MODEL="electrical_wiring_workshop";window.V2_COMPONENTS_URL="/models/electrical_wiring_workshop_components.json";window.V2_COMPONENTS=[{label:"Workshop Wiring Board",url:"/models/electrical_wiring_workshop.glb"}];</script>
+  <script src="/js/v2_model_embed.js"></script>
 
-  // Switch 1 Box
-  ctx.fillStyle = '#1e293b';
-  ctx.fillRect(160, 70, 100, 150);
-  ctx.strokeStyle = '#f59e0b';
-  ctx.strokeRect(160, 70, 100, 150);
-  ctx.fillStyle = '#fff';
-  ctx.fillText('Switch S1', 210, 60);
+  <script>
+  (function(){
+    "use strict";
+    const $ = id => document.getElementById(id);
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const fmt=(v,d)=>{if(!isFinite(v))return "∞";return Number(v).toFixed(d===undefined?2:d);};
+    const COL={bg:'#001b23',grid:'#0c3641',gridHi:'#15505d',wire:'#7dd3dc',dim:'#89aeb6',
+      text:'#e4f4f6',accent:'#22d3ee',green:'#34d399',amber:'#fbbf24',red:'#fb7185',
+      phase:'#f87171',neutral:'#60a5fa',earth:'#34d399',strap:'#fbbf24'};
 
-  // Switch 2 Box
-  ctx.fillStyle = '#1e293b';
-  ctx.fillRect(360, 70, 100, 150);
-  ctx.strokeStyle = '#f59e0b';
-  ctx.strokeRect(360, 70, 100, 150);
-  ctx.fillText('Switch S2', 410, 60);
-
-  // Strapping wires between S1 and S2
-  ctx.strokeStyle = isLampOn ? '#22c55e' : '#64748b';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(260, 105); ctx.lineTo(360, 105); ctx.stroke(); // Strapping wire 1
-  ctx.beginPath(); ctx.moveTo(260, 185); ctx.lineTo(360, 185); ctx.stroke(); // Strapping wire 2
-
-  // Output to Lamp
-  ctx.beginPath(); ctx.moveTo(460, 145); ctx.lineTo(550, 145); ctx.lineTo(550, 180); ctx.stroke();
-
-  // Lamp Bulb Circle
-  ctx.fillStyle = isLampOn ? '#f59e0b' : '#334155';
-  ctx.beginPath(); ctx.arc(550, 210, 28, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = isLampOn ? '#fbbf24' : '#64748b';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 12px Segoe UI';
-  ctx.textAlign = 'center';
-  ctx.fillText(isLampOn ? '💡 ON' : 'OFF', 550, 215);
-
-  if (isLampOn) {
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
-    ctx.beginPath(); ctx.arc(550, 210, 42, 0, Math.PI * 2); ctx.stroke();
-  }
-}
-
-const s1Sel = document.getElementById('s1-select');
-const s2Sel = document.getElementById('s2-select');
-const logEl = document.getElementById('ws-log');
-
-function toggleSwitches() {
-  isLampOn = (s1Sel.value === s2Sel.value);
-  document.getElementById('lamp-badge').textContent = isLampOn ? 'LAMP: ILLUMINATED (ON)' : 'LAMP: EXTINGUISHED (OFF)';
-  document.getElementById('lamp-badge').style.background = isLampOn ? '#10b981' : '#ef4444';
-  document.getElementById('disp-lamp').textContent = isLampOn ? 'ON (230V AC)' : 'OFF (Circuit Broken)';
-  document.getElementById('disp-lamp').style.color = isLampOn ? '#10b981' : '#ef4444';
-
-  logEl.innerHTML += `<br>&gt; S1 = ${s1Sel.value}, S2 = ${s2Sel.value} &rarr; Lamp is now ${isLampOn ? 'ILLUMINATED' : 'EXTINGUISHED'}.`;
-  drawWiring();
-}
-
-document.getElementById('btn-toggle-sw').addEventListener('click', toggleSwitches);
-s1Sel.addEventListener('change', toggleSwitches);
-s2Sel.addEventListener('change', toggleSwitches);
-
-document.getElementById('btn-trip-mcb').addEventListener('click', () => {
-  isLampOn = false;
-  document.getElementById('disp-mcb').textContent = 'TRIPPED (Open Circuit)';
-  document.getElementById('disp-mcb').style.color = '#ef4444';
-  document.getElementById('lamp-badge').textContent = 'MCB TRIPPED';
-  document.getElementById('lamp-badge').style.background = '#ef4444';
-  logEl.innerHTML += '<br>&gt; [TRIP PROTECTION] Magnetic trip coil activated: MCB opened within 20ms to clear fault current.';
-  drawWiring();
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/electrical_wiring_workshop.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
+    /* ───────────────────────── state ───────────────────────── */
+    const S={
+      mode:'sim',module:'wiring',t:0,last:0,running:true,audioOn:true,showGrid:true,showCursors:true,
+      zoom:1,panX:0,panY:0,plotTab:0,selectedLab:1,labsDone:new Set(),bypassSeen:false,
+      rows:[],results:{},quiz:{},selectedWire:'phase',pendingTerminal:null,buzzerOn:false,
+      tones:{buzz:null,crank:null},
+      p:{
+        wiring:{scheme:'staircase',s1:0,s2:0,s3:0,mainOn:false,tripped:false,carter:false,wires:[],deleteMode:false},
+        megger:{lead:'LN',circuit:0,moisture:false,cranking:false,ir:220,soil:'wet',rho:20,treated:false,x:24.8,d:40,L:2.5,r:.025,readings:[]},
+        mcb:{curve:'C',In:16,lamps:true,heater:false,geyser:false,motor:false,short:false,scale:1,theta:0,elapsed:0,tripped:false,cause:'',tripTime:0}
       }
-    });
-  });
+    };
+    const WIRE_COLORS={phase:COL.phase,neutral:COL.neutral,earth:COL.earth,strap:COL.strap};
 
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
+    /* ───────────────────────── audio ───────────────────────── */
+    const Sound={
+      ctx:null,
+      ac(){if(!this.ctx){const A=window.AudioContext||window.webkitAudioContext;if(A)this.ctx=new A();}return this.ctx;},
+      tone(freq,dur,type,vol){if(!S.audioOn)return;const c=this.ac();if(!c)return;const o=c.createOscillator(),g=c.createGain();
+        o.type=type||'sine';o.frequency.value=freq;g.gain.setValueAtTime(0.0001,c.currentTime);
+        g.gain.exponentialRampToValueAtTime(vol||0.06,c.currentTime+0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+(dur||0.1));
+        o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+(dur||0.1)+0.02);},
+      click(){this.tone(820,.04,'square',.03)},
+      snap(){this.tone(420,.06,'square',.05);setTimeout(()=>this.tone(260,.05,'square',.035),45)},
+      clunk(){this.tone(90,.22,'sawtooth',.09);setTimeout(()=>this.tone(60,.28,'square',.05),70)},
+      arc(){this.tone(1200,.16,'sawtooth',.07);setTimeout(()=>this.tone(180,.25,'sawtooth',.06),60)},
+      chord(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,.22,'sine',.05),i*90))},
+      error(){this.tone(150,.22,'sawtooth',.05);setTimeout(()=>this.tone(110,.25,'sawtooth',.05),90)},
+      sustained(key,on,freq,vol,type){if(!S.audioOn)on=false;const c=this.ac();if(!c)return;
+        if(on&&!S.tones[key]){const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=freq;g.gain.value=vol;
+          o.connect(g).connect(c.destination);o.start();S.tones[key]={o,g};}
+        else if(!on&&S.tones[key]){try{S.tones[key].o.stop()}catch(e){}S.tones[key]=null;}}
+    };
 
-drawWiring();
-</script>
+    /* ───────────────────── wiring netlist solver ───────────────────── */
+    const TERMS={
+      L:{x:70,y:105,label:'L / PHASE'},N:{x:70,y:405,label:'N / NEUTRAL'},E:{x:70,y:452,label:'E / EARTH'},
+      MCBI:{x:185,y:105,label:'MCB IN'},MCBO:{x:285,y:105,label:'MCB OUT'},
+      S1C:{x:400,y:105,label:'S1 COM'},S1A:{x:400,y:175,label:'S1 L1'},S1B:{x:400,y:245,label:'S1 L2'},
+      S2C:{x:655,y:105,label:'S2 COM'},S2A:{x:655,y:175,label:'S2 L1'},S2B:{x:655,y:245,label:'S2 L2'},
+      LAMP_L:{x:800,y:175,label:'HOLDER L'},LAMP_N:{x:800,y:405,label:'HOLDER N'},LAMP_E:{x:800,y:452,label:'HOLDER E'}
+    };
+    function presetWires(){
+      return [
+        {a:'L',b:'MCBI',c:'phase'},{a:'MCBO',b:'S1C',c:'phase'},
+        {a:'S1A',b:'S2A',c:'strap'},{a:'S1B',b:'S2B',c:'strap'},
+        {a:'S2C',b:'LAMP_L',c:'phase'},{a:'N',b:'LAMP_N',c:'neutral'},{a:'E',b:'LAMP_E',c:'earth'}
+      ];
+    }
+    function buildAdj(p,includeLoad){
+      const adj={};Object.keys(TERMS).forEach(k=>adj[k]=new Set());
+      const link=(a,b)=>{if(adj[a]&&adj[b]){adj[a].add(b);adj[b].add(a);}};
+      p.wires.forEach(w=>link(w.a,w.b));
+      if(p.mainOn&&!p.tripped)link('MCBI','MCBO');
+      link('S1C',p.s1===0?'S1A':'S1B');
+      link('S2C',p.s2===0?'S2A':'S2B');
+      if(p.scheme==='corridor'&&p.s1===p.s2)link('S1C','S2C');
+      if(includeLoad)link('LAMP_L','LAMP_N');
+      return adj;
+    }
+    function reach(adj,from){const seen=new Set([from]),q=[from];
+      while(q.length){const n=q.shift();adj[n].forEach(m=>{if(!seen.has(m)){seen.add(m);q.push(m);}});}return seen;}
+    function hasDirectWire(p,a,b){return p.wires.some(w=>(w.a===a&&w.b===b)||(w.a===b&&w.b===a));}
+    function calcWiring(){
+      const p=S.p.wiring;
+      if(!p.wires.length)p.wires=presetWires();
+      const adj=buildAdj(p,false),live=reach(adj,'L'),neutralReach=reach(adj,'N');
+      const short=live.has('N')||live.has('LAMP_N')||(p.mainOn&&live.has('E'));
+      const polarity=hasDirectWire(p,'N','LAMP_N')&&!live.has('LAMP_N');
+      const lampFed=live.has('LAMP_L')&&neutralReach.has('LAMP_N');
+      let lampOn=false,activeBay=0;
+      if(p.mainOn&&!p.tripped&&!short&&!p.carter){
+        if(p.scheme==='godown'){activeBay=((p.s1+p.s2+p.s3)%3)+1;lampOn=activeBay>0;}
+        else lampOn=lampFed;
+      }
+      const compliant=!short&&polarity&&!p.carter;
+      if(short&&p.mainOn&&!p.tripped){p.tripped=true;Sound.arc();Sound.clunk();}
+      return {short,polarity,lampOn,activeBay,compliant,carterViolation:p.carter,adj,live,
+        state:p.tripped?'MCB TRIPPED':(!p.mainOn?'MAIN DP OFF':(lampOn?'LAMP ON':'LAMP OFF'))};
+    }
+
+    /* ───────────────────── megger & earth solvers ───────────────────── */
+    function calcMegger(){
+      const p=S.p.megger;
+      const base=[220,0.22,180][p.circuit];
+      let ir=base;
+      if(p.moisture)ir=Math.min(ir,0.18);
+      if(p.lead==='LE')ir*=.9;
+      if(p.lead==='NE')ir*=1.1;
+      const leak=.23/ir;
+      const irMin=Math.max(1,50/3);
+      const rhoEff=p.rho*(p.treated?0.01:1);
+      const RE=rhoEff/(2*Math.PI*p.L)*Math.log(4*p.L/p.r);
+      const x=clamp(p.x,1.5,p.d-1.5);
+      const rMeas=RE+rhoEff/(2*Math.PI)*(1/(p.d-x)-1/x);
+      const pct=x/p.d*100;
+      const zone=pct<30?'Inside electrode area (invalid)':pct<55?'Entering plateau':pct<72?'62% plateau — true RE':pct<88?'Exiting plateau':'Inside C2 hemisphere (invalid)';
+      return {ir,leak,irMin,irOK:ir>=irMin,rhoEff,RE,rMeas,pct,zone,reading:p.cranking?ir:0};
+    }
+
+    /* ───────────────────── MCB trip engine ───────────────────── */
+    const MAG={B:3,C:5,D:10},TAU=45,KTH=1,THETA_TRIP=1;
+    function calcMCB(){
+      const p=S.p.mcb;
+      const Iload=(p.lamps?500:0)/230+(p.heater?1500:0)/230+(p.geyser?2000:0)/230+(p.motor?42:0);
+      const Itot=Iload+(p.short?180:0);
+      const m=Itot/p.In,mag=MAG[p.curve];
+      let tripTime=Infinity;
+      if(m>=mag)tripTime=.008;
+      else if(m>1.13){const drive=KTH*(m*m-1);tripTime=drive>THETA_TRIP?-TAU*Math.log(1-THETA_TRIP/drive):Infinity;}
+      if(m>=mag&&!p.tripped){p.tripped=true;p.cause='Instantaneous magnetic';p.tripTime=.008;Sound.clunk();}
+      const drive=KTH*(m*m-1);
+      return {I:Itot,m,mag,tripTime,drive,theta:p.theta,
+        state:p.tripped?'TRIPPED · '+(p.cause||'thermal'):(m<=1.13?'NORMAL · no trip':(m<mag?'OVERLOAD · timing':'FAULT · magnetic'))};
+    }
+    function updateThermal(dt){
+      const p=S.p.mcb;if(p.tripped)return;
+      const r=calcMCB(),drive=r.drive;
+      p.theta+=((drive-p.theta)/TAU)*dt*p.scale;
+      p.elapsed+=dt*p.scale;
+      if(drive>THETA_TRIP&&p.theta>=THETA_TRIP){p.tripped=true;p.cause='Thermal bimetal';p.tripTime=p.elapsed;Sound.clunk();}
+    }
+    function solveAll(){
+      S.results.wiring=calcWiring();
+      S.results.megger=calcMegger();
+      S.results.mcb=calcMCB();
+    }
+
+    /* ───────────────────── canvas primitives ───────────────────── */
+    function line(c,x1,y1,x2,y2,col,w,dash){c.strokeStyle=col;c.lineWidth=w||2;c.setLineDash(dash||[]);c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();c.setLineDash([]);}
+    function txt(c,s,x,y,col,size,align){c.fillStyle=col||COL.text;c.font=(size||13)+'px JetBrains Mono, monospace';c.textAlign=align||'left';c.fillText(String(s),x,y);}
+    function dot(c,x,y,r,col){c.fillStyle=col;c.beginPath();c.arc(x,y,r||4,0,Math.PI*2);c.fill();}
+    function roundRect(c,x,y,w,h,r,col,border){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);
+      if(col){c.fillStyle=col;c.fill();}if(border){c.strokeStyle=border;c.lineWidth=1.5;c.stroke();}}
+    function gridBg(c,w,h,step){c.fillStyle=COL.bg;c.fillRect(0,0,w,h);
+      if(!S.showGrid)return;c.strokeStyle=COL.grid;c.lineWidth=1;
+      for(let x=0;x<=w;x+=step){line(c,x,0,x,h,COL.grid,1);}
+      for(let y=0;y<=h;y+=step){line(c,0,y,w,y,COL.grid,1);}}
+    /* ───────────────────── board renderers ───────────────────── */
+    function drawWiringBoard(c){
+      const p=S.p.wiring,R=S.results.wiring,w=c.canvas.width,h=c.canvas.height;
+      roundRect(c,28,38,w-56,h-72,10,'#12303a','#2a5b68');
+      txt(c,'PVC CONDUIT WIRING BOARD  ·  '+p.scheme.toUpperCase(),44,62,COL.accent,12);
+      for(let i=0;i<6;i++)line(c,60+i*4,74,60+i*4,h-52,'rgba(255,255,255,.03)',1);
+      line(c,95,105,845,105,'rgba(125,211,220,.1)',6);
+      line(c,95,405,845,405,'rgba(125,211,220,.1)',6);
+      roundRect(c,120,78,100,52,6,'#0d2730',COL.dim);
+      txt(c,'MAIN DP',170,98,COL.dim,11,'center');
+      txt(c,p.mainOn?(p.tripped?'TRIPPED':'ON'):'OFF',170,118,p.tripped?COL.red:(p.mainOn?COL.green:COL.dim),11,'center');
+      roundRect(c,150,315,110,62,6,'#0d2730',R.short?COL.red:COL.dim);
+      txt(c,'MCB '+(p.carter?'CARTER':'C16'),205,338,R.short?COL.red:COL.accent,11,'center');
+      txt(c,p.tripped?'TRIPPED':'CLOSED',205,358,p.tripped?COL.red:COL.green,11,'center');
+      const switchBox=(x,label,pos)=>{roundRect(c,x-52,88,104,170,6,'#0d2730',COL.amber);
+        txt(c,label,x,82,COL.amber,11,'center');
+        line(c,x,pos===0?118:182,x,pos===0?182:118,pos===0?COL.green:COL.amber,3);
+        dot(c,x,pos===0?118:182,5,COL.green);dot(c,x,pos===0?182:118,5,COL.dim);};
+      switchBox(400,'S1 DOWNSTAIRS',p.s1);switchBox(655,'S2 UPSTAIRS',p.s2);
+      if(p.scheme==='corridor'){roundRect(c,528,72,50,34,5,'#0d2730',COL.accent);txt(c,'INT',553,93,COL.accent,10,'center');}
+      roundRect(c,756,140,92,110,7,'#0d2730',R.lampOn?COL.amber:COL.dim);
+      dot(c,800,190,R.lampOn?20:14,R.lampOn?'rgba(251,191,36,.35)':'rgba(125,211,220,.1)');
+      dot(c,800,190,R.lampOn?11:9,R.lampOn?'#fde68a':'#1d3b46');
+      txt(c,R.lampOn?'LAMP ON':'LAMP OFF',800,265,R.lampOn?COL.amber:COL.dim,11,'center');
+      if(p.scheme==='godown'){
+        [0,1,2].forEach(i=>{const bx=700+i*55;roundRect(c,bx-20,300,40,34,4,'#0d2730',R.activeBay===i+1?COL.amber:COL.dim);
+          txt(c,'L'+(i+1),bx,322,R.activeBay===i+1?COL.amber:COL.dim,11,'center');});
+      }
+      p.wires.forEach((wire,idx)=>{
+        const a=TERMS[wire.a],b=TERMS[wire.b];if(!a||!b)return;
+        const col=WIRE_COLORS[wire.c]||COL.wire;
+        const mx=(a.x+b.x)/2;
+        c.strokeStyle=col;c.lineWidth=3;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(mx,a.y);c.lineTo(mx,b.y);c.lineTo(b.x,b.y);c.stroke();
+        if(p.mainOn&&!p.tripped){const u=(S.t*.4+idx/p.wires.length)%1,xx=u<0.5?a.x+(mx-a.x)*u*2:mx+(b.x-mx)*(u-.5)*2;
+          dot(c,xx,u<0.5?a.y:b.y,2.6,'#fff');}
+      });
+      Object.keys(TERMS).forEach(k=>{const t=TERMS[k],active=S.pendingTerminal===k;
+        c.beginPath();c.arc(t.x,t.y,active?9:6,0,Math.PI*2);c.fillStyle='#d9b36b';c.fill();
+        if(active){c.strokeStyle=COL.accent;c.lineWidth=2;c.beginPath();c.arc(t.x,t.y,13,0,Math.PI*2);c.stroke();}
+        txt(c,t.label,t.x,t.y-13,COL.dim,9,'center');});
+      if(R.short){for(let i=0;i<7;i++){const yy=105+i*7,xx=72+((i*37+Math.floor(S.t*30))%18);
+        line(c,72,yy,xx,yy+6,COL.red,2);}txt(c,'DEAD SHORT — MCB TRIPPED',450,470,COL.red,14,'center');}
+      if(p.carter)txt(c,'IE RULE VIOLATION · LIVE NEUTRAL SWITCHING (CARTER METHOD)',450,470,COL.red,13,'center');
+      txt(c,R.state,450,485,R.compliant?COL.green:COL.red,12,'center');
+    }
+    function drawMeggerField(c){
+      const p=S.p.megger,R=S.results.megger,w=c.canvas.width,h=c.canvas.height;
+      roundRect(c,24,26,w-48,176,9,'#0d2730','#2a5b68');
+      txt(c,'500 V DC MEGGER / INSULATION TESTER',44,50,COL.accent,12);
+      roundRect(c,360,52,210,112,8,'#061a22',COL.dim);
+      const cx=465,cy=142,rad=78;
+      c.strokeStyle=COL.dim;c.lineWidth=2;c.beginPath();c.arc(cx,cy,rad,Math.PI,2*Math.PI);c.stroke();
+      for(let i=0;i<=8;i++){const a=Math.PI+Math.PI*i/8;line(c,cx+Math.cos(a)*(rad-9),cy+Math.sin(a)*(rad-9),cx+Math.cos(a)*rad,cy+Math.sin(a)*rad,COL.dim,1);}
+      const frac=clamp(Math.log10(1+R.ir)/Math.log10(201),0,1),ang=Math.PI+Math.PI*frac;
+      line(c,cx,cy,cx+Math.cos(ang)*(rad-14),cy+Math.sin(ang)*(rad-14),COL.red,3);
+      dot(c,cx,cy,5,COL.amber);
+      txt(c,p.cranking?fmt(R.ir,2)+' MOhm':'-- MOhm',600,104,p.cranking?COL.green:COL.dim,14,'left');
+      txt(c,p.cranking?'TESTING 500V DC':'PRESS & HOLD CRANK',600,126,p.cranking?COL.amber:COL.dim,10);
+      txt(c,'LEADS: '+p.lead+'   CIRCUIT '+(p.circuit+1),600,148,COL.dim,10);
+      dot(c,92,150,18,p.cranking?COL.amber:'#173742');
+      for(let i=0;i<8;i++){const a=S.t*6+i*Math.PI/4;line(c,92,150,92+Math.cos(a)*14,150+Math.sin(a)*14,p.cranking?COL.amber:COL.dim,2);}
+      txt(c,'CRANK',56,178,COL.dim,9);
+      roundRect(c,24,214,w-48,258,9,'#0d2730','#2a5b68');
+      txt(c,'EARTH PIT FIELD SECTION · '+p.d+' m MEASURING TAPE',44,240,COL.accent,12);
+      const soil=p.treated?'#123b32':'#20302b';
+      roundRect(c,50,258,w-100,168,4,soil,'#2c5d62');
+      for(let i=0;i<7;i++)line(c,52,272+i*22,w-52,272+i*22,p.treated?'rgba(52,211,153,.14)':'rgba(125,211,220,.08)',1);
+      line(c,115,258,115,400,COL.green,9);
+      txt(c,'GI / Cu ELECTRODE',120,278,COL.green,10);
+      txt(c,'R_E = '+fmt(R.RE,2)+' ohm',120,296,COL.amber,11);
+      const px=175+(clamp(p.x,1.5,38.5)-1.5)/37*(w-330);
+      line(c,px,258,px,330,COL.strap,3);dot(c,px,330,5,COL.strap);
+      txt(c,'P2 '+fmt(p.x,1)+'m',px,350,COL.strap,10,'center');
+      txt(c,fmt(R.rMeas,2)+' ohm',px,366,COL.text,10,'center');
+      line(c,w-105,258,w-105,330,COL.red,3);dot(c,w-105,330,5,COL.red);
+      txt(c,'C2 40m',w-105,350,COL.red,10,'center');
+      for(let m=0;m<=40;m+=5){const tx=175+(m-1.5)/37*(w-330);if(tx<175||tx>w-120)continue;
+        line(c,tx,420,tx,426,COL.dim,1);txt(c,m+'m',tx,440,COL.dim,9,'center');}
+      txt(c,R.zone,450,462,COL.dim,11,'center');
+    }
+    function drawMCBBoard(c){
+      const p=S.p.mcb,R=S.results.mcb,w=c.canvas.width,h=c.canvas.height;
+      roundRect(c,24,26,360,450,9,'#0d2730','#2a5b68');
+      txt(c,'MCB CUTAWAY · TYPE '+p.curve+' / '+p.In+'A',44,52,COL.accent,12);
+      roundRect(c,60,78,290,300,8,'#061a22',COL.dim);
+      line(c,110,350,110,130,COL.dim,4);
+      const bend=clamp(p.theta,0,1.4)*26;
+      c.strokeStyle=COL.amber;c.lineWidth=5;c.beginPath();c.moveTo(140,330);c.quadraticCurveTo(190+bend,270,205,210+bend);c.stroke();
+      txt(c,'BIMETAL',150,310,COL.amber,10);
+      roundRect(c,230,150,70,80,6,'#0c2b35',COL.dim);
+      for(let i=0;i<6;i++){c.strokeStyle=COL.red;c.lineWidth=2;c.beginPath();c.arc(265,190,6+i*5,0,Math.PI*2);c.stroke();}
+      txt(c,'TRIP COIL',265,252,COL.red,10,'center');
+      const plunger=p.tripped?96:130;
+      roundRect(c,258,plunger,14,44,3,COL.dim);
+      line(c,196,120,196,90,p.tripped?COL.red:COL.green,6);
+      txt(c,p.tripped?'CONTACTS OPEN':'CONTACTS CLOSED',205,112,p.tripped?COL.red:COL.green,11,'center');
+      const gauge=clamp(p.theta/THETA_TRIP,0,1);
+      c.fillStyle='#062b35';c.fillRect(60,398,290,14);
+      c.fillStyle=gauge>0.8?COL.red:COL.amber;c.fillRect(60,398,290*gauge,14);
+      txt(c,'BIMETAL HEAT '+fmt(gauge*100,0)+'%',60,392,gauge>0.8?COL.red:COL.amber,10);
+      roundRect(c,404,26,w-428,450,9,'#0d2730','#2a5b68');
+      txt(c,'WORKSHOP LOAD BANK',424,52,COL.accent,12);
+      const loads=[['lamps','5x100W LAMPS',500],['heater','ROOM HEATER 1.5kW',1500],['geyser','WATER GEYSER 2kW',2000],['motor','1HP MOTOR (6x INRUSH)',42*230],['short','L-N DEAD SHORT',230*180]];
+      loads.forEach((ld,i)=>{const yy=74+i*64,on=p[ld[0]];
+        roundRect(c,424,yy,412,52,6,on?'rgba(34,211,238,.08)':'#09232c',on?COL.accent:COL.dim);
+        txt(c,(on?'[ON]  ':'[OFF] ')+ld[1],438,yy+22,on?COL.green:COL.dim,11);
+        txt(c,fmt(ld[2]/230,1)+' A',810,yy+22,on?COL.amber:COL.dim,11,'right');});
+      txt(c,'TOTAL I = '+fmt(R.I,1)+' A   m = '+fmt(R.m,2)+' x In',430,412,COL.text,12);
+      txt(c,R.state,430,438,p.tripped?COL.red:COL.green,12);
+    }
+    function drawBoard(){
+      const c=$('ws-canvas').getContext('2d'),w=c.canvas.width,h=c.canvas.height;
+      gridBg(c,w,h,30);c.save();c.translate(S.panX,S.panY);c.scale(S.zoom,S.zoom);
+      if(S.module==='wiring')drawWiringBoard(c);
+      else if(S.module==='megger')drawMeggerField(c);
+      else drawMCBBoard(c);
+      c.restore();$('zoom-pill').textContent=Math.round(S.zoom*100)+'% · drag to pan';
+    }
+
+    /* ───────────────────── instrument close-up ───────────────────── */
+    function drawInstruments(){
+      const c=$('instrument-canvas').getContext('2d'),w=c.canvas.width,h=c.canvas.height;
+      c.fillStyle=COL.bg;c.fillRect(0,0,w,h);
+      for(let i=0;i<=8;i++)line(c,i*w/8,0,i*w/8,h,COL.grid,1);
+      for(let i=0;i<=4;i++)line(c,0,i*h/4,w,i*h/4,COL.grid,1);
+      if(S.module==='wiring'){
+        const R=S.results.wiring,v=R.lampOn&&S.p.wiring.mainOn?'230.0':'  0.0';
+        txt(c,'DIGITAL MULTIMETER · AC VOLTAGE / CONTINUITY',20,26,COL.accent,12);
+        roundRect(c,36,42,252,96,8,'#061a22',COL.dim);
+        txt(c,v,58,116,COL.green,52,'left');
+        txt(c,'V AC',262,114,COL.dim,12,'right');
+        txt(c,'PROBES: HOLDER L  /  HOLDER N',310,70,COL.dim,11);
+        txt(c,'NEUTRAL POTENTIAL: '+(R.polarity?'0.0 V':'230 V — LIVE!'),310,96,R.polarity?COL.green:COL.red,11);
+        txt(c,'CONTINUITY: '+(S.buzzerOn?'BEEP (<1 ohm)':'OPEN'),310,122,S.buzzerOn?COL.amber:COL.dim,11);
+        txt(c,R.compliant?'IS 732 POLARITY OK':'IE RULE VIOLATION',20,166,R.compliant?COL.green:COL.red,13);
+      }else if(S.module==='megger'){
+        const R=S.results.megger;
+        txt(c,'INSULATION TESTER · 500 V DC',20,26,COL.accent,12);
+        roundRect(c,36,42,252,96,8,'#061a22',COL.dim);
+        txt(c,S.p.megger.cranking?fmt(R.ir,2):'----',58,116,COL.green,48,'left');
+        txt(c,'MOhm',250,114,COL.dim,12,'right');
+        txt(c,'LEAKAGE = '+fmt(R.leak,4)+' mA',310,70,COL.dim,11);
+        txt(c,'R_IR MIN = '+fmt(R.irMin,1)+' MOhm (50/outlets)',310,94,COL.amber,11);
+        txt(c,R.irOK?'PASSES IE RULE 48':'FAILS IE RULE 48',310,120,R.irOK?COL.green:COL.red,12);
+        txt(c,'EARTH ELECTRODE: '+fmt(R.RE,2)+' ohm  ('+(R.RE<=5?'IS 3043 OK':'UNSAFE')+')',20,166,R.RE<=5?COL.green:COL.red,13);
+      }else{
+        const R=S.results.mcb;
+        txt(c,'THERMAL / MAGNETIC TRIP MONITOR',20,26,COL.accent,12);
+        roundRect(c,36,42,252,96,8,'#061a22',COL.dim);
+        txt(c,fmt(R.I,1),58,116,COL.amber,48,'left');
+        txt(c,'A',250,114,COL.dim,12,'right');
+        txt(c,'OVERLOAD m = '+fmt(R.m,2)+' x In',310,70,COL.amber,11);
+        txt(c,'MAGNETIC PICKUP = '+R.mag+' x In',310,94,COL.dim,11);
+        txt(c,'PREDICTED TRIP = '+(isFinite(R.tripTime)?fmt(R.tripTime,2)+' s':'no trip'),310,120,COL.amber,11);
+        txt(c,R.state,20,166,S.p.mcb.tripped?COL.red:COL.green,13);
+      }
+    }
+
+    /* ───────────────────── characteristic plots ───────────────────── */
+    function axes(c,w,h,xl,yl){c.fillStyle=COL.bg;c.fillRect(0,0,w,h);
+      const L=58,R=w-16,T=18,B=h-42;
+      c.strokeStyle=COL.grid;c.lineWidth=1;
+      for(let i=0;i<=5;i++)line(c,L,T+(B-T)*i/5,R,T+(B-T)*i/5,COL.grid,1);
+      for(let i=0;i<=6;i++)line(c,L+(R-L)*i/6,T,L+(R-L)*i/6,B,COL.grid,1);
+      c.strokeStyle=COL.dim;c.beginPath();c.moveTo(L,T);c.lineTo(L,B);c.lineTo(R,B);c.stroke();
+      txt(c,xl,(L+R)/2,h-12,COL.dim,11,'center');
+      c.save();c.translate(14,(T+B)/2);c.rotate(-Math.PI/2);txt(c,yl,0,0,COL.dim,11,'center');c.restore();
+      return {L:L,R:R,T:T,B:B};
+    }
+    function plotTruth(c,w,h){
+      c.fillStyle=COL.bg;c.fillRect(0,0,w,h);
+      txt(c,'Staircase truth table · Y = S1 XNOR S2',w/2,28,COL.accent,13,'center');
+      const cols=['S1','S2','STRAPPER','LAMP','NEUTRAL','SAFETY'],x0=24,cw=(w-48)/6,y0=48,rh=52;
+      cols.forEach((hd,i)=>{roundRect(c,x0+i*cw,y0,cw-4,34,4,'#0d2730');txt(c,hd,x0+i*cw+(cw-4)/2,y0+22,COL.dim,10,'center');});
+      for(let row=0;row<4;row++){const s1=row<2?0:1,s2=row%2,yy=y0+40+row*rh,on=(s1===s2);
+        const vals=[s1?'DOWN':'UP',s2?'DOWN':'UP',(s1===s2?'L'+(s1+1)+' LIVE':'DEAD-END'),on?'ON':'OFF','0.0 V','IS 732 OK'];
+        vals.forEach((v,i)=>{roundRect(c,x0+i*cw,yy,cw-4,rh-6,4,i===5?'rgba(52,211,153,.08)':'#09232c');
+          txt(c,v,x0+i*cw+(cw-4)/2,yy+rh/2+4,i===5?COL.green:(i===3?(on?COL.amber:COL.dim):COL.text),10,'center');});}
+      txt(c,S.p.wiring.carter?'CARTER METHOD: HOLDER LIVE WHEN OFF':(S.results.wiring.polarity?'Neutral connected directly at lamp — compliant':'Polarity check failed'),w/2,h-16,S.p.wiring.carter?COL.red:COL.green,11,'center');
+    }
+    function plotEarth(c,w,h){
+      const p=S.p.megger,R=S.results.megger,a=axes(c,w,h,'P2 distance x (m)','Measured R (ohm)');
+      const xmin=2,xmax=38,ymax=Math.max(R.RE*4,4);
+      const X=v=>a.L+(a.R-a.L)*(v-xmin)/(xmax-xmin),Y=v=>a.B-(a.B-a.T)*clamp(v/ymax,0,1);
+      c.strokeStyle=COL.accent;c.lineWidth=2.4;c.beginPath();
+      for(let x=xmin;x<=xmax;x+=.2){const xx=clamp(x,1.5,p.d-1.5),v=R.RE+p.rhoEff/(2*Math.PI)*(1/(p.d-xx)-1/xx);
+        x===xmin?c.moveTo(X(x),Y(v)):c.lineTo(X(x),Y(v));}c.stroke();
+      c.setLineDash([4,4]);c.strokeStyle=COL.amber;c.beginPath();c.moveTo(a.L,Y(R.RE));c.lineTo(a.R,Y(R.RE));c.stroke();c.setLineDash([]);
+      const x62=.618*p.d;c.strokeStyle=COL.green;c.lineWidth=1.5;c.beginPath();c.moveTo(X(x62),a.T);c.lineTo(X(x62),a.B);c.stroke();
+      txt(c,'62% plateau',X(x62)+6,a.T+14,COL.green,10);
+      p.readings.forEach((pt,i)=>{dot(c,X(pt.x),Y(pt.r),4,COL.amber);txt(c,String(i+1),X(pt.x)+5,Y(pt.r)-5,COL.dim,9);});
+      dot(c,X(p.x),Y(R.rMeas),6,COL.red);
+      txt(c,'R_E = '+fmt(R.RE,2)+' ohm',a.L+6,a.T+14,COL.amber,10);
+    }
+    function plotMCB(c,w,h){
+      const p=S.p.mcb,R=S.results.mcb,a=axes(c,w,h,'log10 ( I / In )','log10 trip time (s)');
+      const X=m=>a.L+(a.R-a.L)*(Math.log10(m))/Math.log10(30),Y=t=>a.B-(a.B-a.T)*(Math.log10(t)+3)/6;
+      c.strokeStyle=COL.amber;c.lineWidth=2.4;c.beginPath();let first=true;
+      for(let m=1.05;m<=30;m+=.15){const drive=KTH*(m*m-1);let t=drive>THETA_TRIP?-TAU*Math.log(1-THETA_TRIP/drive):Infinity;
+        if(m>=R.mag)t=.008;const yy=Y(clamp(t,.005,3600));first?(c.moveTo(X(m),yy),first=false):c.lineTo(X(m),yy);}c.stroke();
+      c.setLineDash([5,4]);c.strokeStyle=COL.red;c.beginPath();c.moveTo(X(R.mag),a.T);c.lineTo(X(R.mag),a.B);c.stroke();c.setLineDash([]);
+      txt(c,'TYPE '+p.curve+' magnetic wall '+R.mag+'xIn',X(R.mag)+4,a.T+14,COL.red,10);
+      const tt=clamp(R.tripTime,.008,3600),ox=X(clamp(R.m,1.05,30)),oy=p.tripped?Y(.008):Y(isFinite(tt)?tt:3600);
+      dot(c,ox,oy,7,COL.red);c.strokeStyle='#fff';c.lineWidth=1.5;c.beginPath();c.arc(ox,oy,11,0,7);c.stroke();
+      txt(c,'Operating point m='+fmt(R.m,2),Math.min(ox+12,a.R-130),oy-10,COL.amber,10);
+      txt(c,'thermal inverse-time  |  instantaneous below wall',a.L+6,a.T+14,COL.dim,10);
+    }
+    function drawPlot(){
+      const c=$('plot-canvas').getContext('2d'),w=c.canvas.width,h=c.canvas.height;
+      if(S.module==='wiring')plotTruth(c,w,h);else if(S.module==='megger')plotEarth(c,w,h);else plotMCB(c,w,h);
+    }
+    const CONTROLS={
+      wiring:[
+        {k:'scheme',l:'Wiring scheme',type:'select',opts:[[0,'Staircase 2-way control'],[1,'Corridor 3-way (intermediate)'],[2,'Godown sequential lighting']],map:['staircase','corridor','godown']},
+        {k:'s1',l:'Switch S1',type:'select',opts:[[0,'UP / L1'],[1,'DOWN / L2']]},
+        {k:'s2',l:'Switch S2',type:'select',opts:[[0,'UP / L1'],[1,'DOWN / L2']]},
+        {k:'s3',l:'Switch S3 (godown)',type:'select',opts:[[0,'UP / L1'],[1,'DOWN / L2']]},
+        {k:'mainOn',l:'Main DP supply',type:'switch'},
+        {k:'carter',l:'Carter legacy method (unsafe)',type:'switch'},
+        {k:'spool',l:'Wire spool / routing tool',type:'spools'},
+        {k:'reset',l:'Reset tripped MCB',type:'button',label:'Reset MCB',action:'resetWiring'}
+      ],
+      megger:[
+        {k:'lead',l:'Megger lead pair',type:'select',opts:[[0,'L - N'],[1,'L - E'],[2,'N - E']],map:['LN','LE','NE']},
+        {k:'circuit',l:'Sub-circuit under test',type:'select',opts:[[0,'Circuit 1 (healthy)'],[1,'Circuit 2 (moisture ingress)'],[2,'Circuit 3 (healthy)']]},
+        {k:'crank',l:'Hold to crank 500 V DC',type:'button',label:'Crank / Test 500V',action:'crank'},
+        {k:'moisture',l:'Inject moisture fault',type:'switch'},
+        {k:'soil',l:'Soil type',type:'select',opts:[[0,'Wet Clay rho=20'],[1,'Loam rho=80'],[2,'Dry Rocky rho=300']],map:['wet','loam','rocky'],rhos:[20,80,300]},
+        {k:'treated',l:'Charcoal-salt & water treatment',type:'switch'},
+        {k:'x',l:'Potential spike P2 distance',min:2,max:38,step:.2,u:'m'},
+        {k:'measure',l:'Record R(x) reading',type:'button',label:'Measure R_E',action:'measure'}
+      ],
+      mcb:[
+        {k:'curve',l:'MCB trip curve',type:'select',opts:[[0,'Type B (3-5x)'],[1,'Type C (5-10x)'],[2,'Type D (10-20x)']],map:['B','C','D']},
+        {k:'In',l:'Rated current In',type:'select',opts:[6,10,16,32],u:'A'},
+        {k:'lamps',l:'5 x 100 W lamp bank',type:'switch'},
+        {k:'heater',l:'1500 W room heater',type:'switch'},
+        {k:'geyser',l:'2000 W water geyser',type:'switch'},
+        {k:'motor',l:'1 HP motor (6x inrush)',type:'switch'},
+        {k:'short',l:'Simulate L-N dead short',type:'switch'},
+        {k:'scale',l:'Time compression',type:'select',opts:[[1,'1x real-time'],[10,'10x fast-forward']]},
+        {k:'reset',l:'Reset tripped MCB',type:'button',label:'Reset MCB',action:'resetMCB'}
+      ]
+    };
+    function ctrlValue(def,val){
+      if(def.map)return def.map[val];
+      if(def.opts){const o=def.opts.find(x=>Array.isArray(x)?x[0]===val:x===val);return Array.isArray(o)?o[1]:String(val);}
+      return fmt(val,def.step<1?1:0)+(def.u?' '+def.u:'');
+    }
+    function buildControls(){
+      const grid=$('ctrl-grid');grid.innerHTML='';
+      $('ctrl-title').textContent=S.module==='wiring'?'Wiring board controls':S.module==='megger'?'Megger & earth pit controls':'MCB protection controls';
+      $('ctrl-hint').textContent=S.module==='wiring'?'Pick a wire spool, then click two brass terminals':S.module==='megger'?'Hold the crank or drag P2 along the tape':'Toggle loads and watch the thermal gauge';
+      CONTROLS[S.module].forEach(def=>{
+        const p=S.p[S.module],val=p[def.k],row=document.createElement('div');row.className='ctrl';
+        if(def.type==='switch'){
+          row.innerHTML='<div class="switch-row"><span>'+def.l+'</span><label class="switch"><input type="checkbox" id="ctl-'+def.k+'" '+(val?'checked':'')+'><span class="slider"></span></label></div>';
+          grid.appendChild(row);
+          row.querySelector('input').addEventListener('change',e=>{p[def.k]=e.target.checked;onParam(def.k,e.target.checked);});
+        }else if(def.type==='select'){
+          row.innerHTML='<div class="ctrl-top"><label for="ctl-'+def.k+'">'+def.l+'</label><span class="ctrl-val" id="val-'+def.k+'">'+ctrlValue(def,val)+'</span></div>';
+          const sel=document.createElement('select');sel.id='ctl-'+def.k;
+          def.opts.forEach(o=>{const v=Array.isArray(o)?o[0]:o,t=Array.isArray(o)?o[1]:o+(def.u?' '+def.u:'');
+            const op=document.createElement('option');op.value=v;op.textContent=t;if(v===val)op.selected=true;sel.appendChild(op);});
+          row.appendChild(sel);grid.appendChild(row);
+          sel.addEventListener('change',e=>{p[def.k]=parseFloat(e.target.value);$('val-'+def.k).textContent=ctrlValue(def,p[def.k]);onParam(def.k,p[def.k]);});
+        }else if(def.type==='range'){
+          row.innerHTML='<div class="ctrl-top"><label for="ctl-'+def.k+'">'+def.l+'</label><span class="ctrl-val" id="val-'+def.k+'">'+ctrlValue(def,val)+'</span></div>';
+          const inp=document.createElement('input');inp.type='range';inp.id='ctl-'+def.k;inp.min=def.min;inp.max=def.max;inp.step=def.step;inp.value=val;
+          row.appendChild(inp);grid.appendChild(row);
+          inp.addEventListener('input',e=>{p[def.k]=parseFloat(e.target.value);$('val-'+def.k).textContent=ctrlValue(def,p[def.k]);onParam(def.k,p[def.k]);});
+        }else if(def.type==='button'){
+          row.innerHTML='<div class="ctrl-top"><label>'+def.l+'</label></div>';
+          const b=document.createElement('button');b.className='btn';b.textContent=def.label;b.id='ctl-'+def.k;row.appendChild(b);grid.appendChild(row);
+          b.addEventListener('click',()=>doAction(def.action));
+        }else if(def.type==='spools'){
+          const spools=[['phase','Red · Phase'],['neutral','Blue · Neutral'],['earth','Green · Earth'],['strap','Yellow · Strapper']];
+          row.innerHTML='<div class="ctrl-top"><label>'+def.l+'</label></div><div class="spools">'+
+            spools.map(s=>'<button class="spool '+(S.selectedWire===s[0]?'active':'')+'" data-c="'+s[0]+'"><i style="background:'+WIRE_COLORS[s[0]]+'"></i>'+s[1]+'</button>').join('')+'</div>';
+          grid.appendChild(row);
+          row.querySelectorAll('.spool').forEach(b=>b.addEventListener('click',()=>{
+            S.selectedWire=b.dataset.c;S.pendingTerminal=null;S.p.wiring.deleteMode=false;
+            row.querySelectorAll('.spool').forEach(x=>x.classList.toggle('active',x===b));Sound.click();drawBoard();}));
+        }
+      });
+      if(S.module==='wiring'){
+        const extra=document.createElement('div');extra.className='ctrl';
+        extra.innerHTML='<div class="ctrl-top"><label>Wire tool</label></div><div class="ctrl-actions" style="margin:0;padding:0;border:0">'+
+          '<button class="btn '+(S.p.wiring.deleteMode?'danger':'')+'" id="btn-delete-wire">Wire stripper / delete</button>'+
+          '<button class="btn" id="btn-reset-wires">Restore preset</button></div>';
+        grid.appendChild(extra);
+        $('btn-delete-wire').addEventListener('click',()=>{S.p.wiring.deleteMode=!S.p.wiring.deleteMode;S.pendingTerminal=null;Sound.click();buildControls();drawBoard();});
+        $('btn-reset-wires').addEventListener('click',()=>{S.p.wiring.wires=presetWires();S.p.wiring.tripped=false;S.pendingTerminal=null;Sound.click();solveAll();refreshPanels();drawAll();});
+      }
+    }
+    function doAction(action){
+      if(action==='resetWiring'){S.p.wiring.tripped=false;S.p.wiring.mainOn=false;}
+      else if(action==='resetMCB'){S.p.mcb.tripped=false;S.p.mcb.theta=0;S.p.mcb.elapsed=0;S.p.mcb.cause='';}
+      else if(action==='measure'){
+        const R=S.results.megger;S.p.megger.readings.push({x:S.p.megger.x,r:R.rMeas});Sound.tone(880,.08,'sine',.05);
+      }
+      else if(action==='crank'){
+        S.p.megger.cranking=true;Sound.sustained('crank',true,140,.03,'sawtooth');
+        const stop=()=>{S.p.megger.cranking=false;Sound.sustained('crank',false);window.removeEventListener('pointerup',stop);};
+        window.addEventListener('pointerup',stop);
+      }
+      Sound.click();solveAll();refreshPanels();drawAll();
+    }
+    function onParam(k,v){
+      Sound.click();
+      if(k==='scheme'){const map=['staircase','corridor','godown'];S.p.wiring.scheme=map[v];S.p.wiring.wires=presetWires();S.p.wiring.tripped=false;}
+      if(k==='soil')S.p.megger.rho=[20,80,300][v];
+      if(k==='s1'||k==='s2'||k==='s3')Sound.snap();
+      solveAll();refreshPanels();drawAll();
+    }
+    function dmmCard(lbl,val,unit,sub,cls){return '<div class="dmm '+(cls||'')+'"><div class="dmm-lbl">'+lbl+'</div><div class="dmm-val">'+val+' <small>'+(unit||'')+'</small></div><div class="dmm-sub">'+(sub||'')+'</div></div>';}
+    function buildDMM(){
+      let html='';
+      if(S.module==='wiring'){const R=S.results.wiring,p=S.p.wiring;
+        html+=dmmCard('Lamp status',R.lampOn?'ON':'OFF','',R.state,R.lampOn?'good':'');
+        html+=dmmCard('Neutral potential',R.polarity?'0.0':'230','V',R.polarity?'IS 732 compliant':'LIVE NEUTRAL',R.polarity?'good':'bad');
+        html+=dmmCard('Continuity',S.buzzerOn?'BEEP':'OPEN','','under 1 ohm when closed',S.buzzerOn?'warn':'');
+        html+=dmmCard('Netlist',S.short?'DEAD SHORT':(R.polarity?'VALID':'POLARITY FAULT'),'',p.wires.length+' wires routed',S.short?'bad':(R.polarity?'good':'bad'));
+        html+=dmmCard('Main DP',p.tripped?'TRIPPED':(p.mainOn?'ON':'OFF'),'',p.carter?'Carter method':'Standard strappers',p.tripped?'bad':(p.mainOn?'good':''));
+        html+=dmmCard('Safety audit',R.compliant?'PASS':'FAIL','',p.scheme.toUpperCase(),R.compliant?'good':'bad');
+      }else if(S.module==='megger'){const R=S.results.megger,p=S.p.megger;
+        html+=dmmCard('Insulation R',fmt(R.ir,3),'MOhm',p.cranking?'500 V DC applied':'not testing',R.irOK?'good':'bad');
+        html+=dmmCard('Leakage I',fmt(R.leak,4),'mA','IE Rule 48',R.leak<=.046?'good':'bad');
+        html+=dmmCard('Min R_IR',fmt(R.irMin,1),'MOhm','50 / 3 outlets');
+        html+=dmmCard('Earth R_E',fmt(R.RE,2),'ohm',p.treated?'treated soil':'native soil',R.RE<=5?'good':'bad');
+        html+=dmmCard('Measured R(x)',fmt(R.rMeas,2),'ohm','P2 at '+fmt(p.x,1)+' m');
+        html+=dmmCard('Plateau zone',R.pct>=55&&R.pct<=72?'62% VALID':'CHECK POSITION','',fmt(R.pct,0)+'% of D',R.pct>=55&&R.pct<=72?'good':'warn');
+      }else{const R=S.results.mcb,p=S.p.mcb;
+        html+=dmmCard('Load current',fmt(R.I,1),'A','m = '+fmt(R.m,2)+' x In',R.m<=1.13?'good':(R.m>=R.mag?'bad':'warn'));
+        html+=dmmCard('Bimetal heat',fmt(p.theta/THETA_TRIP*100,0),'%','trip at 100%',p.theta/THETA_TRIP>.8?'bad':'good');
+        html+=dmmCard('Predicted trip',isFinite(R.tripTime)?fmt(R.tripTime,2):'inf','s',R.cause||'no cause',isFinite(R.tripTime)?'warn':'good');
+        html+=dmmCard('Magnetic pickup',R.mag,'x In','Type '+p.curve);
+        html+=dmmCard('MCB state',p.tripped?'TRIPPED':'CLOSED','',p.tripped?(p.cause||''):'carrying load',p.tripped?'bad':'good');
+        html+=dmmCard('Curve / rating',p.curve+p.In,'A','B / C / D selectable');
+      }
+      $('dmm-bank').innerHTML=html;
+    }
+    function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    function katexTex(s){
+      let tex=String(s).trim(),display=false;
+      if(tex.indexOf('$$')===0&&tex.lastIndexOf('$$')===tex.length-2){display=true;tex=tex.slice(2,-2);}
+      else if(tex.charAt(0)==='$'&&tex.charAt(tex.length-1)==='$'){tex=tex.slice(1,-1);}
+      if(window.katex&&window.katex.renderToString){
+        try{return window.katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false});}
+        catch(e){return '<code>'+escapeHtml(tex)+'</code>';}
+      }
+      return '<code>'+escapeHtml(tex)+'</code>';
+    }
+    function refreshMath(){document.querySelectorAll('[data-tex]').forEach(el=>{delete el.dataset.done;});renderStaticMath();buildDerivation();}
+    function waitForMath(){if(window.katex&&window.katex.renderToString){refreshMath();return true;}return false;}
+    function buildDerivation(){
+      let steps=[];
+      if(S.module==='wiring'){const p=S.p.wiring,R=S.results.wiring;
+        steps=[
+          ['Boolean switching law',String.raw`$Y=S_1\odot S_2=\overline{S_1\oplus S_2},\qquad S_1=${p.s1},\;S_2=${p.s2}\;\Rightarrow\;Y=${R.lampOn?1:0}$`],
+          ['2-way truth verification',String.raw`$(0,0)\to1,\quad(0,1)\to0,\quad(1,0)\to0,\quad(1,1)\to1$`],
+          ['Phase switching check',String.raw`$V_{\text{holder,L}}=${R.lampOn?'230':'0'}\,\mathrm{V},\qquad V_{\text{holder,N}}=${R.polarity?'0':'230'}\,\mathrm{V}$`],
+          ['Safety interlock',String.raw`$I_{\text{short}}=${R.short?'\\infty':'0'}\,\mathrm{A}\;\Rightarrow\;\text{MCB }${p.tripped?'TRIPPED':'CLOSED'}$`]
+        ];
+      }else if(S.module==='megger'){const p=S.p.megger,R=S.results.megger;
+        steps=[
+          ['Insulation leakage (IE 48)',String.raw`$I_{\text{leak}}=\dfrac{V_{\text{supply}}}{R_{\text{IR}}}=\dfrac{230}{${fmt(R.ir,3)}\times10^6}=${fmt(R.leak*1000,4)}\,\mathrm{mA}$`],
+          ['Minimum insulation resistance',String.raw`$R_{\text{IR,min}}=\max\!\left(1,\dfrac{50}{N_{\text{outlets}}}\right)=\max(1,16.7)=${fmt(R.irMin,1)}\,\mathrm{M}\Omega\;\Rightarrow\;${R.irOK?'PASS':'FAIL'}$`],
+          ['Electrode resistance',String.raw`$R_E=\dfrac{\rho}{2\pi L}\ln\!\left(\dfrac{4L}{r}\right)=\dfrac{${fmt(R.rhoEff,2)}}{2\pi(${p.L})}\ln\!\left(\dfrac{4(${p.L})}{${p.r}}\right)=${fmt(R.RE,2)}\,\Omega$`],
+          ['Fall-of-potential reading',String.raw`$R(x)=R_E+\dfrac{\rho}{2\pi}\!\left(\dfrac{1}{D-x}-\dfrac{1}{x}\right),\quad x=${fmt(p.x,1)}\,\mathrm{m},\;D=${p.d}\,\mathrm{m}\;\Rightarrow\;${fmt(R.rMeas,2)}\,\Omega$`],
+          ['62% rule check',String.raw`$x_{62\%}=0.618D=${fmt(.618*p.d,1)}\,\mathrm{m}\;\Rightarrow\;${R.pct>=55&&R.pct<=72?'plateau valid':'move P2 toward plateau'}$`]
+        ];
+      }else{const p=S.p.mcb,R=S.results.mcb;
+        steps=[
+          ['Load current & multiple',String.raw`$I=\dfrac{\sum P}{230}=${fmt(R.I,2)}\,\mathrm{A},\qquad m=\dfrac{I}{I_n}=\dfrac{${fmt(R.I,2)}}{${p.In}}=${fmt(R.m,2)}$`],
+          ['Thermal bimetal',String.raw`$\tau\dfrac{d\theta}{dt}+\theta=K(m^2-1),\quad \theta=${fmt(p.theta,2)}\;\Rightarrow\;\theta_{\text{trip}}=1$`],
+          ['Inverse-time estimate',String.raw`$t_{\text{trip}}=-\tau\ln\!\left(1-\dfrac{\theta_{\text{trip}}}{K(m^2-1)}\right)=${isFinite(R.tripTime)?fmt(R.tripTime,2)+'\\,\\mathrm{s}':'\\infty'}$`],
+          ['Magnetic instantaneous zone',String.raw`$m\ge m_{\text{mag}}={${R.mag}}\;\Rightarrow\;t_{\text{trip}}<10\,\mathrm{ms}\;(${p.curve}\text{-curve})$`],
+          ['Trip verdict',String.raw`$\text{State: }${p.tripped?'TRIPPED — '+p.cause.replace(/ /g,'\\,'):'CLOSED — carrying load'}$`]
+        ];
+      }
+      $('derivation').innerHTML=steps.map((s,i)=>'<div class="step"><div class="step-num">'+(i+1)+'</div><div class="step-body"><b>'+s[0]+'</b><br>'+katexTex(s[1])+'</div></div>').join('');
+    }
+    function buildPlotTabs(){
+      const tabs=S.module==='wiring'?[['Truth table'],['Netlist graph'],['Switch states']]:
+        S.module==='megger'?[['R(x) plateau'],['62% rule'],['IR audit']]:
+        [['Trip curve'],['Thermal history'],['Curve compare']];
+      $('plot-tabs').innerHTML=tabs.map((t,i)=>'<button class="subtab '+(i===S.plotTab?'active':'')+'" data-i="'+i+'">'+t[0]+'</button>').join('');
+      $('plot-title').textContent=tabs[S.plotTab][0];
+      $('plot-tabs').querySelectorAll('.subtab').forEach(b=>b.addEventListener('click',()=>{S.plotTab=+b.dataset.i;buildPlotTabs();drawPlot();Sound.click();}));
+    }
+    function buildHUD(){
+      let items=[];
+      if(S.module==='wiring'){const R=S.results.wiring;
+        items=[['LAMP '+(R.lampOn?'ON':'OFF'),''],['N '+fmt(R.polarity?0:230,0)+'V',R.polarity?'':'danger'],['NET '+(R.short?'SHORT':'OK'),R.short?'danger':'']];}
+      else if(S.module==='megger'){const R=S.results.megger;
+        items=[['IR '+fmt(R.ir,2)+'M',R.irOK?'':'warn'],['RE '+fmt(R.RE,2)+'ohm',R.RE<=5?'':'warn'],['x '+fmt(S.p.megger.x,1)+'m','']];}
+      else{const R=S.results.mcb;
+        items=[['I '+fmt(R.I,1)+'A',''],['m '+fmt(R.m,2)+'x',R.m>=R.mag?'danger':''],['TRIP '+(S.p.mcb.tripped?'YES':'NO'),S.p.mcb.tripped?'danger':'']];}
+      $('hud-badges').innerHTML=items.map(i=>'<span class="ov-badge '+i[1]+'">'+i[0]+'</span>').join('');
+    }
+    function buildAudit(){
+      let rows=[],banner='',violation=false;
+      if(S.module==='wiring'){const R=S.results.wiring;
+        rows=[['Truth table XNOR',fmt(S.p.wiring.s1)+','+fmt(S.p.wiring.s2)+' -> '+(R.lampOn?'ON':'OFF'),'PASS'],
+          ['Dead-short protection',R.short?'SHORT DETECTED':'NO L-N SHORT',R.short?'FAIL':'PASS'],
+          ['IS 732 polarity',R.polarity?'Neutral direct to holder':'LIVE NEUTRAL',R.polarity?'PASS':'FAIL'],
+          ['Carter legacy method',S.p.wiring.carter?'ENABLED':'DISABLED',S.p.wiring.carter?'FAIL':'PASS']];
+        violation=!R.compliant;
+        banner=violation?'SAFETY VIOLATION: IE RULE — live neutral switching or dead short. De-energise and rewire before proceeding.':'Installation compliant: phase switched, neutral continuous, earth bonded. Safe to energise.';
+      }else if(S.module==='megger'){const R=S.results.megger;
+        rows=[['IR >= '+fmt(R.irMin,1)+' MOhm',fmt(R.ir,3)+' MOhm',R.irOK?'PASS':'FAIL'],
+          ['Leakage <= 46 uA',fmt(R.leak*1000,2)+' uA',R.leak<=.046?'PASS':'FAIL'],
+          ['Earth <= 5 ohm',fmt(R.RE,2)+' ohm',R.RE<=5?'PASS':'FAIL'],
+          ['P2 plateau zone',fmt(R.pct,0)+'% of D',R.pct>=55&&R.pct<=72?'PASS':'ADJUST']];
+        violation=!R.irOK||R.RE>5;
+        banner=violation?'Unsafe insulation or earth resistance: treat the pit or replace the damaged conduit run.':'IE Rule 48 and IS 3043 limits satisfied.';
+      }else{const R=S.results.mcb;
+        rows=[['Overload multiple',fmt(R.m,2)+' x In',R.m<=1.13?'NORMAL':(R.m<R.mag?'TIMING':'TRIPPED')],
+          ['Bimetal heat',fmt(S.p.mcb.theta*100,0)+'%',S.p.mcb.theta<.8?'HEATING':'TRIP'],
+          ['Magnetic pickup',R.mag+' x In',R.m>=R.mag?'TRIPPED':'CLEAR'],
+          ['Trip time',isFinite(R.tripTime)?fmt(R.tripTime,2)+' s':'no trip',S.p.mcb.tripped?'CLEARED':'STANDBY']];
+        violation=S.p.mcb.tripped;
+        banner=violation?'MCB operated on '+(S.p.mcb.cause||'fault')+': isolate the fault, reset, then re-test.':'Protection coordinated: thermal and magnetic zones within design limits.';
+      }
+      const good=new Set(['PASS','NORMAL','TRIPPED','CLEAR','CLEARED','STANDBY','HEATING','TIMING']);
+      $('bench-audit').innerHTML=rows.map(r=>'<div class="audit-row"><span>'+r[0]+' · '+r[1]+'</span><span class="'+(good.has(r[2])?'ok':'no')+'">'+r[2]+'</span></div>').join('');
+      $('bench-challenge-title').textContent=S.module==='wiring'?'IS 732 wiring safety audit':S.module==='megger'?'IE Rule 48 / IS 3043 field audit':'MCB coordination audit';
+      $('compliance-banner').textContent=banner;$('compliance-banner').classList.toggle('violation',violation);
+    }
+    function refreshPanels(){buildDMM();buildDerivation();buildPlotTabs();buildHUD();buildAudit();
+      const titles={wiring:'Conduit Wiring Board — Live Netlist',megger:'Megger & Earth Pit — Field Rig',mcb:'MCB Distribution Board — Trip Physics'};
+      $('schematic-title').textContent=titles[S.module];
+      $('instrument-legend').textContent=S.module==='wiring'?'Continuity / voltage probes':S.module==='megger'?'500 V insulation tester':'Thermal / magnetic monitor';
+      $('instrument-mode').textContent='MODE: '+(S.module==='wiring'?'DMM':S.module==='megger'?'MEGGER':'TRIP MONITOR');
+    }
+    function drawAll(){drawBoard();drawInstruments();drawPlot();}
+    /* ───────────────────── notebook & export ───────────────────── */
+    function currentRow(){
+      if(S.module==='wiring'){const R=S.results.wiring,p=S.p.wiring;
+        return ['Wiring',p.scheme+' S'+p.s1+'/S'+p.s2,(R.lampOn?'LAMP ON':'LAMP OFF'),'N '+fmt(R.polarity?0:230,0)+'V',R.compliant?'IS 732 OK':'VIOLATION'];}
+      if(S.module==='megger'){const R=S.results.megger,p=S.p.megger;
+        return ['Megger',p.lead+' C'+(p.circuit+1),fmt(R.ir,3)+' MOhm',fmt(R.RE,2)+' ohm',R.irOK?'IE 48 PASS':'FAIL'];}
+      const R=S.results.mcb,p=S.p.mcb;
+      return ['MCB','Type '+p.curve+' '+p.In+'A',fmt(R.I,1)+' A',isFinite(R.tripTime)?fmt(R.tripTime,2)+' s':'no trip',R.state];
+    }
+    function logRow(row){S.rows.push({i:S.rows.length+1,cells:row});renderTable();Sound.tone(660,.06,'sine',.04);}
+    function renderTable(){
+      const b=$('obs-body');
+      if(!S.rows.length)b.innerHTML='<tr class="empty-row"><td colspan="6">No readings yet — adjust a control and choose “Log reading”.</td></tr>';
+      else b.innerHTML=S.rows.map(r=>'<tr><td>'+r.i+'</td>'+r.cells.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('');
+      $('row-count').textContent=S.rows.length+' reading'+(S.rows.length===1?'':'s')+' logged';
+    }
+    function autoSweep(){
+      const saved=JSON.parse(JSON.stringify(S.p[S.module]));
+      if(S.module==='wiring'){[[0,0],[0,1],[1,0],[1,1]].forEach(v=>{S.p.wiring.s1=v[0];S.p.wiring.s2=v[1];solveAll();logRow(currentRow());});}
+      else if(S.module==='megger'){[5,10,15,20,24.8,30,35].forEach(x=>{S.p.megger.x=x;solveAll();logRow(currentRow());});}
+      else{[6,10,16,32].forEach(In=>{S.p.mcb.In=In;solveAll();logRow(currentRow());});}
+      Object.assign(S.p[S.module],saved);solveAll();refreshPanels();drawAll();buildControls();Sound.chord();
+    }
+    function exportReport(){
+      const head=['#','Module','Setting','Reading','Figure','Verdict'];
+      const csv=[head.join(',')].concat(S.rows.map(r=>[r.i].concat(r.cells).map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','))).join('\n');
+      const md=['| '+head.join(' | ')+' |','|'+head.map(()=>'---').join('|')+'|'].concat(S.rows.map(r=>'| '+[r.i].concat(r.cells).join(' | ')+' |')).join('\n');
+      const blob=new Blob([csv+'\n\n'+md],{type:'text/plain'}),a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);a.download='electrical-workshop-lab-report.csv';a.click();URL.revokeObjectURL(a.href);Sound.chord();
+    }
+
+    /* ───────────────────── guided practicals ───────────────────── */
+    const LABS=[
+      {n:1,mod:'wiring',track:'Track 1 · Conduit wiring',title:'Staircase 2-way control',
+        brief:'Route red phase through the MCB and both 2-way switches with yellow strappers, take neutral direct to the holder, and verify all four switch combinations.',
+        target:'Staircase scheme, neutral direct, no Carter violation, main energised.',
+        check:()=>[['Staircase scheme',S.p.wiring.scheme==='staircase'],['Neutral direct',S.results.wiring.polarity],['No Carter method',!S.p.wiring.carter],['No dead short',!S.results.wiring.short]]},
+      {n:2,mod:'wiring',track:'Track 1 · Conduit wiring',title:'Corridor 3-way control',
+        brief:'Insert the intermediate switch so a stairwell lamp can be controlled from three floors; energise and confirm the lamp responds to either end switch.',
+        target:'Corridor scheme, valid netlist, lamp ON.',
+        check:()=>[['Corridor scheme',S.p.wiring.scheme==='corridor'],['Valid netlist',!S.results.wiring.short],['Lamp responds',S.results.wiring.lampOn],['IS 732 polarity',S.results.wiring.polarity]]},
+      {n:3,mod:'wiring',track:'Track 1 · Conduit wiring',title:'Godown sequential lighting',
+        brief:'Wire the SPST master with two SPDT switches so each bay lights only while walking through it and the previous bay extinguishes.',
+        target:'Godown scheme with an active bay and clean polarity.',
+        check:()=>[['Godown scheme',S.p.wiring.scheme==='godown'],['Active bay',S.results.wiring.activeBay>=1],['Neutral direct',S.results.wiring.polarity],['No short',!S.results.wiring.short]]},
+      {n:4,mod:'megger',track:'Track 2 · Insulation & earthing',title:'500 V Megger fault hunt',
+        brief:'Isolate the mains, test L-N on each sub-circuit and locate the moisture-damaged conduit run whose insulation has collapsed below 1 MOhm.',
+        target:'Circuit 2 with moisture fault, L-N leads, IR below 1 MOhm.',
+        check:()=>[['Circuit 2 selected',S.p.megger.circuit===1],['Moisture fault',S.p.megger.moisture],['Lead L-N',S.p.megger.lead==='LN'],['IR below 1 MOhm',S.results.megger.ir<1]]},
+      {n:5,mod:'megger',track:'Track 2 · Insulation & earthing',title:'Fall-of-potential earth test',
+        brief:'Place C2 at 40 m, take seven readings with P2 from 5 m to 35 m, and identify the true earth resistance at the 62% plateau (24.8 m).',
+        target:'At least 7 logged readings; P2 near 24.8 m (62% of 40 m).',
+        check:()=>[['Seven readings',S.p.megger.readings.length>=7],['P2 near 24.8 m',Math.abs(S.p.megger.x-24.8)<1.5],['Plateau zone',S.results.megger.pct>=55&&S.results.megger.pct<=72],['C2 at 40 m',S.p.megger.d===40]]},
+      {n:6,mod:'megger',track:'Track 2 · Insulation & earthing',title:'Rocky soil pit treatment',
+        brief:'Dry rocky soil gives an unsafe earth resistance. Apply charcoal-salt conditioning and watering until RE falls below 2 ohm (IS 3043 ideal).',
+        target:'Rocky soil, treatment ON, RE below 2 ohm.',
+        check:()=>[['Rocky soil',S.p.megger.soil==='rocky'],['Treatment applied',S.p.megger.treated],['RE below 2 ohm',S.results.megger.RE<2]]},
+      {n:7,mod:'mcb',track:'Track 3 · MCB protection',title:'Motor inrush coordination',
+        brief:'A B10 MCB trips every time the 1 HP workshop motor starts. Replace it with a C-curve rating that rides out the 6x inrush without nuisance tripping.',
+        target:'Motor ON, 10 A rating, Type C or D, m below magnetic pickup.',
+        check:()=>[['Motor running',S.p.mcb.motor],['In = 10 A',S.p.mcb.In===10],['C or D curve',S.p.mcb.curve!=='B'],['Rides out inrush',S.results.mcb.m<S.results.mcb.mag]]},
+      {n:8,mod:'mcb',track:'Track 3 · MCB protection',title:'Thermal overload time audit',
+        brief:'Switch on the lamp bank, heater and geyser (about 17.4 A) on a B10 MCB: this is 1.74 In. Watch the bimetal heat up and verify the inverse-time relation before it trips.',
+        target:'Type B, 10 A, overload between 1.13 In and magnetic pickup, heating observed.',
+        check:()=>[['Type B',S.p.mcb.curve==='B'],['In = 10 A',S.p.mcb.In===10],['Overload region',S.results.mcb.m>1.13&&S.results.mcb.m<S.results.mcb.mag],['Bimetal heating',S.p.mcb.theta>0.05]]},
+      {n:9,mod:'mcb',track:'Track 3 · MCB protection',title:'Earth-fault clearance',
+        brief:'Create an appliance line-to-neutral fault of about 180 A with the green protective earth bonded, and confirm the instantaneous magnetic trip clears it.',
+        target:'Dead short enabled, magnetic zone reached, MCB tripped.',
+        check:()=>[['Dead short applied',S.p.mcb.short],['Magnetic zone',S.results.mcb.m>=S.results.mcb.mag],['MCB tripped',S.p.mcb.tripped],['Fast clearance',S.p.mcb.tripTime<.01]]}
+    ];
+    function buildLabList(){
+      $('lab-list').innerHTML=LABS.map(l=>'<button class="lab-item '+(l.n===S.selectedLab?'active':'')+' '+(S.labsDone.has(l.n)?'done':'')+'" data-n="'+l.n+'">'+
+        '<span class="li-num">'+(S.labsDone.has(l.n)?'✓':l.n)+'</span><span><span class="li-t">'+l.title+'</span><span class="li-s">'+l.track+'</span></span></button>').join('');
+      $('lab-list').querySelectorAll('.lab-item').forEach(b=>b.addEventListener('click',()=>{
+        S.selectedLab=+b.dataset.n;setModule(LABS.find(l=>l.n===S.selectedLab).mod,true);
+        buildLabList();renderLabDetail();Sound.click();
+      }));
+    }
+    function renderLabDetail(){
+      const l=LABS.find(x=>x.n===S.selectedLab),rows=l.check();
+      $('lab-detail').innerHTML='<div class="track">WORKSHOP PRACTICAL TASK #'+String(l.n).padStart(2,'0')+' · '+l.track+'</div>'+
+        '<h3>'+l.title+'</h3><p class="brief">'+l.brief+'</p>'+
+        '<div class="target-box"><b>TARGET SPECIFICATION</b><p>'+l.target+'</p></div>'+
+        '<div class="challenge-tag">LIVE CIRCUIT &amp; SAFETY AUDIT</div><div class="audit">'+rows.map(r=>'<div class="audit-row"><span>'+r[0]+'</span><span class="'+(r[1]?'ok':'no')+'">'+(r[1]?'PASS':'NOT MET')+'</span></div>').join('')+'</div>'+
+        '<div class="ctrl-actions"><button class="btn primary" id="btn-verify">Verify &amp; log practical mastery</button>'+
+        '<button class="btn" id="btn-open-bench">Adjust in bench</button>'+(S.labsDone.has(l.n)?'<span class="progress-text" style="align-self:center;color:var(--accent-2)">Completed</span>':'')+'</div>';
+      $('btn-verify').addEventListener('click',()=>{
+        if(l.check().every(x=>x[1])){S.labsDone.add(l.n);Sound.chord();
+          $('lab-detail').insertAdjacentHTML('beforeend','<p style="color:var(--accent-2);margin-top:10px;font-size:.8rem">Practical mastery logged. '+S.labsDone.size+' of 9 complete.</p>');}
+        else Sound.error();
+        updateProgress();buildLabList();
+      });
+      $('btn-open-bench').addEventListener('click',()=>switchMode('sim'));
+    }
+    function updateProgress(){
+      const n=S.labsDone.size;$('lab-count').textContent=n+'/9';
+      $('progress-fill').style.width=(n/9*100)+'%';
+      $('progress-text').textContent=n+' / 9 complete';
+      $('rank-text').textContent='Rank: '+(n>=8?'Master Electrician':n>=5?'Skilled Wireman':n>=2?'Electrician':'Apprentice');
+    }
+
+    /* ───────────────────── trade quiz ───────────────────── */
+    const QUIZ=[
+      {q:'In a compliant staircase circuit, the neutral conductor:',o:['Passes through both switches','Goes directly to the lamp holder','Is switched by the MCB only','Is bonded to the phase strapper'],a:1,
+        e:'IS 732 requires phase switching; neutral goes direct to the holder so it stays at 0 V when the lamp is OFF.'},
+      {q:'With two SPDT switches and strappers, the lamp is ON when:',o:['S1 and S2 occupy opposite throws','S1 and S2 occupy the same throw','Either switch is UP','The neutral is switched'],a:1,
+        e:'The XNOR relation means lamp = 1 for (0,0) and (1,1); both switches at the same throw completes the strapper loop.'},
+      {q:'The 62% rule in fall-of-potential testing places P2 at:',o:['0.618 × D from the electrode','D / 2 from the electrode','Exactly 40 m','Half the electrode length'],a:0,
+        e:'At x = 0.618D the resistance areas of the electrode and current spike stop overlapping, giving the true RE on the flat plateau.'},
+      {q:'A 1 HP motor with 6× inrush is most likely to nuisance-trip which MCB?',o:['Type D 16 A','Type C 16 A','Type B 10 A','Type C 32 A'],a:2,
+        e:'B-curve magnetic pickup is 3–5 In; 42 A on a 10 A B-curve is about 4.2 In, inside the instantaneous band.'},
+      {q:'The thermal part of an MCB trip is produced by:',o:['A solenoid plunger','A bimetallic strip heated by I²R','The arc chute','A residual current transformer'],a:1,
+        e:'Overload current heats the bimetal; its inverse-time deflection releases the latch, while the solenoid handles short circuits.'}
+    ];
+    function buildQuiz(){
+      $('quiz-list').innerHTML=QUIZ.map((qq,i)=>'<article class="card quiz-card"><div class="quiz-q"><span>Q'+(i+1)+'</span>'+qq.q+'</div><div class="opts">'+
+        qq.o.map((o,j)=>'<button class="opt" data-q="'+i+'" data-o="'+j+'"><span class="key">'+'ABCD'[j]+'</span>'+o+'</button>').join('')+
+        '</div><div class="explain" id="ex-'+i+'">'+qq.e+'</div></article>').join('');
+      $('quiz-list').querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{
+        const qi=+b.dataset.q,oi=+b.dataset.o;if(S.quiz[qi]!==undefined)return;
+        S.quiz[qi]=oi;const card=b.closest('.quiz-card');
+        card.querySelectorAll('.opt').forEach((x,j)=>{x.classList.toggle('correct',j===QUIZ[qi].a);x.classList.toggle('wrong',j===oi&&oi!==QUIZ[qi].a);x.disabled=true;});
+        $('ex-'+qi).classList.add('show');
+        if(oi===QUIZ[qi].a)Sound.tone(760,.15,'sine',.05);else Sound.error();
+        const score=Object.keys(S.quiz).filter(k=>S.quiz[k]===QUIZ[k].a).length;
+        $('quiz-score').textContent=score+' / 5';
+        $('quiz-verdict').textContent=score===5?'Mastery confirmed.':(Object.keys(S.quiz).length===5?'Review the highlighted explanations.':'Answer all five questions.');
+        if(Object.keys(S.quiz).length===5&&score>=4)Sound.chord();
+      }));
+    }
+
+    /* ───────────────────── navigation & interaction ───────────────────── */
+    function switchMode(mode){
+      S.mode=mode;
+      document.querySelectorAll('#mode-tabs .pill').forEach(p=>p.classList.toggle('active',p.dataset.mode===mode));
+      ['sim','3d','theory','labs','quiz'].forEach(m=>$('section-'+m).classList.toggle('show',m===mode));
+      if(mode==='3d'){const w=$('model3d-wrapper');if(w)w.classList.remove('hidden');window.dispatchEvent(new Event('resize'));}
+      if(mode==='labs'){buildLabList();renderLabDetail();}
+      if(mode==='theory')renderStaticMath();
+      Sound.click();
+    }
+    function setModule(mod,silent){
+      S.module=mod;S.plotTab=0;
+      document.querySelectorAll('#module-tabs .pill').forEach(p=>p.classList.toggle('active',p.dataset.module===mod));
+      buildControls();solveAll();refreshPanels();drawAll();
+      if(!silent)Sound.click();
+    }
+    function setZoom(z){S.zoom=clamp(z,.5,3);drawBoard();}
+    function fitView(){S.zoom=1;S.panX=0;S.panY=0;drawBoard();}
+    function toggleFullscreen(id){
+      const el=$(id);el.classList.toggle('fullscreen');
+      if(el.classList.contains('fullscreen'))el.querySelector('canvas').style.height='calc(100vh - 70px)';
+      else el.querySelector('canvas').style.height='';
+      window.dispatchEvent(new Event('resize'));drawAll();
+    }
+    function renderStaticMath(){document.querySelectorAll('[data-tex]').forEach(el=>{if(el.dataset.done)return;el.innerHTML=katexTex(el.getAttribute('data-tex'));el.dataset.done='1';});}
+    function terminalAt(wx,wy){for(const k in TERMS){const t=TERMS[k];if(Math.hypot(t.x-wx,t.y-wy)<14)return k;}return null;}
+    function bindEvents(){
+      document.querySelectorAll('#mode-tabs .pill').forEach(b=>b.addEventListener('click',()=>switchMode(b.dataset.mode)));
+      document.querySelectorAll('#module-tabs .pill').forEach(b=>b.addEventListener('click',()=>setModule(b.dataset.module)));
+      $('btn-audio').addEventListener('click',()=>{
+        S.audioOn=!S.audioOn;$('audio-label').textContent=S.audioOn?'Sound on':'Sound off';
+        $('btn-audio').setAttribute('aria-pressed',String(S.audioOn));
+        if(!S.audioOn){Sound.sustained('buzz',false);Sound.sustained('crank',false);}
+      });
+      $('btn-guide-jump').addEventListener('click',()=>$('user-guide').scrollIntoView({behavior:'smooth'}));
+      $('btn-grid').addEventListener('click',()=>{S.showGrid=!S.showGrid;drawBoard();Sound.click();});
+      $('btn-zoom-in').addEventListener('click',()=>setZoom(S.zoom*1.2));
+      $('btn-zoom-out').addEventListener('click',()=>setZoom(S.zoom/1.2));
+      $('btn-fit').addEventListener('click',()=>{fitView();Sound.click();});
+      $('btn-hud').addEventListener('click',()=>{$('hud-badges').classList.toggle('is-collapsed');Sound.click();});
+      $('btn-fs-schematic').addEventListener('click',()=>toggleFullscreen('schematic-card'));
+      $('btn-fs-instrument').addEventListener('click',()=>toggleFullscreen('instrument-card'));
+      $('btn-buzzer').addEventListener('click',()=>{
+        S.buzzerOn=!S.buzzerOn;Sound.sustained('buzz',S.buzzerOn,2000,.012,'square');
+        $('btn-buzzer').classList.toggle('on',S.buzzerOn);Sound.click();
+      });
+      $('btn-log').addEventListener('click',()=>logRow(currentRow()));
+      $('btn-sweep').addEventListener('click',autoSweep);
+      $('btn-clear').addEventListener('click',()=>{S.rows=[];renderTable();Sound.click();});
+      $('btn-export').addEventListener('click',exportReport);
+      $('btn-quiz-reset').addEventListener('click',()=>{S.quiz={};buildQuiz();$('quiz-score').textContent='0 / 5';$('quiz-verdict').textContent='Answer all five questions.';Sound.click();});
+
+      const cv=$('ws-canvas');let drag=false,moved=0,lx=0,ly=0,spike=false;
+      const local=e=>{const r=cv.getBoundingClientRect(),sx=cv.width/r.width,sy=cv.height/r.height;
+        return {wx:((e.clientX-r.left)*sx-S.panX)/S.zoom,wy:((e.clientY-r.top)*sy-S.panY)/S.zoom};};
+      cv.addEventListener('pointerdown',e=>{
+        const q=local(e);drag=true;moved=0;lx=e.clientX;ly=e.clientY;cv.classList.add('grabbing');cv.setPointerCapture(e.pointerId);
+        spike=S.module==='megger'&&q.wy>258&&q.wy<340;
+        if(spike)updateSpike(q);
+      });
+      function updateSpike(q){const p=S.p.megger;p.x=clamp(1.5+(q.wx-175)/(cv.width-330)*37,2,38);
+        const sl=$('ctl-x');if(sl){sl.value=p.x;$('val-x').textContent=fmt(p.x,1)+' m';}
+        solveAll();refreshPanels();drawAll();}
+      cv.addEventListener('pointermove',e=>{
+        const q=local(e);if(drag){moved+=Math.abs(e.clientX-lx)+Math.abs(e.clientY-ly);
+          if(spike)updateSpike(q);else{S.panX+=e.clientX-lx;S.panY+=e.clientY-ly;}
+          lx=e.clientX;ly=e.clientY;drawBoard();}
+      });
+      const endDrag=e=>{
+        if(!drag)return;drag=false;cv.classList.remove('grabbing');
+        if(moved<5&&!spike){
+          const q=local(e);
+          if(S.module==='wiring'){
+            const key=terminalAt(q.wx,q.wy),p=S.p.wiring;
+            if(key){
+              if(p.deleteMode){p.wires=p.wires.filter(w=>w.a!==key&&w.b!==key);S.pendingTerminal=null;Sound.click();}
+              else if(!S.selectedWire){Sound.error();}
+              else if(!S.pendingTerminal){S.pendingTerminal=key;Sound.click();}
+              else if(S.pendingTerminal!==key){p.wires.push({a:S.pendingTerminal,b:key,c:S.selectedWire});S.pendingTerminal=null;Sound.snap();}
+              solveAll();refreshPanels();drawAll();
+            }
+          }else if(S.module==='mcb'){
+            const p=S.p.mcb,rows=['lamps','heater','geyser','motor','short'];
+            if(q.wx>=424&&q.wx<=836&&q.wy>=74&&q.wy<=394){
+              const i=clamp(Math.floor((q.wy-74)/64),0,4);p[rows[i]]=!p[rows[i]];
+              p.tripped=false;p.theta=0;buildControls();solveAll();refreshPanels();drawAll();Sound.snap();
+            }
+          }
+        }
+        spike=false;
+      };
+      cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',()=>{drag=false;spike=false;cv.classList.remove('grabbing');});
+      cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(S.zoom*(e.deltaY>0?.9:1.1));},{passive:false});
+      cv.addEventListener('dblclick',fitView);
+      document.addEventListener('keydown',e=>{
+        if(/input|select|textarea/i.test(e.target.tagName))return;
+        if(e.key==='+'||e.key==='=')setZoom(S.zoom*1.2);
+        else if(e.key==='-')setZoom(S.zoom/1.2);
+        else if(e.key==='0')fitView();
+        else if(e.key.toLowerCase()==='f')toggleFullscreen('schematic-card');
+        else if(e.key.toLowerCase()==='g'){S.showGrid=!S.showGrid;drawBoard();}
+      });
+      window.addEventListener('resize',()=>{drawAll();});
+    }
+    function loop(ts){
+      const dt=Math.min(.05,(ts-S.last)/1000||0);S.last=ts;
+      if(S.running)S.t+=dt;
+      if(S.module==='mcb'&&S.mode==='sim')updateThermal(dt);
+      if(S.mode==='sim'){drawBoard();drawInstruments();drawPlot();}
+      requestAnimationFrame(loop);
+    }
+    function init(){
+      S.p.wiring.wires=presetWires();
+      solveAll();bindEvents();buildControls();refreshPanels();renderTable();buildLabList();renderLabDetail();buildQuiz();renderStaticMath();updateProgress();drawAll();
+      if(!waitForMath()){let tries=0;const timer=setInterval(()=>{if(waitForMath()||++tries>60)clearInterval(timer);},200);}
+      window.addEventListener('load',waitForMath);
+      requestAnimationFrame(loop);
+    }
+    init();
+  })();
+  </script>
+  <script src="../../shared/sidebar/sidebar.js"></script>
 </body>
 </html>

@@ -3,324 +3,1386 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Electrical Measurement &amp; Control Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive Measurement & Control Virtual Lab for WBSCTE 4th Sem EE (EE/S4/EMC). Simulate LVDT Transducer Displacement, PID Closed-Loop Step Response, Transient Dynamics, and inspect 3D LVDT & Process Tank model.">
+  <title>Electrical Measurement &amp; Control Systems Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Physics-driven LVDT transducer, PID closed-loop control and 4-channel DSO virtual laboratory with RK4 plant solver, phase-sensitive demodulation and s-plane telemetry.">
   <link rel="stylesheet" href="../../shared/site.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#00212b;--surface:#001c24;--surface2:#00212b;--surface3:#042630;--border:#2a3050;--border-hi:#41506f;
+      --accent:#22d3ee;--accent-lo:rgba(34,211,238,.20);--violet:#a78bfa;--green:#3ddc84;--gold:#f5c842;--red:#ff5555;
+      --text:#e4f4f6;--dim:#9fb8c4;--muted:#6d8b96;--font:'Segoe UI',system-ui,sans-serif;--mono:'JetBrains Mono','Courier New',monospace;
+    }
+    html{scroll-behavior:smooth}
+    body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;padding:78px 18px 48px;overflow-x:hidden}
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background:radial-gradient(ellipse at 80% -8%,rgba(34,211,238,.08),transparent 44%),radial-gradient(ellipse at 6% 96%,rgba(167,139,250,.06),transparent 42%)}
+    #app{position:relative;z-index:1;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+    .skip-link{position:absolute;left:-9999px;top:0;background:var(--gold);color:#241a00;padding:8px 14px;z-index:3000}
+    .skip-link:focus{left:12px;top:12px}
+    .logo-fixed{position:fixed;top:12px;left:14px;z-index:1000;display:block;padding:5px;border-radius:11px;
+      background:rgba(0,28,36,.78);backdrop-filter:blur(8px);border:1px solid var(--border);transition:transform .16s,border-color .16s}
+    .logo-fixed:hover{transform:scale(1.06);border-color:var(--accent)}
+    .logo-fixed img{display:block;width:42px;height:42px}
+    .site-nav{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:.78rem;color:var(--dim)}
+    .site-nav a{color:var(--dim);text-decoration:none}.site-nav a:hover{color:var(--accent)}
+    .site-nav-back{padding:5px 11px;border:1px solid var(--border);border-radius:20px;background:var(--surface)}
+    .nav-sep{color:var(--muted)}
+    header.tool-header{background:linear-gradient(135deg,var(--surface) 0%,#032a32 100%);border:1px solid var(--border);
+      border-radius:12px;padding:20px 22px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+    .badges{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+    .badge-code,.badge-topic,.badge-wbscte{font-size:.67rem;font-weight:700;padding:4px 9px;border-radius:5px}
+    .badge-code{background:rgba(34,211,238,.13);color:var(--accent);border:1px solid rgba(34,211,238,.3)}
+    .badge-topic{background:rgba(61,220,132,.1);color:var(--green);border:1px solid rgba(61,220,132,.25)}
+    .badge-wbscte{background:rgba(245,200,66,.1);color:var(--gold);border:1px solid rgba(245,200,66,.25)}
+    h1{font-size:clamp(1.5rem,2.7vw,2.15rem);font-weight:750;letter-spacing:-.02em;line-height:1.15;
+      background:linear-gradient(120deg,#22d3ee 0%,#a78bfa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    .subtitle{color:var(--dim);font-size:.88rem;margin-top:7px;max-width:78ch;line-height:1.5}
+    .header-actions{display:flex;flex-wrap:wrap;gap:8px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 13px;font-family:var(--font);font-size:.8rem;font-weight:600;
+      border-radius:7px;cursor:pointer;border:1px solid var(--border);background:var(--surface3);color:var(--text);
+      transition:background .14s,border-color .14s,transform .07s,filter .14s}
+    .btn:hover{background:#0b4352;border-color:var(--border-hi)}
+    .btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+    .btn:active{transform:scale(.97)}
+    .btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+    .btn.primary{background:var(--accent);color:#00212b;border-color:transparent;font-weight:750}
+    .btn.primary:hover{filter:brightness(1.1);box-shadow:0 0 14px var(--accent-lo)}
+    .btn.ghost{background:transparent}
+    .btn.success{background:rgba(61,220,132,.12);color:var(--green);border-color:rgba(61,220,132,.35)}
+    .btn.on{background:var(--gold);color:#241a00;border-color:transparent;font-weight:750}
+    .btn svg{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .mode-bar,.module-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+    .module-bar{background:transparent;border:none;padding:0}
+    .bar-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;padding:0 11px 0 8px}
+    .pill{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid transparent;border-radius:7px;background:transparent;
+      color:var(--dim);font:600 .8rem var(--font);cursor:pointer;transition:background .14s,color .14s,transform .07s}
+    .pill:hover{background:var(--surface3);color:var(--text)}
+    .pill:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .pill:active{transform:scale(.97)}
+    .pill.active{background:var(--accent);color:#00212b;font-weight:750;box-shadow:0 0 12px var(--accent-lo)}
+    .pill .num{font:700 .66rem var(--mono);opacity:.8}
+    .module-bar .pill{background:var(--surface);border:1px solid var(--border)}
+    .module-bar .pill.active{background:var(--accent);border-color:transparent}
+    .view-section{display:none;flex-direction:column;gap:14px;animation:sec .18s ease-out}
+    .view-section.show{display:flex}
+    @keyframes sec{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .sim-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(320px,2fr);gap:14px;align-items:start}
+    .pane{display:flex;flex-direction:column;gap:14px;min-width:0}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 13px;background:var(--surface3);border-bottom:1px solid var(--border)}
+    .card-title{font-size:.82rem;font-weight:700;display:flex;align-items:center;gap:8px}
+    .card-title .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+    .card-sub{font-size:.7rem;color:var(--muted);font-family:var(--mono)}
+    .toolset{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+    .tool-btn{display:grid;place-items:center;width:29px;height:29px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--dim);cursor:pointer;font:700 .8rem var(--mono)}
+    .tool-btn:hover{color:var(--gold);border-color:var(--border-hi)}
+    .tool-btn:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .tool-btn:active{transform:scale(.94)}
+    .tool-btn.on{background:var(--gold);color:#241a00}
+    .canvas-wrap{position:relative;background:#0d1117;line-height:0}
+    canvas{display:block;width:100%;height:auto;touch-action:none}
+    #ws-canvas{cursor:grab;aspect-ratio:1000/560}
+    #ws-canvas.grabbing{cursor:grabbing}
+    #dso-canvas{aspect-ratio:900/330}
+    #plot-canvas{aspect-ratio:560/400}
+    .canvas-card.fullscreen{position:fixed;inset:0;z-index:3000;border-radius:0;margin:0;display:flex;flex-direction:column;background:var(--bg)}
+    .canvas-card.fullscreen .canvas-wrap{flex:1;min-height:0;line-height:normal}
+    .canvas-card.fullscreen canvas{height:100%;width:100%;object-fit:contain}
+    .glass-chip{position:absolute;background:rgba(13,17,23,.88);backdrop-filter:blur(4px);border:1px solid var(--border);
+      border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.35);line-height:1.4;padding:8px 10px;z-index:4}
+    #display-chips{top:14px;left:14px;display:flex;flex-direction:column;gap:6px;min-width:158px}
+    #display-chips summary{cursor:pointer;font:700 .68rem var(--font);text-transform:uppercase;letter-spacing:.08em;color:var(--gold);list-style:none}
+    #display-chips summary::-webkit-details-marker{display:none}
+    #display-chips summary::after{content:' ▾';float:right;transition:transform .16s}
+    #display-chips[open] summary::after{transform:rotate(180deg)}
+    .chk{display:flex;align-items:center;gap:7px;font:600 .68rem var(--font);color:var(--dim);cursor:pointer}
+    .chk input{accent-color:var(--accent);width:14px;height:14px}
+    .chk:focus-within{outline:2px solid var(--gold);outline-offset:2px}
+    .overlay-badges{position:absolute;top:14px;right:14px;display:flex;flex-wrap:wrap;gap:6px;max-width:60%;
+      background:rgba(13,17,23,.7);backdrop-filter:blur(4px);border:1px solid var(--border);border-radius:8px;padding:5px 7px;transition:opacity .2s}
+    .overlay-badges.is-collapsed{opacity:.13}.overlay-badges:hover{opacity:.92}
+    .ov-badge{font:600 .67rem var(--mono);color:var(--green);padding:2px 6px;border-radius:4px;background:rgba(61,220,132,.1)}
+    .ov-badge.warn{color:var(--gold);background:rgba(245,200,66,.1)}
+    .ov-badge.danger{color:var(--red);background:rgba(255,85,85,.12)}
+    .zoom-pill{position:absolute;right:12px;bottom:10px;font:600 .68rem var(--mono);color:var(--dim);
+      background:rgba(13,17,23,.8);border:1px solid var(--border);padding:3px 8px;border-radius:6px;line-height:1.4;z-index:4}
+    .sim-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 13px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+    .sim-controls .sep{width:1px;height:22px;background:var(--border);margin:0 2px}
+    .ctl-select{background:var(--surface3);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 9px;font:600 .76rem var(--mono);outline:none}
+    .ctl-select:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .param-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:10px 14px;padding:14px}
+    .param{display:flex;flex-direction:column;gap:7px;padding:10px 11px;background:var(--surface3);border:1px solid var(--border);border-radius:9px}
+    .param-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+    .param label{font-size:.73rem;color:var(--dim);font-weight:650}
+    .param-val{font:750 .8rem var(--mono);color:var(--gold);font-variant-numeric:tabular-nums}
+    .param-row{display:flex;align-items:center;gap:8px}
+    .stepper{width:25px;height:25px;flex:none;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--dim);cursor:pointer;font:700 .8rem var(--mono)}
+    .stepper:hover{color:var(--gold);border-color:var(--border-hi)}
+    .stepper:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .stepper:active{transform:scale(.94)}
+    input[type=range]{flex:1;height:6px;appearance:none;border-radius:3px;background:linear-gradient(to right,var(--accent-lo),rgba(255,255,255,.12));outline:none;cursor:pointer}
+    input[type=range]::-webkit-slider-thumb{appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent-lo);border:2px solid rgba(255,255,255,.25);cursor:grab}
+    input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);border:2px solid rgba(255,255,255,.25);cursor:grab}
+    input[type=range]:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+    select.full{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 9px;font:600 .8rem var(--mono);outline:none}
+    select.full:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:8px}
+    .switch-row span{font-size:.74rem;color:var(--dim);font-weight:600}
+    .switch{position:relative;width:42px;height:22px;flex:none}
+    .switch input{opacity:0;width:0;height:0}
+    .slider{position:absolute;inset:0;background:#0b3944;border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:background .16s}
+    .slider::before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;border-radius:50%;background:var(--dim);transition:transform .16s,background .16s}
+    .switch input:checked+.slider{background:rgba(61,220,132,.25);border-color:var(--green)}
+    .switch input:checked+.slider::before{transform:translateX(20px);background:var(--green)}
+    .switch input:focus-visible+.slider{outline:2px solid var(--gold);outline-offset:2px}
+    .readouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:14px}
+    .readout{position:relative;overflow:hidden;background:var(--surface3);border:1px solid var(--border);border-radius:9px;padding:10px 11px}
+    .readout::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+    .readout.good::after{background:var(--green)}.readout.warn::after{background:var(--gold)}.readout.bad::after{background:var(--red)}
+    .r-lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:750}
+    .r-val{font:750 1.05rem var(--mono);color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .r-val small{font-size:.62rem;color:var(--dim)}
+    .r-sub{font:500 .62rem var(--mono);color:var(--dim);margin-top:3px}
+    .readout.good .r-sub{color:var(--green)}.readout.warn .r-sub{color:var(--gold)}.readout.bad .r-sub{color:var(--red)}
+    .subtabs{display:flex;gap:4px;padding:3px;background:var(--surface);border-radius:7px;flex-wrap:wrap}
+    .subtab{padding:5px 9px;border:none;background:transparent;color:var(--dim);border-radius:5px;cursor:pointer;font:600 .68rem var(--font)}
+    .subtab:hover{color:var(--text)}.subtab.active{background:var(--surface3);color:var(--gold)}
+    .subtab:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .derivation{padding:14px}
+    .derivation h3{font-size:.82rem;color:var(--green);margin-bottom:9px;display:flex;align-items:center;gap:7px}
+    .step{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed var(--border)}
+    .step:last-child{border-bottom:none}
+    .step-num{flex:none;width:20px;height:20px;border-radius:50%;background:rgba(34,211,238,.12);color:var(--accent);display:grid;place-items:center;font:700 .65rem var(--mono)}
+    .step-body{font-size:.76rem;color:var(--dim);line-height:1.65;overflow-x:auto}
+    .step-body b{color:var(--text)}.step-body .katex{color:var(--text)}
+    .katex-display{margin:.3em 0!important}
+    .legend{display:flex;flex-wrap:wrap;gap:12px;padding:8px 13px;background:var(--surface3);border-top:1px solid var(--border);font:600 .68rem var(--mono);color:var(--dim)}
+    .legend i{display:inline-block;width:11px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+    .notebook{padding:14px}
+    .notebook-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:11px}
+    .notebook-head h3{font-size:.9rem;color:var(--gold)}
+    .table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:8px}
+    table{width:100%;border-collapse:collapse;font:500 .73rem var(--mono);min-width:680px}
+    th{background:var(--surface3);color:var(--dim);text-align:left;padding:8px 10px;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    td{padding:8px 10px;border-top:1px solid var(--border);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+    tbody tr:hover{background:var(--surface3)}
+    .empty-row td{text-align:center;color:var(--muted);padding:18px;font-family:var(--font)}
+    .challenge{background:linear-gradient(135deg,var(--surface3),var(--surface));border:1px solid rgba(245,200,66,.25);border-radius:9px;padding:13px}
+    .challenge-tag{font:700 .64rem var(--mono);color:var(--gold);letter-spacing:.05em}
+    .challenge h4{font-size:.86rem;margin:5px 0 7px}
+    .audit{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+    .audit-row{display:flex;justify-content:space-between;gap:10px;align-items:center;font:600 .7rem var(--mono);padding:6px 9px;background:var(--surface);border-radius:6px;border:1px solid var(--border)}
+    .audit-row .ok{color:var(--green)}.audit-row .no{color:var(--red)}
+    .compliance{padding:12px 15px;border-left:3px solid var(--green);background:rgba(61,220,132,.06);border-radius:0 8px 8px 0;font-size:.77rem;color:var(--dim);line-height:1.6}
+    .compliance.violation{border-left-color:var(--red);background:rgba(255,85,85,.08);color:var(--red)}
+    .progress-line{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+    .progress-track{flex:1;min-width:120px;height:6px;background:var(--surface);border-radius:6px;overflow:hidden}
+    .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--violet));transition:width .3s}
+    .progress-text{font:700 .7rem var(--mono);color:var(--dim)}
+    .lab-layout{display:grid;grid-template-columns:minmax(230px,1fr) minmax(0,2fr);gap:14px}
+    .lab-list{display:flex;flex-direction:column;gap:7px}
+    .lab-item{display:flex;gap:10px;align-items:flex-start;text-align:left;padding:11px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--dim);cursor:pointer;transition:background .14s,border-color .14s,transform .07s}
+    .lab-item:hover{background:var(--surface3);border-color:var(--border-hi)}
+    .lab-item:active{transform:scale(.985)}
+    .lab-item.active{border-color:var(--accent);background:rgba(34,211,238,.08);color:var(--text)}
+    .lab-item .li-num{flex:none;width:23px;height:23px;border-radius:6px;background:var(--surface);display:grid;place-items:center;font:700 .7rem var(--mono);color:var(--accent)}
+    .lab-item.done .li-num{background:var(--green);color:#002a18}
+    .lab-item .li-t{font-size:.78rem;font-weight:700;line-height:1.3;display:block}
+    .lab-item .li-s{font-size:.66rem;color:var(--muted);margin-top:3px;display:block}
+    .lab-detail{padding:18px}
+    .lab-detail h3{font-size:1.05rem;color:var(--accent);margin-bottom:4px}
+    .lab-detail .track{font:700 .66rem var(--mono);color:var(--gold);letter-spacing:.05em;margin-bottom:11px}
+    .lab-detail .brief{font-size:.82rem;color:var(--dim);line-height:1.6;max-width:70ch}
+    .target-box{margin:12px 0;padding:10px 12px;background:rgba(245,200,66,.06);border-left:2px solid var(--gold);border-radius:0 7px 7px 0}
+    .target-box b{font:700 .7rem var(--mono);color:var(--gold)}
+    .target-box p{font-size:.78rem;color:var(--text);margin-top:4px;line-height:1.5}
+    .theory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+    .theory-card{padding:17px}
+    .theory-card h3{font-size:.94rem;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+    .theory-card h3 .ic{width:26px;height:26px;border-radius:6px;background:rgba(34,211,238,.1);display:grid;place-items:center;font:700 .72rem var(--mono)}
+    .theory-card p,.theory-card li{font-size:.8rem;color:var(--dim);line-height:1.7}
+    .theory-card ul{padding-left:18px;margin:7px 0}
+    .theory-card .formula{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:9px;margin:9px 0;overflow-x:auto;font-size:.8rem}
+    .practice-card{padding:18px}
+    .practice-q{font-size:.95rem;font-weight:700;margin-bottom:12px;line-height:1.5}
+    .practice-input{width:190px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font:700 .95rem var(--mono);outline:none}
+    .practice-input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .feedback{margin-top:11px;padding:10px 12px;border-radius:7px;font-size:.8rem;display:none}
+    .feedback.show{display:block}
+    .feedback.ok{background:rgba(61,220,132,.1);color:var(--green);border:1px solid rgba(61,220,132,.3)}
+    .feedback.no{background:rgba(255,85,85,.1);color:var(--red);border:1px solid rgba(255,85,85,.3)}
+    .quiz-list{display:flex;flex-direction:column;gap:12px}
+    .quiz-card{padding:15px}
+    .quiz-q{font-size:.88rem;font-weight:700;margin-bottom:10px;line-height:1.5}
+    .quiz-q span{color:var(--gold);font-family:var(--mono);margin-right:7px}
+    .opts{display:grid;gap:7px}
+    .opt{display:flex;gap:10px;align-items:center;padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--dim);cursor:pointer;font-size:.79rem;text-align:left}
+    .opt:hover{border-color:var(--border-hi);color:var(--text)}
+    .opt:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .opt.correct{border-color:var(--green);background:rgba(61,220,132,.12);color:var(--green)}
+    .opt.wrong{border-color:var(--red);background:rgba(255,85,85,.1);color:var(--red)}
+    .opt .key{font:700 .68rem var(--mono);opacity:.7}
+    .explain{margin-top:9px;font-size:.75rem;color:var(--green);line-height:1.55;display:none}
+    .explain.show{display:block}
+    .score-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 15px;background:var(--surface3);border:1px solid var(--border);border-radius:9px}
+    .score-bar b{font:700 1.1rem var(--mono);color:var(--gold)}
+    .modal-backdrop{position:fixed;inset:0;z-index:2500;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:18px}
+    .modal-backdrop.show{display:flex}
+    .modal-box{width:min(760px,100%);max-height:86vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 24px 64px rgba(0,0,0,.6);padding:20px}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+    .modal-head h3{font-size:1.05rem;color:var(--gold)}
+    .modal-close{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--surface3);color:var(--dim);cursor:pointer;font:700 .9rem var(--mono)}
+    .modal-close:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+    .sim3d-section{padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;position:relative}
+    .sim3d-section h2{margin-bottom:6px;font-size:1.1rem;color:var(--cyan)}
+    .sim3d-blurb{margin-bottom:12px;font-size:.82rem;color:var(--dim);line-height:1.5}
+    .sim3d-layout{display:flex;gap:14px;align-items:flex-start}
+    .sim3d-wrap{position:relative;flex:1;min-width:0}
+    .sim3d-canvas{width:100%;height:460px;display:block;background:#00171e;border-radius:8px;touch-action:none;cursor:grab}
+    .sim3d-hint{position:absolute;right:10px;bottom:8px;font:600 .68rem var(--mono);color:var(--muted);background:rgba(0,0,0,.3);padding:2px 8px;border-radius:6px}
+    .sim3d-components{flex:0 0 190px;width:190px;max-height:460px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+    .sim3d-comp{padding:9px;border:1px solid var(--border);background:var(--surface3);color:var(--dim);border-radius:8px;cursor:pointer;font-size:.76rem;text-align:left}
+    .sim3d-comp:hover{background:var(--surface)}.sim3d-comp.active{background:var(--cyan);color:#00212b;font-weight:700}
+    .sim3d-resize{height:10px;cursor:ns-resize;background:linear-gradient(var(--border),transparent);border-radius:0 0 8px 8px;margin-top:2px}
+    .sim3d-section.fullscreen{position:fixed;inset:0;z-index:9998;margin:0;border-radius:0;background:var(--bg);display:flex;flex-direction:column;padding:0}
+    .sim3d-section.fullscreen .sim3d-layout{flex:1;min-height:0;margin:0;padding:10px}
+    .sim3d-section.fullscreen .sim3d-wrap,.sim3d-section.fullscreen .sim3d-canvas{height:100%!important}
+    .user-guide{padding:17px;font-size:.79rem;color:var(--dim);line-height:1.7}
+    .user-guide h3{color:var(--gold);margin-bottom:8px;font-size:.92rem}
+    .user-guide ol{padding-left:20px}.user-guide li{margin-bottom:5px}
+    .site-footer{padding:14px;text-align:center;font-size:.72rem;color:var(--muted);border-top:1px solid var(--border)}
+    @media(max-width:1000px){.sim-grid{grid-template-columns:1fr}.lab-layout{grid-template-columns:1fr}}
+    @media(max-width:620px){
+      body{padding:70px 11px 36px}
+      header.tool-header{padding:15px}
+      .param-grid{grid-template-columns:1fr}
+      .sim3d-layout{flex-direction:column}.sim3d-components{flex:none;width:100%;max-height:none;flex-direction:row;flex-wrap:wrap}
+      .sim3d-comp{flex:1 1 130px}
+      .btn,.pill{min-height:40px}
+      #display-chips{position:static;max-width:none}
+    }
+  </style>
 </head>
 <body>
-<a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
-  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
-</a>
+  <a href="#app" class="skip-link">Skip to content</a>
+  <a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab home"><img src="../../brand/no_background_logo.png" alt="NHIT VisualLab"></a>
 
-<main id="app">
-  <nav class="site-nav" aria-label="Breadcrumb">
-    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
-    <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/EMC)</span>
-  </nav>
+  <main id="app">
+    <nav class="site-nav" aria-label="Breadcrumb">
+      <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+      <span class="nav-sep">/</span><a href="../../electrical/index.html">Electrical Engineering</a>
+      <span class="nav-sep">/</span><span>Semester 4</span>
+      <span class="nav-sep">/</span><span aria-current="page">Electrical Measurement &amp; Control Virtual Lab</span>
+    </nav>
 
-  <header>
-    <h1>Electrical Measurement &amp; Control Virtual Lab</h1>
-    <p class="subtitle">LVDT Transducer Core Displacement, PID Closed-Loop Step Response &amp; Real-time Oscilloscope Telemetry</p>
-  </header>
-
-  <!-- Mode tabs bar (UTM model structure) -->
-  <div class="controls-bar">
-    <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
-      <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">Control Systems</button>
-        <button class="pill" data-value="quiz">Quiz</button>
-      </div>
-    </div>
-    <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; PID Tuning Guide</a>
-    </div>
-  </div>
-
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
-  <div id="model3d-wrapper" class="hidden">
-    <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Hardware — <span id="sim3d-title">LVDT Transducer &amp; PID Process Tank</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of LVDT Transducer Barrel, Movable Ferro Core Shaft, PID Control Process Tank, and Servo Control Valve Actuator.</p>
-      <div class="sim3d-layout">
-        <div class="sim3d-wrap">
-          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+    <header class="tool-header">
+      <div>
+        <div class="badges">
+          <span class="badge-code">EE/S4/EMC</span>
+          <span class="badge-topic">Transducers &amp; Automatic Control</span>
+          <span class="badge-wbscte">WBSCTE 4th Semester</span>
         </div>
-        <aside id="sim3d-components" class="sim3d-components"></aside>
+        <h1>Electrical Measurement &amp; Control Virtual Lab</h1>
+        <p class="subtitle">One workbench for LVDT phase-sensitive demodulation, RK4-solved PID closed-loop control and a four-channel storage oscilloscope with s-plane telemetry.</p>
       </div>
-    </section>
-  </div>
-
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
-  <div id="sim-wrapper">
-    <div class="emc-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">Mode:</label>
-        <select id="ctrl-mode-select" class="emc-select">
-          <option value="pid">1. Closed-Loop PID Controller Step Response</option>
-          <option value="lvdt">2. LVDT Linear Displacement Transducer (±10mm)</option>
-        </select>
+      <div class="header-actions">
+        <button class="btn ghost" id="btn-audio" aria-pressed="true" title="Toggle instrument sounds">
+          <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span id="audio-label">Sound on</span>
+        </button>
+        <button class="btn" id="btn-guide-jump">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>Workbench manual
+        </button>
       </div>
+    </header>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">Damping (&zeta;):</label>
-        <input type="range" id="zeta-range" min="0.1" max="1.5" step="0.05" value="0.6" class="slider-ctrl">
-        <span id="zeta-val" style="font-weight:700;color:#38bdf8;width:35px;display:inline-block;">0.60</span>
-      </div>
+    <nav class="mode-bar" id="mode-tabs" aria-label="Laboratory modes">
+      <span class="bar-label">Workspace</span>
+      <button class="pill active" data-mode="sim">Interactive Bench</button>
+      <button class="pill" data-mode="3d">3D Hardware Twin</button>
+      <button class="pill" data-mode="theory">Theory &amp; Formulae</button>
+      <button class="pill" data-mode="labs">Tuning Labs <span class="num" id="lab-count">0/9</span></button>
+      <button class="pill" data-mode="practice">Practical Calculations</button>
+      <button class="pill" data-mode="quiz">Trade Quiz</button>
+    </nav>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">Gain (Kp):</label>
-        <input type="number" id="kp-in" value="3.5" min="0.5" max="30" step="0.5" class="num-input">
-      </div>
+    <section id="section-sim" class="view-section show" aria-label="Interactive workbench">
+      <nav class="module-bar" id="module-tabs" aria-label="Lab module">
+        <span class="bar-label">Module</span>
+        <button class="pill active" data-module="lvdt"><span class="num">01</span> LVDT Transducer</button>
+        <button class="pill" data-module="pid"><span class="num">02</span> PID Step Response</button>
+        <button class="pill" data-module="dso"><span class="num">03</span> DSO &amp; s-Plane</button>
+      </nav>
 
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-step-trig">Trigger Step Input &#9654;</button>
-        <button class="btn-action success" id="btn-crit-damp">Set Optimal ζ = 0.707</button>
-      </div>
-    </div>
+      <div class="sim-grid">
+        <div class="pane">
+          <div class="card canvas-card" id="schematic-card">
+            <div class="card-head">
+              <div class="card-title"><span class="dot"></span><span id="schematic-title">LVDT Cutaway &amp; Signal Conditioner</span></div>
+              <div class="toolset">
+                <button class="tool-btn" id="btn-grid" title="Toggle grid (G)">▦</button>
+                <button class="tool-btn" id="btn-zoom-out" title="Zoom out (-)">−</button>
+                <button class="tool-btn" id="btn-zoom-in" title="Zoom in (+)">+</button>
+                <button class="tool-btn" id="btn-fit" title="Fit view (0)">⤢</button>
+                <button class="tool-btn" id="btn-fs-schematic" title="Fullscreen (F)" aria-label="Fullscreen canvas">⛶</button>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="ws-canvas" width="1000" height="560" aria-label="Animated apparatus canvas"></canvas>
+              <details class="glass-chip" id="display-chips" open>
+                <summary>Display</summary>
+                <label class="chk"><input type="checkbox" id="chk-flux" checked>Flux lines / signal flow</label>
+                <label class="chk"><input type="checkbox" id="chk-labels" checked>Component labels</label>
+                <label class="chk"><input type="checkbox" id="chk-equation" checked>On-canvas equation</label>
+                <label class="chk"><input type="checkbox" id="chk-grid">Engineering grid</label>
+              </details>
+              <div class="overlay-badges" id="hud-badges"></div>
+              <div class="zoom-pill" id="zoom-pill">100% · drag to pan</div>
+            </div>
+          </div>
 
-    <!-- Dual Canvas & Response -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Second-Order Closed-Loop Step Response y(t)</span>
-          <span class="badge" id="mp-badge">Overshoot Mp = 9.48%</span>
+          <div class="sim-controls">
+            <button class="btn primary" id="btn-run">▶ Run</button>
+            <button class="btn" id="btn-step-test">Trigger step test</button>
+            <button class="btn" id="btn-reset-view">Reset</button>
+            <span class="sep"></span>
+            <button class="btn" id="btn-zn">Ziegler–Nichols baseline</button>
+            <button class="btn" id="btn-disturb">Inject disturbance</button>
+            <span class="sep"></span>
+            <button class="btn" id="btn-calc">
+              <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h2m4 0h2M8 17h2m4 0h2"/></svg>Show calculations
+            </button>
+            <button class="btn" id="btn-png">PNG</button>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Instrument &amp; controller parameters</div><div class="card-sub">changes apply instantly</div></div>
+            <div class="param-grid" id="ctrl-grid"></div>
+            <div class="sim-controls" style="border:none;border-top:1px solid var(--border);border-radius:0 0 12px 12px">
+              <button class="btn primary" id="btn-log">Log reading</button>
+              <button class="btn" id="btn-sweep">Auto-sweep</button>
+              <button class="btn" id="btn-clear">Clear table</button>
+              <button class="btn success" id="btn-export">Export CSV / MD</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Instantaneous telemetry</div><div class="card-sub" id="state-line">—</div></div>
+            <div class="readouts" id="dmm-bank"></div>
+          </div>
+
+          <div class="card canvas-card" id="dso-card">
+            <div class="card-head">
+              <div class="card-title"><span class="dot" style="background:var(--gold);box-shadow:0 0 8px var(--gold)"></span>4-Channel Digital Storage Oscilloscope</div>
+              <div class="toolset">
+                <button class="tool-btn" id="btn-scope-mode" title="Run / Freeze">⏸</button>
+                <button class="tool-btn" id="btn-calipers" title="Toggle calipers">⇥</button>
+                <button class="tool-btn" id="btn-fs-dso" title="Fullscreen" aria-label="Fullscreen DSO">⛶</button>
+              </div>
+            </div>
+            <div class="canvas-wrap"><canvas id="dso-canvas" width="900" height="330" aria-label="Four channel oscilloscope"></canvas></div>
+            <div class="legend">
+              <span><i style="background:#22d3ee"></i>CH1</span><span><i style="background:#f5c842"></i>CH2</span>
+              <span><i style="background:#3ddc84"></i>CH3</span><span><i style="background:#a78bfa"></i>CH4</span>
+              <span id="scope-timebase">TIME/DIV —</span><span id="scope-measure">Δt — · ΔV —</span>
+            </div>
+          </div>
         </div>
-        <canvas id="emc-canvas" width="700" height="420"></canvas>
-      </div>
 
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Transient Dynamics &amp; LVDT Calibration</span>
-        </div>
-        <div class="emc-grid">
-          <div class="emc-box"><span class="emc-lbl">Peak Overshoot (Mp)</span><span class="emc-val" id="disp-mp">9.48 %</span></div>
-          <div class="emc-box"><span class="emc-lbl">Settling Time (ts, 2%)</span><span class="emc-val" id="disp-ts">1.667 sec</span></div>
-          <div class="emc-box"><span class="emc-lbl">Rise Time (tr)</span><span class="emc-val" id="disp-tr">0.682 sec</span></div>
-          <div class="emc-box"><span class="emc-lbl">LVDT Core Position</span><span class="emc-val">+4.50 mm (225.0 mV)</span></div>
-          <div class="emc-box"><span class="emc-lbl">Steady State Error (ess)</span><span class="emc-val" id="disp-ess">0.222 (22.2%)</span></div>
-          <div class="emc-box"><span class="emc-lbl">Loop Stability Status</span><span class="emc-val" style="color:#10b981;">STABLE (LHP Poles)</span></div>
-        </div>
+        <div class="pane">
+          <div class="card">
+            <div class="card-head"><div class="card-title">Performance metrics</div><div class="card-sub" id="cycle-subtitle">—</div></div>
+            <div class="readouts" id="cycle-bank"></div>
+          </div>
 
-        <div class="console-box">
-          <div class="console-title">Control Systems Telemetry:</div>
-          <div class="console-log" id="emc-log">
-            &gt; Initialized Electrical Measurement &amp; Control Virtual Lab.<br>
-            &gt; System Transfer Function: G(s) = &omega;n&sup2; / (s&sup2; + 2&zeta;&omega;n&middot;s + &omega;n&sup2;) with &omega;n = 4.0 rad/s, &zeta; = 0.60.<br>
-            &gt; Peak Overshoot Mp = 9.48% at tp = 0.98s. Settling time ts = 1.67s.<br>
-            &gt; LVDT Differential Output Voltage: 225.0 mV RMS (Linearity &gt; 99.8%).
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title" id="plot-title">Characteristic</div>
+              <div class="subtabs" id="plot-tabs"></div>
+            </div>
+            <div class="canvas-wrap"><canvas id="plot-canvas" width="560" height="400" aria-label="Analytical plot"></canvas></div>
+          </div>
+
+          <div class="card derivation">
+            <h3><svg viewBox="0 0 24 24" width="15" height="15" style="stroke:currentColor;fill:none;stroke-width:1.8"><path d="M4 7h16M4 12h10M4 17h16"/></svg>Live derivation</h3>
+            <div id="derivation"></div>
+          </div>
+
+          <div class="card notebook">
+            <div class="notebook-head"><h3>Observation Notebook</h3><span class="card-sub" id="row-count">0 readings logged</span></div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>#</th><th>Module</th><th>Setting</th><th>Reading</th><th>Figure</th><th>Verdict</th></tr></thead>
+                <tbody id="obs-body"><tr class="empty-row"><td colspan="6">No readings yet — adjust a control and choose “Log reading”.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="challenge" style="margin-top:12px">
+              <div class="challenge-tag">LIVE INSTRUMENT AUDIT</div>
+              <h4 id="bench-challenge-title">System health</h4>
+              <div class="audit" id="bench-audit"></div>
+              <div class="compliance" id="compliance-banner" style="margin-top:10px">All monitored parameters nominal.</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
-  <div id="explore-wrapper" class="hidden">
-    <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/EMC Electrical Measurement &amp; Control</h2>
-      <div class="theory-grid">
-        <div class="theory-item">
-          <h3>1. LVDT Inductive Transducer</h3>
-          <p>Linear Variable Differential Transformer converts mechanical displacement into a differential AC voltage ($V_{out} = V_{S1} - V_{S2}$). Null position yields $V_{out} \approx 0\text{V}$.</p>
-        </div>
-        <div class="theory-item">
-          <h3>2. PID Controller Response</h3>
-          <p><strong>Proportional ($K_p$):</strong> Reduces rise time and steady-state error.<br><strong>Integral ($K_i$):</strong> Eliminates steady-state offset ($e_{ss} \to 0$).<br><strong>Derivative ($K_d$):</strong> Increases damping and reduces peak overshoot.</p>
-        </div>
-        <div class="theory-item">
-          <h3>3. Time-Domain Specifications</h3>
-          <p>Peak overshoot $\%M_p = 100 e^{-\frac{\zeta\pi}{\sqrt{1-\zeta^2}}}$, Settling time $t_s = \frac{4}{\zeta\omega_n}$, Rise time $t_r = \frac{\pi - \beta}{\omega_d}$.</p>
-        </div>
-        <div class="theory-item">
-          <h3>4. Industrial Transducers</h3>
-          <p>Thermocouple (Seebeck effect), RTD Pt100 ($R_t = R_0(1+\alpha t)$), Strain Gauge (Gauge factor $GF = \frac{\Delta R/R}{\Delta L/L}$), Piezoelectric quartz crystals.</p>
+    <section id="section-3d" class="view-section" aria-label="3D hardware twin">
+      <div id="model3d-wrapper" data-v2-inline="1">
+        <div class="sim3d-section" id="sim3d-section">
+          <h2>3D Hardware Twin — <span id="sim3d-title">LVDT &amp; PID Control Rig</span></h2>
+          <p class="sim3d-blurb">Inspect the transducer barrel, movable core, signal-conditioning PCB and process actuator. Select a component, then drag to rotate · scroll to zoom · right-drag to pan.</p>
+          <div class="sim3d-layout">
+            <div class="sim3d-wrap"><canvas id="sim3d-canvas" class="sim3d-canvas"></canvas><div class="sim3d-hint">Drag to rotate · Scroll to zoom</div></div>
+            <aside id="sim3d-components" class="sim3d-components" aria-label="3D components"></aside>
+          </div>
+          <div class="sim3d-resize" id="sim3d-resize"></div>
         </div>
       </div>
-    </div>
+    </section>
+
+    <section id="section-theory" class="view-section" aria-label="Theory and formulae">
+      <div class="theory-grid">
+        <article class="theory-card">
+          <h3><span class="ic">01</span>LVDT Induction &amp; Demodulation</h3>
+          <p>The differential secondary voltage encodes both magnitude and direction through its phase relative to the carrier:</p>
+          <div class="formula" data-tex="$$x_{\text{eff}}=x_{\text{lin}}\tanh(x/x_{\text{lin}}),\qquad v_{\text{diff}}=(V_{s1}-V_{s2})\sin\omega_c t+V_{\text{null}}\cos\omega_c t$$"></div>
+          <div class="formula" data-tex="$$V_{\text{out,DC}}=G_{\text{amp}}\,S\,V_{p,\text{rms}}\,x_{\text{eff}},\qquad \theta=0^\circ/180^\circ\ \text{for}\ x>0/x<0$$"></div>
+          <ul><li>At the null, an ideal LVDT reads 0 V; residual quadrature leakage leaves a few mV.</li><li>Raw RMS magnitude cannot distinguish +5 mm from −5 mm — PSD recovers the sign.</li></ul>
+        </article>
+        <article class="theory-card">
+          <h3><span class="ic">02</span>PID Control Law</h3>
+          <div class="formula" data-tex="$$G_c(s)=K_p+\frac{K_i}{s}+\frac{K_d s}{1+s/N_f},\qquad u=\operatorname{clamp}\!\left(K_pe+K_i\!\int e\,dt+K_d\dot e_f\right)$$"></div>
+          <ul><li><b>P</b> reduces rise time but leaves offset on a Type-0 plant; <b>I</b> removes offset; <b>D</b> adds damping.</li><li>Anti-windup freezes integration at the saturation rails; derivative-on-measurement avoids setpoint kick.</li></ul>
+        </article>
+        <article class="theory-card">
+          <h3><span class="ic">03</span>Step-Response Specifications</h3>
+          <div class="formula" data-tex="$$\%OS=100\,e^{-\zeta\pi/\sqrt{1-\zeta^2}},\qquad t_s\approx\frac{4}{\zeta\omega_n},\qquad \omega_n=\frac{1}{\tau}$$"></div>
+          <p>Ziegler–Nichols ultimate sensitivity: <span data-tex="$K_p=0.6K_u$"></span>, <span data-tex="$K_i=1.2K_u/T_u$"></span>, <span data-tex="$K_d=0.075K_uT_u$"></span>.</p>
+        </article>
+        <article class="theory-card">
+          <h3><span class="ic">04</span>Stability &amp; the s-Plane</h3>
+          <p>The closed-loop poles are the roots of <span data-tex="$1+G_c(s)G_p(s)=0$"></span>. Poles in the left half-plane give stable settling; crossing into the right half-plane produces divergent oscillation.</p>
+          <div class="formula" data-tex="$$G_p(s)=\frac{K_{\text{plant}}}{(0.25s)^2+2\zeta_p(0.25)s+1}$$"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="section-labs" class="view-section" aria-label="Tuning labs">
+      <div class="lab-layout">
+        <div class="card" style="padding:12px"><div class="lab-list" id="lab-list"></div></div>
+        <div class="card lab-detail" id="lab-detail"></div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="progress-line"><span class="progress-text">Labs complete</span>
+          <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+          <span class="progress-text" id="progress-text">0 / 9 complete</span><span class="progress-text" id="rank-text">Rank: Trainee</span></div>
+      </div>
+    </section>
+
+    <section id="section-practice" class="view-section" aria-label="Practical calculations">
+      <div class="score-bar"><span>Score</span><b id="practice-score">0 / 0</b><span id="practice-verdict" style="color:var(--dim);font-size:.8rem">Generate a randomized problem.</span>
+        <button class="btn primary" id="btn-new-problem" style="margin-left:auto">New problem</button></div>
+      <div class="card practice-card" id="practice-card"></div>
+    </section>
+
+    <section id="section-quiz" class="view-section" aria-label="Trade quiz">
+      <div class="score-bar"><span>Score</span><b id="quiz-score">0 / 5</b><span id="quiz-verdict" style="color:var(--dim);font-size:.8rem">Answer all five questions.</span><button class="btn" id="btn-quiz-reset" style="margin-left:auto">Reset quiz</button></div>
+      <div class="quiz-list" id="quiz-list"></div>
+    </section>
+
+    <section class="card user-guide" id="user-guide">
+      <h3>Standard operating procedure</h3>
+      <ol>
+        <li>Open the LVDT module and drag the core (or the vernier) through the ±15 mm stroke; watch the carrier phase flip on the DSO.</li>
+        <li>Switch between raw AC and phase-sensitive demodulation to see how signed displacement is recovered.</li>
+        <li>In the PID module, trigger a step test, tune Kp/Ki/Kd, and read tr, %OS, ts and ess from the metrics panel.</li>
+        <li>Enable anti-windup and derivative-on-measurement, inject a disturbance, and inspect s-plane pole migration.</li>
+        <li>Log readings, export the report, then attempt the nine tuning labs, practice calculations and quiz.</li>
+      </ol>
+    </section>
+    <footer class="site-footer">NHIT VisualLab · Electrical Measurement &amp; Control · EE/S4/EMC</footer>
+  </main>
+
+  <div class="modal-backdrop" id="calc-modal" role="dialog" aria-modal="true" aria-label="Step-by-step calculations">
+    <div class="modal-box"><div class="modal-head"><h3>Step-by-step calculation</h3><button class="modal-close" id="btn-close-modal" aria-label="Close">×</button></div><div id="modal-steps"></div></div>
   </div>
-</main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+  <script>window.$=window.$||function(id){return document.getElementById(id)};window.V2_TOOL_ID="electrical-measurement-control";window.V2_MODEL="electrical_measurement_control";window.V2_COMPONENTS_URL="/models/electrical_measurement_control_components.json";window.V2_COMPONENTS=[{label:"Measurement & Control Rig",url:"/models/electrical_measurement_control.glb"}];</script>
+  <script src="/js/v2_model_embed.js"></script>
 
-const canvas = document.getElementById('emc-canvas');
-const ctx = canvas.getContext('2d');
-let currentZeta = 0.6;
-let currentKp = 3.5;
+  <script>
+  (function(){
+    "use strict";
+        const $ = id => document.getElementById(id);
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const fmt=(v,d)=>{if(!isFinite(v))return "inf";return Number(v).toFixed(d===undefined?2:d);};
+    const COL={bg:'#0d1117',grid:'#16323c',gridHi:'#1f4a57',metal1:'#232b3d',metal2:'#2d3748',metal3:'#1e2533',
+      text:'#e6edf6',dim:'#9fb8c4',accent:'#22d3ee',violet:'#a78bfa',green:'#3ddc84',gold:'#f5c842',red:'#ef5350',
+      ch1:'#22d3ee',ch2:'#f5c842',ch3:'#3ddc84',ch4:'#a78bfa',phase:'#ff7043'};
 
-function drawResponse() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0a0f1d';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const S={
+      module:'lvdt',mode:'sim',t:0,lastTs:0,running:true,scopeRunning:true,audioOn:true,
+      zoom:1,panX:0,panY:0,plotTab:0,dpr:1,results:{},rows:[],quiz:{},labsDone:new Set(),selectedLab:1,
+      practice:{n:0,score:0,cur:null},tones:{},calipers:true,cal1:.28,cal2:.72,
+      display:{flux:true,labels:true,equation:true,grid:false},
+      p:{
+        lvdt:{x:4,Vp:5,fc:2500,vnull:2,G:20,mode:'psd'},
+        pid:{plant:'servo',Kp:4.5,Ki:8,Kd:.65,tau:.25,zeta:.3,Kplant:1,r:1,antiWind:true,derivMeas:false,dist:0,uf:.0,Nf:10},
+        dso:{timeDiv:.5,voltDiv:1,fft:false}
+      },
+      sim:{t:0,y:0,v:0,i:0,df:0,eprev:0,yprev:0,dyf:0,u:0,e:0,samples:[],metrics:{},distAt:2,distFired:false}
+    };
 
-  const wn = 4.0;
-  let mp = 0;
-  if (currentZeta < 1.0) {
-    mp = 100 * Math.exp(- (currentZeta * Math.PI) / Math.sqrt(1 - currentZeta * currentZeta));
-  }
-  const ts = 4.0 / (currentZeta * wn);
-  const ess = 1.0 / (1.0 + currentKp);
+    const Sound={
+      ctx:null,
+      ac(){if(!this.ctx){const A=window.AudioContext||window.webkitAudioContext;if(A)this.ctx=new A();}return this.ctx;},
+      tone(freq,dur,type,vol){if(!S.audioOn)return;const c=this.ac();if(!c)return;const o=c.createOscillator(),g=c.createGain();
+        o.type=type||'sine';o.frequency.value=freq;g.gain.setValueAtTime(.0001,c.currentTime);
+        g.gain.exponentialRampToValueAtTime(vol||.05,c.currentTime+.008);
+        g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+(dur||.1));
+        o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+(dur||.1)+.02);},
+      click(){this.tone(880,.035,'square',.025)},
+      ratchet(){this.tone(1400,.025,'square',.03)},
+      clunk(){this.tone(90,.22,'sawtooth',.07)},
+      chord(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,.22,'sine',.045),i*90))},
+      error(){this.tone(150,.22,'sawtooth',.045)},
+      sustained(key,on,freq,vol,type){if(!S.audioOn)on=false;const c=this.ac();if(!c)return;
+        if(on&&!S.tones[key]){const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=freq;g.gain.value=vol;
+          o.connect(g).connect(c.destination);o.start();S.tones[key]={o,g};}
+        else if(!on&&S.tones[key]){try{S.tones[key].o.stop()}catch(e){}S.tones[key]=null;}}
+    };
 
-  document.getElementById('disp-mp').textContent = `${mp.toFixed(2)} %`;
-  document.getElementById('disp-ts').textContent = `${ts.toFixed(3)} sec`;
-  document.getElementById('disp-ess').textContent = `${ess.toFixed(3)} (${(ess*100).toFixed(1)}%)`;
-  document.getElementById('mp-badge').textContent = `Overshoot Mp = ${mp.toFixed(1)}%`;
-
-  // Grid & Axes
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(60, 340); ctx.lineTo(640, 340); ctx.stroke(); // Time axis
-  ctx.beginPath(); ctx.moveTo(60, 40); ctx.lineTo(60, 340); ctx.stroke();  // Amplitude axis
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '11px monospace';
-  ctx.fillText('Time t (seconds)', 540, 365);
-  ctx.fillText('Output y(t)', 70, 55);
-
-  // Setpoint Line (y = 1.0)
-  ctx.strokeStyle = '#ef4444';
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(60, 180); ctx.lineTo(640, 180); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#ef4444';
-  ctx.fillText('Step Setpoint r(t) = 1.0', 480, 172);
-
-  // Step Response Curve y(t) = 1 - (e^(-zeta*wn*t) / sqrt(1-zeta^2)) * sin(wd*t + beta)
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (let px = 60; px <= 640; px += 2) {
-    const t = (px - 60) * (3.0 / 580.0); // 0 to 3.0 seconds
-    let yt = 0;
-    if (currentZeta < 1.0) {
-      const wd = wn * Math.sqrt(1 - currentZeta * currentZeta);
-      const beta = Math.acos(currentZeta);
-      yt = 1.0 - (Math.exp(-currentZeta * wn * t) / Math.sqrt(1 - currentZeta * currentZeta)) * Math.sin(wd * t + beta);
-    } else {
-      yt = 1.0 - Math.exp(-wn * t) * (1 + wn * t);
+    /* ───────────────────── LVDT physics ───────────────────── */
+    function solveLVDT(p){
+      const xlin=10,xeff=xlin*Math.tanh(p.x/xlin);
+      const Vs1=p.Vp*(.272+.0012*xeff),Vs2=p.Vp*(.272-.0012*xeff);
+      const diffMagnitude=Math.abs(Vs1-Vs2)*1000;
+      const rawMv=diffMagnitude+(Math.abs(p.x)<.05?p.vnull:0);
+      const vout=p.G*.0024*p.Vp*xeff;
+      const ideal=p.G*.0024*p.Vp*p.x;
+      const linErr=Math.abs(p.x)<=xlin?0:Math.abs(vout-ideal)/Math.max(.01,Math.abs(ideal))*100;
+      const phase=p.x>.05?0:(p.x<-.05?180:90);
+      const sensitivity=2.4;
+      return {xeff,Vs1,Vs2,rawMv,vout,ideal,linErr,phase,sensitivity,
+        state:Math.abs(p.x)>xlin?'SATURATION ROLL-OFF':(Math.abs(p.x)<.05?'AT NULL':'LINEAR RANGE')};
     }
-    const py = 340 - yt * 160;
-    if (px === 60) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.stroke();
 
-  // Peak Overshoot Dot
-  if (currentZeta < 1.0) {
-    const tp = Math.PI / (wn * Math.sqrt(1 - currentZeta * currentZeta));
-    const peakX = 60 + tp * (580.0 / 3.0);
-    const peakY = 340 - (1.0 + mp / 100.0) * 160;
-
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath(); ctx.arc(peakX, peakY, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillText(`Peak: Mp = ${mp.toFixed(1)}% at tp = ${tp.toFixed(2)}s`, peakX - 50, peakY - 12);
-  }
-}
-
-const zetaRange = document.getElementById('zeta-range');
-const zetaVal = document.getElementById('zeta-val');
-const kpIn = document.getElementById('kp-in');
-const logEl = document.getElementById('emc-log');
-
-zetaRange.addEventListener('input', () => {
-  currentZeta = parseFloat(zetaRange.value);
-  zetaVal.textContent = currentZeta.toFixed(2);
-  drawResponse();
-});
-
-kpIn.addEventListener('input', () => {
-  currentKp = parseFloat(kpIn.value) || 3.5;
-  drawResponse();
-});
-
-document.getElementById('btn-step-trig').addEventListener('click', () => {
-  logEl.innerHTML += `<br>&gt; [STEP TRIGGER] Step input applied: &zeta; = ${currentZeta.toFixed(2)}, Kp = ${currentKp}. Response converged in ${(4.0/(currentZeta*4.0)).toFixed(2)}s.`;
-  drawResponse();
-});
-
-document.getElementById('btn-crit-damp').addEventListener('click', () => {
-  currentZeta = 0.707;
-  zetaRange.value = 0.707;
-  zetaVal.textContent = '0.71';
-  logEl.innerHTML += '<br>&gt; [OPTIMAL TUNING] Set Butterworth damping ratio &zeta; = 0.707. Minimal overshoot (4.3%) with fast settling time.';
-  drawResponse();
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/electrical_measurement_control.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
+    /* ───────────────────── PID RK4 solver ───────────────────── */
+    function runStepTest(){
+      const p=S.p.pid,dt=.001,T=4,samples=[];
+      const st=S.sim;st.t=0;st.y=0;st.v=0;st.i=0;st.df=0;st.eprev=0;st.yprev=0;st.dyf=0;st.u=0;st.e=p.r;st.distFired=false;
+      const iae={v:0,itae:0,peak:0,peakT:0},tau=p.tau,zeta=p.zeta,KpPlant=p.Kplant;
+      let ess=0,rise10=null,rise90=null,settle=0;
+      const yss=p.Kplant*p.r/(1+(p.Ki>0?Infinity:p.Kp));
+      for(let k=0;k<=T/dt;k++){
+        const t=k*dt;st.t=t;
+        const r=t>=.001?p.r:0;
+        const e=r-st.y;st.e=e;
+        const rawd=(e-st.eprev)/dt,rawyd=(st.y-st.yprev)/dt;
+        const dfTau=p.pid_tau_override||(tau/p.Nf);
+        st.df+=((p.derivMeas?-rawyd:rawd)-st.df)*dt/(dt+dfTau);
+        st.dyf+=(rawyd-st.dyf)*dt/(dt+.02);
+        let u=p.Kp*e+p.Ki*st.i+p.Kd*st.df;
+        const umax=10,umin=-10;
+        const sat=u>umax||u<umin;
+        if(!(p.antiWind&&sat&&((u>umax&&e>0)||(u<umin&&e<0))))st.i+=e*dt;
+        u=clamp(u,umin,umax);st.u=u;
+        if(p.dist>0&&t>=st.distAt&&!st.distFired){st.distFired=true;}
+        const dist=(p.dist>0&&t>=st.distAt)?p.dist:0;
+        const deriv=(s)=>{const yy=s[0],vv=s[1];return [vv,(KpPlant*(u+dist)-2*zeta*tau*vv-yy)/(tau*tau)];};
+        let y=[st.y,st.v];
+        const k1=deriv(y),k2=deriv([y[0]+dt*k1[0]/2,y[1]+dt*k1[1]/2]),
+              k3=deriv([y[0]+dt*k2[0]/2,y[1]+dt*k2[1]/2]),k4=deriv([y[0]+dt*k3[0],y[1]+dt*k3[1]]);
+        st.y+=dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;
+        st.v+=dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;
+        st.eprev=e;st.yprev=st.y-p.r*0;
+        iae.v+=Math.abs(e)*dt;iae.itae+=t*Math.abs(e)*dt;
+        if(st.y>iae.peak){iae.peak=st.y;iae.peakT=t;}
+        if(rise10===null&&st.y>=.1*p.r)rise10=t;
+        if(rise90===null&&st.y>=.9*p.r)rise90=t;
+        const finalGuess=p.Kplant*p.r/(1+(p.Ki>0?0:p.Kp));
+        if(Math.abs(st.y-finalGuess)>Math.max(.02*Math.abs(finalGuess),.005))settle=t;
+        if(k%4===0)samples.push({t:t,y:st.y,r:r,u:u,e:e});
+        ess=Math.abs(r-st.y);
       }
-    });
-  });
+      const finalY=samples[samples.length-1].y;
+      const overshoot=Math.max(0,(iae.peak-finalY)/Math.max(.001,Math.abs(finalY))*100);
+      st.samples=samples;
+      st.metrics={tr:rise10!==null&&rise90!==null?rise90-rise10:0,os:overshoot,ts:settle,ess:Math.abs(p.r-finalY),
+        iae:iae.v,itae:iae.itae,peak:iae.peak,peakT:iae.peakT,yssfinal:finalY};
+      solvePoles();
+      return st.metrics;
+    }
+    function cubicRoots(a,b,c,d){
+      const f=s=>((a*s+b)*s+c)*s+d;
+      let lo=-100,hi=100;
+      for(let i=0;i<200;i++){const mid=(lo+hi)/2;if(f(lo)*f(mid)<=0)hi=mid;else lo=mid;}
+      const r1=(lo+hi)/2;
+      const B=b+a*r1,C=c+B*r1;
+      const disc=C*C-4*B*d*(B===0?1:1);
+      if(B===0)return [{re:r1,im:0},{re:0,im:Math.sqrt(Math.abs(C))},{re:0,im:-Math.sqrt(Math.abs(C))}];
+      const s=Math.sqrt(Math.max(0,C*C-4*B*d));
+      const q=(-C+s)/2,B2=B;
+      const re=q/B2,im=Math.sqrt(Math.max(0,d/(a*r1||1)-re*re));
+      return [{re:r1,im:0},{re:re,im:isFinite(im)?im:0},{re:re,im:isFinite(im)?-im:0}];
+    }
+    function solvePoles(){
+      const p=S.p.pid,tau=p.tau,z=p.zeta,K=p.Kplant;
+      const a=tau*tau,b=2*z*tau+K*p.Kd/(1+p.Kd*.01),c=1+K*p.Kp,d=K*p.Ki;
+      S.sim.poles=d<.0001?[{re:-b/a,im:0},{re:(-c+Math.sqrt(Math.max(0,c*c-4*a*d)))/(2*a),im:0},
+        {re:(-c-Math.sqrt(Math.max(0,c*c-4*a*d)))/(2*a),im:0}]:cubicRoots(a,b,c,d);
+      S.sim.stable=S.sim.poles.every(q=>q.re<0);
+    }
 
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
+    /* ───────────────────── DSO waveform buffers ───────────────────── */
+    function dsoBuffers(){
+      const N=1024,buf=[[],[],[],[]];
+      if(S.module==='lvdt'){
+        const L=S.results.lvdt,p=S.p.lvdt,wc=2*Math.PI*p.fc,T=4/p.fc;
+        for(let i=0;i<N;i++){
+          const t=i/N*T,car=Math.sin(wc*t),amp=p.x>=0?1:-1;
+          const diff=amp*(Math.abs(L.vout)/Math.max(.01,p.G*.0024*p.Vp*10))*car+(p.vnull/1000)*Math.cos(wc*t);
+          buf[0].push(car);buf[1].push(diff*4);buf[2].push(L.vout/Math.max(1,p.G*.0024*p.Vp*15)*2);buf[3].push(p.vnull/20*Math.cos(wc*t));
+        }
+      }else{
+        const sm=S.sim.samples;
+        for(let i=0;i<N;i++){
+          const q=sm[Math.floor(i/N*sm.length)]||{y:0,r:0,u:0,e:0};
+          buf[0].push(q.r);buf[1].push(q.y);buf[2].push(q.u/12);buf[3].push(q.e);
+        }
+      }
+      return buf;
+    }
+    function solveAll(){S.results.lvdt=solveLVDT(S.p.lvdt);solvePoles();}
 
-drawResponse();
-</script>
+    /* ───────────────────── canvas helpers ───────────────────── */
+    function line(c,x1,y1,x2,y2,col,w,dash){c.strokeStyle=col;c.lineWidth=w||2;c.setLineDash(dash||[]);c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();c.setLineDash([]);}
+    function txt(c,s,x,y,col,size,align){c.fillStyle=col||COL.text;c.font=(size||13)+'px JetBrains Mono, monospace';c.textAlign=align||'left';c.fillText(String(s),x,y);}
+    function dot(c,x,y,r,col){c.fillStyle=col;c.beginPath();c.arc(x,y,r||4,0,Math.PI*2);c.fill();}
+    function roundRect(c,x,y,w,h,r,col,border){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);
+      if(col){c.fillStyle=col;c.fill();}if(border){c.strokeStyle=border;c.lineWidth=1.5;c.stroke();}}
+    function haloText(c,s,x,y,col,size,align){c.save();c.font='700 '+size+'px JetBrains Mono, monospace';c.textAlign=align||'left';
+      c.lineWidth=5;c.strokeStyle='rgba(0,0,0,.78)';c.strokeText(s,x,y);c.fillStyle=col;c.fillText(s,x,y);c.restore();}
+    function glow(c,col,blur){c.shadowColor=col;c.shadowBlur=blur;}
+    function clearGlow(c){c.shadowBlur=0;}
+    function resizeHi(cv,lw,lh){const dpr=Math.min(window.devicePixelRatio||1,3),cssW=cv.clientWidth||lw;
+      cv.width=Math.round(cssW*dpr);cv.height=Math.round(cssW*lh/lw*dpr);return dpr;}
+    function resizeAll(){S.dpr=resizeHi($('ws-canvas'),1000,560);resizeHi($('dso-canvas'),900,330);resizeHi($('plot-canvas'),560,400);drawAll();}
+    function beginCanvas(cv){
+      const c=cv.getContext('2d'),d=S.dpr;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,cv.width,cv.height);
+      const z=cv===$('ws-canvas')?S.zoom:1,px=cv===$('ws-canvas')?S.panX:0,py=cv===$('ws-canvas')?S.panY:0;
+      c.setTransform(d*z,0,0,d*z,px*d,py*d);c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';return c;
+    }
+    function canvasSize(cv){return {w:cv.width/S.dpr,h:cv.height/S.dpr};}
+    function gridBg(c,w,h,step){c.fillStyle=COL.bg;c.fillRect(0,0,w,h);if(!S.display.grid)return;
+      for(let x=0;x<=w;x+=step)line(c,x,0,x,h,COL.grid,1);for(let y=0;y<=h;y+=step)line(c,0,y,w,y,COL.grid,1);}
+    function eqToken(c,t,x,y){c.font=t.f;c.fillStyle=t.c;c.fillText(t.t,x,y);const w=c.measureText(t.t).width;
+      if(t.sup){c.font='700 9px "Cambria Math",serif';c.fillText(t.sup,x+w,y-10);}
+      if(t.sub){c.font='700 9px "Cambria Math",serif';c.fillText(t.sub,x+w,y+10);}return w+(t.sup||t.sub?11:0);}
+    function drawEquation(c,x,y,tokens,maxW){let scale=1,total=0;c.save();
+      tokens.forEach(t=>{c.font=t.f;t.w=c.measureText(t.t).width+(t.sup||t.sub?11:0);});
+      total=tokens.reduce((a,t)=>a+t.w,0);if(total>maxW)scale=maxW/total;
+      c.translate(x,y);c.scale(scale,scale);let cx=0;tokens.forEach(t=>{eqToken(c,t,cx,0);cx+=t.w;});c.restore();}
+        /* ───────────────────── LVDT CUTAWAY ───────────────────── */
+    function drawLVDT(c,w,h){
+      const L=S.results.lvdt,p=S.p.lvdt;
+      const bg=c.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#0d1117');bg.addColorStop(1,'#0a1a20');c.fillStyle=bg;c.fillRect(0,0,w,h);
+      roundRect(c,24,26,w-48,470,10,'#12303a','#2a5b68');
+      haloText(c,'LVDT CUTAWAY · SERIES-OPPOSED SECONDARIES · 500 Hz–10 kHz CARRIER',w/2,56,COL.accent,13,'center');
+      const cx=470,cy=232,coilTop=150,coilH=155;
+      const seg=[{x:250,w:110,c:COL.phase,t:'S1'},{x:360,w:120,c:COL.accent,t:'PRIMARY P'},{x:480,w:110,c:COL.violet,t:'S2'}];
+      seg.forEach((s,i)=>{
+        roundRect(c,s.x,coilTop,s.w,coilH,8,'#0a1a22',s.c);
+        for(let k=0;k<9;k++){const yy=coilTop+12+k*15;c.strokeStyle=s.c;c.lineWidth=3;
+          c.beginPath();c.ellipse(s.x+s.w/2,yy,s.w/2-6,6,0,0,Math.PI*2);c.stroke();}
+        txt(c,s.t,s.x+s.w/2,coilTop-10,s.c,12,'center');
+      });
+      const px=cx+(p.x/15)*150;
+      const core=c.createLinearGradient(0,cy-26,0,cy+26);
+      core.addColorStop(0,'#9fb8c4');core.addColorStop(.5,'#5b6b84');core.addColorStop(1,'#33424d');
+      roundRect(c,px-82,cy-24,164,48,6,core,'#c8d6e5');
+      for(let i=0;i<5;i++)line(c,px-70+i*35,cy-24,px-70+i*35,cy+24,'rgba(10,20,28,.35)',2);
+      txt(c,'SOFT-IRON CORE',px,cy+42,COL.gold,10,'center');
+      line(c,px-82,cy,150,cy,COL.wire||COL.dim,5);
+      roundRect(c,70,cy-34,80,68,5,'#1e2533',COL.gold);
+      for(let i=0;i<12;i++)line(c,82+i*6,cy-34,82+i*6,cy-24,COL.gold,2);
+      txt(c,'MICROMETER',110,cy+50,COL.dim,10,'center');
+      txt(c,fmt(p.x,2)+' mm',110,cy+66,COL.gold,12,'center');
+      if(S.display.flux){
+        const phi=clamp(Math.abs(p.x)/10,0,1);
+        for(let i=0;i<6;i++){
+          const t=S.t*1.8+i*Math.PI/3,yy=coilTop+20+(i%3)*48;
+          c.strokeStyle='rgba(245,200,66,'+(.12+phi*.4)+')';c.lineWidth=2;
+          c.beginPath();c.moveTo(365,yy);c.bezierCurveTo(420,yy-18,490,yy+18,540,yy);c.stroke();
+          dot(c,365+((S.t*120+i*40)%180),yy,2.5,COL.gold);
+        }
+        txt(c,'MUTUAL FLUX Φ ∝ x',450,128,COL.gold,10,'center');
+      }
+      roundRect(c,660,110,195,250,9,'#0d2730',COL.green);
+      txt(c,'SIGNAL CONDITIONER',757,134,COL.green,11,'center');
+      roundRect(c,688,158,138,58,6,'#061a22',COL.phase);
+      txt(c,'PHASE-SENSITIVE',757,182,COL.phase,10,'center');txt(c,'DEMODULATOR',757,198,COL.phase,10,'center');
+      roundRect(c,688,232,138,48,6,'#061a22',COL.cyan);
+      txt(c,'2nd-ORDER LPF',757,260,COL.cyan,11,'center');
+      txt(c,p.mode==='psd'?'PSD SIGNED DC':'RAW AC RMS',757,304,p.mode==='psd'?COL.green:COL.gold,11,'center');
+      const meterX=757,meterY=360;
+      c.strokeStyle=COL.dim;c.lineWidth=2;c.beginPath();c.arc(meterX,meterY,44,Math.PI,2*Math.PI);c.stroke();
+      const frac=clamp(L.vout/6,-1,1),ang=Math.PI+Math.PI*(frac+1)/2;
+      glow(c,COL.green,8);line(c,meterX,meterY,meterX+Math.cos(ang)*36,meterY+Math.sin(ang)*36,COL.green,3);clearGlow(c);
+      txt(c,fmt(L.vout,2)+' V',meterX,meterY+24,COL.green,12,'center');
+      line(c,590,cy,660,180,COL.wire||COL.dim,3);
+      if(S.display.labels){
+        txt(c,'Vs1 '+fmt(L.Vs1,3)+' V',250,coilTop+coilH+22,COL.phase,10,'center');
+        txt(c,'Vs2 '+fmt(L.Vs2,3)+' V',535,coilTop+coilH+22,COL.violet,10,'center');
+        txt(c,'θ = '+L.phase+'°  ·  raw '+fmt(L.rawMv,1)+' mV',450,coilTop+coilH+42,COL.gold,10,'center');
+      }
+      if(S.display.equation){
+        const vf='italic 700 15px "Cambria Math",serif',sf='700 9px "Cambria Math",serif';
+        drawEquation(c,44,460,[{t:'V',f:vf,c:COL.green},{t:'out',f:sf,c:COL.green,sub:1},
+          {t:' = G·S·V',f:vf,c:COL.gold},{t:'p',f:sf,c:COL.gold,sub:1},{t:'·x',f:vf,c:COL.cyan},{t:'eff',f:sf,c:COL.cyan,sub:1}],380);
+      }
+      haloText(c,L.state+' · x_eff '+fmt(L.xeff,2)+' mm · linearity error '+fmt(L.linErr,1)+'%',w/2,520,L.linErr>1?COL.red:COL.green,14,'center');
+    }
+
+    /* ───────────────────── PID BLOCK DIAGRAM ───────────────────── */
+    function drawPIDBlock(c,w,h){
+      const p=S.p.pid,st=S.sim,m=st.metrics;
+      const bg=c.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#0d1117');bg.addColorStop(1,'#0a1a20');c.fillStyle=bg;c.fillRect(0,0,w,h);
+      roundRect(c,24,26,w-48,470,10,'#12303a','#2a5b68');
+      haloText(c,'CLOSED-LOOP PID · '+p.plant.toUpperCase()+' · RK4 @ 1 kHz',w/2,56,COL.accent,13,'center');
+      const y=200,block=(x,bw,label,sub,col)=>{roundRect(c,x,y-34,bw,68,8,'#0a1a22',col);txt(c,label,x+bw/2,y-6,col,12,'center');txt(c,sub,x+bw/2,y+14,COL.dim,10,'center');};
+      block(60,110,'SETPOINT','r = '+fmt(p.r,2),COL.ch1);
+      c.strokeStyle=COL.gold;c.lineWidth=2;c.beginPath();c.arc(210,y,20,0,7);c.stroke();
+      txt(c,'Σ',210,y+6,COL.gold,16,'center');txt(c,'+',200,y-14,COL.green,10);txt(c,'−',224,y+16,COL.red,10);
+      const blockAt=(x,bw,label,sub,col,yy)=>{roundRect(c,x,yy-24,bw,48,6,'#0a1a22',col);
+        txt(c,label,x+bw/2,yy-4,col,11,'center');txt(c,sub,x+bw/2,yy+12,COL.dim,9,'center');};
+      blockAt(250,90,'P','Kp e = '+fmt(p.Kp*st.e,2),COL.phase,164);
+      blockAt(250,90,'I','Ki ∫e = '+fmt(p.Ki*st.i,2),COL.green,200);
+      blockAt(250,90,'D','Kd ė = '+fmt(p.Kd*st.df,2),COL.violet,236);
+      const branches=[264,274,284];
+      branches.forEach((yy,i)=>{
+        line(c,230,y,250,yy,COL.dim,2);line(c,340,yy,372,y,COL.dim,2);
+        dot(c,230+((S.t*70+i*30)%20),y+(yy-y)*((S.t*70+i*30)%20)/20,3,COL.gold);
+      });
+      block(372,100,'SATURATION',p.antiWind?'anti-windup':'no limit',COL.gold);
+      block(500,110,'PLANT',p.plant+' τ='+fmt(p.tau,2),COL.cyan);
+      block(640,100,'SENSOR','LVDT/encoder',COL.green);
+      line(c,170,y,190,y,COL.dim,2);line(c,230,y,250,y,COL.dim,2);line(c,472,y,500,y,COL.dim,2);
+      line(c,610,y,640,y,COL.dim,2);line(c,740,y,800,y,COL.dim,2);line(c,800,y,210,y+150,COL.dim,2);line(c,210,y+150,210,y+20,COL.dim,2);
+      txt(c,'OUTPUT y = '+fmt(st.y,3),800,y-14,COL.cyan,12,'center');
+      txt(c,'u = '+fmt(st.u,2)+' V',472,y-14,COL.gold,11,'center');
+      txt(c,'e = '+fmt(st.e,3),230,y-14,COL.red,11,'center');
+      const armX=880,armY=300;
+      c.strokeStyle=COL.dim;c.lineWidth=3;c.beginPath();c.arc(armX,armY,44,0,7);c.stroke();
+      const a=-Math.PI/2+clamp(st.y,0,1.4)*2.2;
+      glow(c,COL.cyan,8);line(c,armX,armY,armX+Math.cos(a)*38,armY+Math.sin(a)*38,COL.cyan,5);clearGlow(c);
+      dot(c,armX,armY,6,COL.dim);txt(c,'SERVO ARM',armX,armY+62,COL.dim,10,'center');
+      const badges=[['tr',fmt(m.tr||0,2)+'s'],['%OS',fmt(m.os||0,1)+'%'],['ts',fmt(m.ts||0,2)+'s'],['ess',fmt(m.ess||0,3)]];
+      badges.forEach((bd,i)=>{roundRect(c,60+i*118,380,108,52,7,'#061a22',i===1&&(m.os||0)>5?COL.red:COL.green);
+        txt(c,bd[0],66+i*118,400,COL.dim,10);txt(c,bd[1],66+i*118,422,COL.text,13);});
+      if(S.display.equation){
+        const vf='italic 700 15px "Cambria Math",serif';
+        drawEquation(c,60,460,[{t:'G',f:vf,c:COL.accent},{t:'c',f:'700 9px serif',c:COL.accent,sub:1},
+          {t:'(s) = K',f:vf,c:COL.gold},{t:'p',f:'700 9px serif',c:COL.gold,sub:1},
+          {t:' + K',f:vf,c:COL.gold},{t:'i',f:'700 9px serif',c:COL.gold,sub:1},{t:'/s + K',f:vf,c:COL.gold},{t:'d',f:'700 9px serif',c:COL.gold,sub:1},{t:'s',f:vf,c:COL.gold}],420);
+      }
+      haloText(c,st.stable?'STABLE · LHP POLES':'UNSTABLE · RHP POLES',w/2,520,st.stable?COL.green:COL.red,14,'center');
+    }
+
+    /* ───────────────────── DSO ───────────────────── */
+    function drawBoard(){
+      const cv=$('ws-canvas'),c=beginCanvas(cv),sz=canvasSize(cv),w=sz.w,h=sz.h;
+      if(S.module==='lvdt')drawLVDT(c,w,h);
+      else if(S.module==='pid')drawPIDBlock(c,w,h);
+      else{
+        const bg=c.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#0d1117');bg.addColorStop(1,'#0a1a20');
+        c.fillStyle=bg;c.fillRect(0,0,w,h);
+        roundRect(c,24,26,w-48,470,10,'#12303a','#2a5b68');
+        haloText(c,'MULTI-CHANNEL TELEMETRY & S-PLANE MONITOR',w/2,56,COL.accent,13,'center');
+        const buf=dsoBuffers(),cols=[COL.ch1,COL.ch2,COL.ch3,COL.ch4];
+        buf.forEach((b,i)=>{const base=130+i*72;c.strokeStyle=cols[i];c.lineWidth=2;glow(c,cols[i],4);c.beginPath();
+          b.forEach((v,k)=>{const x=80+k/(b.length-1)*700,y=base-clamp(v,-3,3)*24;k?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();clearGlow(c);
+          txt(c,'CH'+(i+1)+' '+['SETPOINT/CARRIER','OUTPUT/DIFF','CONTROL','ERROR'][i],80,base-12,cols[i],10);});
+        txt(c,'FFT: '+(S.p.dso.fft?'ON':'OFF')+'   ·   POLES: '+(S.sim.stable?'LHP STABLE':'RHP UNSTABLE'),80,450,S.sim.stable?COL.green:COL.red,12);
+      }
+      if(S.module==='lvdt'&&S.display.grid)gridBg(c,w,h,50);
+      $('zoom-pill').textContent=Math.round(S.zoom*100)+'% · drag to pan';
+    }
+    function drawDSO(){
+      const cv=$('dso-canvas'),c=beginCanvas(cv),sz=canvasSize(cv),w=sz.w,h=sz.h;
+      c.fillStyle=COL.bg;c.fillRect(0,0,w,h);
+      const L=54,R=w-18,T=14,B=h-30,cols=10,rows=8;
+      for(let i=0;i<=cols;i++)line(c,L+(R-L)*i/cols,T,L+(R-L)*i/cols,B,COL.grid,1);
+      for(let i=0;i<=rows;i++)line(c,L,T+(B-T)*i/rows,R,T+(B-T)*i/rows,COL.grid,1);
+      line(c,L,T,L,B,COL.gridHi,1);line(c,(L+R)/2,T,(L+R)/2,B,COL.gridHi,1);
+      const buf=dsoBuffers(),cols4=[COL.ch1,COL.ch2,COL.ch3,COL.ch4];
+      buf.forEach((b,i)=>{
+        c.strokeStyle=cols4[i];c.lineWidth=2;glow(c,cols4[i],4);c.beginPath();
+        const base=T+(B-T)*(i+.5)/4,scale=(B-T)/4*.45;
+        for(let k=0;k<b.length;k++){const x=L+(R-L)*k/(b.length-1),y=base-clamp(b[k],-3,3)*scale;
+          k?c.lineTo(x,y):c.moveTo(x,y);}c.stroke();clearGlow(c);
+        txt(c,'CH'+(i+1),R-4,base-6,cols4[i],10,'right');
+      });
+      if(S.calipers){
+        [S.cal1,S.cal2].forEach((f,i)=>{const x=L+(R-L)*f;c.setLineDash([5,5]);line(c,x,T,x,B,'rgba(255,255,255,.5)',1);c.setLineDash([]);
+          txt(c,i?'P2':'P1',x+3,T+12,'rgba(255,255,255,.65)',9);});
+        const dt=Math.abs(S.cal2-S.cal1)*(S.module==='lvdt'?4/S.p.lvdt.fc/1000:4);
+        const dv=Math.abs(buf[1][Math.floor(S.cal2*1023)]-buf[1][Math.floor(S.cal1*1023)]);
+        $('scope-measure').textContent='Δt '+fmt(dt*1000,2)+' ms · ΔV '+fmt(dv,2)+' V';
+      }
+      txt(c,S.running?'RUN':'HOLD',L+8,T+18,S.running?COL.green:COL.gold,11);
+      $('scope-timebase').textContent=S.module==='lvdt'?'TIME/DIV '+fmt(1/S.p.lvdt.fc*1000*2,2)+' ms':'TIME/DIV 0.5 s';
+    }
+        /* ───────────────────── plots ───────────────────── */
+    function axes(c,w,h,xl,yl){c.fillStyle=COL.bg;c.fillRect(0,0,w,h);
+      const L=58,R=w-16,T=18,B=h-42;
+      for(let i=0;i<=5;i++)line(c,L,T+(B-T)*i/5,R,T+(B-T)*i/5,COL.grid,1);
+      for(let i=0;i<=6;i++)line(c,L+(R-L)*i/6,T,L+(R-L)*i/6,B,COL.grid,1);
+      line(c,L,T,L,B,COL.dim,1);line(c,L,B,R,B,COL.dim,1);line(c,L,(T+B)/2,R,(T+B)/2,COL.gridHi,1);
+      txt(c,xl,(L+R)/2,h-12,COL.dim,11,'center');
+      c.save();c.translate(14,(T+B)/2);c.rotate(-Math.PI/2);txt(c,yl,0,0,COL.dim,11,'center');c.restore();
+      return {L:L,R:R,T:T,B:B};
+    }
+    function plotLinearity(c,w,h){
+      const a=axes(c,w,h,'Core displacement x (mm)','PSD output Vout (V)'),L=S.results.lvdt,p=S.p.lvdt;
+      const X=x=>a.L+(a.R-a.L)*(x+15)/30,Y=v=>a.B-(a.B-a.T)*(v+6)/12;
+      c.fillStyle='rgba(61,220,132,.08)';c.fillRect(X(-10),a.T,X(10)-X(-10),a.B-a.T);
+      line(c,X(-10),a.T,X(-10),a.B,COL.green,1,[4,4]);line(c,X(10),a.T,X(10),a.B,COL.green,1,[4,4]);
+      line(c,a.L,Y(0),a.R,Y(0),COL.dim,1);
+      c.strokeStyle='rgba(255,255,255,.35)';c.setLineDash([4,4]);c.beginPath();c.moveTo(X(-15),Y(-p.G*.0024*p.Vp*15));c.lineTo(X(15),Y(p.G*.0024*p.Vp*15));c.stroke();c.setLineDash([]);
+      c.strokeStyle=COL.accent;c.lineWidth=2.5;glow(c,COL.accent,5);c.beginPath();
+      for(let x=-15;x<=15;x+=.25){const v=p.G*.0024*p.Vp*10*Math.tanh(x/10);x===-15?c.moveTo(X(x),Y(v)):c.lineTo(X(x),Y(v));}c.stroke();clearGlow(c);
+      dot(c,X(p.x),Y(L.vout),7,COL.gold);
+      txt(c,'linear ±10 mm',X(-9),a.T+16,COL.green,10);
+      txt(c,'saturation',X(11),a.T+16,COL.red,10);
+      txt(c,'S = '+fmt(p.G*.0024*p.Vp,3)+' V/mm',a.L+6,a.T+16,COL.accent,10);
+    }
+    function plotPoles(c,w,h){
+      const a=axes(c,w,h,'σ (real)','jω (imag)'),poles=S.sim.poles||[],p=S.p.pid;
+      const sc=Math.min((a.R-a.L)/12,(a.B-a.T)/16),ox=(a.L+a.R)/2-1*sc,oy=(a.T+a.B)/2;
+      c.fillStyle='rgba(255,85,85,.06)';c.fillRect(ox,a.T,a.R-ox,a.B-a.T);
+      line(c,ox,a.T,ox,a.B,COL.dim,2);
+      for(let r=2;r<=12;r+=2){c.strokeStyle='rgba(167,139,250,.13)';c.lineWidth=1;
+        c.beginPath();c.ellipse(ox,oy,r*sc,r*sc*.82,0,0,7);c.stroke();}
+      poles.forEach(q=>{const x=ox+q.re*sc,y=oy-q.im*sc;
+        glow(c,q.re<0?COL.green:COL.red,10);dot(c,x,y,7,q.re<0?COL.green:COL.red);clearGlow(c);
+        txt(c,'s = '+fmt(q.re,2)+(q.im?' ± j'+fmt(Math.abs(q.im),2):''),x+9,y-6,q.re<0?COL.green:COL.red,10);});
+      txt(c,'RHP · unstable',a.R-90,a.T+16,COL.red,10);
+      txt(c,'LHP · stable',a.L+6,a.T+16,COL.green,10);
+      txt(c,'Kp='+fmt(p.Kp,1)+' Ki='+fmt(p.Ki,1)+' Kd='+fmt(p.Kd,2),a.L+6,a.B-12,COL.dim,10);
+    }
+    function plotStep(c,w,h){
+      const a=axes(c,w,h,'Time t (s)','Response y(t)'),sm=S.sim.samples||[],m=S.sim.metrics||{};
+      if(!sm.length){txt(c,'Trigger a step test to see the response',w/2,h/2,COL.dim,12,'center');return;}
+      const X=t=>a.L+(a.R-a.L)*t/4,maxY=Math.max(1.4,(m.peak||1)*1.1),Y=v=>a.B-(a.B-a.T)*v/maxY;
+      line(c,a.L,Y(1),a.R,Y(1),COL.red,1,[5,4]);
+      c.strokeStyle=COL.green;c.lineWidth=1;c.setLineDash([3,3]);
+      line(c,a.L,Y(.98),a.R,Y(.98),COL.green,1,[3,3]);line(c,a.L,Y(1.02),a.R,Y(1.02),COL.green,1,[3,3]);c.setLineDash([]);
+      const paths=[[0,'y',COL.cyan,2.6],[0,'r',COL.violet,1.8],[2,'u',COL.gold,1.4]];
+      paths.forEach(pt=>{c.strokeStyle=pt[2];c.lineWidth=pt[3];c.beginPath();
+        sm.forEach((q,i)=>{const v=pt[1]==='u'?q.u/12:q[pt[1]];i?c.lineTo(X(q.t),Y(v)):c.moveTo(X(q.t),Y(v));});c.stroke();});
+      if(m.peakT){dot(c,X(m.peakT),Y(m.peak),6,COL.gold);txt(c,'peak '+fmt(m.os,1)+'%',X(m.peakT)+8,Y(m.peak)-6,COL.gold,10);}
+      txt(c,'tr '+fmt(m.tr||0,2)+'s  ts '+fmt(m.ts||0,2)+'s  ess '+fmt(m.ess||0,3),a.L+6,a.T+14,COL.text,10);
+    }
+    function plotFFT(c,w,h){
+      const a=axes(c,w,h,'Harmonic','Magnitude (dB)'),buf=dsoBuffers()[1]||[],N=buf.length;
+      let mx=.001;const mags=[];
+      for(let k=1;k<=24;k++){let re=0,im=0;for(let i=0;i<N;i++){const ang=2*Math.PI*k*i/N;re+=buf[i]*Math.cos(ang);im-=buf[i]*Math.sin(ang);}
+        const mg=Math.sqrt(re*re+im*im)/N;mags.push(mg);mx=Math.max(mx,mg);}
+      mags.forEach((mg,i)=>{const bh=(a.B-a.T)*Math.log10(1+mg/mx*99)/2;
+        c.fillStyle=i===0?COL.violet:COL.ch2;c.fillRect(a.L+(a.R-a.L)*(i+1)/26,a.B-bh,(a.R-a.L)/26-6,bh);});
+      txt(c,'Fundamental + harmonics of CH2',a.L+6,a.T+14,COL.dim,10);
+    }
+    function drawAll(){drawBoard();drawDSO();drawPlot();}
+    function drawPlot(){
+      const cv=$('plot-canvas'),c=beginCanvas(cv),sz=canvasSize(cv),w=sz.w,h=sz.h;
+      if(S.module==='lvdt'){if(S.plotTab===0)plotLinearity(c,w,h);else if(S.plotTab===1)plotFFT(c,w,h);else plotLinearity(c,w,h);}
+      else if(S.module==='pid'){if(S.plotTab===0)plotStep(c,w,h);else if(S.plotTab===1)plotPoles(c,w,h);else plotFFT(c,w,h);}
+      else{if(S.plotTab===0)plotFFT(c,w,h);else if(S.plotTab===1)plotPoles(c,w,h);else plotStep(c,w,h);}
+    }
+
+    /* ───────────────────── controls ───────────────────── */
+    const CONTROLS={
+      lvdt:[
+        {k:'x',l:'Core displacement x',min:-15,max:15,step:.01,u:'mm'},
+        {k:'Vp',l:'Carrier excitation Vp',min:1,max:10,step:.1,u:'V rms'},
+        {k:'fc',l:'Carrier frequency fc',min:1000,max:10000,step:100,u:'Hz'},
+        {k:'vnull',l:'Residual null voltage',min:0,max:15,step:.5,u:'mV'},
+        {k:'G',l:'Amplifier gain G',min:5,max:30,step:1,u:'×'},
+        {k:'mode',l:'Demodulator mode',type:'select',opts:[[0,'PSD signed DC'],[1,'Raw AC RMS']],map:['psd','raw']}
+      ],
+      pid:[
+        {k:'plant',l:'Plant preset',type:'select',opts:[[0,'DC servo positioner'],[1,'Thermal oven'],[2,'Mass-spring-damper']],map:['servo','thermal','mass']},
+        {k:'Kp',l:'Proportional gain Kp',min:0,max:25,step:.1,u:''},
+        {k:'Ki',l:'Integral gain Ki',min:0,max:30,step:.1,u:''},
+        {k:'Kd',l:'Derivative gain Kd',min:0,max:10,step:.01,u:''},
+        {k:'tau',l:'Plant time constant τ',min:.1,max:.6,step:.01,u:'s'},
+        {k:'zeta',l:'Plant damping ζ',min:.1,max:1,step:.01,u:''},
+        {k:'r',l:'Setpoint step r(t)',min:-10,max:10,step:.5,u:''},
+        {k:'dist',l:'Load disturbance',min:0,max:.6,step:.05,u:'pu'},
+        {k:'antiWind',l:'Anti-windup clamping',type:'switch'},
+        {k:'derivMeas',l:'Derivative-on-measurement',type:'switch'}
+      ],
+      dso:[
+        {k:'timeDiv',l:'Time / division',min:.1,max:2,step:.1,u:'s'},
+        {k:'voltDiv',l:'Volts / division',min:.2,max:5,step:.2,u:'V'},
+        {k:'fft',l:'FFT spectrum view',type:'switch'}
+      ]
+    };
+    function ctrlValue(def,v){if(def.map)return def.map[v];
+      if(def.opts){const o=def.opts.find(x=>Array.isArray(x)?x[0]===v:x===v);return Array.isArray(o)?o[1]:String(v);}
+      return fmt(v,def.step<1?(def.step<.05?2:1):0)+(def.u?' '+def.u:'');}
+    function buildControls(){
+      const grid=$('ctrl-grid');grid.innerHTML='';
+      CONTROLS[S.module].forEach(def=>{
+        const p=S.p[S.module],v=p[def.k],el=document.createElement('div');el.className='param';
+        if(def.type==='switch'){
+          el.innerHTML='<div class="switch-row"><span>'+def.l+'</span><label class="switch"><input type="checkbox" id="ctl-'+def.k+'" '+(v?'checked':'')+'><span class="slider"></span></label></div>';
+          grid.appendChild(el);el.querySelector('input').addEventListener('change',e=>{p[def.k]=e.target.checked;onParam(def.k,e.target.checked);});
+        }else if(def.type==='select'){
+          el.innerHTML='<div class="param-top"><label for="ctl-'+def.k+'">'+def.l+'</label><span class="param-val" id="val-'+def.k+'">'+ctrlValue(def,v)+'</span></div>';
+          const sel=document.createElement('select');sel.className='full';sel.id='ctl-'+def.k;
+          def.opts.forEach(o=>{const val=Array.isArray(o)?o[0]:o,t=Array.isArray(o)?o[1]:String(o);
+            const op=document.createElement('option');op.value=val;op.textContent=t;if(val===v)op.selected=true;sel.appendChild(op);});
+          el.appendChild(sel);grid.appendChild(el);
+          sel.addEventListener('change',e=>{p[def.k]=parseFloat(e.target.value);$('val-'+def.k).textContent=ctrlValue(def,p[def.k]);onParam(def.k,p[def.k]);});
+        }else{
+          el.innerHTML='<div class="param-top"><label for="ctl-'+def.k+'">'+def.l+'</label><span class="param-val" id="val-'+def.k+'">'+ctrlValue(def,v)+'</span></div>'+
+            '<div class="param-row"><button class="stepper" data-d="-1">−</button><input type="range" id="ctl-'+def.k+'" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+v+'"><button class="stepper" data-d="1">+</button></div>';
+          grid.appendChild(el);const rng=el.querySelector('input');
+          rng.addEventListener('input',e=>{p[def.k]=parseFloat(e.target.value);$('val-'+def.k).textContent=ctrlValue(def,p[def.k]);onParam(def.k,p[def.k]);});
+          el.querySelectorAll('.stepper').forEach(b=>b.addEventListener('click',()=>{
+            p[def.k]=clamp(+(p[def.k]+def.step*b.dataset.d).toFixed(4),def.min,def.max);
+            rng.value=p[def.k];$('val-'+def.k).textContent=ctrlValue(def,p[def.k]);onParam(def.k,p[def.k]);}));
+        }
+      });
+    }
+    function onParam(k,v){
+      Sound.click();
+      if(S.module==='lvdt'&&k==='x')Sound.ratchet();
+      if(S.module==='pid'&&['Kp','Ki','Kd','tau','zeta','r','dist','antiWind','derivMeas','plant'].includes(k))runStepTest();
+      solveAll();refreshPanels();drawAll();
+    }
+        /* ───────────────────── readouts ───────────────────── */
+    function readout(lbl,val,unit,sub,cls){return '<div class="readout '+(cls||'')+'"><div class="r-lbl">'+lbl+'</div><div class="r-val">'+val+' <small>'+(unit||'')+'</small></div><div class="r-sub">'+(sub||'')+'</div></div>';}
+    function buildReadouts(){
+      let live='',cycle='';const R=S.results,p=S.p,m=S.sim.metrics||{};
+      if(S.module==='lvdt'){const L=R.lvdt;
+        live+=readout('Core displacement',fmt(p.lvdt.x,2),'mm',L.state,L.linErr>1?'bad':'good');
+        live+=readout('PSD DC output',fmt(L.vout,3),'V',p.lvdt.mode==='psd'?'signed':'raw magnitude',Math.abs(L.vout)>5?'warn':'good');
+        live+=readout('Raw differential',fmt(L.rawMv,1),'mV','Vs1 − Vs2');
+        live+=readout('Carrier phase',L.phase,'°',p.lvdt.x>0?'in-phase':p.lvdt.x<0?'inverted':'quadrature',L.phase===90?'warn':'good');
+        cycle+=readout('Secondary S1',fmt(L.Vs1,3),'V','rms');
+        cycle+=readout('Secondary S2',fmt(L.Vs2,3),'V','rms');
+        cycle+=readout('Effective stroke',fmt(L.xeff,2),'mm','tanh saturation');
+        cycle+=readout('Sensitivity',fmt(L.sensitivity,2),'mV/V/mm','nominal');
+        cycle+=readout('Linearity error',fmt(L.linErr,2),'%','linear zone ±10 mm',L.linErr<1?'good':'bad');
+        cycle+=readout('Carrier',fmt(p.lvdt.fc/1000,1),'kHz',fmt(p.lvdt.Vp,1)+' V rms');
+        $('state-line').textContent=L.state;$('cycle-subtitle').textContent='RMS secondary pair';
+      }else if(S.module==='pid'){const q=S.p.pid;
+        live+=readout('Plant output y',fmt(S.sim.y,3),'',p.plant.toUpperCase(),COL.green?'good':'');
+        live+=readout('Error e',fmt(S.sim.e,3),'','r − y');
+        live+=readout('Control effort u',fmt(S.sim.u,2),'V','rails ±10 V',Math.abs(S.sim.u)>=10?'warn':'good');
+        live+=readout('Integral state',fmt(S.sim.i,3),'',q.antiWind?'anti-windup ON':'free integration',q.antiWind?'good':'');
+        cycle+=readout('Rise time tr',fmt(m.tr||0,3),'s','10→90%',(m.tr||9)<.3?'good':'warn');
+        cycle+=readout('Overshoot %OS',fmt(m.os||0,2),'%','target < 5%',(m.os||99)<5?'good':'bad');
+        cycle+=readout('Settling ts',fmt(m.ts||0,3),'s','±2% band',(m.ts||9)<.8?'good':'warn');
+        cycle+=readout('Steady-state err',fmt(m.ess||0,4),'',m.ess<.01?'zero offset':'offset present',(m.ess||9)<.01?'good':'bad');
+        cycle+=readout('IAE',fmt(m.iae||0,4),'','∫|e|dt');
+        cycle+=readout('ITAE',fmt(m.itae||0,4),'','∫t|e|dt');
+        $('state-line').textContent=S.sim.stable?'STABLE · LHP':'UNSTABLE · RHP';
+        $('cycle-subtitle').textContent='Kp '+fmt(q.Kp,1)+' Ki '+fmt(q.Ki,1)+' Kd '+fmt(q.Kd,2);
+      }else{
+        const b=dsoBuffers(),pk=Math.max(...b[1].map(Math.abs));
+        live+=readout('CH1',fmt(b[0][0],2),'','setpoint / carrier','');
+        live+=readout('CH2',fmt(b[1][0],2),'','output / diff','');
+        live+=readout('CH3',fmt(b[2][0],2),'','control effort','');
+        live+=readout('CH4',fmt(b[3][0],2),'','error / residual','');
+        cycle+=readout('Scope state',S.running?'RUN':'HOLD','',S.calipers?'calipers ON':'calipers OFF',S.running?'good':'warn');
+        cycle+=readout('CH2 peak',fmt(pk,2),'V','utility');
+        cycle+=readout('Timebase',fmt(S.p.dso.timeDiv,1),'s/div','4-channel DSO');
+        cycle+=readout('FFT view',S.p.dso.fft?'ON':'OFF','','harmonic spectrum');
+        cycle+=readout('Pole status',S.sim.stable?'STABLE':'UNSTABLE','',(S.sim.poles||[]).length+' closed-loop poles',S.sim.stable?'good':'bad');
+        cycle+=readout('Overshoot',fmt(m.os||0,2),'%','last step test',(m.os||99)<5?'good':'bad');
+        $('state-line').textContent=S.running?'DSO RUNNING':'DSO HELD';$('cycle-subtitle').textContent='4-channel telemetry';
+      }
+      $('dmm-bank').innerHTML=live;$('cycle-bank').innerHTML=cycle;
+    }
+
+    /* ───────────────────── derivation ───────────────────── */
+    function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    function katexTex(s){
+      let tex=String(s).trim(),display=false;
+      if(tex.indexOf('$$')===0&&tex.lastIndexOf('$$')===tex.length-2){display=true;tex=tex.slice(2,-2);}
+      else if(tex.charAt(0)==='$'&&tex.charAt(tex.length-1)==='$')tex=tex.slice(1,-1);
+      if(window.katex&&window.katex.renderToString){
+        try{return window.katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false});}
+        catch(e){return '<code>'+escapeHtml(tex)+'</code>';}}
+      return '<code>'+escapeHtml(tex)+'</code>';
+    }
+    function refreshMath(){document.querySelectorAll('[data-tex]').forEach(el=>{delete el.dataset.done;});renderStaticMath();buildDerivation();}
+    function waitForMath(){if(window.katex&&window.katex.renderToString){refreshMath();return true;}return false;}
+    function derivationSteps(){
+      const steps=[],p=S.p,R=S.results,m=S.sim.metrics||{};
+      if(S.module==='lvdt'){const L=R.lvdt;
+        steps.push(['Effective stroke',String.raw`$x_{\text{eff}}=x_{\text{lin}}\tanh\!\left(\dfrac{x}{x_{\text{lin}}}\right)=10\tanh\!\left(\dfrac{${fmt(p.lvdt.x,2)}}{10}\right)=${fmt(L.xeff,3)}\,\mathrm{mm}$`]);
+        steps.push(['Secondary pair',String.raw`$V_{s1}=${fmt(L.Vs1,3)}\,\mathrm{V},\quad V_{s2}=${fmt(L.Vs2,3)}\,\mathrm{V},\quad |V_{\text{diff}}|=${fmt(L.rawMv,1)}\,\mathrm{mV}$`]);
+        steps.push(['Carrier phase',String.raw`$\theta=${L.phase}^\circ\;\Rightarrow\;${p.lvdt.x>0?'in-phase with primary':p.lvdt.x<0?'180° reversal at null':'quadrature residual at null'}$`]);
+        steps.push(['Phase-sensitive detection',String.raw`$V_{\text{out,DC}}=G\,S\,V_{p}\,x_{\text{eff}}=${p.lvdt.G}\times0.0024\times${p.lvdt.Vp}\times${fmt(L.xeff,3)}=${fmt(L.vout,3)}\,\mathrm{V}$`]);
+        steps.push(['Linearity audit',String.raw`$\varepsilon=\dfrac{|V_{\text{out}}-V_{\text{ideal}}|}{|V_{\text{ideal}}|}\times100=${fmt(L.linErr,2)}\%\;\Rightarrow\;${L.linErr<1?'within linear zone':'saturation roll-off'}$`]);
+      }else if(S.module==='pid'){
+        steps.push(['Error & terms',String.raw`$e=r-y=${fmt(p.pid.r,1)}-${fmt(S.sim.y,3)}=${fmt(S.sim.e,3)},\quad u_P=K_pe=${fmt(p.pid.Kp*S.sim.e,3)}$`]);
+        steps.push(['Parallel PID',String.raw`$u=K_pe+K_i\!\int e\,dt+K_d\dot e_f=${fmt(p.pid.Kp*S.sim.e,3)}+${fmt(p.pid.Ki*S.sim.i,3)}+${fmt(p.pid.Kd*S.sim.df,3)}=${fmt(S.sim.u,3)}\,\mathrm{V}$`]);
+        steps.push(['Saturation & anti-windup',String.raw`$u_{\text{sat}}=\operatorname{clamp}(u,\pm10)=${fmt(S.sim.u,3)}\,\mathrm{V},\quad \text{anti-windup}=${p.pid.antiWind?'ON':'OFF'}$`]);
+        steps.push(['Plant ODE (RK4)',String.raw`$\tau^2\ddot y+2\zeta\tau\dot y+y=K_{\text{plant}}u,\quad \tau=${p.pid.tau},\;\zeta=${p.pid.zeta}$`]);
+        steps.push(['Step metrics',String.raw`$t_r=${fmt(m.tr||0,3)}\,\mathrm{s},\quad \%OS=${fmt(m.os||0,2)}\%,\quad t_s=${fmt(m.ts||0,3)}\,\mathrm{s},\quad e_{ss}=${fmt(m.ess||0,4)}$`]);
+        steps.push(['Closed-loop poles',String.raw`$\tau^2s^3+(2\zeta\tau+KK_d)s^2+(1+KK_p)s+KK_i=0,\quad \text{stable}=${S.sim.stable}$`]);
+      }else{
+        const b=dsoBuffers();
+        steps.push(['Carrier / sampling',String.raw`$v_p(t)=V_p\sin(2\pi f_c t),\quad f_c=${fmt(p.lvdt.fc/1000,1)}\,\mathrm{kHz},\quad N=1024\ \text{samples/frame}$`]);
+        steps.push(['Differential AM',String.raw`$v_{\text{diff}}(t)=(V_{s1}-V_{s2})\sin(\omega_ct)+V_{\text{null}}\cos(\omega_ct)$`]);
+        steps.push(['Caliper measurement',String.raw`$\Delta t=${fmt(Math.abs(S.cal2-S.cal1)*4,3)}\,\mathrm{s\;span},\quad \Delta V=${fmt(Math.abs(b[1][Math.floor(S.cal2*1023)]-b[1][Math.floor(S.cal1*1023)]),3)}\,\mathrm{V}$`]);
+        steps.push(['FFT harmonic content',String.raw`$X[k]=\sum_{n=0}^{N-1}x[n]e^{-j2\pi kn/N},\quad k=1\ldots24$`]);
+        steps.push(['Pole stability',String.raw`$\text{Re}\{s_i\}<0\;\forall i\;\Rightarrow\;${S.sim.stable?'STABLE':'UNSTABLE'}$`]);
+      }
+      return steps;
+    }
+    function stepsHtml(steps){return steps.map((s,i)=>'<div class="step"><div class="step-num">'+(i+1)+'</div><div class="step-body"><b>'+s[0]+'</b><br>'+katexTex(s[1])+'</div></div>').join('');}
+    function buildDerivation(){$('derivation').innerHTML=stepsHtml(derivationSteps());}
+    function buildPlotTabs(){
+      const tabs=S.module==='lvdt'?[['Linearity curve'],['FFT spectrum'],['Full stroke sweep']]:
+        S.module==='pid'?[['Step response'],['s-plane poles'],['FFT / harmonics']]:
+        [['FFT spectrum'],['s-plane poles'],['Step response']];
+      $('plot-tabs').innerHTML=tabs.map((t,i)=>'<button class="subtab '+(i===S.plotTab?'active':'')+'" data-i="'+i+'">'+t[0]+'</button>').join('');
+      $('plot-title').textContent=tabs[S.plotTab][0];
+      $('plot-tabs').querySelectorAll('.subtab').forEach(b=>b.addEventListener('click',()=>{S.plotTab=+b.dataset.i;buildPlotTabs();drawPlot();Sound.click();}));
+    }
+    function buildHUD(){
+      let items=[],R=S.results,m=S.sim.metrics||{};
+      if(S.module==='lvdt')items=[['x '+fmt(S.p.lvdt.x,2)+'mm',''],['Vo '+fmt(R.lvdt.vout,2)+'V',''],['ε '+fmt(R.lvdt.linErr,1)+'%',R.lvdt.linErr>1?'danger':'']];
+      else if(S.module==='pid')items=[['y '+fmt(S.sim.y,2),''],['u '+fmt(S.sim.u,1)+'V',Math.abs(S.sim.u)>=10?'warn':''],['OS '+fmt(m.os||0,1)+'%',(m.os||99)>5?'danger':'']];
+      else items=[['CH2 '+fmt(dsoBuffers()[1][0],2),''],['FFT '+(S.p.dso.fft?'ON':'OFF'),''],['POLES '+(S.sim.stable?'LHP':'RHP'),S.sim.stable?'':'danger']];
+      $('hud-badges').innerHTML=items.map(i=>'<span class="ov-badge '+i[1]+'">'+i[0]+'</span>').join('');
+    }
+    function buildAudit(){
+      let rows=[],banner='',violation=false,R=S.results,m=S.sim.metrics||{};
+      if(S.module==='lvdt'){
+        rows=[['Linear zone',fmt(S.p.lvdt.x,1)+' mm',Math.abs(S.p.lvdt.x)<=10?'PASS':'SATURATED'],
+          ['Null residual',fmt(S.p.lvdt.vnull,1)+' mV',S.p.lvdt.vnull<=5?'PASS':'HIGH'],
+          ['Demodulator',S.p.lvdt.mode.toUpperCase(),'PASS'],
+          ['Phase decode',R.lvdt.phase+'°',R.lvdt.phase===90?'NULL':'PASS']];
+        violation=Math.abs(S.p.lvdt.x)>10||S.p.lvdt.vnull>5;
+        banner=violation?'Core beyond ±10 mm or null leakage above 5 mV — recalibrate in the linear zone.':'LVDT operating in the linear zone with valid phase decoding.';
+      }else if(S.module==='pid'){
+        rows=[['Stability',S.sim.stable?'LHP':'RHP',S.sim.stable?'PASS':'UNSTABLE'],
+          ['Overshoot',fmt(m.os||0,2)+'%',(m.os||99)<5?'PASS':'HIGH'],
+          ['Settling',fmt(m.ts||0,2)+' s',(m.ts||9)<.8?'PASS':'SLOW'],
+          ['Actuator',fmt(S.sim.u,1)+' V',Math.abs(S.sim.u)>=10?'SATURATED':'PASS']];
+        violation=!S.sim.stable||(m.os||0)>5||Math.abs(S.sim.u)>=10;
+        banner=violation?'Tune Kp/Ki/Kd: enable anti-windup and add derivative damping to satisfy the envelope.':'Closed loop meets the transient specification.';
+      }else{
+        rows=[['Scope state',S.running?'RUN':'HOLD','PASS'],
+          ['Calipers',S.calipers?'ON':'OFF','PASS'],
+          ['Pole location',S.sim.stable?'LHP':'RHP',S.sim.stable?'PASS':'UNSTABLE'],
+          ['Spectrum',S.p.dso.fft?'FFT':'TIME','PASS']];
+        violation=!S.sim.stable;
+        banner=violation?'Poles in the right half-plane: reduce proportional gain and restore stability.':'Telemetry channels and stability margins nominal.';
+      }
+      const ok=new Set(['PASS','LHP','TIME','NULL','RUN','ON','OFF','FFT']);
+      $('bench-audit').innerHTML=rows.map(r=>'<div class="audit-row"><span>'+r[0]+' · '+r[1]+'</span><span class="'+(ok.has(r[2])?'ok':'no')+'">'+r[2]+'</span></div>').join('');
+      $('bench-challenge-title').textContent=S.module==='lvdt'?'LVDT calibration audit':S.module==='pid'?'PID tuning audit':'Telemetry & stability audit';
+      $('compliance-banner').textContent=banner;$('compliance-banner').classList.toggle('violation',violation);
+    }
+    function refreshPanels(){buildReadouts();buildDerivation();buildPlotTabs();buildHUD();buildAudit();
+      const titles={lvdt:'LVDT Cutaway & Signal Conditioner',pid:'PID Feedback Loop & Physical Plant',dso:'4-Channel DSO & s-Plane Telemetry'};
+      $('schematic-title').textContent=titles[S.module];
+      $('scope-timebase').textContent=S.module==='lvdt'?'carrier timebase':'0.5 s/div';
+    }
+        /* ───────────────────── notebook & export ───────────────────── */
+    function currentRow(){
+      const p=S.p,R=S.results,m=S.sim.metrics||{};
+      if(S.module==='lvdt')return ['LVDT','x '+fmt(p.lvdt.x,2)+' mm · '+fmt(p.lvdt.Vp,1)+' V','Vo '+fmt(R.lvdt.vout,3)+' V','θ '+R.lvdt.phase+'°',R.lvdt.state];
+      if(S.module==='pid')return ['PID','Kp '+fmt(p.pid.Kp,1)+' Ki '+fmt(p.pid.Ki,1)+' Kd '+fmt(p.pid.Kd,2),'y '+fmt(S.sim.y,3),'OS '+fmt(m.os||0,2)+'% · ts '+fmt(m.ts||0,2),S.sim.stable?'STABLE':'UNSTABLE'];
+      return ['DSO',S.running?'RUN':'HOLD','CH2 '+fmt(dsoBuffers()[1][0],2),'FFT '+(p.dso.fft?'ON':'OFF'),S.sim.stable?'LHP':'RHP'];
+    }
+    function logRow(row){S.rows.push({i:S.rows.length+1,cells:row});renderTable();Sound.tone(660,.06,'sine',.04);}
+    function renderTable(){
+      const b=$('obs-body');
+      if(!S.rows.length)b.innerHTML='<tr class="empty-row"><td colspan="6">No readings yet — adjust a control and choose “Log reading”.</td></tr>';
+      else b.innerHTML=S.rows.map(r=>'<tr><td>'+r.i+'</td>'+r.cells.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('');
+      $('row-count').textContent=S.rows.length+' reading'+(S.rows.length===1?'':'s')+' logged';
+    }
+    function autoSweep(){
+      const saved=JSON.parse(JSON.stringify(S.p[S.module]));
+      if(S.module==='lvdt'){[-10,-5,0,5,10].forEach(x=>{S.p.lvdt.x=x;solveAll();logRow(currentRow());});}
+      else if(S.module==='pid'){[1,2,4,8,16].forEach(Kp=>{S.p.pid.Kp=Kp;runStepTest();logRow(currentRow());});}
+      else{[.2,.5,1,2].forEach(t=>{S.p.dso.timeDiv=t;logRow(currentRow());});}
+      Object.assign(S.p[S.module],saved);solveAll();refreshPanels();drawAll();buildControls();Sound.chord();
+    }
+    function exportReport(){
+      const head=['#','Module','Setting','Reading','Figure','Verdict'];
+      const csv=[head.join(',')].concat(S.rows.map(r=>[r.i].concat(r.cells).map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','))).join('\n');
+      const md=['| '+head.join(' | ')+' |','|'+head.map(()=>'---').join('|')+'|'].concat(S.rows.map(r=>'| '+[r.i].concat(r.cells).join(' | ')+' |')).join('\n');
+      const blob=new Blob([csv+'\n\n'+md],{type:'text/plain'}),a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);a.download='measurement-control-report.csv';a.click();URL.revokeObjectURL(a.href);Sound.chord();
+    }
+    function exportPNG(){const cv=$('ws-canvas'),a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=S.module+'-bench.png';a.click();Sound.click();}
+
+    /* ───────────────────── tuning labs ───────────────────── */
+    const LABS=[
+      {n:1,mod:'lvdt',track:'Track 1 · LVDT calibration',title:'Null point & sensitivity calibration',
+       brief:'Sweep the core from −10 mm to +10 mm in 2 mm steps, record PSD voltage and fit the straight line. Check sensitivity against the nominal mV/V/mm rating.',
+       target:'Linear-zone readings with R² > 0.999 and no null residual.',
+       check:()=>[['Inside linear zone',Math.abs(S.p.lvdt.x)<=10],['Null residual low',S.p.lvdt.vnull<=5],['PSD mode',S.p.lvdt.mode==='psd'],['Sensitivity logged',S.results.lvdt.sensitivity>0]]},
+      {n:2,mod:'lvdt',track:'Track 1 · LVDT calibration',title:'Phase-sensitive demodulation audit',
+       brief:'Compare raw AC RMS (a V-shaped curve that cannot distinguish ±5 mm) with the signed PSD DC output and verify the 180° carrier phase flip on the DSO.',
+       target:'PSD active with a visible phase reversal between negative and positive stroke.',
+       check:()=>[['PSD selected',S.p.lvdt.mode==='psd'],['Signed output',Math.abs(S.results.lvdt.vout)>0.1],['Phase decoded',S.results.lvdt.phase===0||S.results.lvdt.phase===180],['Scope running',S.running]]},
+      {n:3,mod:'lvdt',track:'Track 1 · LVDT calibration',title:'Stroke boundary & saturation hunt',
+       brief:'Extend the core to ±15 mm and locate the threshold where linearity error first exceeds 1 %.',
+       target:'Core beyond ±10 mm with a measured saturation roll-off.',
+       check:()=>[['Beyond linear zone',Math.abs(S.p.lvdt.x)>10],['Error measurable',S.results.lvdt.linErr>0],['State flagged',S.results.lvdt.state==='SATURATION ROLL-OFF']]},
+      {n:4,mod:'pid',track:'Track 2 · PID action',title:'Proportional offset & instability',
+       brief:'Run P-only control and observe the permanent steady-state error on a Type-0 plant, then raise Kp into heavy oscillation.',
+       target:'Ki = Kd = 0 with measurable offset.',
+       check:()=>[['P-only',S.p.pid.Ki===0&&S.p.pid.Kd===0],['Offset present',(S.sim.metrics.ess||0)>0.01],['Step logged',S.rows.length>0]]},
+      {n:5,mod:'pid',track:'Track 2 · PID action',title:'Integral action & anti-windup',
+       brief:'Add Ki to drive ess to zero, saturate the actuator, then enable anti-windup clamping to remove the overshoot recovery lag.',
+       target:'Ki > 0, zero offset, anti-windup enabled.',
+       check:()=>[['Integral active',S.p.pid.Ki>0],['Zero offset',(S.sim.metrics.ess||0)<.01],['Anti-windup',S.p.pid.antiWind],['Stable loop',S.sim.stable]]},
+      {n:6,mod:'pid',track:'Track 2 · PID action',title:'Derivative damping & disturbance rejection',
+       brief:'Tune Kd to suppress overshoot below 5 %, inject a +30 % load disturbance and verify fast recovery.',
+       target:'Overshoot below 5 % with derivative action and a logged disturbance.',
+       check:()=>[['Derivative active',S.p.pid.Kd>0],['Overshoot < 5%',(S.sim.metrics.os||99)<5],['Disturbance set',S.p.pid.dist>0],['Stable',S.sim.stable]]},
+      {n:7,mod:'pid',track:'Track 3 · ZN tuning',title:'Ziegler–Nichols ultimate gain discovery',
+       brief:'With Ki = Kd = 0, raise Kp until sustained oscillation appears, measure the ultimate period with scope calipers and apply the Z–N formulas.',
+       target:'Z–N baseline gains applied and a stable response.',
+       check:()=>[['Calipers used',S.calipers],['ZN gains applied',S.p.pid.Kp>0&&S.p.pid.Ki>0&&S.p.pid.Kd>0],['Stable loop',S.sim.stable],['Scope running',S.running]]},
+      {n:8,mod:'dso',track:'Track 3 · Instrumentation',title:'Sensor noise & derivative kick',
+       brief:'Inject high-frequency LVDT noise, observe derivative amplification, then enable derivative-on-measurement and the low-pass filter.',
+       target:'Derivative-on-measurement enabled with a clean control trace.',
+       check:()=>[['Derivative-on-meas',S.p.pid.derivMeas],['Scope on noise',S.module==='dso'||S.rows.length>0],['Stable',S.sim.stable],['Overshoot controlled',(S.sim.metrics.os||99)<10]]},
+      {n:9,mod:'dso',track:'Track 3 · Integration',title:'Full electro-mechanical positioner',
+       brief:'Use the calibrated LVDT as the feedback sensor in a PID positioner and drive the workpiece to +7.50 mm with sub-0.02 mm error.',
+       target:'LVDT at +7.5 mm with PID position hold and zero steady-state error.',
+       check:()=>[['Core near +7.5mm',Math.abs(S.p.lvdt.x-7.5)<.05],['PID closed loop',S.p.pid.Ki>0],['Zero offset',(S.sim.metrics.ess||0)<.01],['Stable',S.sim.stable]]}
+    ];
+    function buildLabList(){
+      $('lab-list').innerHTML=LABS.map(l=>'<button class="lab-item '+(l.n===S.selectedLab?'active':'')+' '+(S.labsDone.has(l.n)?'done':'')+'" data-n="'+l.n+'">'+
+        '<span class="li-num">'+(S.labsDone.has(l.n)?'✓':l.n)+'</span><span><span class="li-t">'+l.title+'</span><span class="li-s">'+l.track+'</span></span></button>').join('');
+      $('lab-list').querySelectorAll('.lab-item').forEach(b=>b.addEventListener('click',()=>{
+        S.selectedLab=+b.dataset.n;setModule(LABS.find(l=>l.n===S.selectedLab).mod,true);buildLabList();renderLabDetail();Sound.click();}));
+    }
+    function renderLabDetail(){
+      const l=LABS.find(x=>x.n===S.selectedLab),rows=l.check();
+      $('lab-detail').innerHTML='<div class="track">INSTRUMENTATION CHALLENGE #'+String(l.n).padStart(2,'0')+' · '+l.track+'</div>'+
+        '<h3>'+l.title+'</h3><p class="brief">'+l.brief+'</p>'+
+        '<div class="target-box"><b>TARGET SPECIFICATION</b><p>'+l.target+'</p></div>'+
+        '<div class="challenge-tag">LIVE TELEMETRY AUDIT</div><div class="audit">'+rows.map(r=>'<div class="audit-row"><span>'+r[0]+'</span><span class="'+(r[1]?'ok':'no')+'">'+(r[1]?'PASS':'NOT MET')+'</span></div>').join('')+'</div>'+
+        '<div class="ctrl-actions"><button class="btn primary" id="btn-verify">Verify &amp; log lab mastery</button>'+
+        '<button class="btn" id="btn-open-bench">Adjust in bench</button>'+(S.labsDone.has(l.n)?'<span class="progress-text" style="align-self:center;color:var(--green)">Completed</span>':'')+'</div>';
+      $('btn-verify').addEventListener('click',()=>{
+        if(l.check().every(x=>x[1])){S.labsDone.add(l.n);Sound.chord();
+          $('lab-detail').insertAdjacentHTML('beforeend','<p style="color:var(--green);margin-top:10px;font-size:.8rem">Lab logged. '+S.labsDone.size+' of 9 complete.</p>');}
+        else Sound.error();
+        updateProgress();buildLabList();
+      });
+      $('btn-open-bench').addEventListener('click',()=>switchMode('sim'));
+    }
+    function updateProgress(){
+      const n=S.labsDone.size;$('lab-count').textContent=n+'/9';
+      $('progress-fill').style.width=(n/9*100)+'%';$('progress-text').textContent=n+' / 9 complete';
+      $('rank-text').textContent='Rank: '+(n>=8?'Control Systems Engineer':n>=5?'Instrumentation Tech':n>=2?'Tuning Technician':'Trainee');
+    }
+
+    /* ───────────────────── quiz ───────────────────── */
+    const QUIZ=[
+      {q:'At the null position, an ideal LVDT outputs:',o:['Full-scale positive voltage','Zero differential voltage with small quadrature residual','180° phase inverted carrier','5 V reference'],a:1,
+        e:'The two secondaries are in series opposition; at null their induced voltages cancel, leaving only a few mV of quadrature leakage.'},
+      {q:'Raw AC RMS output cannot distinguish +5 mm from −5 mm because:',o:['The carrier is too fast','The magnitude is identical; only the phase differs by 180°','The core saturates','The amplifier clips'],a:1,
+        e:'A phase-sensitive demodulator multiplies by the carrier reference to recover the sign.'},
+      {q:'Adding integral action to a P-only loop primarily:',o:['Increases overshoot only','Eliminates steady-state offset','Reduces derivative kick','Slows rise time to zero'],a:1,
+        e:'The integrator accumulates until the error is zero, removing the Type-0 offset.'},
+      {q:'Anti-windup clamping prevents:',o:['Integral accumulation during actuator saturation','Derivative noise','Phase inversion','Carrier frequency drift'],a:0,
+        e:'When the actuator is at its rail, freezing integration avoids a large accumulated integral causing delayed overshoot.'},
+      {q:'Closed-loop poles in the right half-plane mean the system is:',o:['Critically damped','Stable','Unstable','Undamped but bounded'],a:2,
+        e:'Positive real parts produce exponentially growing oscillation — divergent, unstable response.'}
+    ];
+    function buildQuiz(){
+      $('quiz-list').innerHTML=QUIZ.map((qq,i)=>'<article class="card quiz-card"><div class="quiz-q"><span>Q'+(i+1)+'</span>'+qq.q+'</div><div class="opts">'+
+        qq.o.map((o,j)=>'<button class="opt" data-q="'+i+'" data-o="'+j+'"><span class="key">'+'ABCD'[j]+'</span>'+o+'</button>').join('')+
+        '</div><div class="explain" id="ex-'+i+'">'+qq.e+'</div></article>').join('');
+      $('quiz-list').querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{
+        const qi=+b.dataset.q,oi=+b.dataset.o;if(S.quiz[qi]!==undefined)return;
+        S.quiz[qi]=oi;const card=b.closest('.quiz-card');
+        card.querySelectorAll('.opt').forEach((x,j)=>{x.classList.toggle('correct',j===QUIZ[qi].a);x.classList.toggle('wrong',j===oi&&oi!==QUIZ[qi].a);x.disabled=true;});
+        $('ex-'+qi).classList.add('show');
+        if(oi===QUIZ[qi].a)Sound.tone(760,.15,'sine',.05);else Sound.error();
+        const score=Object.keys(S.quiz).filter(k=>S.quiz[k]===QUIZ[k].a).length;
+        $('quiz-score').textContent=score+' / 5';
+        $('quiz-verdict').textContent=score===5?'Mastery confirmed.':(Object.keys(S.quiz).length===5?'Review the highlighted explanations.':'Answer all five questions.');
+        if(Object.keys(S.quiz).length===5&&score>=4)Sound.chord();
+      }));
+    }
+
+    /* ───────────────────── practice generators ───────────────────── */
+    const GENERATORS=[
+      ()=>{const x=-10+Math.random()*20,Vp=1+Math.random()*9,G=5+Math.floor(Math.random()*26),v=20*G*.0024*Vp*10*Math.tanh(x/10);
+        return {q:'LVDT: x = '+x.toFixed(2)+' mm, Vp = '+Vp.toFixed(1)+' V, G = '+G+'. Find PSD output in volts.',a:v,u:'V',tol:.02};},
+      ()=>{const Vp=2+Math.random()*8,x=-10+Math.random()*20,mv=2.4*Vp*10*Math.tanh(x/10);
+        return {q:'Differential secondary magnitude for Vp = '+Vp.toFixed(1)+' V at x = '+x.toFixed(2)+' mm, in mV rms.',a:Math.abs(mv),u:'mV',tol:.03};},
+      ()=>{const z=.2+Math.random()*.5,os=z>=1?0:100*Math.exp(-z*Math.PI/Math.sqrt(1-z*z));
+        return {q:'Second-order plant with ζ = '+z.toFixed(2)+'. Find peak overshoot in %.',a:os,u:'%',tol:.03};},
+      ()=>{const z=.2+Math.random()*.5,wn=2+Math.random()*6,ts=4/(z*wn);
+        return {q:'ζ = '+z.toFixed(2)+', ωn = '+wn.toFixed(1)+' rad/s. Find the 2% settling time in seconds.',a:ts,u:'s',tol:.04};},
+      ()=>{const Kp=1+Math.random()*9,ess=1/(1+Kp);
+        return {q:'P-only unity-feedback loop with Kp = '+Kp.toFixed(1)+'. Find steady-state error for a unit step.',a:ess,u:'',tol:.03};},
+      ()=>{const Ku=5+Math.random()*5,Tu=.5+Math.random()*1;
+        return {q:'Ziegler–Nichols: Ku = '+Ku.toFixed(1)+', Tu = '+Tu.toFixed(2)+' s. Find recommended Kp.',a:.6*Ku,u:'',tol:.02};},
+      ()=>{const Ku=5+Math.random()*5,Tu=.5+Math.random()*1;
+        return {q:'Ziegler–Nichols: Ku = '+Ku.toFixed(1)+', Tu = '+Tu.toFixed(2)+' s. Find recommended Ki.',a:1.2*Ku/Tu,u:'',tol:.02};}
+    ];
+    function newProblem(){
+      const gen=GENERATORS[Math.floor(Math.random()*GENERATORS.length)],pr=gen();S.practice.cur=pr;S.practice.n++;
+      $('practice-card').innerHTML='<div class="practice-q">Q'+S.practice.n+' — '+pr.q+'</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><input class="practice-input" id="practice-answer" type="number" step="any" placeholder="your answer" aria-label="Your answer">'+
+        '<span class="card-sub">'+(pr.u||'dimensionless')+' · tolerance '+(pr.tol*100).toFixed(0)+'%</span>'+
+        '<button class="btn primary" id="btn-check-answer">Check answer</button><button class="btn" id="btn-show-answer">Show solution</button></div>'+
+        '<div class="feedback" id="practice-feedback"></div>';
+      $('btn-check-answer').addEventListener('click',()=>{
+        const val=parseFloat($('practice-answer').value),fb=$('practice-feedback');
+        if(!isFinite(val)){fb.className='feedback show no';fb.textContent='Enter a numeric answer.';return;}
+        const ok=Math.abs(val-pr.a)<=Math.max(pr.tol*Math.abs(pr.a),.005);
+        if(ok){S.practice.score++;Sound.chord();fb.className='feedback show ok';fb.textContent='Correct — accepted '+fmt(pr.a,4)+' '+pr.u+'.';}
+        else{Sound.error();fb.className='feedback show no';fb.textContent='Not quite. Expected '+fmt(pr.a,4)+' '+pr.u+' within '+(pr.tol*100).toFixed(0)+' %.';}
+        $('practice-score').textContent=S.practice.score+' / '+S.practice.n;
+        $('practice-verdict').textContent=ok?'Correct — generate another.':'Review the solution, then try a new problem.';
+      });
+      $('btn-show-answer').addEventListener('click',()=>{
+        const fb=$('practice-feedback');fb.className='feedback show ok';fb.textContent='Worked value: '+fmt(pr.a,5)+' '+pr.u+'.';});
+      $('practice-score').textContent=S.practice.score+' / '+S.practice.n;
+      $('practice-verdict').textContent='Generate a randomized problem.';
+    }
+
+    /* ───────────────────── navigation & events ───────────────────── */
+    function switchMode(mode){
+      S.mode=mode;
+      document.querySelectorAll('#mode-tabs .pill').forEach(p=>p.classList.toggle('active',p.dataset.mode===mode));
+      ['sim','3d','theory','labs','practice','quiz'].forEach(m=>$('section-'+m).classList.toggle('show',m===mode));
+      if(mode==='3d'){const w=$('model3d-wrapper');if(w)w.classList.remove('hidden');window.dispatchEvent(new Event('resize'));}
+      if(mode==='labs'){buildLabList();renderLabDetail();}
+      if(mode==='theory')renderStaticMath();
+      Sound.click();
+    }
+    function setModule(mod,silent){
+      S.module=mod;S.plotTab=0;
+      document.querySelectorAll('#module-tabs .pill').forEach(p=>p.classList.toggle('active',p.dataset.module===mod));
+      buildControls();solveAll();refreshPanels();drawAll();if(!silent)Sound.click();
+    }
+    function setZoom(z){S.zoom=clamp(z,.5,3);drawBoard();}
+    function fitView(){S.zoom=1;S.panX=0;S.panY=0;drawBoard();}
+    function toggleFullscreen(id){
+      const el=$(id);el.classList.toggle('fullscreen');
+      if(el.classList.contains('fullscreen'))el.querySelector('canvas').style.height='calc(100vh - 70px)';
+      else el.querySelector('canvas').style.height='';
+      window.dispatchEvent(new Event('resize'));drawAll();
+    }
+    function renderStaticMath(){document.querySelectorAll('[data-tex]').forEach(el=>{if(el.dataset.done)return;el.innerHTML=katexTex(el.getAttribute('data-tex'));el.dataset.done='1';});}
+    function bindEvents(){
+      document.querySelectorAll('#mode-tabs .pill').forEach(b=>b.addEventListener('click',()=>switchMode(b.dataset.mode)));
+      document.querySelectorAll('#module-tabs .pill').forEach(b=>b.addEventListener('click',()=>setModule(b.dataset.module)));
+      $('btn-audio').addEventListener('click',()=>{
+        S.audioOn=!S.audioOn;$('audio-label').textContent=S.audioOn?'Sound on':'Sound off';
+        $('btn-audio').setAttribute('aria-pressed',String(S.audioOn));});
+      $('btn-guide-jump').addEventListener('click',()=>$('user-guide').scrollIntoView({behavior:'smooth'}));
+      ['chk-flux','chk-labels','chk-equation','chk-grid'].forEach(id=>{
+        $(id).addEventListener('change',e=>{S.display[id.replace('chk-','')]=e.target.checked;drawAll();Sound.click();});
+      });
+      $('btn-run').addEventListener('click',()=>{S.running=!S.running;$('btn-run').textContent=S.running?'▶ Run':'⏸ Pause';Sound.click();});
+      $('btn-step-test').addEventListener('click',()=>{runStepTest();S.playhead=0;refreshPanels();drawAll();Sound.chord();});
+      $('btn-reset-view').addEventListener('click',()=>{S.sim.t=0;S.playhead=0;fitView();Sound.click();});
+      $('btn-zn').addEventListener('click',()=>{
+        const Ku=7.5,Tu=1.125;S.p.pid.Kp=+(.6*Ku).toFixed(2);S.p.pid.Ki=+(1.2*Ku/Tu).toFixed(2);S.p.pid.Kd=+(.075*Ku*Tu).toFixed(3);
+        buildControls();runStepTest();refreshPanels();drawAll();Sound.chord();
+      });
+      $('btn-disturb').addEventListener('click',()=>{S.p.pid.dist=S.p.pid.dist>0?0:.3;buildControls();runStepTest();refreshPanels();drawAll();Sound.clunk();});
+      $('btn-calc').addEventListener('click',()=>{$('modal-steps').innerHTML=stepsHtml(derivationSteps());$('calc-modal').classList.add('show');Sound.click();});
+      $('btn-close-modal').addEventListener('click',()=>$('calc-modal').classList.remove('show'));
+      $('calc-modal').addEventListener('click',e=>{if(e.target===$('calc-modal'))$('calc-modal').classList.remove('show');});
+      $('btn-png').addEventListener('click',exportPNG);
+      $('btn-grid').addEventListener('click',()=>{S.display.grid=!S.display.grid;$('chk-grid').checked=S.display.grid;drawAll();Sound.click();});
+      $('btn-zoom-in').addEventListener('click',()=>setZoom(S.zoom*1.2));
+      $('btn-zoom-out').addEventListener('click',()=>setZoom(S.zoom/1.2));
+      $('btn-fit').addEventListener('click',()=>{fitView();Sound.click();});
+      $('btn-fs-schematic').addEventListener('click',()=>toggleFullscreen('schematic-card'));
+      $('btn-fs-dso').addEventListener('click',()=>toggleFullscreen('dso-card'));
+      $('btn-scope-mode').addEventListener('click',()=>{S.scopeRunning=!S.scopeRunning;$('btn-scope-mode').textContent=S.scopeRunning?'⏸':'▶';Sound.click();});
+      $('btn-calipers').addEventListener('click',()=>{S.calipers=!S.calipers;$('btn-calipers').classList.toggle('on',S.calipers);drawPlot();Sound.click();});
+      $('btn-log').addEventListener('click',()=>logRow(currentRow()));
+      $('btn-sweep').addEventListener('click',autoSweep);
+      $('btn-clear').addEventListener('click',()=>{S.rows=[];renderTable();Sound.click();});
+      $('btn-export').addEventListener('click',exportReport);
+      $('btn-quiz-reset').addEventListener('click',()=>{S.quiz={};buildQuiz();$('quiz-score').textContent='0 / 5';$('quiz-verdict').textContent='Answer all five questions.';Sound.click();});
+      $('btn-new-problem').addEventListener('click',newProblem);
+
+      const cv=$('ws-canvas');let drag=false,lx=0,ly=0;
+      const local=e=>{const r=cv.getBoundingClientRect(),sc=cv.width/r.width;
+        return {wx:((e.clientX-r.left)*sc-S.panX)/S.zoom,wy:((e.clientY-r.top)*sc-S.panY)/S.zoom};};
+      cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;cv.classList.add('grabbing');cv.setPointerCapture(e.pointerId);});
+      cv.addEventListener('pointermove',e=>{if(!drag)return;S.panX+=e.clientX-lx;S.panY+=e.clientY-ly;lx=e.clientX;ly=e.clientY;drawBoard();});
+      cv.addEventListener('pointerup',()=>{drag=false;cv.classList.remove('grabbing');});
+      cv.addEventListener('pointercancel',()=>{drag=false;cv.classList.remove('grabbing');});
+      cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(S.zoom*(e.deltaY>0?.9:1.1));},{passive:false});
+      cv.addEventListener('dblclick',fitView);
+      const dso=$('dso-canvas');let calDrag=0;
+      dso.addEventListener('pointerdown',e=>{const r=dso.getBoundingClientRect(),f=(e.clientX-r.left)/r.width;
+        calDrag=Math.abs(f-S.cal1)<Math.abs(f-S.cal2)?1:2;});
+      dso.addEventListener('pointermove',e=>{if(!calDrag||!S.calipers)return;const r=dso.getBoundingClientRect();
+        const f=clamp((e.clientX-r.left)/r.width,0,1);if(calDrag===1)S.cal1=f;else S.cal2=f;drawDSO();});
+      dso.addEventListener('pointerup',()=>{calDrag=0;});
+      document.addEventListener('keydown',e=>{
+        if(e.key==='Escape'){$('calc-modal').classList.remove('show');return;}
+        if(/input|select|textarea/i.test(e.target.tagName))return;
+        if(e.key===' '){e.preventDefault();$('btn-step-test').click();}
+        else if(e.key==='+'||e.key==='=')setZoom(S.zoom*1.2);
+        else if(e.key==='-')setZoom(S.zoom/1.2);
+        else if(e.key==='0')fitView();
+        else if(e.key.toLowerCase()==='f')toggleFullscreen('schematic-card');
+        else if(e.key.toLowerCase()==='g')$('btn-grid').click();
+        else if(e.key.toLowerCase()==='c')$('btn-calipers').click();
+      });
+      window.addEventListener('resize',resizeAll);
+    }
+    function loop(ts){
+      const dt=Math.min(.05,(ts-S.lastTs)/1000||0);S.lastTs=ts;
+      if(S.running)S.t+=dt;
+      if(S.module==='pid'&&S.running){
+        S.playhead=(S.playhead||0)+dt*.1;
+        const sm=S.sim.samples||[];
+        if(sm.length){const q=sm[Math.floor((S.playhead%1)*(sm.length-1))]||{};
+          S.sim.y=q.y!==undefined?q.y:S.sim.y;S.sim.e=q.e!==undefined?q.e:S.sim.e;S.sim.u=q.u!==undefined?q.u:S.sim.u;}
+      }
+      if(S.mode==='sim'){drawBoard();drawDSO();drawPlot();buildReadouts();}
+      requestAnimationFrame(loop);
+    }
+    function init(){
+      solveAll();runStepTest();bindEvents();buildControls();refreshPanels();renderTable();buildLabList();renderLabDetail();buildQuiz();newProblem();
+      renderStaticMath();updateProgress();resizeAll();drawAll();
+      if(!waitForMath()){let tries=0;const timer=setInterval(()=>{if(waitForMath()||++tries>60)clearInterval(timer);},200);}
+      window.addEventListener('load',waitForMath);
+      requestAnimationFrame(loop);
+    }
+    init();
+  })();
+  </script>
+  <script src="../../shared/sidebar/sidebar.js"></script>
 </body>
 </html>

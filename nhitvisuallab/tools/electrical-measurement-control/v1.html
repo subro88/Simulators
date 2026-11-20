@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Measurement &amp; Control Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Measurement & Control Virtual Lab for WBSCTE 4th Sem EE (EE/S4/EMC). Simulate LVDT Transducer Displacement, PID Closed-Loop Step Response, Transient Dynamics, and inspect 3D LVDT & Process Tank model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/EMC)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Measurement &amp; Control Virtual Lab</h1>
+    <p class="subtitle">LVDT Transducer Core Displacement, PID Closed-Loop Step Response &amp; Real-time Oscilloscope Telemetry</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Control Systems</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; PID Tuning Guide</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">LVDT Transducer &amp; PID Process Tank</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of LVDT Transducer Barrel, Movable Ferro Core Shaft, PID Control Process Tank, and Servo Control Valve Actuator.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="emc-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Mode:</label>
+        <select id="ctrl-mode-select" class="emc-select">
+          <option value="pid">1. Closed-Loop PID Controller Step Response</option>
+          <option value="lvdt">2. LVDT Linear Displacement Transducer (±10mm)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Damping (&zeta;):</label>
+        <input type="range" id="zeta-range" min="0.1" max="1.5" step="0.05" value="0.6" class="slider-ctrl">
+        <span id="zeta-val" style="font-weight:700;color:#38bdf8;width:35px;display:inline-block;">0.60</span>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Gain (Kp):</label>
+        <input type="number" id="kp-in" value="3.5" min="0.5" max="30" step="0.5" class="num-input">
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-step-trig">Trigger Step Input &#9654;</button>
+        <button class="btn-action success" id="btn-crit-damp">Set Optimal ζ = 0.707</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Response -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Second-Order Closed-Loop Step Response y(t)</span>
+          <span class="badge" id="mp-badge">Overshoot Mp = 9.48%</span>
+        </div>
+        <canvas id="emc-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Transient Dynamics &amp; LVDT Calibration</span>
+        </div>
+        <div class="emc-grid">
+          <div class="emc-box"><span class="emc-lbl">Peak Overshoot (Mp)</span><span class="emc-val" id="disp-mp">9.48 %</span></div>
+          <div class="emc-box"><span class="emc-lbl">Settling Time (ts, 2%)</span><span class="emc-val" id="disp-ts">1.667 sec</span></div>
+          <div class="emc-box"><span class="emc-lbl">Rise Time (tr)</span><span class="emc-val" id="disp-tr">0.682 sec</span></div>
+          <div class="emc-box"><span class="emc-lbl">LVDT Core Position</span><span class="emc-val">+4.50 mm (225.0 mV)</span></div>
+          <div class="emc-box"><span class="emc-lbl">Steady State Error (ess)</span><span class="emc-val" id="disp-ess">0.222 (22.2%)</span></div>
+          <div class="emc-box"><span class="emc-lbl">Loop Stability Status</span><span class="emc-val" style="color:#10b981;">STABLE (LHP Poles)</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Control Systems Telemetry:</div>
+          <div class="console-log" id="emc-log">
+            &gt; Initialized Electrical Measurement &amp; Control Virtual Lab.<br>
+            &gt; System Transfer Function: G(s) = &omega;n&sup2; / (s&sup2; + 2&zeta;&omega;n&middot;s + &omega;n&sup2;) with &omega;n = 4.0 rad/s, &zeta; = 0.60.<br>
+            &gt; Peak Overshoot Mp = 9.48% at tp = 0.98s. Settling time ts = 1.67s.<br>
+            &gt; LVDT Differential Output Voltage: 225.0 mV RMS (Linearity &gt; 99.8%).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/EMC Electrical Measurement &amp; Control</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. LVDT Inductive Transducer</h3>
+          <p>Linear Variable Differential Transformer converts mechanical displacement into a differential AC voltage ($V_{out} = V_{S1} - V_{S2}$). Null position yields $V_{out} \approx 0\text{V}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. PID Controller Response</h3>
+          <p><strong>Proportional ($K_p$):</strong> Reduces rise time and steady-state error.<br><strong>Integral ($K_i$):</strong> Eliminates steady-state offset ($e_{ss} \to 0$).<br><strong>Derivative ($K_d$):</strong> Increases damping and reduces peak overshoot.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Time-Domain Specifications</h3>
+          <p>Peak overshoot $\%M_p = 100 e^{-\frac{\zeta\pi}{\sqrt{1-\zeta^2}}}$, Settling time $t_s = \frac{4}{\zeta\omega_n}$, Rise time $t_r = \frac{\pi - \beta}{\omega_d}$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. Industrial Transducers</h3>
+          <p>Thermocouple (Seebeck effect), RTD Pt100 ($R_t = R_0(1+\alpha t)$), Strain Gauge (Gauge factor $GF = \frac{\Delta R/R}{\Delta L/L}$), Piezoelectric quartz crystals.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('emc-canvas');
+const ctx = canvas.getContext('2d');
+let currentZeta = 0.6;
+let currentKp = 3.5;
+
+function drawResponse() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const wn = 4.0;
+  let mp = 0;
+  if (currentZeta < 1.0) {
+    mp = 100 * Math.exp(- (currentZeta * Math.PI) / Math.sqrt(1 - currentZeta * currentZeta));
+  }
+  const ts = 4.0 / (currentZeta * wn);
+  const ess = 1.0 / (1.0 + currentKp);
+
+  document.getElementById('disp-mp').textContent = `${mp.toFixed(2)} %`;
+  document.getElementById('disp-ts').textContent = `${ts.toFixed(3)} sec`;
+  document.getElementById('disp-ess').textContent = `${ess.toFixed(3)} (${(ess*100).toFixed(1)}%)`;
+  document.getElementById('mp-badge').textContent = `Overshoot Mp = ${mp.toFixed(1)}%`;
+
+  // Grid & Axes
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(60, 340); ctx.lineTo(640, 340); ctx.stroke(); // Time axis
+  ctx.beginPath(); ctx.moveTo(60, 40); ctx.lineTo(60, 340); ctx.stroke();  // Amplitude axis
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px monospace';
+  ctx.fillText('Time t (seconds)', 540, 365);
+  ctx.fillText('Output y(t)', 70, 55);
+
+  // Setpoint Line (y = 1.0)
+  ctx.strokeStyle = '#ef4444';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(60, 180); ctx.lineTo(640, 180); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillText('Step Setpoint r(t) = 1.0', 480, 172);
+
+  // Step Response Curve y(t) = 1 - (e^(-zeta*wn*t) / sqrt(1-zeta^2)) * sin(wd*t + beta)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let px = 60; px <= 640; px += 2) {
+    const t = (px - 60) * (3.0 / 580.0); // 0 to 3.0 seconds
+    let yt = 0;
+    if (currentZeta < 1.0) {
+      const wd = wn * Math.sqrt(1 - currentZeta * currentZeta);
+      const beta = Math.acos(currentZeta);
+      yt = 1.0 - (Math.exp(-currentZeta * wn * t) / Math.sqrt(1 - currentZeta * currentZeta)) * Math.sin(wd * t + beta);
+    } else {
+      yt = 1.0 - Math.exp(-wn * t) * (1 + wn * t);
+    }
+    const py = 340 - yt * 160;
+    if (px === 60) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Peak Overshoot Dot
+  if (currentZeta < 1.0) {
+    const tp = Math.PI / (wn * Math.sqrt(1 - currentZeta * currentZeta));
+    const peakX = 60 + tp * (580.0 / 3.0);
+    const peakY = 340 - (1.0 + mp / 100.0) * 160;
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath(); ctx.arc(peakX, peakY, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText(`Peak: Mp = ${mp.toFixed(1)}% at tp = ${tp.toFixed(2)}s`, peakX - 50, peakY - 12);
+  }
+}
+
+const zetaRange = document.getElementById('zeta-range');
+const zetaVal = document.getElementById('zeta-val');
+const kpIn = document.getElementById('kp-in');
+const logEl = document.getElementById('emc-log');
+
+zetaRange.addEventListener('input', () => {
+  currentZeta = parseFloat(zetaRange.value);
+  zetaVal.textContent = currentZeta.toFixed(2);
+  drawResponse();
+});
+
+kpIn.addEventListener('input', () => {
+  currentKp = parseFloat(kpIn.value) || 3.5;
+  drawResponse();
+});
+
+document.getElementById('btn-step-trig').addEventListener('click', () => {
+  logEl.innerHTML += `<br>&gt; [STEP TRIGGER] Step input applied: &zeta; = ${currentZeta.toFixed(2)}, Kp = ${currentKp}. Response converged in ${(4.0/(currentZeta*4.0)).toFixed(2)}s.`;
+  drawResponse();
+});
+
+document.getElementById('btn-crit-damp').addEventListener('click', () => {
+  currentZeta = 0.707;
+  zetaRange.value = 0.707;
+  zetaVal.textContent = '0.71';
+  logEl.innerHTML += '<br>&gt; [OPTIMAL TUNING] Set Butterworth damping ratio &zeta; = 0.707. Minimal overshoot (4.3%) with fast settling time.';
+  drawResponse();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_measurement_control.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawResponse();
+</script>
+</body>
+</html>

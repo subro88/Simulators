@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrical Workshop Practice Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Workshop Practice Virtual Lab for WBSCTE 3rd Sem EE (EE/S3/WS). Simulate Staircase 2-Way Wiring, Godown Wiring, Megger Earth Resistance Measurement, and inspect 3D Wiring Board model.">
+  <link rel="stylesheet" href="../../shared/site.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#app" class="skip-link">Skip to content</a>
+<a class="logo-fixed" href="../../index.html">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+</a>
+
+<main id="app">
+  <nav class="site-nav" aria-label="Breadcrumb">
+    <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
+    <span class="nav-domain">Electrical Engineering &mdash; 3rd Semester (EE/S3/WS)</span>
+  </nav>
+
+  <header>
+    <h1>Electrical Workshop Practice Virtual Lab</h1>
+    <p class="subtitle">Staircase &amp; Godown 2-Way Wiring, Megger Earth Electrode Testing &amp; MCB Trip Protection</p>
+  </header>
+
+  <!-- Mode tabs bar (UTM model structure) -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="pill-tabs" id="mode-tabs">
+        <button class="pill active" data-value="simulate">Simulate</button>
+        <button class="pill" data-value="3d-model">3D Model</button>
+        <button class="pill" data-value="explore">Indian Electricity Rules</button>
+        <button class="pill" data-value="quiz">Quiz</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; IE Wiring Rules</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section id="sim3d-section" class="sim3d-section">
+      <h2>3D Hardware — <span id="sim3d-title">House Wiring Board &amp; Megger</span></h2>
+      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of House Wiring Wooden Board, MCB Circuit Breaker Unit, Staircase 2-Way Toggle Switch, Megger Earth Tester Spike, and Fluorescent Choke Ballast.</p>
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+        </div>
+        <aside id="sim3d-components" class="sim3d-components"></aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <div class="ws-toolbar">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Wiring Circuit:</label>
+        <select id="wire-select" class="ws-select">
+          <option value="staircase">1. Staircase Wiring (2-Way Switches S1 &amp; S2)</option>
+          <option value="godown">2. Godown Sequential Lighting Circuit</option>
+          <option value="megger">3. Earth Electrode Resistance Megger Test</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Switch 1 (S1):</label>
+        <select id="s1-select" class="ws-select">
+          <option value="pos_a">Position UP (L1)</option>
+          <option value="pos_b">Position DOWN (L2)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label class="ctrl-label">Switch 2 (S2):</label>
+        <select id="s2-select" class="ws-select">
+          <option value="pos_a">Position UP (L1)</option>
+          <option value="pos_b">Position DOWN (L2)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-actions">
+        <button class="btn-action primary" id="btn-toggle-sw">Toggle Switches &#9654;</button>
+        <button class="btn-action danger" id="btn-trip-mcb">Simulate MCB Trip</button>
+      </div>
+    </div>
+
+    <!-- Dual Canvas & Wiring Schematic -->
+    <div class="dual-canvas-row">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Live Wiring Circuit &amp; Current Continuity Path</span>
+          <span class="badge" id="lamp-badge" style="background:#10b981;">LAMP: ILLUMINATED (ON)</span>
+        </div>
+        <canvas id="ws-canvas" width="700" height="420"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <span class="card-title">Safety Telemetry &amp; Earth Resistance</span>
+        </div>
+        <div class="ws-grid">
+          <div class="ws-box"><span class="ws-lbl">Lamp Status</span><span class="ws-val" id="disp-lamp" style="color:#10b981;font-weight:700;">ON (230V AC)</span></div>
+          <div class="ws-box"><span class="ws-lbl">Earth Electrode R</span><span class="ws-val" id="disp-rearth">3.42 &Omega; (IS 3043 Safe)</span></div>
+          <div class="ws-box"><span class="ws-lbl">Insulation Resistance</span><span class="ws-val">&gt; 250 M&Omega; (Megger)</span></div>
+          <div class="ws-box"><span class="ws-lbl">MCB Protection</span><span class="ws-val" id="disp-mcb" style="color:#10b981;">CLOSED (Type C 16A)</span></div>
+          <div class="ws-box"><span class="ws-lbl">Supply Phase</span><span class="ws-val">Single Phase 230V 50Hz</span></div>
+          <div class="ws-box"><span class="ws-lbl">Conduit Type</span><span class="ws-val">PVC Surface Conduit</span></div>
+        </div>
+
+        <div class="console-box">
+          <div class="console-title">Electrical Workshop Diagnostic Console:</div>
+          <div class="console-log" id="ws-log">
+            &gt; Initialized Electrical Workshop Practice Virtual Lab.<br>
+            &gt; Staircase 2-Way Wiring initialized: S1 = UP, S2 = UP.<br>
+            &gt; Complete closed loop formed across Phase &rarr; S1(L1) &rarr; S2(L1) &rarr; Lamp &rarr; Neutral.<br>
+            &gt; Earth Resistance Measured: 3.42 &Omega; (Compliant with Indian Electricity Rule 61).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <div class="theory-card">
+      <h2>Syllabus Coverage &mdash; WBSCTE EE/S3/WS Electrical Workshop Practice</h2>
+      <div class="theory-grid">
+        <div class="theory-item">
+          <h3>1. Staircase &amp; Godown Wiring</h3>
+          <p>Two-way SPDT switch wiring allows independent control of a single corridor/staircase lamp from two different locations (top and bottom of staircase).</p>
+        </div>
+        <div class="theory-item">
+          <h3>2. Earthing Systems (Pipe &amp; Plate)</h3>
+          <p>Pipe electrode earthing uses perforated GI pipe surrounded by charcoal and salt layers. Indian Standard IS 3043 requires domestic earth resistance $R \le 5.0 \Omega$ and substation $R \le 1.0 \Omega$.</p>
+        </div>
+        <div class="theory-item">
+          <h3>3. Megger Earth Tester</h3>
+          <p>Hand-driven DC generator (500V/1000V) or electronic digital insulation tester measuring mega-ohm insulation resistance between phase conductors and earth.</p>
+        </div>
+        <div class="theory-item">
+          <h3>4. MCB &amp; ELCB/RCCB Protection</h3>
+          <p><strong>MCB:</strong> Bimetallic strip for thermal overload and electromagnetic solenoid for short-circuit trip.<br><strong>RCCB:</strong> Detects residual leakage current $\ge 30\text{mA}$ to prevent fatal electrocution.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../../shared/sidebar/sidebar.js"></script>
+<script>
+// Mode Switching
+document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const val = btn.getAttribute('data-value');
+    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
+    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
+    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
+    if (val === '3d-model' && !window.three3DInitialized) init3D();
+  });
+});
+
+const canvas = document.getElementById('ws-canvas');
+const ctx = canvas.getContext('2d');
+let isLampOn = true;
+
+function drawWiring() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Supply Lines
+  ctx.fillStyle = '#ef4444';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.fillText('Phase (230V AC)', 50, 80);
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(50, 95); ctx.lineTo(160, 95); ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('Neutral (N)', 50, 320);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.beginPath(); ctx.moveTo(50, 335); ctx.lineTo(550, 335); ctx.lineTo(550, 240); ctx.stroke();
+
+  // Switch 1 Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(160, 70, 100, 150);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.strokeRect(160, 70, 100, 150);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('Switch S1', 210, 60);
+
+  // Switch 2 Box
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(360, 70, 100, 150);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.strokeRect(360, 70, 100, 150);
+  ctx.fillText('Switch S2', 410, 60);
+
+  // Strapping wires between S1 and S2
+  ctx.strokeStyle = isLampOn ? '#22c55e' : '#64748b';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(260, 105); ctx.lineTo(360, 105); ctx.stroke(); // Strapping wire 1
+  ctx.beginPath(); ctx.moveTo(260, 185); ctx.lineTo(360, 185); ctx.stroke(); // Strapping wire 2
+
+  // Output to Lamp
+  ctx.beginPath(); ctx.moveTo(460, 145); ctx.lineTo(550, 145); ctx.lineTo(550, 180); ctx.stroke();
+
+  // Lamp Bulb Circle
+  ctx.fillStyle = isLampOn ? '#f59e0b' : '#334155';
+  ctx.beginPath(); ctx.arc(550, 210, 28, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = isLampOn ? '#fbbf24' : '#64748b';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText(isLampOn ? '💡 ON' : 'OFF', 550, 215);
+
+  if (isLampOn) {
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+    ctx.beginPath(); ctx.arc(550, 210, 42, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+const s1Sel = document.getElementById('s1-select');
+const s2Sel = document.getElementById('s2-select');
+const logEl = document.getElementById('ws-log');
+
+function toggleSwitches() {
+  isLampOn = (s1Sel.value === s2Sel.value);
+  document.getElementById('lamp-badge').textContent = isLampOn ? 'LAMP: ILLUMINATED (ON)' : 'LAMP: EXTINGUISHED (OFF)';
+  document.getElementById('lamp-badge').style.background = isLampOn ? '#10b981' : '#ef4444';
+  document.getElementById('disp-lamp').textContent = isLampOn ? 'ON (230V AC)' : 'OFF (Circuit Broken)';
+  document.getElementById('disp-lamp').style.color = isLampOn ? '#10b981' : '#ef4444';
+
+  logEl.innerHTML += `<br>&gt; S1 = ${s1Sel.value}, S2 = ${s2Sel.value} &rarr; Lamp is now ${isLampOn ? 'ILLUMINATED' : 'EXTINGUISHED'}.`;
+  drawWiring();
+}
+
+document.getElementById('btn-toggle-sw').addEventListener('click', toggleSwitches);
+s1Sel.addEventListener('change', toggleSwitches);
+s2Sel.addEventListener('change', toggleSwitches);
+
+document.getElementById('btn-trip-mcb').addEventListener('click', () => {
+  isLampOn = false;
+  document.getElementById('disp-mcb').textContent = 'TRIPPED (Open Circuit)';
+  document.getElementById('disp-mcb').style.color = '#ef4444';
+  document.getElementById('lamp-badge').textContent = 'MCB TRIPPED';
+  document.getElementById('lamp-badge').style.background = '#ef4444';
+  logEl.innerHTML += '<br>&gt; [TRIP PROTECTION] Magnetic trip coil activated: MCB opened within 20ms to clear fault current.';
+  drawWiring();
+});
+
+function init3D() {
+  window.three3DInitialized = true;
+  const canvas3d = document.getElementById('sim3d-canvas');
+  const aside = document.getElementById('sim3d-components');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+
+  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
+  camera.position.set(3.5, 3.0, 4.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
+  scene.add(hemiLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  dirLight.position.set(6, 12, 8);
+  scene.add(dirLight);
+
+  const loader = new THREE.GLTFLoader();
+  loader.load('../../models/electrical_wiring_workshop.glb', (gltf) => {
+    scene.add(gltf.scene);
+    aside.innerHTML = '';
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        const btn = document.createElement('button');
+        btn.className = 'sim3d-comp';
+        btn.textContent = child.name || 'Component';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          child.material.color.setHex(0x00e676);
+          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
+        });
+        aside.appendChild(btn);
+      }
+    });
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+drawWiring();
+</script>
+</body>
+</html>
