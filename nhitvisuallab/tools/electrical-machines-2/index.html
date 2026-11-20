@@ -3,383 +3,740 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Electrical Machines - II Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive Electrical Machines - II Virtual Lab for WBSCTE 4th Sem Electrical Engineering (EE/S4/EM II). Simulate 3-Phase Induction Motor Torque-Slip Curves, Synchronous Alternator V-curves, Rotor Animation, and inspect 3D Machine model.">
+  <title>Electrical Machines — II Virtual Lab | NHIT VisualLab</title>
+  <meta name="description" content="Interactive Electrical Machines — II Virtual Laboratory. 3-Phase Induction Motor Torque-Slip Dynamics & Starters, Synchronous Alternator/Motor V-Curves & Grid Synchronization, and Rotating Magnetic Field Visualizer. WBSCTE 4th Sem EE (EE/S4/EM II).">
+  <meta name="theme-color" content="#00212b">
+
+  <!-- Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for High-Fidelity Mathematical Typesetting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+
+  <!-- Core & Custom CSS -->
   <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
-  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+<a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab Home" title="Return to NHIT VisualLab Home">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40">
 </a>
 
 <main id="app">
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav" aria-label="Breadcrumb">
     <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
     <span class="nav-domain">Electrical Engineering &mdash; 4th Semester (EE/S4/EM II)</span>
   </nav>
 
+  <!-- Lab Header -->
   <header>
     <h1>Electrical Machines &mdash; II Virtual Lab</h1>
-    <p class="subtitle">3-Phase Induction Motor Torque-Slip Dynamics, Synchronous Alternator V-Curves &amp; Rotor Speed Animation</p>
+    <span class="badge-topic">WBSCTE EE/S4/EM II &middot; NBA ACCREDITED</span>
+    <p class="subtitle">3-Phase Induction Motor Torque–Slip Dynamics &amp; Starting Switchgear, Synchronous Machine V-Curves &amp; Grid Synchronization, and Rotating Magnetic Field Stroboscopic Visualizer</p>
   </header>
 
-  <!-- Mode tabs bar (UTM model structure) -->
+  <!-- Canonical 4-Mode Platform Navigation -->
   <div class="controls-bar">
     <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
-      <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">Machine Theory</button>
-        <button class="pill" data-value="quiz">Quiz</button>
+      <span class="ctrl-label">Platform Mode</span>
+      <div class="pill-tabs" id="mode-tabs" role="tablist">
+        <button class="pill active" data-mode="simulate" role="tab" aria-selected="true">⚙ Simulate</button>
+        <button class="pill" data-mode="3d-model" role="tab" aria-selected="false">💻 3D Model</button>
+        <button class="pill" data-mode="explore" role="tab" aria-selected="false">📖 Machine Theory</button>
+        <button class="pill" data-mode="quiz" role="tab" aria-selected="false">★ Quiz &amp; Practice</button>
       </div>
     </div>
     <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Machines Guide</a>
+      <button class="btn-sound" id="btn-sound-toggle" title="Toggle audio feedback synthesizer">🔊 Sound: ON</button>
+      <a class="btn-guide" href="#theory-section" id="btn-guide-anchor" title="View Machine Theory Guide">📖 Machine Guide</a>
     </div>
   </div>
 
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
-  <div id="model3d-wrapper" class="hidden">
-    <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Hardware — <span id="sim3d-title">3-Phase Induction &amp; Synchronous Machine</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Induction Stator Housing, Squirrel Cage Copper Rotor, Rotor Drive Shaft, Synchronous Field Exciter, and Mounting Bed Base.</p>
-      <div class="sim3d-layout">
-        <div class="sim3d-wrap">
-          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
-        </div>
-        <aside id="sim3d-components" class="sim3d-components"></aside>
-      </div>
-    </section>
-  </div>
-
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       MODE 1: INTERACTIVE SIMULATION WORKBENCH
+       ══════════════════════════════════════════════════════════════════════════ -->
   <div id="sim-wrapper">
-    <div class="em2-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">Machine Type:</label>
-        <select id="mach-select" class="em2-select">
-          <option value="induction">1. 3-Phase Induction Motor (Torque-Slip T(s))</option>
-          <option value="synch">2. Synchronous Alternator (V-Curves Ia vs If)</option>
-          <option value="single">3. Single-Phase Capacitor-Start Induction Motor</option>
-        </select>
+    <!-- Secondary Pillar Toolbar -->
+    <div class="em-toolbar">
+      <div class="pillar-tabs" role="tablist">
+        <button class="pillar-tab active" data-pillar="induction" id="tab-induction">1. 3Φ Induction Motor (T-s &amp; Starters)</button>
+        <button class="pillar-tab" data-pillar="synchronous" id="tab-synchronous">2. Synchronous Machine (V-Curves &amp; Synchro)</button>
+        <button class="pillar-tab" data-pillar="rmf" id="tab-rmf">3. Rotating Magnetic Field &amp; Stroboscope</button>
       </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">Poles (P):</label>
-        <select id="poles-select" class="em2-select">
-          <option value="2">2 Poles (Ns = 3000 RPM)</option>
-          <option value="4" selected>4 Poles (Ns = 1500 RPM)</option>
-          <option value="6">6 Poles (Ns = 1000 RPM)</option>
-        </select>
-      </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">Load Slip (s):</label>
-        <input type="range" id="slip-range" min="0.005" max="1.0" step="0.005" value="0.04" class="slider-ctrl">
-        <span id="slip-val" style="font-weight:700;color:#38bdf8;width:45px;display:inline-block;">0.04</span>
-      </div>
-
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-toggle-run">Start Rotation ⏵</button>
-        <button class="btn-action success" id="btn-max-torque">Find T_max (Breakdown)</button>
+      <div class="toolbar-actions">
+        <button class="btn-action primary" id="btn-run-toggle">⏵ Run Motor</button>
+        <button class="btn-action" id="btn-step-sim" title="Step simulation ahead by 1 frame">⏭ Step</button>
+        <button class="btn-action danger" id="btn-reset-bench" title="Reset all parameters to benchmark default">↺ Reset</button>
       </div>
     </div>
 
-    <!-- Dual Canvas & Animation Row -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Torque-Slip Characteristic Curve &amp; Rotating Magnetic Field</span>
-          <span class="badge" id="speed-badge">Rotor Speed Nr = 1440 RPM</span>
+    <!-- Strict 3:2 Dual Viewport Workbench Layout -->
+    <div class="dual-viewport">
+      <!-- Left Pane (60% / 3 Parts): Interactive Machine Workbench & Parameter Trays -->
+      <div class="workbench-left">
+        <!-- Interactive Canvas Card -->
+        <div class="canvas-card-container" id="canvas-card-container">
+          <div class="canvas-card-header">
+            <div class="canvas-title-group">
+              <span class="canvas-title" id="canvas-title">3-Phase Induction Motor Test Bench &amp; Dynamometer</span>
+              <div class="canvas-badges" id="canvas-badges">
+                <span class="status-pill highlight" id="badge-state">RUNNING</span>
+                <span class="status-pill success" id="badge-stability">STABLE LOAD</span>
+                <span class="status-pill" id="badge-poles">4 POLES &middot; Ns=1500 RPM</span>
+              </div>
+            </div>
+            <button class="btn-fullscreen" id="btn-fullscreen" title="Toggle Fullscreen Workbench (F)">⛶ Fullscreen</button>
+          </div>
+
+          <div class="canvas-viewport-wrapper" id="canvas-viewport-wrapper">
+            <canvas id="machine-canvas"></canvas>
+
+            <!-- Floating Nav HUD: Zoom, Fit, 1:1, Grid -->
+            <div class="canvas-nav-hud">
+              <button class="hud-btn" id="btn-zoom-in" title="Zoom In (+)">＋</button>
+              <button class="hud-btn" id="btn-zoom-out" title="Zoom Out (-)">－</button>
+              <button class="hud-btn" id="btn-zoom-reset" title="Reset 1:1 (0)">1:1</button>
+              <button class="hud-btn" id="btn-zoom-fit" title="Fit to Viewport">Fit</button>
+              <button class="hud-btn active" id="btn-toggle-grid" title="Toggle Grid (G)">⊞ Grid</button>
+              <span class="hud-zoom-level" id="hud-zoom-level">100%</span>
+            </div>
+
+            <!-- Floating Synchroscope Lamp HUD (Synchronous Machine Pillar) -->
+            <div class="synchro-lamp-hud hidden" id="synchro-lamp-hud">
+              <div class="lamp-col">
+                <div class="lamp-bulb" id="lamp-l1"></div>
+                <span class="lamp-lbl">L1 (R-R)</span>
+              </div>
+              <div class="lamp-col">
+                <div class="lamp-bulb" id="lamp-l2"></div>
+                <span class="lamp-lbl">L2 (Y-B)</span>
+              </div>
+              <div class="lamp-col">
+                <div class="lamp-bulb" id="lamp-l3"></div>
+                <span class="lamp-lbl">L3 (B-Y)</span>
+              </div>
+              <div class="lamp-col">
+                <span class="status-pill" id="badge-breaker-status">OPEN</span>
+                <span class="lamp-lbl">Breaker</span>
+              </div>
+            </div>
+
+            <!-- Floating Telemetry HUD Badge -->
+            <div class="canvas-telemetry-badge" id="canvas-telemetry-badge">
+              <div>Sync Speed Ns: <span class="tele-val cyan" id="hud-ns">1500 RPM</span></div>
+              <div>Rotor Speed Nr: <span class="tele-val" id="hud-nr">1440 RPM</span></div>
+              <div>Slip s: <span class="tele-val amber" id="hud-slip">4.0%</span></div>
+              <div>Rotor Freq fr: <span class="tele-val rose" id="hud-fr">2.00 Hz</span></div>
+            </div>
+          </div>
         </div>
-        <canvas id="em2-canvas" width="700" height="420"></canvas>
+
+        <!-- Parameter Trays (Contextual to Selected Pillar) -->
+        <div class="parameters-panel">
+          <!-- PILLAR 1 PARAMETERS: 3-Phase Induction Motor -->
+          <div id="params-induction">
+            <div class="param-title">
+              <span>Induction Motor Test Bench Parameters</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);font-weight:normal;">415 V, 50 Hz, 4-Pole, 10 kW</span>
+            </div>
+            <div class="param-grid">
+              <!-- External Rotor Resistance R_ext -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">External Rotor Res. (R_ext')</span>
+                  <div class="mini-stepper-cluster">
+                    <button class="mini-stepper-btn" id="rext-dec">-0.1</button>
+                    <span class="param-val" id="rext-val">0.0 Ω</span>
+                    <button class="mini-stepper-btn" id="rext-inc">+0.1</button>
+                  </div>
+                </div>
+                <input type="range" id="rext-slider" min="0.0" max="5.0" step="0.1" value="0.0" class="slider-ctrl">
+                <div class="preset-chips-row">
+                  <button class="preset-chip active" data-val="0.0">0 Ω (Cage)</button>
+                  <button class="preset-chip" data-val="0.5">0.5 Ω</button>
+                  <button class="preset-chip" data-val="1.5">1.5 Ω</button>
+                  <button class="preset-chip" data-val="2.045">2.045 Ω (sm=1.0)</button>
+                  <button class="preset-chip" data-val="3.5">3.5 Ω</button>
+                </div>
+              </div>
+
+              <!-- Brake Load Dynamometer Torque T_L -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Brake Load Torque (T_L)</span>
+                  <div class="mini-stepper-cluster">
+                    <button class="mini-stepper-btn" id="tl-dec">-5</button>
+                    <span class="param-val" id="tl-val">50.0 N·m</span>
+                    <button class="mini-stepper-btn" id="tl-inc">+5</button>
+                  </div>
+                </div>
+                <input type="range" id="tl-slider" min="0" max="120" step="1" value="50" class="slider-ctrl">
+                <div class="preset-chips-row">
+                  <button class="preset-chip" data-val="0">0 N·m (No Load)</button>
+                  <button class="preset-chip" data-val="25">25 N·m (Half)</button>
+                  <button class="preset-chip active" data-val="50">50 N·m (Rated)</button>
+                  <button class="preset-chip" data-val="84.6">84.6 N·m (T_max)</button>
+                </div>
+              </div>
+
+              <!-- Starter Switchgear Selection -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Starting Switchgear</span>
+                  <span class="param-val" id="starter-mode-val">DOL</span>
+                </div>
+                <select id="starter-select" class="form-select" style="width:100%;background:var(--bg-deep);border:1px solid var(--border-line);color:var(--text-main);padding:6px;border-radius:var(--radius-sm);font-size:0.76rem;margin-top:4px;">
+                  <option value="dol" selected>Direct-On-Line (DOL) — 100% Vst</option>
+                  <option value="stardelta">Star-Delta (Y-Δ) — 57.7% Vst, 1/3 Ist, 1/3 Tst</option>
+                  <option value="auto50">Autotransformer 50% Tap (25% Ist, 25% Tst)</option>
+                  <option value="auto65">Autotransformer 65% Tap (42.25% Ist, 42.25% Tst)</option>
+                  <option value="auto80">Autotransformer 80% Tap (64% Ist, 64% Tst)</option>
+                </select>
+                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:6px;">
+                  Starter governs starting inrush current and starting torque at standstill ($s=1$).
+                </div>
+              </div>
+
+              <!-- Rotor Construction Type -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Rotor Construction</span>
+                  <span class="param-val" id="rotor-type-val">Squirrel Cage</span>
+                </div>
+                <select id="rotor-type-select" class="form-select" style="width:100%;background:var(--bg-deep);border:1px solid var(--border-line);color:var(--text-main);padding:6px;border-radius:var(--radius-sm);font-size:0.76rem;margin-top:4px;">
+                  <option value="cage" selected>Squirrel-Cage Induction Motor (Fixed R2'=0.4Ω)</option>
+                  <option value="slipring">Slip-Ring / Wound-Rotor Motor (Variable R_ext')</option>
+                </select>
+                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:6px;">
+                  Wound-rotor motor allows inserting external resistance $R_{\text{ext}}'$ to maximize starting torque.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PILLAR 2 PARAMETERS: Synchronous Machine (V-Curves & Synchronization) -->
+          <div id="params-synchronous" class="hidden">
+            <div class="param-title">
+              <span>Synchronous Machine &amp; Grid Synchronization Controls</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);font-weight:normal;">3Φ 415 V, 50 Hz Infinite Bus, Xs=4.0 Ω</span>
+            </div>
+            <div class="param-grid">
+              <!-- Field Excitation Current I_f -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">DC Field Excitation Current (I_f)</span>
+                  <div class="mini-stepper-cluster">
+                    <button class="mini-stepper-btn" id="if-dec">-0.1</button>
+                    <span class="param-val" id="if-val">2.53 A</span>
+                    <button class="mini-stepper-btn" id="if-inc">+0.1</button>
+                  </div>
+                </div>
+                <input type="range" id="if-slider" min="0.5" max="6.0" step="0.05" value="2.53" class="slider-ctrl">
+                <div class="preset-chips-row">
+                  <button class="preset-chip" data-val="1.2">1.2 A (Under-Excited)</button>
+                  <button class="preset-chip active" data-val="2.53">2.53 A (Unity Normal)</button>
+                  <button class="preset-chip" data-val="4.5">4.5 A (Over-Excited)</button>
+                  <button class="preset-chip" data-val="5.8">5.8 A (Condenser)</button>
+                </div>
+              </div>
+
+              <!-- Mechanical Shaft Power P_m -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Prime Mover / Load Power (P_m)</span>
+                  <div class="mini-stepper-cluster">
+                    <button class="mini-stepper-btn" id="pm-dec">-2</button>
+                    <span class="param-val" id="pm-val">18.0 kW</span>
+                    <button class="mini-stepper-btn" id="pm-inc">+2</button>
+                  </div>
+                </div>
+                <input type="range" id="pm-slider" min="0" max="45" step="1" value="18" class="slider-ctrl">
+                <div class="preset-chips-row">
+                  <button class="preset-chip" data-val="0">0 kW (No Load)</button>
+                  <button class="preset-chip" data-val="9">9 kW (Half Load)</button>
+                  <button class="preset-chip active" data-val="18">18 kW (Full Rated)</button>
+                  <button class="preset-chip" data-val="30">30 kW (High)</button>
+                </div>
+              </div>
+
+              <!-- Alternator Frequency f_gen for Synchronization -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Incoming Generator Freq. (f_gen)</span>
+                  <div class="mini-stepper-cluster">
+                    <button class="mini-stepper-btn" id="fgen-dec">-0.1</button>
+                    <span class="param-val" id="fgen-val">50.0 Hz</span>
+                    <button class="mini-stepper-btn" id="fgen-inc">+0.1</button>
+                  </div>
+                </div>
+                <input type="range" id="fgen-slider" min="48.0" max="52.0" step="0.1" value="50.0" class="slider-ctrl">
+                <div class="preset-chips-row">
+                  <button class="preset-chip" data-val="49.5">49.5 Hz (Slow CCW)</button>
+                  <button class="preset-chip active" data-val="50.0">50.0 Hz (Synchronous)</button>
+                  <button class="preset-chip" data-val="50.5">50.5 Hz (Fast CW)</button>
+                </div>
+              </div>
+
+              <!-- Synchronization Breaker Gate -->
+              <div class="param-box" style="display:flex;flex-direction:column;justify-content:space-between;">
+                <div class="param-box-head">
+                  <span class="param-lbl">Parallel Grid Breaker</span>
+                  <span class="status-pill warning" id="badge-sync-ready">CHECK SYNC</span>
+                </div>
+                <button class="btn-action primary" id="btn-sync-breaker" style="width:100%;padding:8px;font-size:0.82rem;font-weight:700;">
+                  ⚡ Close Grid Breaker
+                </button>
+                <div style="font-size:0.68rem;color:var(--text-muted);line-height:1.3;">
+                  Close when Synchroscope is at 12 o'clock and L1 is dark (|Δθ| &lt; 5°, |Δf| &lt; 0.2 Hz).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PILLAR 3 PARAMETERS: Rotating Magnetic Field (RMF) & Stroboscope -->
+          <div id="params-rmf" class="hidden">
+            <div class="param-title">
+              <span>Rotating Magnetic Field (RMF) &amp; Stroboscopic Parameters</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);font-weight:normal;">Ferraris Theorem Φ_r = 1.5 Φ_m ∠(ωt)</span>
+            </div>
+            <div class="param-grid">
+              <!-- Number of Stator Poles P -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Number of Poles (P)</span>
+                  <span class="param-val" id="rmf-poles-val">4 Poles</span>
+                </div>
+                <select id="rmf-poles-select" class="form-select" style="width:100%;background:var(--bg-deep);border:1px solid var(--border-line);color:var(--text-main);padding:6px;border-radius:var(--radius-sm);font-size:0.76rem;margin-top:4px;">
+                  <option value="2">2 Poles — Synchronous Speed Ns = 3000 RPM</option>
+                  <option value="4" selected>4 Poles — Synchronous Speed Ns = 1500 RPM</option>
+                  <option value="6">6 Poles — Synchronous Speed Ns = 1000 RPM</option>
+                </select>
+                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:6px;">
+                  Governs synchronous speed $N_s = 120 f / P$.
+                </div>
+              </div>
+
+              <!-- Supply Frequency f -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Supply Frequency (f)</span>
+                  <div class="mini-stepper-cluster">
+                    <button class="mini-stepper-btn" id="rmf-freq-dec">-5</button>
+                    <span class="param-val" id="rmf-freq-val">50 Hz</span>
+                    <button class="mini-stepper-btn" id="rmf-freq-inc">+5</button>
+                  </div>
+                </div>
+                <input type="range" id="rmf-freq-slider" min="10" max="100" step="1" value="50" class="slider-ctrl">
+                <div class="preset-chips-row">
+                  <button class="preset-chip" data-val="25">25 Hz (Slow)</button>
+                  <button class="preset-chip active" data-val="50">50 Hz (Std)</button>
+                  <button class="preset-chip" data-val="60">60 Hz (US)</button>
+                  <button class="preset-chip" data-val="80">80 Hz (High)</button>
+                </div>
+              </div>
+
+              <!-- Phase Sequence & Reversal -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Phase Sequence</span>
+                  <span class="param-val" id="rmf-seq-val">R-Y-B (Forward)</span>
+                </div>
+                <select id="rmf-seq-select" class="form-select" style="width:100%;background:var(--bg-deep);border:1px solid var(--border-line);color:var(--text-main);padding:6px;border-radius:var(--radius-sm);font-size:0.76rem;margin-top:4px;">
+                  <option value="ryb" selected>R-Y-B — Clockwise (Forward CW) Rotation</option>
+                  <option value="rby">R-B-Y — Counter-Clockwise (Reverse CCW) Rotation</option>
+                </select>
+                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:6px;">
+                  Interchanging two phases reverses the direction of the rotating magnetic field.
+                </div>
+              </div>
+
+              <!-- Single Phasing Fault Toggle -->
+              <div class="param-box">
+                <div class="param-box-head">
+                  <span class="param-lbl">Supply Symmetry / Fault</span>
+                  <span class="param-val" id="rmf-fault-val">Normal 3Φ</span>
+                </div>
+                <select id="rmf-fault-select" class="form-select" style="width:100%;background:var(--bg-deep);border:1px solid var(--border-line);color:var(--text-main);padding:6px;border-radius:var(--radius-sm);font-size:0.76rem;margin-top:4px;">
+                  <option value="normal" selected>Normal Balanced 3-Phase Supply</option>
+                  <option value="single-phase">Single-Phasing Fault (Phase B Blown / Open)</option>
+                </select>
+                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:6px;">
+                  Single-phasing collapses circular RMF into pulsating field with zero starting torque.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Electromechanical Performance Metrics</span>
-        </div>
-        <div class="em2-grid">
-          <div class="em2-box"><span class="em2-lbl">Synchronous Speed (Ns)</span><span class="em2-val" id="disp-ns">1500.0 RPM</span></div>
-          <div class="em2-box"><span class="em2-lbl">Rotor Speed (Nr)</span><span class="em2-val" id="disp-nr">1440.0 RPM</span></div>
-          <div class="em2-box"><span class="em2-lbl">Developed Torque (T)</span><span class="em2-val" id="disp-t">18.42 N&middot;m</span></div>
-          <div class="em2-box"><span class="em2-lbl">Max Breakdown Torque</span><span class="em2-val" id="disp-tmax">45.80 N&middot;m (s_max = 0.20)</span></div>
-          <div class="em2-box"><span class="em2-lbl">Rotor Frequency (fr = s*f)</span><span class="em2-val" id="disp-fr">2.00 Hz</span></div>
-          <div class="em2-box"><span class="em2-lbl">Motor Operating Zone</span><span class="em2-val" style="color:#10b981;">Stable Motoring Region</span></div>
+      <!-- Right Pane (40% / 2 Parts): Dynamic Multi-Tab Plots & Telemetry Deck -->
+      <div class="workbench-right">
+        <!-- Multi-Tab Plot Card -->
+        <div class="plots-card-container">
+          <div class="plots-card-header">
+            <div class="plot-tabs" role="tablist">
+              <button class="plot-tab active" data-plot="ts" id="tab-plot-ts">Torque–Slip T(s)</button>
+              <button class="plot-tab" data-plot="vcurves" id="tab-plot-vcurves">V-Curves &amp; Cos φ</button>
+              <button class="plot-tab" data-plot="phasor" id="tab-plot-phasor">Phasor Diagram</button>
+              <button class="plot-tab" data-plot="oscillo" id="tab-plot-oscillo">3Φ Stator Waveforms</button>
+            </div>
+          </div>
+          <div class="plot-canvas-wrapper">
+            <canvas id="plot-canvas"></canvas>
+          </div>
         </div>
 
-        <div class="console-box">
-          <div class="console-title">Electrical Machine Telemetry &amp; Diagnostics:</div>
-          <div class="console-log" id="em2-log">
-            &gt; Initialized Electrical Machines - II Virtual Lab.<br>
-            &gt; 3-Phase 415V, 50Hz, 4-Pole Squirrel Cage Induction Motor.<br>
-            &gt; Synchronous Speed Ns = 120*50/4 = 1500 RPM.<br>
-            &gt; Operating at Slip s = 0.04 &rarr; Rotor Speed Nr = 1440 RPM. Torque T = 18.42 N&middot;m.
+        <!-- Digital Panel Meters Grid -->
+        <div class="meters-deck">
+          <div class="meters-title">
+            <span>Precision Digital Panel Meters</span>
+            <span style="font-size:0.68rem;color:var(--accent-cyan);font-family:var(--font-mono);">CALIBRATED RMS</span>
+          </div>
+          <div class="meters-grid">
+            <div class="meter-card">
+              <span class="meter-lbl">Stator Line Voltage (VL)</span>
+              <span class="meter-val" id="meter-vl">415.0</span>
+              <span class="meter-unit">Volts RMS</span>
+            </div>
+            <div class="meter-card">
+              <span class="meter-lbl">Stator Line Current (Ia)</span>
+              <span class="meter-val" id="meter-ia">25.04</span>
+              <span class="meter-unit">Amperes RMS</span>
+            </div>
+            <div class="meter-card">
+              <span class="meter-lbl">Developed Torque (Te)</span>
+              <span class="meter-val" id="meter-te">50.0</span>
+              <span class="meter-unit">Newton-Meters</span>
+            </div>
+            <div class="meter-card">
+              <span class="meter-lbl">Rotor Speed (Nr)</span>
+              <span class="meter-val" id="meter-nr">1440</span>
+              <span class="meter-unit">RPM (Rev/min)</span>
+            </div>
+            <div class="meter-card">
+              <span class="meter-lbl">Power Factor (Cos φ)</span>
+              <span class="meter-val" id="meter-pf">0.866</span>
+              <span class="meter-unit" id="meter-pf-state">Lagging</span>
+            </div>
+            <div class="meter-card">
+              <span class="meter-lbl">Active Power (P3φ)</span>
+              <span class="meter-val" id="meter-p3ph">18.00</span>
+              <span class="meter-unit">Kilowatts (kW)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Step-by-Step KaTeX Proof / Diagnostic Box -->
+        <div class="proof-card">
+          <div class="proof-title">Live Machine Equation Proof &amp; Operating Point Diagnostics</div>
+          <div id="proof-math-content">
+            <!-- Dynamic KaTeX rendered in app.js -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Deck: Observation Table & Challenge Engine HUD -->
+    <div class="bottom-deck">
+      <!-- Observation Table Card -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">
+            <span>📝 Experimental Observation Table</span>
+            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:normal;" id="obs-count">(0 Records)</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-action primary" id="btn-log-data">+ Log Point</button>
+            <button class="btn-action" id="btn-clear-table">Clear</button>
+            <button class="btn-action" id="btn-export-csv">Export CSV</button>
+            <button class="btn-action" id="btn-export-md">Export MD</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="obs-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Mode</th>
+                <th>Slip s (%)</th>
+                <th>Speed Nr (RPM)</th>
+                <th>Torque Te (N·m)</th>
+                <th>Current Ia (A)</th>
+                <th>Cos φ</th>
+                <th>Power (kW)</th>
+              </tr>
+            </thead>
+            <tbody id="obs-table-body">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:14px;">
+                  No observations logged yet. Click "+ Log Point" to record current operating data.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Challenge Engine HUD -->
+      <div class="challenges-card">
+        <div class="challenge-header">
+          <div class="challenge-title-wrap">
+            <span class="challenge-badge" id="challenge-badge">Lab 1 of 9</span>
+            <span class="challenge-title" id="challenge-title">Benchmark Case A: Verify Maximum Breakdown Torque</span>
+          </div>
+          <div class="challenge-meta">
+            <span id="challenge-difficulty">★☆☆ Level: Fundamental</span>
+            <span id="challenge-track">Track: Induction Motor</span>
+          </div>
+        </div>
+        <div class="challenge-body">
+          <div class="challenge-context" id="challenge-context">
+            Adjust external rotor resistance to zero ($R_{\text{ext}}' = 0\ \Omega$) and sweep load torque to find the maximum breakdown torque $T_{\max} = 84.6\text{ N}\cdot\text{m}$ at slip $s_m = 16.4\%$.
+          </div>
+          <div class="challenge-criteria">
+            <div class="criteria-item" id="crit-1">
+              <span class="crit-bullet">○</span> <span id="crit-1-text">Set R_ext' = 0.0 Ω</span>
+            </div>
+            <div class="criteria-item" id="crit-2">
+              <span class="crit-bullet">○</span> <span id="crit-2-text">Find breakdown operating point where Te ≥ 84.0 N·m</span>
+            </div>
+            <div class="criteria-item" id="crit-3">
+              <span class="crit-bullet">○</span> <span id="crit-3-text">Observe pull-out slip sm ≈ 16.4%</span>
+            </div>
+          </div>
+        </div>
+        <div class="challenge-footer">
+          <button class="btn-challenge hint" id="btn-challenge-hint">💡 Hint</button>
+          <div class="challenge-actions">
+            <button class="btn-challenge verify" id="btn-challenge-verify">✓ Verify Objective</button>
+            <button class="btn-challenge next" id="btn-challenge-next" disabled>Next Lab ⏭</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       MODE 2: 3D HARDWARE WORKSTATION (WebGL Three.js)
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <div id="model3d-wrapper" class="hidden">
+    <section class="sim3d-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--border-line);padding-bottom:8px;">
+        <div>
+          <h2 style="font-size:1.35rem;color:#fff;">3D Interactive Machine Hardware Cutaway</h2>
+          <p style="font-size:0.82rem;color:var(--text-muted);">
+            Interactive WebGL 3D Model of 3-Phase Induction Motor &amp; Synchronous Alternator. Drag to rotate, scroll to zoom, click components to inspect.
+          </p>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-action primary" id="btn-3d-explode">💥 Exploded View</button>
+          <button class="btn-action" id="btn-3d-reset">↺ Reset View</button>
+        </div>
+      </div>
+
+      <div class="sim3d-layout">
+        <div class="sim3d-wrap">
+          <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
+          <div class="sim3d-hint">Left Click + Drag: Orbit Camera &middot; Scroll: Zoom &middot; Right Click: Pan</div>
+        </div>
+        <aside class="sim3d-components" id="sim3d-components">
+          <div class="comp-card active" data-part="stator-core">
+            <h4>1. Laminated Silicon-Steel Stator Core</h4>
+            <p>High-permeability insulated laminations stamped with semi-closed slots reducing eddy current losses and housing three-phase distributed windings.</p>
+          </div>
+          <div class="comp-card" data-part="stator-winding">
+            <h4>2. 3-Phase Distributed Stator Windings</h4>
+            <p>Copper coils spatially displaced by 120° electrical in stator slots, producing a constant-magnitude rotating magnetic field of 1.5 Φm when energized.</p>
+          </div>
+          <div class="comp-card" data-part="squirrel-cage">
+            <h4>3. Squirrel-Cage Rotor &amp; End Rings</h4>
+            <p>Heavy copper or cast-aluminum conductor bars skewed to prevent cogging (magnetic locking) and short-circuited at both ends by heavy conducting end rings.</p>
+          </div>
+          <div class="comp-card" data-part="shaft-bearings">
+            <h4>4. Tempered Drive Shaft &amp; Deep-Groove Bearings</h4>
+            <p>Precision-machined steel shaft transmitting electromagnetic shaft torque to mechanical loads, supported by low-friction shielded ball bearings.</p>
+          </div>
+          <div class="comp-card" data-part="cooling-fan">
+            <h4>5. Bi-Directional Cooling Fan &amp; Cowl</h4>
+            <p>Shaft-mounted centrifugal fan drawing ambient air across cast-iron stator frame cooling fins (TEFC — Totally Enclosed Fan-Cooled construction).</p>
+          </div>
+          <div class="comp-card" data-part="terminal-box">
+            <h4>6. Cast-Iron Terminal Box (6-Pin Block)</h4>
+            <p>Contains phase terminals (U1-U2, V1-V2, W1-W2) configured with link bars for Direct-On-Line Star (Y) or Delta (Δ) supply connection.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       MODE 3: THEOREMS & PROOFS (KaTeX Syllabus Theory)
+       ══════════════════════════════════════════════════════════════════════════ -->
   <div id="explore-wrapper" class="hidden">
-    <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE EE/S4/EM II Electrical Machines - II</h2>
-      <div class="theory-grid">
-        <div class="theory-item">
-          <h3>1. 3-Phase Induction Motor Torque-Slip</h3>
-          <p>Developed torque $T = \frac{3}{\omega_s} \frac{s E_2^2 R_2}{R_2^2 + (s X_2)^2}$. Max torque $T_{max} = \frac{3}{2\omega_s} \frac{E_2^2}{2 X_2}$ is independent of rotor resistance $R_2$, but slip at max torque $s_{max} = \frac{R_2}{X_2}$ increases with $R_2$.</p>
+    <div class="theory-header" id="theory-section">
+      <h2>Curriculum Theory, Mathematical Proofs &amp; Derivations</h2>
+      <p style="font-size:0.84rem;color:var(--text-muted);margin-top:4px;">
+        Comprehensive syllabus coverage for WBSCTE 4th Sem Electrical Machines &mdash; II (EE/S4/EM II) aligned with NBA accreditation criteria.
+      </p>
+    </div>
+
+    <div class="theory-grid">
+      <!-- Derivation 1: Induction Motor Thevenin Equivalent Circuit -->
+      <div class="theory-card">
+        <h3>1. Induction Motor Thevenin Equivalent Reduction</h3>
+        <p>
+          Converting the stator impedance and magnetizing branch into a single Thevenin equivalent voltage source and impedance seen from the rotor terminals:
+        </p>
+        <div class="theory-math">
+          $$V_{\text{th}} = V_{\text{ph}} \frac{X_m}{\sqrt{R_1^2 + (X_1 + X_m)^2}}$$
         </div>
-        <div class="theory-item">
-          <h3>2. Synchronous Alternator &amp; V-Curves</h3>
-          <p>Excitation characteristic curves (Armature current $I_a$ vs Field current $I_f$). Under-excitation draws lagging reactive power; over-excitation delivers leading reactive power for power factor correction (Synchronous Condenser).</p>
+        <div class="theory-math">
+          $$Z_{\text{th}} = R_{\text{th}} + j X_{\text{th}} = \frac{j X_m (R_1 + j X_1)}{R_1 + j(X_1 + X_m)}$$
         </div>
-        <div class="theory-item">
-          <h3>3. Single Phase Induction Motors</h3>
-          <p>Double revolving field theory (Forward field $s$ and Backward field $2-s$). Starting methods: Split-phase, Capacitor-start, Capacitor-run, and Shaded-pole motors.</p>
+        <p>
+          Using standard lab values ($V_{\text{ph}} = 239.6\text{ V}, R_1 = 0.5\ \Omega, X_1 = 1.2\ \Omega, X_m = 35\ \Omega$), $V_{\text{th}} \approx 231.64\text{ V}$, $R_{\text{th}} \approx 0.467\ \Omega$, $X_{\text{th}} \approx 1.185\ \Omega$.
+        </p>
+      </div>
+
+      <!-- Derivation 2: Maximum Breakdown Torque & Slip Formula -->
+      <div class="theory-card">
+        <h3>2. Maximum Breakdown Torque &amp; Pull-Out Slip</h3>
+        <p>
+          Applying the Maximum Power Transfer Theorem to rotor power transferred across the air-gap gives the breakdown slip and breakdown torque:
+        </p>
+        <div class="theory-math">
+          $$s_m = \frac{R_2' + R_{\text{ext}}'}{\sqrt{R_{\text{th}}^2 + (X_{\text{th}} + X_2')^2}}$$
         </div>
-        <div class="theory-item">
-          <h3>4. Speed Control &amp; Starters</h3>
-          <p>Star-Delta ($1/\sqrt{3}$ voltage reduction), Direct-On-Line (DOL), Auto-transformer starters, and V/f scalar inverter drive speed regulation.</p>
+        <div class="theory-math">
+          $$T_{\max} = \frac{3 V_{\text{th}}^2}{2 \omega_s \left[ R_{\text{th}} + \sqrt{R_{\text{th}}^2 + (X_{\text{th}} + X_2')^2} \right]}$$
         </div>
+        <p>
+          <strong>Crucial Insight:</strong> $T_{\max}$ is completely independent of rotor resistance $R_2'$. Adding external resistance $R_{\text{ext}}'$ shifts the slip at maximum torque $s_m$ towards standstill ($s_m = 1.0$), dramatically improving starting torque without reducing maximum breakdown capability!
+        </p>
+      </div>
+
+      <!-- Derivation 3: Starting Methods Mathematical Comparison -->
+      <div class="theory-card">
+        <h3>3. Starting Switchgear: Inrush Current &amp; Torque Reduction</h3>
+        <p>
+          Comparing Direct-On-Line (DOL), Star-Delta ($Y$-$\Delta$), and Autotransformer starting:
+        </p>
+        <div class="theory-math">
+          $$\frac{I_{\text{st, } Y\text{-}\Delta}}{I_{\text{st, DOL}}} = \frac{1}{3}, \quad \frac{T_{\text{st, } Y\text{-}\Delta}}{T_{\text{st, DOL}}} = \frac{1}{3}$$
+        </div>
+        <div class="theory-math">
+          $$\frac{I_{\text{st, auto}}}{I_{\text{st, DOL}}} = x^2, \quad \frac{T_{\text{st, auto}}}{T_{\text{st, DOL}}} = x^2$$
+        </div>
+        <p>
+          Where $x$ is the autotransformer tapping ratio ($0.50, 0.65, 0.80$). At a 65% tap ($x=0.65$), starting current and starting torque are reduced to $x^2 = 42.25\%$ of full DOL inrush.
+        </p>
+      </div>
+
+      <!-- Derivation 4: Synchronous Machine V-Curves & Reactive Power -->
+      <div class="theory-card">
+        <h3>4. Synchronous Machine V-Curves &amp; Inverted V-Curves</h3>
+        <p>
+          For a cylindrical-rotor machine connected to an infinite bus ($V_t = 240\text{ V/ph}$, $X_s = 4.0\ \Omega$):
+        </p>
+        <div class="theory-math">
+          $$P = 3 \frac{V_t E_f}{X_s} \sin\delta \implies \sin\delta = \frac{P X_s}{3 V_t E_f}$$
+        </div>
+        <div class="theory-math">
+          $$\vec{I}_a = \frac{\vec{V}_t - \vec{E}_f}{j X_s} \implies I_a = \frac{\sqrt{V_t^2 + E_f^2 - 2 V_t E_f \cos\delta}}{X_s}$$
+        </div>
+        <p>
+          At <strong>Normal Excitation</strong> ($E_f \cos\delta = V_t$), the power factor is unity ($\cos\phi = 1.00$) and armature current is minimum ($I_a = I_{a,\min}$). Over-excitation causes the machine to supply leading reactive power (Synchronous Condenser operation).
+        </p>
+      </div>
+
+      <!-- Derivation 5: Two-Bright One-Dark Grid Synchronization -->
+      <div class="theory-card">
+        <h3>5. Parallel Synchronization: Two-Bright One-Dark Method</h3>
+        <p>
+          Lamps connected across the incoming alternator and live bus: Lamp 1 across Phase $R_1$-$R_2$, Lamp 2 across $Y_1$-$B_2$, Lamp 3 across $B_1$-$Y_2$:
+        </p>
+        <div class="theory-math">
+          $$V_{L1} = 2 V \sin\left(\frac{\Delta\theta}{2}\right), \quad V_{L2, L3} = 2 V \sin\left(\frac{\Delta\theta \pm 120^\circ}{2}\right)$$
+        </div>
+        <p>
+          At exact synchronism ($\Delta\theta = 0^\circ$ and $\Delta f = 0$), Lamp 1 is completely dark ($V_{L1} = 0$), while Lamps 2 and 3 glow with equal, maximum brilliance. The synchroscope needle points dead vertically (12 o'clock).
+        </p>
+      </div>
+
+      <!-- Derivation 6: Ferraris Theorem on Rotating Magnetic Field -->
+      <div class="theory-card">
+        <h3>6. Ferraris Theorem: Constant Rotating Magnetic Field</h3>
+        <p>
+          Three spatial coils $120^\circ$ apart energized by three-phase balanced sinusoidal currents:
+        </p>
+        <div class="theory-math">
+          $$\Phi_R = \Phi_m \cos(\omega t), \quad \Phi_Y = \Phi_m \cos(\omega t - 120^\circ), \quad \Phi_B = \Phi_m \cos(\omega t - 240^\circ)$$
+        </div>
+        <div class="theory-math">
+          $$\vec{\Phi}_r = \Phi_R + \Phi_Y e^{j 120^\circ} + \Phi_B e^{j 240^\circ} = \frac{3}{2} \Phi_m \angle (\omega t)$$
+        </div>
+        <p>
+          The vector sum produces a constant spatial amplitude of $\frac{3}{2}\Phi_m$ rotating smoothly at synchronous speed $N_s = 120 f / P$.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       MODE 4: QUIZ & CERTIFICATION EXAM
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" class="hidden">
+    <div class="quiz-header">
+      <div class="quiz-title">★ Electrical Machines — II Certification Assessment</div>
+      <div class="quiz-progress-wrap">
+        <span>Question <strong id="quiz-current-idx">1</strong> of <strong id="quiz-total-idx">10</strong></span>
+        <span>Score: <strong id="quiz-score" style="color:var(--accent-cyan);">0</strong> / 10</span>
+      </div>
+    </div>
+
+    <div class="quiz-container">
+      <div class="quiz-question-card">
+        <div class="question-text" id="quiz-question-text">Loading assessment question...</div>
+        <div class="options-grid" id="quiz-options-grid"></div>
+        <div class="quiz-feedback" id="quiz-feedback"></div>
+        <div class="quiz-actions">
+          <button class="btn-action primary" id="btn-quiz-next" disabled>Next Question ⏭</button>
+          <button class="btn-action" id="btn-quiz-restart">Restart Exam</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Certificate Modal -->
+  <div class="cert-modal" id="cert-modal">
+    <div class="cert-content">
+      <div style="font-size:2rem;">🎓</div>
+      <div class="cert-title">Certificate of Achievement</div>
+      <p style="color:var(--text-muted);font-size:0.85rem;">This certifies that you have demonstrated proficiency in</p>
+      <div style="font-weight:700;color:#fff;font-size:1.1rem;">Electrical Machines &mdash; II Virtual Laboratory</div>
+      <p style="font-size:0.8rem;color:var(--text-muted);">Induction Motor Dynamics, Synchronous V-Curves &amp; Rotating Magnetic Fields</p>
+      <div class="cert-score" id="cert-score-display">10 / 10 (100%)</div>
+      <p style="font-size:0.75rem;color:var(--text-dim);" id="cert-date-display"></p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;">
+        <button class="btn-action primary" id="btn-cert-close">Close</button>
+        <button class="btn-action success" id="btn-cert-print">Print / Save PDF</button>
       </div>
     </div>
   </div>
 </main>
 
+<!-- KaTeX & Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
-const canvas = document.getElementById('em2-canvas');
-const ctx = canvas.getContext('2d');
-let isRunning = false;
-let rotAngle = 0;
-let currentSlip = 0.04;
-let currentPoles = 4;
-
-function calculateValues() {
-  const ns = (120.0 * 50.0) / currentPoles;
-  const nr = ns * (1.0 - currentSlip);
-  const r2 = 0.4, x2 = 2.0;
-  const ws = (2.0 * Math.PI * ns) / 60.0;
-  const e2 = (415.0 / Math.sqrt(3)) * 0.95;
-  const denom = (r2 * r2) + Math.pow(currentSlip * x2, 2);
-  const torque = (3.0 / ws) * (currentSlip * Math.pow(e2, 2) * r2) / denom;
-  const tMax = (3.0 / (2.0 * ws)) * (Math.pow(e2, 2) / (2.0 * x2));
-
-  document.getElementById('disp-ns').textContent = `${ns.toFixed(1)} RPM`;
-  document.getElementById('disp-nr').textContent = `${nr.toFixed(1)} RPM`;
-  document.getElementById('disp-t').textContent = `${torque.toFixed(2)} N·m`;
-  document.getElementById('disp-tmax').textContent = `${tMax.toFixed(2)} N·m (s_max = 0.20)`;
-  document.getElementById('disp-fr').textContent = `${(currentSlip * 50.0).toFixed(2)} Hz`;
-  document.getElementById('speed-badge').textContent = `Rotor Speed Nr = ${nr.toFixed(0)} RPM`;
-}
-
-function drawSim() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0a0f1d';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Left side: Rotating Stator & Rotor Cross-section
-  const cx = 170, cy = 210, rStator = 120, rRotor = 80;
-
-  // Stator Ring
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 14;
-  ctx.beginPath(); ctx.arc(cx, cy, rStator, 0, Math.PI * 2); ctx.stroke();
-
-  // 3-Phase Stator Coils (R, Y, B)
-  const colors = ['#ef4444', '#f59e0b', '#3b82f6'];
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * Math.PI) / 3;
-    const px = cx + (rStator - 2) * Math.cos(angle);
-    const py = cy + (rStator - 2) * Math.sin(angle);
-    ctx.fillStyle = colors[i % 3];
-    ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
-  }
-
-  // Rotating Rotor
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath(); ctx.arc(cx, cy, rRotor, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 3; ctx.stroke();
-
-  // Copper Rotor Bars rotating
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 4;
-  for (let i = 0; i < 12; i++) {
-    const barAngle = rotAngle + (i * Math.PI) / 6;
-    const bx1 = cx + (rRotor - 22) * Math.cos(barAngle);
-    const by1 = cy + (rRotor - 22) * Math.sin(barAngle);
-    const bx2 = cx + (rRotor - 6) * Math.cos(barAngle);
-    const by2 = cy + (rRotor - 6) * Math.sin(barAngle);
-    ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
-  }
-
-  // Shaft Hub
-  ctx.fillStyle = '#94a3b8';
-  ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 11px Segoe UI';
-  ctx.textAlign = 'center';
-  ctx.fillText('ROTOR', cx, cy + 4);
-
-  // Right Side: Torque-Slip Curve
-  const gx = 360, gy = 340, gw = 300, gh = 260;
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + gw, gy); ctx.stroke(); // Slip axis (0 -> 1)
-  ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx, gy - gh); ctx.stroke(); // Torque axis
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '10px monospace';
-  ctx.fillText('Slip s (0.0 → 1.0)', gx + gw - 60, gy + 20);
-  ctx.fillText('Torque T (N·m)', gx - 5, gy - gh - 8);
-
-  // Draw T(s) curve
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  for (let px = 0; px <= gw; px += 2) {
-    const s = px / gw;
-    const r2 = 0.4, x2 = 2.0;
-    const tVal = (s * 45.8 * 2.0 * (r2/x2)) / ((r2*r2) + (s*x2)*(s*x2));
-    const py = gy - (tVal / 50.0) * gh;
-    if (px === 0) ctx.moveTo(gx + px, py);
-    else ctx.lineTo(gx + px, py);
-  }
-  ctx.stroke();
-
-  // Operating Point Dot on T-s curve
-  const opX = gx + currentSlip * gw;
-  const r2 = 0.4, x2 = 2.0;
-  const opT = (currentSlip * 45.8 * 2.0 * (r2/x2)) / ((r2*r2) + (currentSlip*x2)*(currentSlip*x2));
-  const opY = gy - (opT / 50.0) * gh;
-
-  ctx.fillStyle = '#ef4444';
-  ctx.beginPath(); ctx.arc(opX, opY, 6, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-
-  ctx.fillStyle = '#ef4444';
-  ctx.font = 'bold 11px Segoe UI';
-  ctx.textAlign = 'left';
-  ctx.fillText(`Operating: s = ${currentSlip.toFixed(3)}, T = ${opT.toFixed(1)} N·m`, opX - 40, opY - 14);
-
-  if (isRunning) {
-    rotAngle += (1.0 - currentSlip) * 0.08;
-    requestAnimationFrame(drawSim);
-  }
-}
-
-const slipRange = document.getElementById('slip-range');
-const slipVal = document.getElementById('slip-val');
-const polesSel = document.getElementById('poles-select');
-const btnRun = document.getElementById('btn-toggle-run');
-const logEl = document.getElementById('em2-log');
-
-slipRange.addEventListener('input', () => {
-  currentSlip = parseFloat(slipRange.value);
-  slipVal.textContent = currentSlip.toFixed(3);
-  calculateValues();
-  if (!isRunning) drawSim();
-});
-
-polesSel.addEventListener('change', () => {
-  currentPoles = parseInt(polesSel.value, 10);
-  calculateValues();
-  if (!isRunning) drawSim();
-});
-
-btnRun.addEventListener('click', () => {
-  isRunning = !isRunning;
-  btnRun.textContent = isRunning ? 'Pause Rotation ⏸' : 'Start Rotation ⏵';
-  btnRun.style.background = isRunning ? '#f59e0b' : '#00b0ff';
-  if (isRunning) drawSim();
-});
-
-document.getElementById('btn-max-torque').addEventListener('click', () => {
-  currentSlip = 0.20; // s_max = R2 / X2 = 0.4 / 2.0 = 0.20
-  slipRange.value = 0.20;
-  slipVal.textContent = '0.200';
-  calculateValues();
-  logEl.innerHTML += '<br>&gt; [BREAKDOWN TORQUE] Adjusted slip to s_max = R2/X2 = 0.20. Motor operating at peak breakdown torque T_max = 45.80 N·m.';
-  if (!isRunning) drawSim();
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/electrical_machines_2.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
-      }
-    });
-  });
-
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
-
-calculateValues();
-drawSim();
-</script>
+<!-- Virtual Lab Engine Scripts -->
+<script src="app.js"></script>
 </body>
 </html>
