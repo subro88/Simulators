@@ -1265,67 +1265,69 @@
       const ctx = this.ctx;
       const r = this.rlcEngine.calculate();
 
+      // Top Title Banner
       ctx.font = '700 14px "JetBrains Mono", monospace';
       ctx.fillStyle = '#38bdf8';
-      ctx.fillText('R-L-C SERIES AC RESONANCE TANK CIRCUIT', 50, 40);
+      ctx.fillText('R-L-C SERIES AC RESONANCE TANK CIRCUIT', 45, 38);
       ctx.font = '11px "Inter", sans-serif';
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText('Sinusoidal AC Generator driving Series R, L and C with Voltage Magnification Telemetry', 50, 58);
+      ctx.fillText('Sinusoidal AC Generator driving Series R, L and C with Voltage Magnification Telemetry', 45, 56);
 
-      const ax = 120;
-      const ay = 150;
+      // Schematic left anchor: keeps circuit within x <= 435, completely clear of card at x >= 475
+      const ax = 65;
+      const ay = 160;
 
       // AC Generator on the left
-      this.drawACSource(ax, ay + 100, r.vrms, r.f);
+      this.drawACSource(ax, ay + 90, r.vrms, r.f);
 
       // Top Rail Wire to Components
-      this.drawWire(ax, ay, ax + 80, ay, '#38bdf8', 2.5);
-      this.drawWire(ax, ay + 200, ax + 80, ay + 200, '#334155', 2.5);
+      this.drawWire(ax, ay, ax + 50, ay, '#38bdf8', 2.5);
 
-      // Component 1: Resistor R
-      this.drawResistor(ax + 80, ay, ax + 190, ay, `R: ${r.r.toFixed(1)}Ω`, '#38bdf8', false);
-      this.drawWire(ax + 190, ay, ax + 230, ay, '#38bdf8', 2.5);
+      // Component 1: Resistor R (ax + 50 to ax + 130)
+      this.drawResistor(ax + 50, ay, ax + 130, ay, `R: ${r.r.toFixed(1)}Ω`, '#38bdf8', false);
+      this.drawWire(ax + 130, ay, ax + 155, ay, '#38bdf8', 2.5);
 
-      // Component 2: Inductor Coil L
-      this.drawInductor(ax + 230, ay, ax + 350, ay, `L: ${this.rlcEngine.l_mH.toFixed(2)}mH`, '#f59e0b');
-      this.drawWire(ax + 350, ay, ax + 390, ay, '#38bdf8', 2.5);
+      // Component 2: Inductor Coil L (ax + 155 to ax + 235)
+      this.drawInductor(ax + 155, ay, ax + 235, ay, `L: ${this.rlcEngine.l_mH.toFixed(2)}mH`, '#f59e0b');
+      this.drawWire(ax + 235, ay, ax + 260, ay, '#38bdf8', 2.5);
 
-      // Component 3: Capacitor Plates C
-      this.drawCapacitor(ax + 390, ay, ax + 490, ay, `C: ${this.rlcEngine.c_uF.toFixed(2)}μF`, '#f43f5e');
+      // Component 3: Capacitor Plates C (ax + 260 to ax + 330)
+      this.drawCapacitor(ax + 260, ay, ax + 330, ay, `C: ${this.rlcEngine.c_uF.toFixed(2)}μF`, '#f43f5e');
 
-      // Right return loop down to bottom rail
-      this.drawWire(ax + 490, ay, ax + 540, ay, '#38bdf8', 2.5);
-      this.drawWire(ax + 540, ay, ax + 540, ay + 200, '#334155', 2.5);
-      this.drawWire(ax + 540, ay + 200, ax, ay + 200, '#334155', 2.5);
+      // Right return loop down to bottom rail (ax + 330 to ax + 370 = 435)
+      this.drawWire(ax + 330, ay, ax + 370, ay, '#38bdf8', 2.5);
+      this.drawWire(ax + 370, ay, ax + 370, ay + 180, '#334155', 2.5);
+      this.drawWire(ax + 370, ay + 180, ax, ay + 180, '#334155', 2.5);
 
       // Bottom rail ground connection
-      this.drawGround(ax + 270, ay + 200);
+      this.drawGround(ax + 185, ay + 180);
 
       // Animated Bidirectional AC Current Pulsing
       if (r.i > 0.01) {
         this.renderCurrentParticles([
-          { x1: ax, y1: ay + 80, x2: ax, y2: ay },
-          { x1: ax, y1: ay, x2: ax + 80, y2: ay },
-          { x1: ax + 190, y1: ay, x2: ax + 230, y2: ay },
-          { x1: ax + 350, y1: ay, x2: ax + 390, y2: ay },
-          { x1: ax + 490, y1: ay, x2: ax + 540, y2: ay },
-          { x1: ax + 540, y1: ay, x2: ax + 540, y2: ay + 200 },
-          { x1: ax + 540, y1: ay + 200, x2: ax, y2: ay + 200 }
+          { x1: ax, y1: ay + 65, x2: ax, y2: ay },
+          { x1: ax, y1: ay, x2: ax + 50, y2: ay },
+          { x1: ax + 130, y1: ay, x2: ax + 155, y2: ay },
+          { x1: ax + 235, y1: ay, x2: ax + 260, y2: ay },
+          { x1: ax + 330, y1: ay, x2: ax + 370, y2: ay },
+          { x1: ax + 370, y1: ay, x2: ax + 370, y2: ay + 180 },
+          { x1: ax + 370, y1: ay + 180, x2: ax, y2: ay + 180 }
         ]);
       }
 
-      // Live Voltage Across Components Callouts
-      this.drawNodeBadge(ax + 135, ay - 24, `VR = ${r.vr.toFixed(2)} V`, '#38bdf8');
-      this.drawNodeBadge(ax + 290, ay - 24, `VL = ${r.vl.toFixed(2)} V`, '#f59e0b');
-      this.drawNodeBadge(ax + 440, ay - 24, `VC = ${r.vc.toFixed(2)} V`, '#f43f5e');
+      // Live Voltage Across Components Callouts (centered directly above each component)
+      this.drawNodeBadge(ax + 90, ay - 24, `VR = ${r.vr.toFixed(2)} V`, '#38bdf8');
+      this.drawNodeBadge(ax + 195, ay - 24, `VL = ${r.vl.toFixed(2)} V`, '#f59e0b');
+      this.drawNodeBadge(ax + 295, ay - 24, `VC = ${r.vc.toFixed(2)} V`, '#f43f5e');
 
       // Right-side Resonance Characteristics Card
-      const cardX = 570;
-      const cardY = 120;
-      const cardW = 280;
-      const cardH = 350;
+      // Begins at cardX = 475, leaving 40px clean margin from circuit return wire at 435
+      const cardX = 475;
+      const cardY = 88;
+      const cardW = 380;
+      const cardH = 390;
 
-      ctx.fillStyle = 'rgba(11, 19, 41, 0.9)';
+      ctx.fillStyle = 'rgba(11, 19, 41, 0.94)';
       ctx.strokeStyle = r.isResonant ? '#10b981' : '#1c2d54';
       ctx.lineWidth = r.isResonant ? 2.0 : 1.5;
       ctx.beginPath();
@@ -1335,7 +1337,7 @@
 
       ctx.font = '700 12px "JetBrains Mono", monospace';
       ctx.fillStyle = r.isResonant ? '#10b981' : '#38bdf8';
-      ctx.fillText(r.isResonant ? '★ RESONANCE PEAK ACTIVE' : '〰 RLC TELEMETRY', cardX + 16, cardY + 26);
+      ctx.fillText(r.isResonant ? '★ RESONANCE PEAK ACTIVE' : '〰 RLC TELEMETRY', cardX + 18, cardY + 28);
 
       const rows = [
         { label: 'Current Freq f:', val: `${r.f.toFixed(1)} Hz`, col: '#38bdf8' },
@@ -1351,32 +1353,29 @@
       ];
 
       rows.forEach((row, idx) => {
-        const ry = cardY + 54 + idx * 26;
+        const ry = cardY + 58 + idx * 27;
         ctx.font = '11px "Inter", sans-serif';
         ctx.fillStyle = '#94a3b8';
-        ctx.fillText(row.label, cardX + 16, ry);
+        ctx.fillText(row.label, cardX + 18, ry);
         ctx.font = '700 11px "JetBrains Mono", monospace';
         ctx.fillStyle = row.col;
-        ctx.fillText(row.val, cardX + 165, ry);
+        ctx.fillText(row.val, cardX + 220, ry);
       });
 
-      // Voltage magnification warning
+      // Voltage magnification warning banner
       if (r.vl > r.vs * 1.5) {
         ctx.fillStyle = 'rgba(244, 63, 94, 0.15)';
         ctx.strokeStyle = '#f43f5e';
         ctx.beginPath();
-        ctx.roundRect(cardX + 12, cardY + 312, cardW - 24, 26, 4);
+        ctx.roundRect(cardX + 14, cardY + 342, cardW - 28, 28, 4);
         ctx.fill();
         ctx.stroke();
         ctx.font = '700 10px "JetBrains Mono", monospace';
         ctx.fillStyle = '#f43f5e';
-        ctx.fillText(`⚡ Q-MAGNIFICATION: VL=VC=${r.vl.toFixed(1)}V > Vs`, cardX + 18, cardY + 329);
+        ctx.fillText(`⚡ Q-MAGNIFICATION: VL=VC=${r.vl.toFixed(1)}V > Vs`, cardX + 22, cardY + 360);
       }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // SCHEMATIC DRAWING PRIMITIVES
-    // ──────────────────────────────────────────────────────────────────────────
     drawWire(x1, y1, x2, y2, color = '#38bdf8', width = 2.0) {
       const ctx = this.ctx;
       ctx.strokeStyle = color;
@@ -2962,12 +2961,29 @@
       if (panelMpt) panelMpt.classList.toggle('hidden', mod !== 'mpt');
       if (panelRlc) panelRlc.classList.toggle('hidden', mod !== 'rlc');
 
-      // Update Header Badges
-      const badgeMod = document.getElementById('badge-module');
-      if (badgeMod) {
-        if (mod === 'thevenin') badgeMod.textContent = 'Mode: Thevenin/Norton';
-        else if (mod === 'mpt') badgeMod.textContent = 'Mode: Max Power Transfer';
-        else if (mod === 'rlc') badgeMod.textContent = 'Mode: RLC Resonance';
+      // Show topology selector only for Thevenin/Norton
+      const topoGroup = document.getElementById('topology-selector-group');
+      if (topoGroup) {
+        topoGroup.style.display = (mod === 'thevenin') ? 'flex' : 'none';
+      }
+
+      // Update Canvas Header Title
+      const mainTitle = document.getElementById('canvas-main-title');
+      if (mainTitle) {
+        if (mod === 'thevenin') mainTitle.innerHTML = '&#9889; Thevenin &amp; Norton Equivalent Circuit';
+        else if (mod === 'mpt') mainTitle.innerHTML = '&#128200; Maximum Power Transfer Theorem';
+        else if (mod === 'rlc') mainTitle.innerHTML = '&#12330; RLC Series AC Resonance Tank Circuit';
+      }
+
+      // Smart Deck Tab auto-switch for user convenience
+      const activeDeckTab = document.querySelector('.deck-tabs .deck-tab.active');
+      const curTab = activeDeckTab ? activeDeckTab.dataset.tab : '';
+      if (mod === 'thevenin' && (curTab === 'mpt-graph' || curTab === 'resonance')) {
+        document.querySelector('.deck-tabs .deck-tab[data-tab="meters"]')?.click();
+      } else if (mod === 'mpt' && (curTab === 'meters' || curTab === 'resonance')) {
+        document.querySelector('.deck-tabs .deck-tab[data-tab="mpt-graph"]')?.click();
+      } else if (mod === 'rlc' && (curTab === 'meters' || curTab === 'mpt-graph')) {
+        document.querySelector('.deck-tabs .deck-tab[data-tab="resonance"]')?.click();
       }
 
       canvasRenderer.switchModule(mod);
@@ -3287,29 +3303,7 @@
         if (mmR) mmR.textContent = r.z_mag.toFixed(1);
       }
 
-      // Live Dynamic Regime Badge
-      const badgeRegime = document.getElementById('badge-regime');
-      if (badgeRegime) {
-        if (canvasRenderer.activeModule === 'rlc') {
-          if (r.f < r.fr * 0.99) {
-            badgeRegime.textContent = 'CAPACITIVE (Current Leads)';
-            badgeRegime.style.color = '#38bdf8';
-          } else if (r.f > r.fr * 1.01) {
-            badgeRegime.textContent = 'INDUCTIVE (Current Lags)';
-            badgeRegime.style.color = '#f59e0b';
-          } else {
-            badgeRegime.textContent = '★ SERIES RESONANCE (Unity PF)';
-            badgeRegime.style.color = '#10b981';
-          }
-        } else if (canvasRenderer.activeModule === 'mpt') {
-          const isMatched = Math.abs(m.rl - m.rth) < 0.5;
-          badgeRegime.textContent = isMatched ? '★ MPT MATCH (η = 50%)' : (m.rl < m.rth ? 'UNDER-MATCHED' : 'OVER-MATCHED');
-          badgeRegime.style.color = isMatched ? '#10b981' : '#f59e0b';
-        } else {
-          badgeRegime.textContent = `TOPOLOGY: ${circuitEngine.topology.toUpperCase()}`;
-          badgeRegime.style.color = '#38bdf8';
-        }
-      }
+
 
       // Step-by-Step KaTeX / Nodal Proof Tab Generator
       const proofEl = document.getElementById('proof-katex-container');
@@ -3390,11 +3384,77 @@
       if (resIn) resIn.textContent = `${c.inorton.toFixed(3)} A`;
       if (resVn) resVn.textContent = `${c.vnorton.toFixed(2)} V`;
 
-      // Header Badges
+      // Header Badges - Context-accurate telemetry per active module
+      const badgeMod = document.getElementById('badge-module');
       const badgeVth = document.getElementById('badge-vth');
       const badgePf = document.getElementById('badge-pf');
-      if (badgeVth) badgeVth.textContent = `Vth: ${c.vth.toFixed(2)}V`;
-      if (badgePf) badgePf.textContent = `cos θ: ${r.pf.toFixed(2)}`;
+      const badgeRegime = document.getElementById('badge-regime');
+      const curMod = canvasRenderer.activeModule;
+
+      if (curMod === 'thevenin') {
+        if (badgeMod) badgeMod.textContent = 'Mode: Thevenin/Norton';
+        if (badgeVth) { badgeVth.style.display = 'inline-block'; badgeVth.textContent = `Vth: ${c.vth.toFixed(2)}V`; }
+        if (badgePf) { badgePf.style.display = 'inline-block'; badgePf.textContent = `Rth: ${c.rth.toFixed(2)}Ω`; }
+        if (badgeRegime) {
+          badgeRegime.textContent = c.s3Kill ? 'Killed Sources' : (c.s2Short ? 'Short-Circuit' : (c.s1Open ? 'Open-Circuit' : `IN: ${c.inorton.toFixed(2)}A`));
+        }
+      } else if (curMod === 'mpt') {
+        if (badgeMod) badgeMod.textContent = 'Mode: Max Power Transfer';
+        if (badgeVth) { badgeVth.style.display = 'inline-block'; badgeVth.textContent = `Rth: ${m.rth.toFixed(1)}Ω`; }
+        if (badgePf) { badgePf.style.display = 'inline-block'; badgePf.textContent = `Pmax: ${m.pmax.toFixed(2)}W`; }
+        if (badgeRegime) {
+          badgeRegime.textContent = Math.abs(m.rl - m.rth) < 0.5 ? '★ MPT MATCH (50% η)' : (m.rl < m.rth ? `RL < Rth (${m.eta.toFixed(0)}% η)` : `RL > Rth (${m.eta.toFixed(0)}% η)`);
+        }
+      } else if (curMod === 'rlc') {
+        if (badgeMod) badgeMod.textContent = 'Mode: RLC Resonance';
+        if (badgeVth) { badgeVth.style.display = 'inline-block'; badgeVth.textContent = `fr: ${r.fr.toFixed(0)} Hz`; }
+        if (badgePf) { badgePf.style.display = 'inline-block'; badgePf.textContent = `cos θ: ${r.pf.toFixed(2)}`; }
+        if (badgeRegime) {
+          badgeRegime.textContent = r.isResonant ? '★ SERIES RESONANCE (Unity PF)' : (r.f < r.fr ? 'Capacitive (Leading)' : 'Inductive (Lagging)');
+        }
+      }
+
+      // RLC Instrument Card Readouts
+      const fgenPill = document.getElementById('fgen-status-pill');
+      if (fgenPill) fgenPill.textContent = `${r.vrms.toFixed(1)} Vrms · Sine Wave`;
+
+      const rlcBwSub = document.getElementById('rlc-bw-sub');
+      const rlcXlSub = document.getElementById('rlc-xl-sub');
+      const rlcXcSub = document.getElementById('rlc-xc-sub');
+      const tankPill = document.getElementById('tank-regime-pill');
+      const balPointer = document.getElementById('balance-pointer');
+
+      if (rlcBwSub) rlcBwSub.textContent = `BW: ${r.bw.toFixed(1)} Hz (Q=${r.q.toFixed(2)})`;
+      if (rlcXlSub) rlcXlSub.innerHTML = `X<sub>L</sub> = ${r.xl.toFixed(1)} &Omega;`;
+      if (rlcXcSub) rlcXcSub.innerHTML = `X<sub>C</sub> = ${r.xc.toFixed(1)} &Omega;`;
+
+      if (tankPill) {
+        if (r.isResonant) {
+          tankPill.textContent = '★ RESONANCE (XL = XC)';
+          tankPill.className = 'status-pill highlight';
+        } else if (r.f < r.fr) {
+          tankPill.textContent = 'Capacitive (XC > XL)';
+          tankPill.className = 'status-pill';
+          tankPill.style.color = '#f43f5e';
+        } else {
+          tankPill.textContent = 'Inductive (XL > XC)';
+          tankPill.className = 'status-pill active';
+          tankPill.style.color = '#f59e0b';
+        }
+      }
+
+      if (balPointer) {
+        let pct = 50;
+        if (r.fr > 0) {
+          if (r.f < r.fr) {
+            pct = Math.max(6, 50 - ((r.fr - r.f) / r.fr) * 44);
+          } else {
+            pct = Math.min(94, 50 + ((r.f - r.fr) / (r.fr * 2)) * 44);
+          }
+        }
+        balPointer.style.left = `${pct}%`;
+        balPointer.classList.toggle('resonant', r.isResonant);
+      }
 
       // MPT Table Rows
       const mptPmax = document.getElementById('mpt-pmax');
@@ -3432,6 +3492,61 @@
       oscRenderer.render();
       phasorRenderer.render();
     }, 40);
+
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // UI-UX-PRO-MAX: RLC Voltage Presets, Frequency Presets & Steppers
+    // ──────────────────────────────────────────────────────────────────────────
+    // Voltage Presets
+    document.querySelectorAll('.v-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const v = parseFloat(e.target.dataset.v);
+        rlcEngine.setParam('vrms', v);
+        const vSlider = document.getElementById('sl-rlc-v');
+        const vVal = document.getElementById('sl-rlc-v-val');
+        if (vSlider) vSlider.value = v;
+        if (vVal) vVal.textContent = `${v.toFixed(1)} V`;
+        document.querySelectorAll('.v-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    // Frequency Presets
+    document.querySelectorAll('.f-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const f = parseFloat(e.target.dataset.f);
+        rlcEngine.setParam('f', f);
+        const fSlider = document.getElementById('sl-rlc-f');
+        const fVal = document.getElementById('sl-rlc-f-val');
+        if (fSlider) fSlider.value = f;
+        if (fVal) fVal.textContent = `${f.toFixed(0)} Hz`;
+        document.querySelectorAll('.f-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    // Fine Frequency Steppers (-10, -1, +1, +10 Hz)
+    function adjustFreqDelta(delta) {
+      const curF = rlcEngine.f;
+      const newF = Math.max(10, Math.min(10000, Math.round(curF + delta)));
+      rlcEngine.setParam('f', newF);
+      const fSlider = document.getElementById('sl-rlc-f');
+      const fVal = document.getElementById('sl-rlc-f-val');
+      if (fSlider) fSlider.value = newF;
+      if (fVal) fVal.textContent = `${newF} Hz`;
+      const r = rlcEngine.calculate();
+      sound.playResonanceTone(r.f, r.i / (r.vrms / r.r));
+      updateDisplays();
+    }
+
+    document.getElementById('btn-f-minus-10')?.addEventListener('click', () => adjustFreqDelta(-10));
+    document.getElementById('btn-f-minus-1')?.addEventListener('click', () => adjustFreqDelta(-1));
+    document.getElementById('btn-f-plus-1')?.addEventListener('click', () => adjustFreqDelta(1));
+    document.getElementById('btn-f-plus-10')?.addEventListener('click', () => adjustFreqDelta(10));
 
     // Initial update
     updateDisplays();

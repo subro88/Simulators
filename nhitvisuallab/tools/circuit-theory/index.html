@@ -71,7 +71,7 @@
 
         <!-- Dynamic Action Buttons depending on active module -->
         <!-- Circuit Topology Presets Selector (Pillar 1) -->
-        <div class="ctrl-group" style="margin-left:12px;">
+        <div class="ctrl-group" id="topology-selector-group" style="margin-left:12px;">
           <span class="ctrl-label">Topology:</span>
           <select id="select-topology" class="challenge-select" style="max-width:180px;">
             <option value="bridge" selected>Wheatstone Bridge</option>
@@ -219,44 +219,147 @@
             </div>
           </div>
 
-          <!-- SUB-PANEL 3: RLC Resonance Parameters -->
+          <!-- SUB-PANEL 3: RLC Resonance Parameters (ui-ux-pro-max standard) -->
           <div class="params-subpanel hidden" id="params-rlc">
-            <div class="param-panel-header">
-              <span class="param-panel-title">〰 RLC Series AC Resonance Parameters</span>
-            </div>
-            <div class="param-grid">
-              <div class="param-row">
-                <label class="param-label" for="sl-rlc-v">V<sub>rms</sub> (V)</label>
-                <input type="range" id="sl-rlc-v" class="param-slider" min="1" max="20" value="10" step="0.5">
-                <span class="param-val" id="sl-rlc-v-val">10 V</span>
+            <div class="rlc-controls-layout">
+
+              <!-- CARD 1: AC Function Generator -->
+              <div class="param-card instrument-card">
+                <div class="param-card-header">
+                  <div class="param-card-title">
+                    <span>&#9889;</span> AC Function Generator
+                  </div>
+                  <span class="status-pill active" id="fgen-status-pill">10.0 Vrms &bull; Sine Wave</span>
+                </div>
+
+                <div class="param-card-body">
+                  <!-- Voltage Control -->
+                  <div class="param-control-group">
+                    <div class="param-label-row">
+                      <label class="param-label" for="sl-rlc-v">Supply Voltage (V<sub>rms</sub>)</label>
+                      <span class="param-val-badge" id="sl-rlc-v-val">10.0 V</span>
+                    </div>
+                    <div class="slider-with-presets">
+                      <input type="range" id="sl-rlc-v" class="param-slider" min="1" max="30" value="10" step="0.5">
+                      <div class="preset-pill-row">
+                        <button class="preset-pill v-preset" data-v="5">5 V</button>
+                        <button class="preset-pill v-preset active" data-v="10">10 V</button>
+                        <button class="preset-pill v-preset" data-v="15">15 V</button>
+                        <button class="preset-pill v-preset" data-v="24">24 V</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Coarse Frequency Slider -->
+                  <div class="param-control-group">
+                    <div class="param-label-row">
+                      <label class="param-label" for="sl-rlc-f">Generator Frequency (f)</label>
+                      <span class="param-val-badge highlight" id="sl-rlc-f-val">1000 Hz</span>
+                    </div>
+                    <input type="range" id="sl-rlc-f" class="param-slider freq-slider" min="10" max="10000" value="1000" step="10">
+                  </div>
+
+                  <!-- Fine Frequency Tuning & Steppers -->
+                  <div class="param-control-group fine-tuning-group">
+                    <div class="param-label-row">
+                      <span class="sub-label">&#128373; Fine Resonance Peaking (&Delta;f)</span>
+                      <span class="stepper-tip">&plusmn;1 Hz / &plusmn;10 Hz increments</span>
+                    </div>
+                    <div class="freq-stepper-cluster">
+                      <button class="stepper-btn" id="btn-f-minus-10" title="Decrease 10 Hz">-10 Hz</button>
+                      <button class="stepper-btn" id="btn-f-minus-1" title="Decrease 1 Hz">-1 Hz</button>
+                      <button class="stepper-btn" id="btn-f-plus-1" title="Increase 1 Hz">+1 Hz</button>
+                      <button class="stepper-btn" id="btn-f-plus-10" title="Increase 10 Hz">+10 Hz</button>
+                    </div>
+                  </div>
+
+                  <!-- Quick Frequency Presets & Auto-Tune -->
+                  <div class="fgen-actions-bar">
+                    <div class="freq-presets">
+                      <span class="preset-label">Presets:</span>
+                      <button class="preset-pill f-preset" data-f="100">100 Hz</button>
+                      <button class="preset-pill f-preset" data-f="500">500 Hz</button>
+                      <button class="preset-pill f-preset active" data-f="1000" id="preset-fr">1.0 kHz (f<sub>r</sub>)</button>
+                      <button class="preset-pill f-preset" data-f="2000">2.0 kHz</button>
+                      <button class="preset-pill f-preset" data-f="5000">5.0 kHz</button>
+                    </div>
+                    <div class="fgen-buttons">
+                      <button class="btn-net success" id="btn-rlc-auto" title="Instantly match f to resonant frequency fr = 1/(2π√LC)">
+                        &#9889; Auto-Tune to f<sub>r</sub>
+                      </button>
+                      <button class="btn-net secondary" id="btn-rlc-sweep" title="Recalculate &amp; Plot Resonance Curve">
+                        &#12330; Sweep
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="param-row">
-                <label class="param-label" for="sl-rlc-f">f (Hz)</label>
-                <input type="range" id="sl-rlc-f" class="param-slider" min="10" max="10000" value="1000" step="10">
-                <span class="param-val" id="sl-rlc-f-val">1000 Hz</span>
+
+              <!-- CARD 2: R-L-C Tank Passive Components -->
+              <div class="param-card tank-card">
+                <div class="param-card-header">
+                  <div class="param-card-title">
+                    <span>&#127918;</span> Series R-L-C Tank Impedances
+                  </div>
+                  <span class="status-pill highlight" id="tank-regime-pill">Resonance (XL = XC)</span>
+                </div>
+
+                <div class="param-card-body">
+                  <!-- Resistor Control -->
+                  <div class="param-control-group">
+                    <div class="param-label-row">
+                      <label class="param-label" for="sl-rlc-r">Damping Resistor (R)</label>
+                      <div class="readout-group">
+                        <span class="param-sub-val" id="rlc-bw-sub">BW: 62.8 Hz</span>
+                        <span class="param-val-badge" id="sl-rlc-r-val">10 &Omega;</span>
+                      </div>
+                    </div>
+                    <input type="range" id="sl-rlc-r" class="param-slider" min="1" max="100" value="10" step="1">
+                    <div class="slider-subtext">Controls Quality Factor Q &amp; Bandwidth (BW = R / 2&pi;L)</div>
+                  </div>
+
+                  <!-- Inductor Control -->
+                  <div class="param-control-group">
+                    <div class="param-label-row">
+                      <label class="param-label" for="sl-rlc-l">Tank Inductance (L)</label>
+                      <div class="readout-group">
+                        <span class="param-sub-val" id="rlc-xl-sub">X<sub>L</sub> = 159.2 &Omega;</span>
+                        <span class="param-val-badge amber" id="sl-rlc-l-val">25.33 mH</span>
+                      </div>
+                    </div>
+                    <input type="range" id="sl-rlc-l" class="param-slider amber-track" min="1" max="100" value="25.33" step="0.01">
+                    <div class="slider-subtext">Inductive Reactance X<sub>L</sub> = 2&pi;fL</div>
+                  </div>
+
+                  <!-- Capacitor Control -->
+                  <div class="param-control-group">
+                    <div class="param-label-row">
+                      <label class="param-label" for="sl-rlc-c">Tank Capacitance (C)</label>
+                      <div class="readout-group">
+                        <span class="param-sub-val" id="rlc-xc-sub">X<sub>C</sub> = 159.2 &Omega;</span>
+                        <span class="param-val-badge rose" id="sl-rlc-c-val">1.00 &mu;F</span>
+                      </div>
+                    </div>
+                    <input type="range" id="sl-rlc-c" class="param-slider rose-track" min="0.1" max="50" value="1.0" step="0.01">
+                    <div class="slider-subtext">Capacitive Reactance X<sub>C</sub> = 1 / (2&pi;fC)</div>
+                  </div>
+
+                  <!-- Reactance Balance Gauge -->
+                  <div class="reactance-balance-container">
+                    <div class="balance-labels">
+                      <span class="cap-side">&#9664; Capacitive (X<sub>C</sub> &gt; X<sub>L</sub>)</span>
+                      <span class="res-point" id="balance-center-label">&#9733; f<sub>r</sub> Resonance</span>
+                      <span class="ind-side">Inductive (X<sub>L</sub> &gt; X<sub>C</sub>) &#9654;</span>
+                    </div>
+                    <div class="balance-bar-track">
+                      <div class="balance-pointer resonant" id="balance-pointer" style="left:50%;"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="param-row">
-                <label class="param-label" for="sl-rlc-r">R (Ω)</label>
-                <input type="range" id="sl-rlc-r" class="param-slider" min="1" max="100" value="10" step="1">
-                <span class="param-val" id="sl-rlc-r-val">10 Ω</span>
-              </div>
-              <div class="param-row">
-                <label class="param-label" for="sl-rlc-l">L (mH)</label>
-                <input type="range" id="sl-rlc-l" class="param-slider" min="1" max="100" value="25" step="0.1">
-                <span class="param-val" id="sl-rlc-l-val">25.33 mH</span>
-              </div>
-              <div class="param-row">
-                <label class="param-label" for="sl-rlc-c">C (μF)</label>
-                <input type="range" id="sl-rlc-c" class="param-slider" min="0.1" max="100" value="1" step="0.1">
-                <span class="param-val" id="sl-rlc-c-val">1.0 μF</span>
-              </div>
-              <div class="param-row" style="gap:8px;">
-                <button class="btn-net primary" id="btn-rlc-sweep" style="padding:5px 14px; font-size:0.82rem;">〰 Frequency Sweep</button>
-                <button class="btn-net secondary" id="btn-rlc-auto" style="padding:5px 14px; font-size:0.82rem;">&#9654; Auto-Tune to f<sub>r</sub></button>
-              </div>
+
             </div>
           </div>
-
         </div><!-- /#param-panel -->
       </div><!-- /.workbench-left -->
 
