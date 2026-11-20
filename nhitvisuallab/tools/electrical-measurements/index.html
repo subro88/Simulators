@@ -4,306 +4,736 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Electrical Measuring Instruments Virtual Lab | NHIT VisualLab</title>
-  <meta name="description" content="Interactive Electrical Measuring Instruments Virtual Lab for WBSCTE 3rd Sem Electrical Engineering (EE/S3/EMI). Simulate PMMC Meter Torque, 2-Wattmeter 3-Phase Power, Maxwell Inductance Bridge, and inspect 3D PMMC/Wattmeter model.">
+  <meta name="description" content="Interactive Electrical Measuring Instruments &amp; Measurements Virtual Lab. PMMC D'Arsonval Movement &amp; Shunts, Two-Wattmeter 3-Phase Power Measurement, Maxwell AC Bridge. WBSCTE 3rd Sem EE.">
+  <meta name="theme-color" content="#00212b">
+
+  <!-- Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for High-Fidelity Mathematical Typesetting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+
+  <!-- Core & Custom CSS -->
   <link rel="stylesheet" href="../../shared/site.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a href="#app" class="skip-link">Skip to content</a>
-<a class="logo-fixed" href="../../index.html">
-  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40" />
+<a class="logo-fixed" href="../../index.html" aria-label="NHIT VisualLab Home">
+  <img src="../../brand/no_background_logo.png" alt="NHIT VisualLab" width="40" height="40">
 </a>
 
 <main id="app">
+  <!-- Breadcrumb Navigation -->
   <nav class="site-nav" aria-label="Breadcrumb">
     <a class="site-nav-back" href="../../index.html">&#8592; All Tools</a>
     <span class="nav-domain">Electrical Engineering &mdash; 3rd Semester (EE/S3/EMI)</span>
   </nav>
 
+  <!-- Header -->
   <header>
-    <h1>Electrical Measuring Instruments Virtual Lab</h1>
-    <p class="subtitle">PMMC Meter Deflection Torque, 2-Wattmeter 3-Phase Power Measurement &amp; Maxwell AC Bridge</p>
+    <h1>
+      Electrical Measuring Instruments Virtual Lab
+      <span class="badge-topic">Metrology &amp; Instrumentation</span>
+    </h1>
+    <p class="subtitle">PMMC Meter Movement &middot; Two-Wattmeter 3&Phi; Power &middot; Maxwell's Inductance-Capacitance AC Bridge</p>
   </header>
 
-  <!-- Mode tabs bar (UTM model structure) -->
+  <!-- Canonical 4-Mode Platform Controls Bar -->
   <div class="controls-bar">
     <div class="ctrl-group">
-      <span class="ctrl-label">Mode</span>
+      <span class="ctrl-label">Platform Mode</span>
       <div class="pill-tabs" id="mode-tabs">
-        <button class="pill active" data-value="simulate">Simulate</button>
-        <button class="pill" data-value="3d-model">3D Model</button>
-        <button class="pill" data-value="explore">Instrument Types</button>
-        <button class="pill" data-value="quiz">Quiz</button>
+        <button class="pill active" data-mode="simulate">&#9881; Simulate</button>
+        <button class="pill" data-mode="3d-model">&#128187; 3D Model</button>
+        <button class="pill" data-mode="explore">&#128218; Theorems &amp; Proofs</button>
+        <button class="pill" data-mode="quiz">&#9733; Quiz &amp; Practice</button>
       </div>
     </div>
     <div class="head-actions">
-      <a class="btn-guide" href="#user-guide" style="padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;background:#f5c842;color:#1a1a2e;text-decoration:none;">&#128214; Instrument Guide</a>
+      <button class="btn-sound-toggle" id="btn-sound-toggle" title="Toggle Metrology Sound FX">&#128266; Sound: ON</button>
+      <a class="btn-guide" href="#theory-section">&#128214; Instrumentation Guide</a>
     </div>
   </div>
 
-  <!-- ═══ 3D MODEL MODE ═══════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       SIMULATE MODE (Core Workbench with STRICT 3:2 DUAL VIEWPORT)
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="sim-wrapper">
+    <!-- Simulation Sub-Toolbar -->
+    <div class="emi-toolbar">
+      <div class="ctrl-group">
+        <!-- 3 Core Module Selector -->
+        <div class="module-pill-selector" id="module-pill-selector">
+          <button class="mod-pill active" data-module="pmmc">&#9889; 1. PMMC Movement &amp; Shunts</button>
+          <button class="mod-pill" data-module="wattmeter">&#128202; 2. Two-Wattmeter 3&Phi; Power</button>
+          <button class="mod-pill" data-module="maxwell">&#9878; 3. Maxwell AC Bridge</button>
+        </div>
+      </div>
+
+      <!-- Quick Action / Preset Trays -->
+      <div class="head-actions" id="module-actions-tray">
+        <!-- PMMC Quick Actions -->
+        <div id="pmmc-quick-actions" class="ctrl-group">
+          <button class="btn-action primary" id="btn-pmmc-step">&#9654; Apply Step Current</button>
+          <button class="btn-action outline" id="btn-pmmc-zero">&#9209; Zero Reset</button>
+        </div>
+
+        <!-- Wattmeter Quick Actions (hidden by default) -->
+        <div id="wattmeter-quick-actions" class="ctrl-group hidden">
+          <button class="btn-action amber" id="btn-flip-w2">&#8644; Flip W2 Polarity (+/-)</button>
+          <button class="btn-action outline" id="btn-pf-correct">&#9889; Toggle Cap Bank</button>
+        </div>
+
+        <!-- Maxwell Quick Actions (hidden by default) -->
+        <div id="maxwell-quick-actions" class="ctrl-group hidden">
+          <button class="btn-action success" id="btn-bridge-autobalance">&#10004; Auto-Balance Null</button>
+          <button class="btn-action outline" id="btn-bridge-tone">&#127911; Headphone Tone</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STRICT 3:2 DUAL VIEWPORT WORKBENCH -->
+    <div class="dual-viewport">
+
+      <!-- LEFT PANE (3 Parts / 60%): Interactive Instrument Canvas -->
+      <div class="workbench-left">
+        <div class="canvas-card-container" id="canvas-card-container">
+          <div class="canvas-card-header">
+            <div class="canvas-title-group">
+              <span class="canvas-title" id="canvas-main-title">&#9889; PMMC D'Arsonval Movement &amp; Range Extension</span>
+            </div>
+            <div class="canvas-badges">
+              <span class="status-pill highlight" id="badge-module">PMMC Movement</span>
+              <span class="status-pill active" id="badge-stat1">Deflection: 0.00&deg;</span>
+              <span class="status-pill" id="badge-stat2">Torque Td: 0.00 &mu;N&middot;m</span>
+              <span class="status-pill warning" id="badge-stat3">Damping: Critical (&zeta;=1.0)</span>
+            </div>
+            <div class="canvas-header-actions">
+              <button class="btn-fullscreen" id="btn-fullscreen" title="Toggle Fullscreen Canvas (F)">&#9974; Fullscreen</button>
+            </div>
+          </div>
+
+          <!-- Canvas Viewport with Pan, Zoom & Grid -->
+          <div class="canvas-viewport-wrapper" id="canvas-viewport-wrapper">
+            <canvas id="meter-canvas" width="880" height="520"></canvas>
+
+            <!-- Floating Zoom & Pan Navigation HUD -->
+            <div class="canvas-nav-hud">
+              <button class="hud-btn" id="hud-zoom-in" title="Zoom In (+)">&#65291;</button>
+              <button class="hud-btn" id="hud-zoom-out" title="Zoom Out (-)">&#65293;</button>
+              <button class="hud-btn" id="hud-zoom-1" title="Reset Zoom (0)">1:1</button>
+              <button class="hud-btn" id="hud-fit" title="Fit to Viewport">Fit</button>
+              <button class="hud-btn active" id="hud-grid" title="Toggle Coordinate Grid (G)">&#8862; Grid</button>
+              <span class="hud-indicator" id="hud-zoom-level">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ PARAMETERS & CONTROLS PANEL (BELOW CANVAS) ═══ -->
+        <div class="parameters-panel" id="parameters-panel">
+
+          <!-- MODULE 1: PMMC PARAMETERS -->
+          <div id="panel-pmmc-controls">
+            <div class="panel-header">
+              <span class="panel-title">&#9889; PMMC Movement &amp; Range Extension Parameters</span>
+              <div class="preset-pills">
+                <span class="ctrl-label" style="margin-right:4px;">Presets:</span>
+                <button class="preset-pill active" data-pmmc-preset="basic">Basic Movement</button>
+                <button class="preset-pill" data-pmmc-preset="ammeter5a">5A Ammeter</button>
+                <button class="preset-pill" data-pmmc-preset="voltmeter250v">250V Voltmeter</button>
+                <button class="preset-pill" data-pmmc-preset="caseA">Case A Benchmark</button>
+              </div>
+            </div>
+
+            <div class="params-grid" style="margin-top:10px;">
+              <!-- Target Function Mode -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Instrument Function:</span>
+                  <select id="pmmc-function-select" class="challenge-select">
+                    <option value="basic">1. Basic Movement (Direct Meter Current Im)</option>
+                    <option value="ammeter">2. DC Ammeter (Parallel Shunt Rsh)</option>
+                    <option value="voltmeter">3. DC Voltmeter (Series Multiplier Rse)</option>
+                  </select>
+                </div>
+                <div class="param-row" style="margin-top:4px;">
+                  <span class="param-label">Target Full-Scale:</span>
+                  <select id="pmmc-range-select" class="challenge-select">
+                    <option value="0.002">2.0 mA (Direct Movement)</option>
+                    <option value="0.1">100.0 mA (m = 50)</option>
+                    <option value="1.0">1.0 A (m = 500)</option>
+                    <option value="5.0">5.0 A (m = 2500)</option>
+                    <option value="10.0">10.0 A (m = 5000)</option>
+                    <option value="10.0v">10.0 V (m = 100)</option>
+                    <option value="250.0v" selected>250.0 V (m = 2500)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Applied Test Signal Input -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label" id="pmmc-applied-label">Applied Signal:</span>
+                  <span class="param-val-badge" id="disp-pmmc-applied">125.0 V</span>
+                </div>
+                <input type="range" id="slider-pmmc-applied" class="range-input" min="0" max="250" step="0.5" value="125">
+                <div class="stepper-row" style="justify-content: flex-end;">
+                  <button class="stepper-btn" id="btn-pmmc-dec">-10%</button>
+                  <button class="stepper-btn" id="btn-pmmc-fdec">-1%</button>
+                  <button class="stepper-btn" id="btn-pmmc-finc">+1%</button>
+                  <button class="stepper-btn" id="btn-pmmc-inc">+10%</button>
+                  <button class="stepper-btn" id="btn-pmmc-fs" title="Set to Full-Scale">100% FS</button>
+                </div>
+              </div>
+
+              <!-- Meter Movement Specs (Im, Rm) -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Movement Specs:</span>
+                  <span class="param-val-badge">Im=2.0mA, Rm=50&Omega;</span>
+                </div>
+                <div class="param-row" style="margin-top:4px;">
+                  <span class="param-label">Calculated Resistor:</span>
+                  <span class="param-val-badge" id="disp-pmmc-resistor">Rse = 124,950 &Omega;</span>
+                </div>
+                <div class="param-row" style="margin-top:4px;">
+                  <span class="param-label">Sensitivity / Burden:</span>
+                  <span class="param-val-badge" id="disp-pmmc-sens">S = 500 &Omega;/V (Vm=100mV)</span>
+                </div>
+              </div>
+
+              <!-- Physical Damping Regimes -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Damping Regime:</span>
+                  <span class="param-val-badge" id="disp-damping-badge">&zeta; = 1.0 (Critical)</span>
+                </div>
+                <div class="preset-pills" style="margin-top:6px;">
+                  <button class="preset-pill" data-damping="under">Air / Under-Damped (&zeta;=0.35)</button>
+                  <button class="preset-pill active" data-damping="critical">Aluminum / Critical (&zeta;=1.0)</button>
+                  <button class="preset-pill" data-damping="over">Heavy / Over-Damped (&zeta;=2.2)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODULE 2: TWO-WATTMETER PARAMETERS (hidden by default) -->
+          <div id="panel-wattmeter-controls" class="hidden">
+            <div class="panel-header">
+              <span class="panel-title">&#128202; Three-Phase Two-Wattmeter System Parameters</span>
+              <div class="preset-pills">
+                <span class="ctrl-label" style="margin-right:4px;">PF Presets:</span>
+                <button class="preset-pill" data-wm-preset="unity">Unity (0&deg;)</button>
+                <button class="preset-pill" data-wm-preset="lag0866">0.866 Lag (30&deg;)</button>
+                <button class="preset-pill" data-wm-preset="lag0500">0.500 Lag (60&deg;)</button>
+                <button class="preset-pill active" data-wm-preset="lag0259">0.259 Lag (75&deg; - Case B)</button>
+                <button class="preset-pill" data-wm-preset="lead0707">0.707 Lead (-45&deg;)</button>
+              </div>
+            </div>
+
+            <div class="params-grid" style="margin-top:10px;">
+              <!-- Line Voltage & Current -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">3&Phi; Line Voltage (VL):</span>
+                  <span class="param-val-badge" id="disp-wm-vl">400.0 V</span>
+                </div>
+                <input type="range" id="slider-wm-vl" class="range-input" min="200" max="440" step="5" value="400">
+                <div class="param-row" style="margin-top:8px;">
+                  <span class="param-label">Line Current (IL):</span>
+                  <span class="param-val-badge" id="disp-wm-il">10.0 A</span>
+                </div>
+                <input type="range" id="slider-wm-il" class="range-input" min="1" max="25" step="0.2" value="10">
+              </div>
+
+              <!-- Phase Angle & Power Factor Slider -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Load Phase Angle (&phi;):</span>
+                  <span class="param-val-badge" id="disp-wm-phi">+75.0&deg; (Lagging)</span>
+                </div>
+                <input type="range" id="slider-wm-phi" class="range-input" min="-90" max="90" step="0.5" value="75">
+                <div class="param-row" style="margin-top:6px;">
+                  <span class="param-label">Power Factor (cos &phi;):</span>
+                  <span class="param-val-badge" id="disp-wm-pf">0.2588 Lagging</span>
+                </div>
+              </div>
+
+              <!-- Load Connection & W2 Reversal Switch -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Load Connection:</span>
+                  <div class="preset-pills">
+                    <button class="preset-pill active" id="btn-load-star">Star (Y)</button>
+                    <button class="preset-pill" id="btn-load-delta">Delta (&Delta;)</button>
+                  </div>
+                </div>
+                <div class="param-row" style="margin-top:10px;">
+                  <span class="param-label">W2 Polarity Switch:</span>
+                  <button class="btn-action amber" id="btn-toggle-w2-pol" style="font-size:0.75rem; padding:4px 8px;">
+                    &#8644; W2 Coil: Normal (+)
+                  </button>
+                </div>
+                <div class="param-row" style="margin-top:4px;">
+                  <span class="param-label" style="font-size:0.75rem;">Switch Status:</span>
+                  <span class="param-val-badge" id="disp-w2-status">Needle Reversed (W2 &lt; 0)</span>
+                </div>
+              </div>
+
+              <!-- Apparent & Reactive Power Metrics -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Total Active Power (P):</span>
+                  <span class="param-val-badge" id="disp-wm-ptotal">1793.1 W</span>
+                </div>
+                <div class="param-row" style="margin-top:4px;">
+                  <span class="param-label">Total Reactive Power (Q):</span>
+                  <span class="param-val-badge" id="disp-wm-qtotal">+6692.1 VAR</span>
+                </div>
+                <div class="param-row" style="margin-top:4px;">
+                  <span class="param-label">Apparent Power (S):</span>
+                  <span class="param-val-badge" id="disp-wm-stotal">6928.2 VA</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODULE 3: MAXWELL AC BRIDGE PARAMETERS (hidden by default) -->
+          <div id="panel-maxwell-controls" class="hidden">
+            <div class="panel-header">
+              <span class="panel-title">&#9878; Maxwell Inductance-Capacitance AC Bridge Dials</span>
+              <div class="preset-pills">
+                <span class="ctrl-label" style="margin-right:4px;">Mystery Coils:</span>
+                <button class="preset-pill" data-coil="1">Coil #1 (100mH)</button>
+                <button class="preset-pill active" data-coil="2">Coil #2 (150mH - Case C)</button>
+                <button class="preset-pill" data-coil="3">Coil #3 (250mH)</button>
+                <button class="preset-pill" data-coil="4">Coil #4 (High-Q)</button>
+                <button class="preset-pill" data-coil="5">Coil #5 (80mH)</button>
+              </div>
+            </div>
+
+            <div class="params-grid" style="margin-top:10px;">
+              <!-- Arm 2: Variable Resistor R2 (Resistive Balance) -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Decade Resistor R2 (Arm BC):</span>
+                  <span class="param-val-badge" id="disp-bridge-r2">600.0 &Omega;</span>
+                </div>
+                <input type="range" id="slider-bridge-r2" class="range-input" min="50" max="1500" step="5" value="600">
+                <div class="stepper-row" style="justify-content: flex-end; margin-top:4px;">
+                  <button class="stepper-btn" id="btn-r2-m100">-100&Omega;</button>
+                  <button class="stepper-btn" id="btn-r2-m10">-10&Omega;</button>
+                  <button class="stepper-btn" id="btn-r2-p10">+10&Omega;</button>
+                  <button class="stepper-btn" id="btn-r2-p100">+100&Omega;</button>
+                </div>
+              </div>
+
+              <!-- Arm 4: Standard Decade Resistor R4 -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Decade Resistor R4 (Arm CD):</span>
+                  <span class="param-val-badge" id="disp-bridge-r4">1500.0 &Omega;</span>
+                </div>
+                <input type="range" id="slider-bridge-r4" class="range-input" min="200" max="5000" step="25" value="1500">
+                <div class="stepper-row" style="justify-content: flex-end; margin-top:4px;">
+                  <button class="stepper-btn" id="btn-r4-m500">-500&Omega;</button>
+                  <button class="stepper-btn" id="btn-r4-m100">-100&Omega;</button>
+                  <button class="stepper-btn" id="btn-r4-p100">+100&Omega;</button>
+                  <button class="stepper-btn" id="btn-r4-p500">+500&Omega;</button>
+                </div>
+              </div>
+
+              <!-- Arm 4: Standard Variable Capacitor C4 (Reactive Balance) -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Decade Capacitor C4 (Arm CD):</span>
+                  <span class="param-val-badge" id="disp-bridge-c4">0.250 &mu;F</span>
+                </div>
+                <input type="range" id="slider-bridge-c4" class="range-input" min="0.01" max="1.50" step="0.005" value="0.250">
+                <div class="stepper-row" style="justify-content: flex-end; margin-top:4px;">
+                  <button class="stepper-btn" id="btn-c4-m01">-0.05&mu;F</button>
+                  <button class="stepper-btn" id="btn-c4-m001">-0.005&mu;F</button>
+                  <button class="stepper-btn" id="btn-c4-p001">+0.005&mu;F</button>
+                  <button class="stepper-btn" id="btn-c4-p01">+0.05&mu;F</button>
+                </div>
+              </div>
+
+              <!-- Source Frequency & Fixed Ratio Arm R3 -->
+              <div class="param-card">
+                <div class="param-row">
+                  <span class="param-label">Oscillator Frequency (f):</span>
+                  <span class="param-val-badge" id="disp-bridge-freq">1000 Hz</span>
+                </div>
+                <input type="range" id="slider-bridge-freq" class="range-input" min="100" max="5000" step="50" value="1000">
+                <div class="param-row" style="margin-top:6px;">
+                  <span class="param-label">Fixed Arm R3 (Arm AD):</span>
+                  <span class="param-val-badge">1000.0 &Omega; (Fixed)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RIGHT PANE (2 Parts / 40%): Analytical & Vector Telemetry Deck -->
+      <div class="workbench-right">
+        <div class="deck-card">
+          <!-- Multi-Tab Header -->
+          <div class="deck-tabs-header">
+            <button class="deck-tab active" data-tab="scope">&#128200; Dynamics Scope &theta;(t)</button>
+            <button class="deck-tab" data-tab="phasor">&#129517; 3&Phi; Phasors</button>
+            <button class="deck-tab" data-tab="curves">&#128202; W1, W2 vs &phi;</button>
+            <button class="deck-tab" data-tab="null">&#9878; Bridge Null</button>
+            <button class="deck-tab" data-tab="proofs">&#128290; Live KaTeX Proofs</button>
+          </div>
+
+          <div class="deck-body">
+            <!-- Dynamic Oscilloscope Viewport (Tabs 1, 2, 3, 4) -->
+            <div class="scope-viewport-wrapper" id="scope-viewport-wrapper">
+              <canvas id="scope-canvas" width="480" height="220"></canvas>
+            </div>
+
+            <!-- Dynamic Telemetry Gauges HUD -->
+            <div class="telemetry-grid" id="telemetry-grid">
+              <!-- Dynamically populated per active module -->
+              <div class="telemetry-cell">
+                <span class="telemetry-lbl" id="tel-lbl-1">Deflecting Torque Td</span>
+                <span class="telemetry-val" id="tel-val-1">0.00 &mu;N&middot;m</span>
+                <span class="telemetry-sub" id="tel-sub-1">G &middot; Im (Electromagnetic)</span>
+              </div>
+              <div class="telemetry-cell">
+                <span class="telemetry-lbl" id="tel-lbl-2">Spring Torque Tc</span>
+                <span class="telemetry-val" id="tel-val-2">0.00 &mu;N&middot;m</span>
+                <span class="telemetry-sub" id="tel-sub-2">K &middot; &theta; (Phosphor-Bronze)</span>
+              </div>
+              <div class="telemetry-cell">
+                <span class="telemetry-lbl" id="tel-lbl-3">Angular Deflection</span>
+                <span class="telemetry-val" id="tel-val-3">0.00&deg; / 90.00&deg;</span>
+                <span class="telemetry-sub" id="tel-sub-3">0.0% Full Scale Deflection</span>
+              </div>
+              <div class="telemetry-cell">
+                <span class="telemetry-lbl" id="tel-lbl-4">Damping Torque Tdamp</span>
+                <span class="telemetry-val" id="tel-val-4">0.00 &mu;N&middot;m</span>
+                <span class="telemetry-sub" id="tel-sub-4">D &middot; d&theta;/dt (Eddy Current)</span>
+              </div>
+            </div>
+
+            <!-- Step-by-Step KaTeX Proof Card -->
+            <div class="proof-card" id="proof-card">
+              <h4 id="proof-title">Live Mathematical Derivation &amp; Verification</h4>
+              <div class="proof-katex-container" id="proof-katex">
+                <!-- Populated via KaTeX -->
+              </div>
+            </div>
+
+            <!-- Event / Diagnostics Console -->
+            <div class="console-box">
+              <div class="console-title">&#128421; Telemetry &amp; Event Diagnostics:</div>
+              <div class="console-log" id="console-log">
+                <div>&gt; [SYSTEM] Initialized Electrical Measuring Instruments Virtual Lab.</div>
+                <div>&gt; [PMMC] RK4 integrator active at 60 FPS. Ready for step input.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         BOTTOM PANE: CHALLENGE ENGINE HUD & OBSERVATION LEDGER
+         ══════════════════════════════════════════════════════════════════ -->
+    <div class="bottom-deck" style="margin-top:14px;">
+
+      <!-- Guided Laboratory Challenge HUD -->
+      <div class="challenge-card">
+        <div class="challenge-header">
+          <div class="challenge-title-group">
+            <span class="challenge-badge" id="chal-track-badge">Track 1 &middot; Lab 1</span>
+            <span class="challenge-title" id="chal-title">Torque Balance &amp; Damping Optimization</span>
+          </div>
+          <div class="challenge-stats">
+            <span>Score: <strong id="chal-score">0 / 900</strong></span>
+            <span>Accuracy: <strong id="chal-accuracy">100%</strong></span>
+            <span>Rank: <strong id="chal-rank">Apprentice Metrologist</strong></span>
+          </div>
+        </div>
+
+        <div class="challenge-body">
+          <p class="challenge-prompt" id="chal-prompt">
+            Adjust coil current and damping regime to achieve dead-beat critical damping (&zeta; = 1.0) with zero overshoot and a settling time under 0.8 seconds.
+          </p>
+
+          <div class="challenge-interactive-row">
+            <button class="btn-action primary" id="btn-chal-verify">&#10004; Check Calibration &amp; Submit</button>
+            <button class="btn-action outline" id="btn-chal-hint">&#128161; Request Hint</button>
+            <button class="btn-action outline" id="btn-chal-next">&#9654; Next Challenge</button>
+            <span class="challenge-feedback" id="chal-feedback"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Laboratory Observation Notebook & Benchmark Verification -->
+      <div class="observation-card">
+        <div class="table-actions-row">
+          <div class="canvas-title-group">
+            <span class="canvas-title">&#128221; Concordant Laboratory Observation Notebook</span>
+            <span class="status-pill highlight" id="badge-obs-count">0 Records</span>
+          </div>
+          <div class="table-btn-group">
+            <button class="btn-action primary" id="btn-record-obs">+ Record Current State</button>
+            <button class="btn-action outline" id="btn-load-case-a">Load Benchmark Case A</button>
+            <button class="btn-action outline" id="btn-load-case-b">Load Benchmark Case B</button>
+            <button class="btn-action outline" id="btn-load-case-c">Load Benchmark Case C</button>
+            <button class="btn-action success" id="btn-export-csv">&#128229; Export CSV</button>
+            <button class="btn-action outline" id="btn-clear-obs">&#128465; Clear</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="obs-table" id="obs-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Module</th>
+                <th>Input Signals</th>
+                <th>Key Settings / Parameters</th>
+                <th>Meter Readings</th>
+                <th>Derived Values</th>
+                <th>Verification Status</th>
+              </tr>
+            </thead>
+            <tbody id="obs-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       3D HARDWARE MODEL MODE
+       ══════════════════════════════════════════════════════════════════ -->
   <div id="model3d-wrapper" class="hidden">
-    <section id="sim3d-section" class="sim3d-section">
-      <h2>3D Hardware — <span id="sim3d-title">PMMC Meter &amp; Dynamometer Movement</span></h2>
-      <p id="sim3d-blurb" class="sim3d-blurb">Interactive 3D model of Meter Housing Chassis, PMMC Horseshoe Permanent Magnet, Moving Coil Spindle, Red Indicator Needle, and Calibrated Scale Dial.</p>
+    <section class="sim3d-section">
+      <div class="panel-header">
+        <div>
+          <h2>3D Hardware Inspector &mdash; PMMC &amp; Dynamometer Movement</h2>
+          <p class="subtitle" style="margin-top:2px;">Interactive WebGL 3D cutaway showing Horseshoe Permanent Magnet, Soft-Iron Core, Moving Coil, Jeweled Bearings, Hairsprings, and Dynamometer Field Coils.</p>
+        </div>
+      </div>
+
       <div class="sim3d-layout">
         <div class="sim3d-wrap">
           <canvas id="sim3d-canvas" class="sim3d-canvas"></canvas>
-          <div class="sim3d-hint">Drag to rotate · Scroll to zoom · Right-click to pan</div>
+          <div class="sim3d-hint">Left-drag to rotate &middot; Scroll to zoom &middot; Right-drag to pan</div>
         </div>
-        <aside id="sim3d-components" class="sim3d-components"></aside>
+
+        <aside class="sim3d-components" id="sim3d-components">
+          <!-- Dynamically populated with interactive component cards -->
+        </aside>
       </div>
     </section>
   </div>
 
-  <!-- ═══ SIMULATE MODE ═══════════════════════════════════════════ -->
-  <div id="sim-wrapper">
-    <div class="emi-toolbar">
-      <div class="ctrl-group">
-        <label class="ctrl-label">Measurement Mode:</label>
-        <select id="inst-select" class="emi-select">
-          <option value="wattmeter">1. 2-Wattmeter Method (3-Phase Balanced Load)</option>
-          <option value="pmmc">2. PMMC DC Meter (Deflection &theta; = NBA/C &middot; I)</option>
-          <option value="maxwell">3. Maxwell AC Inductance Bridge (Lx = R2*R3*C4)</option>
-        </select>
-      </div>
+  <!-- ══════════════════════════════════════════════════════════════════
+       THEOREMS & PROOFS / THEORY MODE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="explore-wrapper" class="hidden">
+    <section class="theory-card" id="theory-section">
+      <h2>Curriculum Syllabus &amp; Mathematical Formulations &mdash; WBSCTE EE/S3/EMI</h2>
 
-      <div class="ctrl-group">
-        <label class="ctrl-label">Wattmeter W1 (W):</label>
-        <input type="number" id="w1-in" value="1200" min="0" max="5000" class="num-input">
-      </div>
-
-      <div class="ctrl-group">
-        <label class="ctrl-label">Wattmeter W2 (W):</label>
-        <input type="number" id="w2-in" value="400" min="-2000" max="5000" class="num-input">
-      </div>
-
-      <div class="ctrl-actions">
-        <button class="btn-action primary" id="btn-calc-emi">Measure Power &amp; PF &#9654;</button>
-        <button class="btn-action success" id="btn-bridge-bal">Balance AC Bridge</button>
-      </div>
-    </div>
-
-    <!-- Dual Canvas & Meter Visualizer -->
-    <div class="dual-canvas-row">
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Analog Meter Dial &amp; Pointer Deflection Arc</span>
-          <span class="badge" id="pf-badge">Power Factor: 0.756 (Lag)</span>
-        </div>
-        <canvas id="emi-canvas" width="700" height="420"></canvas>
-      </div>
-
-      <div class="canvas-card">
-        <div class="canvas-header">
-          <span class="card-title">Instrument Metrics &amp; Phase Angle</span>
-        </div>
-        <div class="emi-grid">
-          <div class="emi-box"><span class="emi-lbl">Total 3-Phase Power</span><span class="emi-val" id="disp-p">1600.00 W (W1 + W2)</span></div>
-          <div class="emi-box"><span class="emi-lbl">Power Factor (cos &phi;)</span><span class="emi-val" id="disp-cos">0.7559 Lagging</span></div>
-          <div class="emi-box"><span class="emi-lbl">Phase Angle (&phi;)</span><span class="emi-val" id="disp-phi">40.89&deg;</span></div>
-          <div class="emi-box"><span class="emi-lbl">PMMC Deflection</span><span class="emi-val" id="disp-theta">67.50&deg; Arc</span></div>
-          <div class="emi-box"><span class="emi-lbl">Measured Inductance</span><span class="emi-val">250.00 mH (Lx)</span></div>
-          <div class="emi-box"><span class="emi-lbl">Accuracy Class</span><span class="emi-val">Class 0.5 (Precision)</span></div>
-        </div>
-
-        <div class="console-box">
-          <div class="console-title">Electrical Measurement Telemetry:</div>
-          <div class="console-log" id="emi-log">
-            &gt; Initialized Electrical Measuring Instruments Virtual Lab.<br>
-            &gt; [2-WATTMETER METHOD] W1 = 1200W, W2 = 400W. Total Power P = 1600W.<br>
-            &gt; tan(&phi;) = &radic;3*(W1 - W2)/(W1 + W2) = 0.866 &rarr; &phi; = 40.89&deg;, cos(&phi;) = 0.756.<br>
-            &gt; Maxwell AC Bridge balanced: Detector null condition reached. Lx = 250mH.
+      <div class="theory-grid">
+        <!-- 1. PMMC Movement -->
+        <div class="theory-item">
+          <h3>&#9889; 1. PMMC D'Arsonval Principle &amp; Torque Equations</h3>
+          <p>
+            The Permanent Magnet Moving Coil (PMMC) instrument operates on the D'Arsonval principle: when an electric current $I$ passes through a rectangular coil placed within a permanent radial magnetic field $B$, a mechanical deflecting torque $T_d$ is produced:
+          </p>
+          <div class="proof-katex-container">
+            $$T_d = N \cdot B \cdot I \cdot l \cdot b = N B A I = G \cdot I$$
+          </div>
+          <p>
+            Where $N$ is turns, $A = l \cdot b$ is coil area, and $G = NBA$ is the displacement constant ($\text{N}\cdot\text{m/A}$).
+          </p>
+          <p>
+            Controlling torque is provided by twin phosphor-bronze hairsprings coiled in opposite directions to cancel temperature drift:
+          </p>
+          <div class="proof-katex-container">
+            $$T_c = K \cdot \theta$$
+          </div>
+          <p>
+            At steady state balance ($T_d = T_c$), we obtain the fundamental linear scale law:
+          </p>
+          <div class="proof-katex-container">
+            $$\theta_{\text{ss}} = \left(\frac{G}{K}\right) I \implies \mathbf{\theta \propto I} \quad (\text{Uniform Linear Scale})$$
           </div>
         </div>
+
+        <!-- 2. PMMC Range Extension -->
+        <div class="theory-item">
+          <h3>&#128268; 2. Ammeter Shunts ($R_{\text{sh}}$) &amp; Voltmeter Multipliers ($R_{\text{se}}$)</h3>
+          <p>
+            Standard basic meter movement has full-scale current $I_m$ and internal coil resistance $R_m$ (full-scale voltage drop $V_m = I_m R_m$).
+          </p>
+          <ul>
+            <li>
+              <strong>DC Ammeter Extension (Range $I = m \cdot I_m$):</strong>
+              A low-resistance shunt resistor $R_{\text{sh}}$ made of Manganin (negligible temperature coefficient) is connected in parallel with the coil:
+              <div class="proof-katex-container">
+                $$R_{\text{sh}} = \frac{I_m R_m}{I - I_m} = \frac{R_m}{m - 1}$$
+              </div>
+            </li>
+            <li>
+              <strong>DC Voltmeter Extension (Range $V = m \cdot V_m$):</strong>
+              A high-resistance multiplier resistor $R_{\text{se}}$ is connected in series with the coil:
+              <div class="proof-katex-container">
+                $$R_{\text{se}} = \frac{V - V_m}{I_m} = \frac{V}{I_m} - R_m = R_m(m - 1)$$
+              </div>
+            </li>
+            <li>
+              <strong>Sensitivity ($S$):</strong> Ohms-per-volt rating $S = \frac{1}{I_m} = \frac{R_m + R_{\text{se}}}{V}$. Higher sensitivity minimizes loading burden on measured circuits.
+            </li>
+          </ul>
+        </div>
+
+        <!-- 3. Two-Wattmeter Method -->
+        <div class="theory-item">
+          <h3>&#128202; 3. Three-Phase Power Measurement (Two-Wattmeter Method)</h3>
+          <p>
+            In a 3-phase 3-wire system (Star or Delta), total active power $P$ and reactive power $Q$ can be measured using two electrodynamometer wattmeters ($W_1, W_2$):
+          </p>
+          <div class="proof-katex-container">
+            $$W_1 = V_L I_L \cos(30^\circ - \phi), \qquad W_2 = V_L I_L \cos(30^\circ + \phi)$$
+          </div>
+          <p>Sum of readings yields total active 3-phase power:</p>
+          <div class="proof-katex-container">
+            $$W_1 + W_2 = V_L I_L [\cos(30^\circ - \phi) + \cos(30^\circ + \phi)] = \mathbf{\sqrt{3} V_L I_L \cos\phi = P_{\text{total}}}$$
+          </div>
+          <p>Difference of readings yields total reactive 3-phase power:</p>
+          <div class="proof-katex-container">
+            $$W_1 - W_2 = V_L I_L [\cos(30^\circ - \phi) - \cos(30^\circ + \phi)] = V_L I_L \sin\phi$$
+            $$Q_{\text{total}} = \sqrt{3}(W_1 - W_2) = \sqrt{3} V_L I_L \sin\phi$$
+          </div>
+          <p>Power factor angle $\phi$ is determined directly without knowing $V_L$ or $I_L$:</p>
+          <div class="proof-katex-container">
+            $$\tan\phi = \sqrt{3}\left(\frac{W_1 - W_2}{W_1 + W_2}\right) \implies \text{PF} = \cos\phi = \cos\left[\arctan\left(\sqrt{3}\frac{W_1 - W_2}{W_1 + W_2}\right)\right]$$
+          </div>
+        </div>
+
+        <!-- 4. Wattmeter Regimes & Polarity Reversal -->
+        <div class="theory-item">
+          <h3>&#9889; 4. Four Canonical Power Factor Regimes &amp; Reversal Switch</h3>
+          <p>The behavior of $W_1$ and $W_2$ depends directly on load phase angle $\phi$:</p>
+          <ul>
+            <li><strong>$\phi = 0^\circ$ ($\text{PF} = 1.0$, Pure Resistive):</strong> $W_1 = W_2 = \frac{\sqrt{3}}{2} V_L I_L$. Both wattmeters give identical positive readings.</li>
+            <li><strong>$\phi = 30^\circ$ ($\text{PF} = 0.866\text{ lag}$):</strong> $W_1 = V_L I_L \cos(0^\circ) = V_L I_L$; $W_2 = V_L I_L \cos(60^\circ) = 0.5 V_L I_L$. $W_1 = 2 W_2$.</li>
+            <li><strong>$\phi = 60^\circ$ ($\text{PF} = 0.500\text{ lag}$):</strong> $W_1 = V_L I_L \cos(-30^\circ) = \frac{\sqrt{3}}{2} V_L I_L = P_{\text{total}}$; $W_2 = V_L I_L \cos(90^\circ) = \mathbf{0}$. $W_2$ reads zero.</li>
+            <li><strong>$\phi > 60^\circ$ ($\text{PF} < 0.500\text{ lag}$):</strong> $\cos(30^\circ + \phi) < 0 \implies \mathbf{W_2 < 0}$. The meter attempts to deflect backward against the zero pin! The potential coil reversal switch must be flipped to take the upscale reading $|W_2|$, and registered as a negative value: $P = W_1 - |W_2|$.</li>
+          </ul>
+        </div>
+
+        <!-- 5. Maxwell AC Bridge -->
+        <div class="theory-item">
+          <h3>&#9878; 5. Maxwell's Inductance-Capacitance AC Bridge</h3>
+          <p>
+            Maxwell's bridge measures unknown self-inductance $L_x$ and series resistance $R_x$ by comparison with a standard variable capacitor $C_4$:
+          </p>
+          <div class="proof-katex-container">
+            $$Z_1 = R_x + j\omega L_x, \quad Z_2 = R_2, \quad Z_3 = R_3, \quad Z_4 = \frac{R_4}{1 + j\omega C_4 R_4}$$
+          </div>
+          <p>At null balance condition ($Z_1 Z_4 = Z_2 Z_3$):</p>
+          <div class="proof-katex-container">
+            $$(R_x + j\omega L_x)\left(\frac{R_4}{1 + j\omega C_4 R_4}\right) = R_2 R_3 \implies R_x R_4 + j\omega L_x R_4 = R_2 R_3 + j\omega C_4 R_2 R_3 R_4$$
+          </div>
+          <p>Equating real and imaginary components yields two <strong>completely independent (orthogonal)</strong> equations:</p>
+          <div class="proof-katex-container">
+            $$\mathbf{R_x = \frac{R_2 R_3}{R_4}}, \qquad \mathbf{L_x = R_2 R_3 C_4}$$
+          </div>
+          <p>
+            Notice that the excitation frequency $\omega = 2\pi f$ cancels out entirely, proving that balance is <strong>frequency-independent</strong>!
+          </p>
+        </div>
+
+        <!-- 6. Quality Factor & Bridge Limitations -->
+        <div class="theory-item">
+          <h3>&#127914; 6. Coil Quality Factor ($Q$) &amp; Bridge Scope</h3>
+          <p>
+            The Quality Factor $Q$ represents the ratio of inductive reactance to series resistance:
+          </p>
+          <div class="proof-katex-container">
+            $$Q = \frac{\omega L_x}{R_x} = \frac{\omega (R_2 R_3 C_4)}{(R_2 R_3 / R_4)} = \mathbf{\omega C_4 R_4 = 2\pi f C_4 R_4}$$
+          </div>
+          <ul>
+            <li><strong>Medium-Q Coils ($1 < Q < 10$):</strong> Ideal operating regime for Maxwell's bridge. Both $R_4$ and $C_4$ balance dials operate in practical, stable decades.</li>
+            <li><strong>High-Q Coils ($Q > 10$):</strong> Require an excessively large resistor $R_4$ ($> 100\text{ k}\Omega$), making commercial resistors impractical. Hay's Bridge (series $R_4-C_4$ arm) is used instead.</li>
+            <li><strong>Low-Q Coils ($Q < 1$):</strong> Suffer from sliding balance and convergence difficulties. Anderson's Bridge is preferred.</li>
+          </ul>
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 
-  <!-- ═══ EXPLORE / THEORY MODE ════════════════════════════════════ -->
-  <div id="explore-wrapper" class="hidden">
-    <div class="theory-card">
-      <h2>Syllabus Coverage &mdash; WBSCTE EE/S3/EMI Electrical Measuring Instruments</h2>
-      <div class="theory-grid">
-        <div class="theory-item">
-          <h3>1. PMMC vs Moving Iron (MI) Meters</h3>
-          <p><strong>PMMC:</strong> DC only, linear scale, high sensitivity, Eddy current damping ($T_d = NBAI$).<br><strong>Moving Iron:</strong> AC &amp; DC, square-law non-linear scale ($T_d = \frac{1}{2}I^2 \frac{dL}{d\theta}$), Air friction damping.</p>
+  <!-- ══════════════════════════════════════════════════════════════════
+       QUIZ & PRACTICE MODE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="quiz-wrapper" class="hidden">
+    <section class="quiz-section">
+      <div class="quiz-header">
+        <div>
+          <h2>Metrology &amp; Electrical Measurements Certification Quiz</h2>
+          <p class="subtitle" style="margin-top:2px;">10 Randomized interactive multiple-choice questions assessing PMMC dynamics, Two-Wattmeter power factor extraction, and Maxwell AC bridge balancing.</p>
         </div>
-        <div class="theory-item">
-          <h3>2. Two-Wattmeter 3-Phase Power</h3>
-          <p>Total Active Power $P = W_1 + W_2$. Power factor angle $\tan \phi = \sqrt{3} \frac{W_1 - W_2}{W_1 + W_2}$. Special cases: $\cos \phi = 1 \implies W_1 = W_2$; $\cos \phi = 0.5 \implies W_2 = 0$; $\cos \phi = 0 \implies W_1 = -W_2$.</p>
-        </div>
-        <div class="theory-item">
-          <h3>3. AC Measurement Bridges</h3>
-          <p><strong>Maxwell's Inductance Bridge:</strong> Measures medium-Q inductors ($L_x = R_2 R_3 C_4, R_x = \frac{R_2 R_3}{R_4}$).<br><strong>Schering Bridge:</strong> Measures capacitance and dielectric loss angle $\tan \delta$.</p>
-        </div>
-        <div class="theory-item">
-          <h3>4. Instrument Transformers</h3>
-          <p>Current Transformers (CT, secondary 5A) and Potential Transformers (PT, secondary 110V) for high voltage/current isolation and safety.</p>
+        <div class="quiz-stats">
+          <span>Score: <strong id="quiz-score">0 / 10</strong></span>
+          <span>Completed: <strong id="quiz-progress">0 / 10</strong></span>
+          <button class="btn-action primary" id="btn-quiz-reset" style="font-size:0.75rem; padding:4px 10px;">&#8635; New Quiz</button>
         </div>
       </div>
-    </div>
+
+      <div class="quiz-container" id="quiz-container">
+        <!-- Dynamically generated 10 questions -->
+      </div>
+    </section>
   </div>
+
 </main>
 
+<!-- Certificate Modal -->
+<div class="cert-modal" id="cert-modal">
+  <div class="cert-content">
+    <div style="font-size:2.5rem;">&#127891;</div>
+    <div class="cert-title">Certificate of Metrology Mastery</div>
+    <p style="color:#cbd5e1; font-size:0.92rem;">
+      This certifies that the student has successfully demonstrated high competence in electromechanical meter dynamics, three-phase two-wattmeter analysis, and AC bridge balancing.
+    </p>
+    <div style="font-family:var(--font-mono); font-size:1.1rem; color:var(--accent-cyan); font-weight:700;" id="cert-score-text">
+      Score: 10 / 10 (100% Distinction)
+    </div>
+    <div style="font-size:0.78rem; color:var(--text-dim);">
+      NHIT VisualLab &middot; Electrical Engineering Metrology Simulation Division
+    </div>
+    <div style="margin-top:8px;">
+      <button class="btn-action primary" id="btn-close-cert">Close Certificate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="../../shared/sidebar/sidebar.js"></script>
-<script>
-// Mode Switching
-document.querySelectorAll('#mode-tabs .pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#mode-tabs .pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const val = btn.getAttribute('data-value');
-    document.getElementById('sim-wrapper').classList.toggle('hidden', val !== 'simulate');
-    document.getElementById('model3d-wrapper').classList.toggle('hidden', val !== '3d-model');
-    document.getElementById('explore-wrapper').classList.toggle('hidden', val !== 'explore');
-    if (val === '3d-model' && !window.three3DInitialized) init3D();
-  });
-});
 
-const canvas = document.getElementById('emi-canvas');
-const ctx = canvas.getContext('2d');
-let currentAngleDeg = 45;
-
-function drawMeter() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0a0f1d';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const cx = 350, cy = 340, radius = 220;
-
-  // Scale Arc
-  ctx.strokeStyle = '#475569';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, Math.PI * 1.15, Math.PI * 1.85);
-  ctx.stroke();
-
-  // Scale Ticks
-  for (let i = 0; i <= 10; i++) {
-    const angle = Math.PI * 1.15 + (Math.PI * 0.7) * (i / 10.0);
-    const x1 = cx + (radius - 10) * Math.cos(angle);
-    const y1 = cy + (radius - 10) * Math.sin(angle);
-    const x2 = cx + (radius + 10) * Math.cos(angle);
-    const y2 = cy + (radius + 10) * Math.sin(angle);
-
-    ctx.strokeStyle = (i % 2 === 0) ? '#38bdf8' : '#94a3b8';
-    ctx.lineWidth = (i % 2 === 0) ? 3 : 1.5;
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-
-    if (i % 2 === 0) {
-      const tx = cx + (radius - 28) * Math.cos(angle);
-      const ty = cy + (radius - 28) * Math.sin(angle);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.font = 'bold 11px Segoe UI';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${i * 10}%`, tx, ty);
-    }
-  }
-
-  // Pointer Needle
-  const pAngle = Math.PI * 1.15 + (Math.PI * 0.7) * (currentAngleDeg / 90.0);
-  const px = cx + (radius - 15) * Math.cos(pAngle);
-  const py = cy + (radius - 15) * Math.sin(pAngle);
-
-  ctx.strokeStyle = '#ef4444';
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(px, py); ctx.stroke();
-
-  // Pivot Hub
-  ctx.fillStyle = '#f59e0b';
-  ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-
-  ctx.fillStyle = '#38bdf8';
-  ctx.font = 'bold 13px Segoe UI';
-  ctx.textAlign = 'center';
-  ctx.fillText('PMMC / DYNAMOMETER DIAL INDICATOR', cx, 100);
-}
-
-const w1In = document.getElementById('w1-in');
-const w2In = document.getElementById('w2-in');
-const logEl = document.getElementById('emi-log');
-
-document.getElementById('btn-calc-emi').addEventListener('click', () => {
-  const w1 = parseFloat(w1In.value) || 1200;
-  const w2 = parseFloat(w2In.value) || 400;
-  const p = w1 + w2;
-  const tanPhi = Math.sqrt(3) * (w1 - w2) / Math.max(1, w1 + w2);
-  const phi = Math.atan(tanPhi);
-  const cosPhi = Math.cos(phi);
-  const phiDeg = phi * 180.0 / Math.PI;
-
-  currentAngleDeg = Math.min(90, Math.max(0, cosPhi * 90));
-
-  document.getElementById('disp-p').textContent = `${p.toFixed(2)} W`;
-  document.getElementById('disp-cos').textContent = `${cosPhi.toFixed(4)} Lagging`;
-  document.getElementById('disp-phi').textContent = `${phiDeg.toFixed(2)}°`;
-  document.getElementById('pf-badge').textContent = `Power Factor: ${cosPhi.toFixed(3)} (Lag)`;
-
-  logEl.innerHTML += `<br>&gt; Measured 3-Phase Power: W1 = ${w1}W, W2 = ${w2}W &rarr; Total P = ${p}W, Power Factor = ${cosPhi.toFixed(3)}.`;
-  drawMeter();
-});
-
-document.getElementById('btn-bridge-bal').addEventListener('click', () => {
-  logEl.innerHTML += '<br>&gt; [MAXWELL BRIDGE] Adjusted standard capacitor C4 = 0.5&mu;F. Bridge null reached: Lx = 250.0mH, Rx = 2500&Omega;.';
-});
-
-function init3D() {
-  window.three3DInitialized = true;
-  const canvas3d = document.getElementById('sim3d-canvas');
-  const aside = document.getElementById('sim3d-components');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e17);
-
-  const camera = new THREE.PerspectiveCamera(45, canvas3d.clientWidth / canvas3d.clientHeight, 0.1, 100);
-  camera.position.set(3.5, 3.0, 4.0);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-  renderer.setSize(canvas3d.clientWidth, canvas3d.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334466, 1.3);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  dirLight.position.set(6, 12, 8);
-  scene.add(dirLight);
-
-  const loader = new THREE.GLTFLoader();
-  loader.load('../../models/electrical_measurements.glb', (gltf) => {
-    scene.add(gltf.scene);
-    aside.innerHTML = '';
-    gltf.scene.traverse((child) => {
-      if (child.isMesh) {
-        const btn = document.createElement('button');
-        btn.className = 'sim3d-comp';
-        btn.textContent = child.name || 'Component';
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.sim3d-comp').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          child.material.color.setHex(0x00e676);
-          setTimeout(() => child.material.color.setHex(0x29b6f6), 600);
-        });
-        aside.appendChild(btn);
-      }
-    });
-  });
-
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-}
-
-drawMeter();
-</script>
+<!-- Dedicated Simulator Core Engine -->
+<script src="app.js"></script>
 </body>
 </html>
