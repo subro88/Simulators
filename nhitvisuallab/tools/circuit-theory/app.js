@@ -681,9 +681,9 @@
       const container = this.canvas.parentElement;
       if (!container) return;
       const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const displayWidth = Math.max(300, Math.floor(rect.width));
-      const displayHeight = Math.max(260, Math.floor(rect.height || 520));
+      const isFull = document.body.classList.contains('is-canvas-fullscreen');
+      const displayWidth = isFull ? window.innerWidth : Math.max(300, Math.floor(rect.width));
+      const displayHeight = isFull ? (window.innerHeight - 46) : Math.max(260, Math.floor(rect.height || 520));
 
       if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
         this.canvas.width = displayWidth;
@@ -725,7 +725,7 @@
       const w = this.canvas.width;
       const h = this.canvas.height;
       this.zoom = Math.min(w / 880, h / 520) * 0.95;
-      this.zoom = Math.max(0.5, Math.min(2.0, this.zoom));
+      this.zoom = Math.max(0.5, Math.min(2.5, this.zoom));
       this.panX = (w - 880 * this.zoom) / 2;
       this.panY = (h - 520 * this.zoom) / 2;
       this.saveModuleView();
@@ -739,44 +739,22 @@
     }
 
     toggleFullscreen() {
-      const target = document.getElementById('canvas-card-container');
-      if (!target) return;
+      const isFull = !document.body.classList.contains('is-canvas-fullscreen');
+      this.onFullscreenToggle(isFull);
+      sound.playRelayClick();
+    }
 
-      const isCurrentlyFull = !!(document.fullscreenElement || target.classList.contains('is-fullscreen'));
-
-      if (!isCurrentlyFull) {
-        if (target.requestFullscreen) {
-          target.requestFullscreen().catch(() => {
-            target.classList.add('is-fullscreen');
-            this.onFullscreenToggle(true);
-          });
-        } else if (target.webkitRequestFullscreen) {
-          target.webkitRequestFullscreen();
-        } else {
-          target.classList.add('is-fullscreen');
-          this.onFullscreenToggle(true);
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {
-            target.classList.remove('is-fullscreen');
-            this.onFullscreenToggle(false);
-          });
-        } else if (document.webkitExitFullscreen) {
-          document.webkitExitFullscreen();
-        } else {
-          target.classList.remove('is-fullscreen');
-          this.onFullscreenToggle(false);
-        }
-      }
+    exitFullscreen() {
+      this.onFullscreenToggle(false);
+      sound.playRelayClick();
     }
 
     onFullscreenToggle(isFull) {
+      document.body.classList.toggle('is-canvas-fullscreen', isFull);
       const target = document.getElementById('canvas-card-container');
       if (target) {
         target.classList.toggle('is-fullscreen', isFull);
       }
-      document.body.classList.toggle('is-canvas-fullscreen', isFull);
 
       const btn = document.getElementById('btn-fullscreen');
       if (btn) {
@@ -785,7 +763,7 @@
       setTimeout(() => {
         this.resizeCanvas();
         this.fitView();
-      }, 100);
+      }, 50);
     }
 
     initEvents() {
@@ -914,22 +892,26 @@
         } else if (e.key === 'g' || e.key === 'G') {
           this.toggleGrid();
         } else if (e.key === 'Escape') {
-          const target = document.getElementById('canvas-card-container');
-          if (document.fullscreenElement) {
+          if (document.body.classList.contains('is-canvas-fullscreen')) {
+            this.exitFullscreen();
+          } else if (document.fullscreenElement) {
             document.exitFullscreen();
-          } else if (target && target.classList.contains('is-fullscreen')) {
-            this.onFullscreenToggle(false);
           }
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        this.resizeCanvas();
+        if (document.body.classList.contains('is-canvas-fullscreen')) {
+          this.fitView();
         }
       });
 
       document.addEventListener('fullscreenchange', () => {
         const isFull = !!document.fullscreenElement;
-        this.onFullscreenToggle(isFull);
-      });
-      document.addEventListener('webkitfullscreenchange', () => {
-        const isFull = !!document.webkitFullscreenElement;
-        this.onFullscreenToggle(isFull);
+        if (!isFull && document.body.classList.contains('is-canvas-fullscreen')) {
+          this.exitFullscreen();
+        }
       });
     }
 
@@ -1316,8 +1298,8 @@
       ctx.fillStyle = '#94a3b8';
       ctx.fillText('Sinusoidal AC Generator driving Series R, L and C with Voltage Magnification Telemetry', 45, 56);
 
-      // Schematic left anchor: keeps circuit within x <= 435, completely clear of card at x >= 475
-      const ax = 65;
+      // Schematic left anchor: keeps circuit within x <= 425, completely clear of card at x >= 465
+      const ax = 55;
       const ay = 160;
 
       // AC Generator on the left
@@ -1326,18 +1308,18 @@
       // Top Rail Wire to Components
       this.drawWire(ax, ay, ax + 50, ay, '#38bdf8', 2.5);
 
-      // Component 1: Resistor R (ax + 50 to ax + 130)
-      this.drawResistor(ax + 50, ay, ax + 130, ay, `R: ${r.r.toFixed(1)}Ω`, '#38bdf8', false);
+      // Component 1: Resistor R (ax + 50 to ax + 130) - pass empty label so it doesn't collide with badge
+      this.drawResistor(ax + 50, ay, ax + 130, ay, '', '#38bdf8', false);
       this.drawWire(ax + 130, ay, ax + 155, ay, '#38bdf8', 2.5);
 
-      // Component 2: Inductor Coil L (ax + 155 to ax + 235)
-      this.drawInductor(ax + 155, ay, ax + 235, ay, `L: ${this.rlcEngine.l_mH.toFixed(2)}mH`, '#f59e0b');
+      // Component 2: Inductor Coil L (ax + 155 to ax + 235) - pass empty label
+      this.drawInductor(ax + 155, ay, ax + 235, ay, '', '#f59e0b');
       this.drawWire(ax + 235, ay, ax + 260, ay, '#38bdf8', 2.5);
 
-      // Component 3: Capacitor Plates C (ax + 260 to ax + 330)
-      this.drawCapacitor(ax + 260, ay, ax + 330, ay, `C: ${this.rlcEngine.c_uF.toFixed(2)}μF`, '#f43f5e');
+      // Component 3: Capacitor Plates C (ax + 260 to ax + 330) - pass empty label
+      this.drawCapacitor(ax + 260, ay, ax + 330, ay, '', '#f43f5e');
 
-      // Right return loop down to bottom rail (ax + 330 to ax + 370 = 435)
+      // Right return loop down to bottom rail (ax + 330 to ax + 370 = 425)
       this.drawWire(ax + 330, ay, ax + 370, ay, '#38bdf8', 2.5);
       this.drawWire(ax + 370, ay, ax + 370, ay + 180, '#334155', 2.5);
       this.drawWire(ax + 370, ay + 180, ax, ay + 180, '#334155', 2.5);
@@ -1358,16 +1340,21 @@
         ]);
       }
 
-      // Live Voltage Across Components Callouts (centered directly above each component)
-      this.drawNodeBadge(ax + 90, ay - 24, `VR = ${r.vr.toFixed(2)} V`, '#38bdf8');
-      this.drawNodeBadge(ax + 195, ay - 24, `VL = ${r.vl.toFixed(2)} V`, '#f59e0b');
-      this.drawNodeBadge(ax + 295, ay - 24, `VC = ${r.vc.toFixed(2)} V`, '#f43f5e');
+      // Live Voltage Across Components Callouts (centered directly ABOVE each component)
+      this.drawNodeBadge(ax + 90, ay - 26, `VR = ${r.vr.toFixed(2)} V`, '#38bdf8');
+      this.drawNodeBadge(ax + 195, ay - 26, `VL = ${r.vl.toFixed(2)} V`, '#f59e0b');
+      this.drawNodeBadge(ax + 295, ay - 26, `VC = ${r.vc.toFixed(2)} V`, '#f43f5e');
+
+      // Component Parameter Sub-Badges (cleanly positioned BELOW each component)
+      this.drawSubBadge(ax + 90, ay + 26, `R: ${r.r.toFixed(1)} Ω`, '#38bdf8');
+      this.drawSubBadge(ax + 195, ay + 26, `L: ${this.rlcEngine.l_mH.toFixed(2)} mH`, '#f59e0b');
+      this.drawSubBadge(ax + 295, ay + 26, `C: ${this.rlcEngine.c_uF.toFixed(2)} μF`, '#f43f5e');
 
       // Right-side Resonance Characteristics Card
-      // Begins at cardX = 475, leaving 40px clean margin from circuit return wire at 435
-      const cardX = 475;
-      const cardY = 88;
-      const cardW = 380;
+      // Begins at cardX = 465, leaving 40px clean margin from circuit return wire at 425
+      const cardX = 465;
+      const cardY = 65;
+      const cardW = 370;
       const cardH = 390;
 
       ctx.fillStyle = 'rgba(11, 19, 41, 0.94)';
@@ -1704,6 +1691,24 @@
       ctx.lineWidth = 1.0;
       ctx.beginPath();
       ctx.roundRect(x - tw / 2 - pad, y - 10, tw + pad * 2, 18, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.fillText(text, x - tw / 2, y + 3);
+    }
+
+    drawSubBadge(x, y, text, color = '#94a3b8') {
+      const ctx = this.ctx;
+      ctx.font = '700 9.5px "JetBrains Mono", monospace';
+      const tw = ctx.measureText(text).width;
+      const pad = 5;
+
+      ctx.fillStyle = 'rgba(4, 8, 20, 0.92)';
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.roundRect(x - tw / 2 - pad, y - 9, tw + pad * 2, 17, 3);
       ctx.fill();
       ctx.stroke();
 
@@ -3465,6 +3470,30 @@
       const thevDiagPill = document.getElementById('thev-diag-pill');
       if (thevDiagPill) thevDiagPill.textContent = `Voc = ${c.vth.toFixed(2)} V · Rth = ${c.rth.toFixed(2)} Ω`;
 
+      // Bridge Balance Status Pill
+      const bridgeStatusEl = document.getElementById('thev-bridge-status');
+      if (bridgeStatusEl) {
+        const isBalanced = Math.abs(c.vth) < 0.05;
+        if (isBalanced) {
+          bridgeStatusEl.textContent = 'Ratio R1/R2 = R3/R4 (Balanced, Vth = 0.00V)';
+          bridgeStatusEl.className = 'bridge-balance-pill balanced';
+        } else {
+          bridgeStatusEl.textContent = `Ratio R1/R2 ≠ R3/R4 (Unbalanced, Vth = ${c.vth.toFixed(2)}V)`;
+          bridgeStatusEl.className = 'bridge-balance-pill unbalanced';
+        }
+      }
+
+      // Synchronize active highlights for RLC R/L/C presets
+      document.querySelectorAll('.rlc-r-preset').forEach(p => {
+        p.classList.toggle('active', Math.abs(parseFloat(p.dataset.r) - r.r) < 0.1);
+      });
+      document.querySelectorAll('.rlc-l-preset').forEach(p => {
+        p.classList.toggle('active', Math.abs(parseFloat(p.dataset.l) - rlcEngine.l_mH) < 0.1);
+      });
+      document.querySelectorAll('.rlc-c-preset').forEach(p => {
+        p.classList.toggle('active', Math.abs(parseFloat(p.dataset.c) - rlcEngine.c_uF) < 0.05);
+      });
+
       const thevI1 = document.getElementById('thev-i1-sub');
       const thevVa = document.getElementById('thev-va-sub');
       const thevI3 = document.getElementById('thev-i3-sub');
@@ -3603,6 +3632,74 @@
       });
     });
 
+    // Thevenin Vs Steppers (-5V, -1V, +1V, +5V)
+    function adjustVsDelta(delta) {
+      const cur = circuitEngine.vs;
+      const next = Math.max(1, Math.min(40, Math.round(cur + delta)));
+      circuitEngine.setParam('vs', next);
+      const sl = document.getElementById('sl-vs');
+      const valEl = document.getElementById('sl-vs-val');
+      if (sl) sl.value = next;
+      if (valEl) valEl.textContent = `${next} V`;
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.getElementById('btn-vs-minus-5')?.addEventListener('click', () => adjustVsDelta(-5));
+    document.getElementById('btn-vs-minus-1')?.addEventListener('click', () => adjustVsDelta(-1));
+    document.getElementById('btn-vs-plus-1')?.addEventListener('click', () => adjustVsDelta(1));
+    document.getElementById('btn-vs-plus-5')?.addEventListener('click', () => adjustVsDelta(5));
+
+    // Wheatstone Bridge Ratio Presets & Auto-Balance
+    document.getElementById('btn-bridge-balance')?.addEventListener('click', () => {
+      const r1 = circuitEngine.r1;
+      const r2 = circuitEngine.r2;
+      const r3 = circuitEngine.r3;
+      const targetR4 = Math.max(1, Math.min(100, Math.round((r2 * r3) / r1)));
+      circuitEngine.setParam('r4', targetR4);
+      const sl = document.getElementById('sl-r4');
+      const valEl = document.getElementById('sl-r4-val');
+      if (sl) sl.value = targetR4;
+      if (valEl) valEl.textContent = `${targetR4} Ω`;
+      sound.playSuccessChord();
+      updateDisplays();
+    });
+
+    document.getElementById('btn-bridge-1to1')?.addEventListener('click', () => {
+      const arms = [
+        { k: 'r1', id: 'sl-r1', v: 10 },
+        { k: 'r2', id: 'sl-r2', v: 10 },
+        { k: 'r3', id: 'sl-r3', v: 10 },
+        { k: 'r4', id: 'sl-r4', v: 10 }
+      ];
+      arms.forEach(a => {
+        circuitEngine.setParam(a.k, a.v);
+        const sl = document.getElementById(a.id);
+        const valEl = document.getElementById(`${a.id}-val`);
+        if (sl) sl.value = a.v;
+        if (valEl) valEl.textContent = `${a.v} Ω`;
+      });
+      sound.playRelayClick();
+      updateDisplays();
+    });
+
+    document.getElementById('btn-bridge-2to1')?.addEventListener('click', () => {
+      const arms = [
+        { k: 'r1', id: 'sl-r1', v: 20 },
+        { k: 'r2', id: 'sl-r2', v: 10 },
+        { k: 'r3', id: 'sl-r3', v: 20 },
+        { k: 'r4', id: 'sl-r4', v: 10 }
+      ];
+      arms.forEach(a => {
+        circuitEngine.setParam(a.k, a.v);
+        const sl = document.getElementById(a.id);
+        const valEl = document.getElementById(`${a.id}-val`);
+        if (sl) sl.value = a.v;
+        if (valEl) valEl.textContent = `${a.v} Ω`;
+      });
+      sound.playRelayClick();
+      updateDisplays();
+    });
+
     document.querySelectorAll('.rl-preset').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const rl = parseFloat(e.target.dataset.rl);
@@ -3617,6 +3714,23 @@
         updateDisplays();
       });
     });
+
+    // Thevenin RL Steppers (-5Ω, -1Ω, +1Ω, +5Ω)
+    function adjustThevRlDelta(delta) {
+      const cur = circuitEngine.rl;
+      const next = Math.max(1, Math.min(200, Math.round(cur + delta)));
+      circuitEngine.setParam('rl', next);
+      const sl = document.getElementById('sl-rl');
+      const valEl = document.getElementById('sl-rl-val');
+      if (sl) sl.value = next;
+      if (valEl) valEl.textContent = `${next} Ω`;
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.getElementById('btn-thev-rl-minus-5')?.addEventListener('click', () => adjustThevRlDelta(-5));
+    document.getElementById('btn-thev-rl-minus-1')?.addEventListener('click', () => adjustThevRlDelta(-1));
+    document.getElementById('btn-thev-rl-plus-1')?.addEventListener('click', () => adjustThevRlDelta(1));
+    document.getElementById('btn-thev-rl-plus-5')?.addEventListener('click', () => adjustThevRlDelta(5));
 
     // Quick Probe Action Buttons
     const btnMeasureVoc = document.getElementById('btn-measure-voc');
@@ -3705,6 +3819,21 @@
       });
     });
 
+    // Fine Vth Steppers for MPT (-1V, +1V)
+    function adjustMptVth(delta) {
+      const cur = mptEngine.vth;
+      const next = Math.max(1, Math.min(30, Math.round(cur + delta)));
+      mptEngine.setParam('vth', next);
+      const sl = document.getElementById('sl-mpt-vth');
+      const valEl = document.getElementById('sl-mpt-vth-val');
+      if (sl) sl.value = next;
+      if (valEl) valEl.textContent = `${next.toFixed(1)} V`;
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.getElementById('btn-vth-minus-1')?.addEventListener('click', () => adjustMptVth(-1));
+    document.getElementById('btn-vth-plus-1')?.addEventListener('click', () => adjustMptVth(1));
+
     document.querySelectorAll('.mpt-rth-preset').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const rth = parseFloat(e.target.dataset.rth);
@@ -3719,6 +3848,23 @@
         updateDisplays();
       });
     });
+
+    // Fine Rth Steppers for MPT (-5Ω, -1Ω, +1Ω, +5Ω)
+    function adjustMptRth(delta) {
+      const cur = mptEngine.rth;
+      const next = Math.max(1, Math.min(100, Math.round(cur + delta)));
+      mptEngine.setParam('rth', next);
+      const sl = document.getElementById('sl-mpt-rth');
+      const valEl = document.getElementById('sl-mpt-rth-val');
+      if (sl) sl.value = next;
+      if (valEl) valEl.textContent = `${next.toFixed(0)} Ω`;
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.getElementById('btn-rth-minus-5')?.addEventListener('click', () => adjustMptRth(-5));
+    document.getElementById('btn-rth-minus-1')?.addEventListener('click', () => adjustMptRth(-1));
+    document.getElementById('btn-rth-plus-1')?.addEventListener('click', () => adjustMptRth(1));
+    document.getElementById('btn-rth-plus-5')?.addEventListener('click', () => adjustMptRth(5));
 
     // Fine RL Steppers for MPT (-5, -1, +1, +5)
     function adjustMptRl(delta) {
@@ -3795,6 +3941,21 @@
       });
     });
 
+    // Fine Vrms Steppers (-1V, +1V)
+    function adjustRlcVrms(delta) {
+      const cur = rlcEngine.vrms;
+      const next = Math.max(1, Math.min(50, Math.round(cur + delta)));
+      rlcEngine.setParam('vrms', next);
+      const sl = document.getElementById('sl-rlc-v');
+      const valEl = document.getElementById('sl-rlc-v-val');
+      if (sl) sl.value = next;
+      if (valEl) valEl.textContent = `${next.toFixed(1)} V`;
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.getElementById('btn-vrms-minus-1')?.addEventListener('click', () => adjustRlcVrms(-1));
+    document.getElementById('btn-vrms-plus-1')?.addEventListener('click', () => adjustRlcVrms(1));
+
     // Frequency Presets
     document.querySelectorAll('.f-preset').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -3811,7 +3972,7 @@
       });
     });
 
-    // Fine Frequency Steppers (-10, -1, +1, +10 Hz)
+    // Fine Frequency Steppers (-100, -10, -1, +1, +10, +100 Hz)
     function adjustFreqDelta(delta) {
       const curF = rlcEngine.f;
       const newF = Math.max(10, Math.min(10000, Math.round(curF + delta)));
@@ -3825,10 +3986,78 @@
       updateDisplays();
     }
 
+    document.getElementById('btn-f-minus-100')?.addEventListener('click', () => adjustFreqDelta(-100));
     document.getElementById('btn-f-minus-10')?.addEventListener('click', () => adjustFreqDelta(-10));
     document.getElementById('btn-f-minus-1')?.addEventListener('click', () => adjustFreqDelta(-1));
     document.getElementById('btn-f-plus-1')?.addEventListener('click', () => adjustFreqDelta(1));
     document.getElementById('btn-f-plus-10')?.addEventListener('click', () => adjustFreqDelta(10));
+    document.getElementById('btn-f-plus-100')?.addEventListener('click', () => adjustFreqDelta(100));
+
+    // RLC Tank Damping Resistance (R) Presets & Steppers
+    function setRlcR(rVal) {
+      const clamped = Math.max(1, Math.min(200, Math.round(rVal)));
+      rlcEngine.setParam('r', clamped);
+      const sl = document.getElementById('sl-rlc-r');
+      const valEl = document.getElementById('sl-rlc-r-val');
+      if (sl) sl.value = clamped;
+      if (valEl) valEl.textContent = `${clamped} Ω`;
+      document.querySelectorAll('.rlc-r-preset').forEach(p => {
+        p.classList.toggle('active', Math.abs(parseFloat(p.dataset.r) - clamped) < 0.1);
+      });
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.querySelectorAll('.rlc-r-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => setRlcR(parseFloat(e.currentTarget.dataset.r)));
+    });
+    document.getElementById('btn-rlc-r-minus-5')?.addEventListener('click', () => setRlcR(rlcEngine.r - 5));
+    document.getElementById('btn-rlc-r-minus-1')?.addEventListener('click', () => setRlcR(rlcEngine.r - 1));
+    document.getElementById('btn-rlc-r-plus-1')?.addEventListener('click', () => setRlcR(rlcEngine.r + 1));
+    document.getElementById('btn-rlc-r-plus-5')?.addEventListener('click', () => setRlcR(rlcEngine.r + 5));
+
+    // RLC Tank Inductance (L) Presets & Steppers
+    function setRlcL(lVal) {
+      const clamped = Math.max(1, Math.min(100, Math.round(lVal * 100) / 100));
+      rlcEngine.setParam('l', clamped);
+      const sl = document.getElementById('sl-rlc-l');
+      const valEl = document.getElementById('sl-rlc-l-val');
+      if (sl) sl.value = clamped;
+      if (valEl) valEl.textContent = `${clamped.toFixed(2)} mH`;
+      document.querySelectorAll('.rlc-l-preset').forEach(p => {
+        p.classList.toggle('active', Math.abs(parseFloat(p.dataset.l) - clamped) < 0.1);
+      });
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.querySelectorAll('.rlc-l-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => setRlcL(parseFloat(e.currentTarget.dataset.l)));
+    });
+    document.getElementById('btn-rlc-l-minus-5')?.addEventListener('click', () => setRlcL(rlcEngine.l_mH - 5));
+    document.getElementById('btn-rlc-l-minus-1')?.addEventListener('click', () => setRlcL(rlcEngine.l_mH - 1));
+    document.getElementById('btn-rlc-l-plus-1')?.addEventListener('click', () => setRlcL(rlcEngine.l_mH + 1));
+    document.getElementById('btn-rlc-l-plus-5')?.addEventListener('click', () => setRlcL(rlcEngine.l_mH + 5));
+
+    // RLC Tank Capacitance (C) Presets & Steppers
+    function setRlcC(cVal) {
+      const clamped = Math.max(0.1, Math.min(20, Math.round(cVal * 100) / 100));
+      rlcEngine.setParam('c', clamped);
+      const sl = document.getElementById('sl-rlc-c');
+      const valEl = document.getElementById('sl-rlc-c-val');
+      if (sl) sl.value = clamped;
+      if (valEl) valEl.textContent = `${clamped.toFixed(2)} μF`;
+      document.querySelectorAll('.rlc-c-preset').forEach(p => {
+        p.classList.toggle('active', Math.abs(parseFloat(p.dataset.c) - clamped) < 0.05);
+      });
+      sound.playRelayClick();
+      updateDisplays();
+    }
+    document.querySelectorAll('.rlc-c-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => setRlcC(parseFloat(e.currentTarget.dataset.c)));
+    });
+    document.getElementById('btn-rlc-c-minus-05')?.addEventListener('click', () => setRlcC(rlcEngine.c_uF - 0.5));
+    document.getElementById('btn-rlc-c-minus-01')?.addEventListener('click', () => setRlcC(rlcEngine.c_uF - 0.1));
+    document.getElementById('btn-rlc-c-plus-01')?.addEventListener('click', () => setRlcC(rlcEngine.c_uF + 0.1));
+    document.getElementById('btn-rlc-c-plus-05')?.addEventListener('click', () => setRlcC(rlcEngine.c_uF + 0.5));
 
     // Initial update
     updateDisplays();
