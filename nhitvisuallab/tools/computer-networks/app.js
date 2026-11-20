@@ -3218,6 +3218,7 @@ Total Mac Addresses for this criterion: 2\n`;
   function toggleFullscreen() {
     const card = document.getElementById('canvas-card-container');
     const isFull = card.classList.toggle('is-fullscreen');
+    document.body.classList.toggle('is-canvas-fullscreen', isFull);
     document.getElementById('btn-fullscreen').innerHTML = isFull ? '🗗 Exit Fullscreen' : '⛶ Fullscreen';
 
     setTimeout(() => {
