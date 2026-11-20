@@ -203,7 +203,23 @@
       this.s2Closed = true;
       this.s3Closed = true;
 
-      this.topology = 'bridge'; // 'bridge', 'divider', 'dual'
+      this.s1Open = false;
+      this.s2Short = false;
+      this.s3Kill = false;
+      this.topology = 'bridge'; // 'bridge', 'divider', 'dual', 'hybrid'
+    }
+
+    setTopology(name) {
+      this.topology = name;
+      if (name === 'bridge') {
+        this.vs = 24.0; this.r1 = 10.0; this.r2 = 20.0; this.r3 = 30.0; this.r4 = 15.0; this.rl = 50.0;
+      } else if (name === 'divider') {
+        this.vs = 24.0; this.r1 = 10.0; this.r2 = 20.0; this.r3 = 0.0; this.r4 = 0.0; this.rl = 50.0;
+      } else if (name === 'dual') {
+        this.vs = 24.0; this.r1 = 10.0; this.r2 = 20.0; this.r3 = 15.0; this.r4 = 0.0; this.rl = 50.0;
+      } else if (name === 'hybrid') {
+        this.vs = 12.0; this.r1 = 20.0; this.r2 = 10.0; this.r3 = 0.0; this.r4 = 0.0; this.rl = 50.0;
+      }
     }
 
     setParam(key, value) {
@@ -219,9 +235,9 @@
     }
 
     setSwitch(name, state) {
-      if (name === 's1') this.s1Closed = !!state;
-      if (name === 's2') this.s2Closed = !!state;
-      if (name === 's3') this.s3Closed = !!state;
+      if (name === 's1') { this.s1Open = !!state; this.s1Closed = !state; }
+      if (name === 's2') { this.s2Short = !!state; this.s2Closed = !state; }
+      if (name === 's3') { this.s3Kill = !!state; this.s3Closed = !state; }
     }
 
     calculate() {
@@ -233,15 +249,30 @@
       const va = r12 > 0 ? (this.vs * this.r2) / r12 : 0;
       const vb = r34 > 0 ? (this.vs * this.r4) / r34 : 0;
 
-      // Thevenin Open-Circuit Voltage across A & B:
-      // Voc = Va - Vb
-      const vth = va - vb;
+      let vth = 0;
+      let rth = 0;
 
-      // Thevenin Resistance looking into A-B with Vs deactivated (shorted):
-      // Rth = (R1 || R2) + (R3 || R4)
-      const r1_par_r2 = (this.r1 * this.r2) / (this.r1 + this.r2);
-      const r3_par_r4 = (this.r3 * this.r4) / (this.r3 + this.r4);
-      const rth = r1_par_r2 + r3_par_r4;
+      if (this.topology === 'divider') {
+        // Voltage divider across R1 & R2
+        vth = r12 > 0 ? (this.vs * this.r2) / r12 : 0;
+        rth = r12 > 0 ? (this.r1 * this.r2) / r12 : 0;
+      } else if (this.topology === 'dual') {
+        // Dual-source mesh with Vs and secondary 12V source
+        const v2 = 12.0;
+        vth = (r12 > 0 ? (this.vs * this.r2) / r12 : 0) - (r12 > 0 ? (v2 * this.r1) / r12 : 0);
+        rth = (r12 > 0 ? (this.r1 * this.r2) / r12 : 0) + this.r3;
+      } else if (this.topology === 'hybrid') {
+        // Current-source hybrid (1A Norton source + Vs)
+        const is = 1.0;
+        vth = this.vs + is * this.r1;
+        rth = this.r1 + this.r2;
+      } else {
+        // Standard Wheatstone bridge (default)
+        vth = va - vb;
+        const r1_par_r2 = (this.r1 * this.r2) / (this.r1 + this.r2);
+        const r3_par_r4 = (this.r3 * this.r4) / (this.r3 + this.r4);
+        rth = r1_par_r2 + r3_par_r4;
+      }
 
       // Norton Short-Circuit Current:
       // In = Vth / Rth
@@ -256,24 +287,37 @@
       let vload = 0;
       let pload = 0;
 
-      if (terminalsConnected && this.s1Closed) {
-        // Load is connected across A-B
+      // Diagnostic Knife Switch states:
+      // S1 (Disconnect Load): if checked, RL is disconnected -> measures Voc = Vth
+      // S2 (Short Terminals A-B): if checked, terminals A-B are shorted -> measures Isc = IN
+      // S3 (Kill Sources): if checked, sources are killed -> measures Rth on ohmmeter
+      const isLoadDisconnected = this.s1Open;
+      const isShortCircuit = this.s2Short;
+      const isSourcesKilled = this.s3Kill;
+
+      if (isSourcesKilled) {
+        // Ohmmeter mode: Sources deactivated (0V), measuring Rth
+        iload = 0;
+        vload = 0;
+        pload = 0;
+      } else if (isShortCircuit) {
+        // Ammeter Short-Circuit mode: RL = 0, measures IN
+        iload = rth > 0 ? vth / rth : 0;
+        vload = 0;
+        pload = 0;
+      } else if (isLoadDisconnected) {
+        // Voltmeter Open-Circuit mode: RL = infinity, measures Voc = Vth
+        iload = 0;
+        vload = vth;
+        pload = 0;
+      } else {
+        // Normal Loaded Conduction mode:
         const totalR = rth + this.rl;
         if (totalR > 0) {
           iload = vth / totalR;
           vload = iload * this.rl;
           pload = iload * iload * this.rl;
         }
-      } else if (terminalsConnected && !this.s1Closed) {
-        // Load switch S1 is open: measuring Open-Circuit Voltage Voc
-        iload = 0;
-        vload = vth;
-        pload = 0;
-      } else {
-        // Terminals broken
-        iload = 0;
-        vload = 0;
-        pload = 0;
       }
 
       // Branch currents in original bridge:
@@ -2945,6 +2989,8 @@
     const tabOscilloscope = document.getElementById('tab-oscilloscope');
     const tabPhasor = document.getElementById('tab-phasor');
 
+    const tabProof = document.getElementById('tab-proof');
+
     deckTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         deckTabs.forEach(t => t.classList.remove('active'));
@@ -2956,11 +3002,37 @@
         if (tabResonance) tabResonance.classList.toggle('hidden', target !== 'resonance');
         if (tabOscilloscope) tabOscilloscope.classList.toggle('hidden', target !== 'oscilloscope');
         if (tabPhasor) tabPhasor.classList.toggle('hidden', target !== 'phasor');
+        if (tabProof) tabProof.classList.toggle('hidden', target !== 'proof');
 
         sound.playRelayClick();
         updateDisplays();
       });
     });
+
+    // Topology Presets Selector
+    const selectTopology = document.getElementById('select-topology');
+    if (selectTopology) {
+      selectTopology.addEventListener('change', (e) => {
+        circuitEngine.setTopology(e.target.value);
+        // Sync sliders with preset values
+        const vsSl = document.getElementById('sl-vs');
+        const r1Sl = document.getElementById('sl-r1');
+        const r2Sl = document.getElementById('sl-r2');
+        const r3Sl = document.getElementById('sl-r3');
+        const r4Sl = document.getElementById('sl-r4');
+        const rlSl = document.getElementById('sl-rl');
+
+        if (vsSl) { vsSl.value = circuitEngine.vs; document.getElementById('sl-vs-val').textContent = `${circuitEngine.vs} V`; }
+        if (r1Sl) { r1Sl.value = circuitEngine.r1; document.getElementById('sl-r1-val').textContent = `${circuitEngine.r1} Ω`; }
+        if (r2Sl) { r2Sl.value = circuitEngine.r2; document.getElementById('sl-r2-val').textContent = `${circuitEngine.r2} Ω`; }
+        if (r3Sl) { r3Sl.value = circuitEngine.r3; document.getElementById('sl-r3-val').textContent = `${circuitEngine.r3} Ω`; }
+        if (r4Sl) { r4Sl.value = circuitEngine.r4; document.getElementById('sl-r4-val').textContent = `${circuitEngine.r4} Ω`; }
+        if (rlSl) { rlSl.value = circuitEngine.rl; document.getElementById('sl-rl-val').textContent = `${circuitEngine.rl} Ω`; }
+
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Blueprint Inspector Tabs (Theory Mode)
@@ -3184,9 +3256,27 @@
       const r = rlcEngine.calculate();
 
       if (canvasRenderer.activeModule === 'thevenin') {
-        if (mmV) mmV.textContent = c.vload.toFixed(3);
-        if (mmI) mmI.textContent = c.iload.toFixed(3);
-        if (mmR) mmR.textContent = c.s1Closed ? c.rl.toFixed(1) : 'OPEN';
+        if (c.s3Kill) {
+          // Switch 3 Active: Sources Killed -> Ohmmeter measures Rth
+          if (mmV) mmV.textContent = '0.000';
+          if (mmI) mmI.textContent = '0.000';
+          if (mmR) mmR.textContent = c.rth.toFixed(3);
+        } else if (c.s2Short) {
+          // Switch 2 Active: Short A-B -> Ammeter measures IN
+          if (mmV) mmV.textContent = '0.000';
+          if (mmI) mmI.textContent = c.inorton.toFixed(3);
+          if (mmR) mmR.textContent = '0.000';
+        } else if (c.s1Open) {
+          // Switch 1 Active: Open Load -> Voltmeter measures Voc = Vth
+          if (mmV) mmV.textContent = c.vth.toFixed(3);
+          if (mmI) mmI.textContent = '0.000';
+          if (mmR) mmR.textContent = 'OPEN';
+        } else {
+          // Normal Load Conduction
+          if (mmV) mmV.textContent = c.vload.toFixed(3);
+          if (mmI) mmI.textContent = c.iload.toFixed(3);
+          if (mmR) mmR.textContent = c.rl.toFixed(1);
+        }
       } else if (canvasRenderer.activeModule === 'mpt') {
         if (mmV) mmV.textContent = m.vl.toFixed(3);
         if (mmI) mmI.textContent = m.il.toFixed(3);
@@ -3195,6 +3285,98 @@
         if (mmV) mmV.textContent = r.vr.toFixed(3);
         if (mmI) mmI.textContent = r.i.toFixed(3);
         if (mmR) mmR.textContent = r.z_mag.toFixed(1);
+      }
+
+      // Live Dynamic Regime Badge
+      const badgeRegime = document.getElementById('badge-regime');
+      if (badgeRegime) {
+        if (canvasRenderer.activeModule === 'rlc') {
+          if (r.f < r.fr * 0.99) {
+            badgeRegime.textContent = 'CAPACITIVE (Current Leads)';
+            badgeRegime.style.color = '#38bdf8';
+          } else if (r.f > r.fr * 1.01) {
+            badgeRegime.textContent = 'INDUCTIVE (Current Lags)';
+            badgeRegime.style.color = '#f59e0b';
+          } else {
+            badgeRegime.textContent = '★ SERIES RESONANCE (Unity PF)';
+            badgeRegime.style.color = '#10b981';
+          }
+        } else if (canvasRenderer.activeModule === 'mpt') {
+          const isMatched = Math.abs(m.rl - m.rth) < 0.5;
+          badgeRegime.textContent = isMatched ? '★ MPT MATCH (η = 50%)' : (m.rl < m.rth ? 'UNDER-MATCHED' : 'OVER-MATCHED');
+          badgeRegime.style.color = isMatched ? '#10b981' : '#f59e0b';
+        } else {
+          badgeRegime.textContent = `TOPOLOGY: ${circuitEngine.topology.toUpperCase()}`;
+          badgeRegime.style.color = '#38bdf8';
+        }
+      }
+
+      // Step-by-Step KaTeX / Nodal Proof Tab Generator
+      const proofEl = document.getElementById('proof-katex-container');
+      if (proofEl) {
+        if (canvasRenderer.activeModule === 'thevenin') {
+          proofEl.innerHTML = `
+            <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; line-height:1.7;">
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">1. Conductance Matrix [G]·[v] = [i_s]:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                [ (1/R1 + 1/R2)       0        ] · [ Va ] = [ Vs/R1 ]<br>
+                [       0        (1/R3 + 1/R4) ] · [ Vb ]   [ Vs/R3 ]
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">2. Nodal Potentials at Nodes A & B:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                Va = Vs · R2 / (R1 + R2) = ${c.vs.toFixed(1)} · ${c.r2.toFixed(0)} / (${c.r1.toFixed(0)} + ${c.r2.toFixed(0)}) = <strong style="color:#10b981;">${c.va.toFixed(3)} V</strong><br>
+                Vb = Vs · R4 / (R3 + R4) = ${c.vs.toFixed(1)} · ${c.r4.toFixed(0)} / (${c.r3.toFixed(0)} + ${c.r4.toFixed(0)}) = <strong style="color:#10b981;">${c.vb.toFixed(3)} V</strong>
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">3. Thevenin Equivalent Reduction:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                Vth = Va - Vb = ${c.va.toFixed(3)} - ${c.vb.toFixed(3)} = <strong style="color:#f59e0b;">${c.vth.toFixed(3)} V</strong><br>
+                Rth = (R1 || R2) + (R3 || R4) = <strong style="color:#f59e0b;">${c.rth.toFixed(3)} Ω</strong><br>
+                IN  = Vth / Rth = <strong style="color:#c084fc;">${c.inorton.toFixed(3)} A</strong>
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">4. Terminal Load Equivalence Invariant:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54;">
+                IL = Vth / (Rth + RL) = <strong style="color:#10b981;">${c.iload.toFixed(3)} A</strong><br>
+                VL = IL · RL = <strong style="color:#10b981;">${c.vload.toFixed(3)} V</strong>
+              </div>
+            </div>
+          `;
+        } else if (canvasRenderer.activeModule === 'mpt') {
+          proofEl.innerHTML = `
+            <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; line-height:1.7;">
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">1. Load Power Function P_L(R_L):</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                PL(RL) = [ Vth / (Rth + RL) ]² · RL
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">2. Derivative Extremum dPL/dRL = 0:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                dPL/dRL = Vth² · [ (Rth + RL) - 2·RL ] / (Rth + RL)³ = 0 ⟹ <strong style="color:#10b981;">RL = Rth = ${m.rth.toFixed(2)} Ω</strong>
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">3. Peak Power P_max & Efficiency η:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54;">
+                Pmax = Vth² / (4·Rth) = (${m.vth.toFixed(1)})² / (4 · ${m.rth.toFixed(1)}) = <strong style="color:#f59e0b;">${m.pmax.toFixed(3)} W</strong><br>
+                η = RL / (Rth + RL) · 100% = <strong style="color:#10b981;">50.0%</strong> (at RL = Rth)
+              </div>
+            </div>
+          `;
+        } else if (canvasRenderer.activeModule === 'rlc') {
+          proofEl.innerHTML = `
+            <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; line-height:1.7;">
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">1. Series RLC Complex Impedance:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                Z(f) = R + j(2πfL - 1/(2πfC)) = <strong style="color:#38bdf8;">${r.z_mag.toFixed(2)} Ω</strong>, θ = <strong style="color:#f59e0b;">${r.phaseDeg.toFixed(1)}°</strong>
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">2. Resonance Frequency fr (XL = XC):</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54; margin-bottom:8px;">
+                fr = 1 / (2π√(LC)) = <strong style="color:#10b981;">${r.fr.toFixed(1)} Hz</strong> ⟹ I_max = Vrms/R = <strong style="color:#10b981;">${(r.vrms/r.r).toFixed(2)} A</strong>
+              </div>
+              <p style="color:#38bdf8; font-weight:700; margin-bottom:4px;">3. Quality Factor & Voltage Magnification:</p>
+              <div style="background:#020712; padding:8px 12px; border-radius:6px; border:1px solid #1c2d54;">
+                Q = (2π·fr·L) / R = <strong style="color:#c084fc;">${r.q.toFixed(2)}</strong>, BW = fr / Q = <strong style="color:#e2e8f0;">${r.bw.toFixed(1)} Hz</strong><br>
+                VL = VC = Q · Vrms = <strong style="color:#f43f5e;">${(r.q * r.vrms).toFixed(1)} V</strong>
+              </div>
+            </div>
+          `;
+        }
       }
 
       // Thevenin Result Summary
@@ -3254,10 +3436,85 @@
     // Initial update
     updateDisplays();
 
-    // Initial log entries
-    addLogEntry('Thevenin', 'Open-Circuit Voltage Voc', '8.000', 'V');
-    addLogEntry('Thevenin', 'Thevenin Resistance Rth', '16.667', 'Ω');
-    addLogEntry('Resonance', 'Resonant Frequency fr', '1000.0', 'Hz');
+    // Button: Log Current Reading
+    const btnLogReading = document.getElementById('btn-log-reading');
+    if (btnLogReading) {
+      btnLogReading.addEventListener('click', () => {
+        const c = circuitEngine.calculate();
+        const m = mptEngine.calculate();
+        const r = rlcEngine.calculate();
+        const mod = canvasRenderer.activeModule;
+
+        if (mod === 'thevenin') {
+          const rlStr = c.s1Open ? 'OPEN' : c.rl.toFixed(1);
+          const psrc = (c.vs * c.i_total).toFixed(3);
+          const etaStr = (c.pload > 0 && c.vs * c.i_total > 0 ? (c.pload / (c.vs * c.i_total)) * 100 : 0).toFixed(1) + '%';
+          const reg = c.s3Kill ? 'Killed Sources (Rth)' : (c.s2Short ? 'Short-Circuit (IN)' : (c.s1Open ? 'Open-Circuit (Voc)' : 'Normal Load'));
+          addLogTableRow(rlStr, c.iload.toFixed(3), c.vload.toFixed(3), c.pload.toFixed(3), psrc, etaStr, reg);
+        } else if (mod === 'mpt') {
+          const psrc = m.pin.toFixed(3);
+          const reg = Math.abs(m.rl - m.rth) < 0.5 ? 'MAX POWER MATCH' : (m.rl < m.rth ? 'Under-Matched' : 'Over-Matched');
+          addLogTableRow(m.rl.toFixed(1), m.il.toFixed(3), m.vl.toFixed(3), m.pl.toFixed(3), psrc, m.eta.toFixed(1) + '%', reg);
+        } else if (mod === 'rlc') {
+          const reg = r.f < r.fr * 0.99 ? 'Capacitive' : (r.f > r.fr * 1.01 ? 'Inductive' : 'Series Resonance');
+          addLogTableRow(`f=${r.f.toFixed(0)}Hz`, r.i.toFixed(3), r.vr.toFixed(3), r.pActive.toFixed(3), r.sApparent.toFixed(3), (r.pf * 100).toFixed(1) + '%', reg);
+        }
+        sound.playRelayClick();
+      });
+    }
+
+    // Button: Populate Benchmark Trials (Case A)
+    const btnBenchTrials = document.getElementById('btn-bench-trials');
+    if (btnBenchTrials) {
+      btnBenchTrials.addEventListener('click', () => {
+        if (!logTbody) return;
+        logTbody.innerHTML = '';
+        logIndex = 1;
+
+        const benchmarkA = [
+          { rl: '0.0 (Short)', il: '0.600 (IN)', vl: '0.00', pl: '0.000', psrc: '7.200', eta: '0.00%', reg: 'Short-Circuit Limit' },
+          { rl: '5.0', il: '0.480', vl: '2.40', pl: '1.152', psrc: '5.760', eta: '20.00%', reg: 'Under-Matched' },
+          { rl: '10.0', il: '0.400', vl: '4.00', pl: '1.600', psrc: '4.800', eta: '33.33%', reg: 'Under-Matched' },
+          { rl: '20.0 (=Rth)', il: '0.300', vl: '6.00', pl: '1.800 (Pmax)', psrc: '3.600', eta: '50.00%', reg: 'MAX POWER MATCH' },
+          { rl: '40.0', il: '0.200', vl: '8.00', pl: '1.600', psrc: '2.400', eta: '66.67%', reg: 'Over-Matched' },
+          { rl: '80.0', il: '0.120', vl: '9.60', pl: '1.152', psrc: '1.440', eta: '80.00%', reg: 'High-Efficiency Mode' }
+        ];
+
+        benchmarkA.forEach(row => {
+          addLogTableRow(row.rl, row.il, row.vl, row.pl, row.psrc, row.eta, row.reg);
+        });
+        sound.playSuccessChord();
+      });
+    }
+
+    function addLogTableRow(rl, il, vl, pl, psrc, eta, regime) {
+      if (!logTbody) return;
+      const tr = document.createElement('tr');
+      const timeStr = new Date().toLocaleTimeString();
+      const mod = canvasRenderer.activeModule.toUpperCase();
+      tr.innerHTML = `
+        <td style="font-weight:700; color:#38bdf8;">${logIndex++}</td>
+        <td>${timeStr} (${mod})</td>
+        <td style="font-family:'JetBrains Mono',monospace;">${rl}</td>
+        <td style="font-family:'JetBrains Mono',monospace; color:#38bdf8;">${il}</td>
+        <td style="font-family:'JetBrains Mono',monospace; color:#facc15;">${vl}</td>
+        <td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#10b981;">${pl}</td>
+        <td style="font-family:'JetBrains Mono',monospace;">${psrc}</td>
+        <td style="font-family:'JetBrains Mono',monospace; color:#f59e0b;">${eta}</td>
+        <td><span class="status-pill ${regime.includes('MATCH') || regime.includes('Resonance') ? 'highlight' : 'active'}">${regime}</span></td>
+      `;
+      logTbody.prepend(tr);
+    }
+
+    // Initial Benchmark Population
+    const initialBenchmarkA = [
+      { rl: '0.0 (Short)', il: '0.600 (IN)', vl: '0.00', pl: '0.000', psrc: '7.200', eta: '0.00%', reg: 'Short-Circuit Limit' },
+      { rl: '20.0 (=Rth)', il: '0.300', vl: '6.00', pl: '1.800 (Pmax)', psrc: '3.600', eta: '50.00%', reg: 'MAX POWER MATCH' },
+      { rl: '80.0', il: '0.120', vl: '9.60', pl: '1.152', psrc: '1.440', eta: '80.00%', reg: 'High-Efficiency Mode' }
+    ];
+    initialBenchmarkA.forEach(row => {
+      addLogTableRow(row.rl, row.il, row.vl, row.pl, row.psrc, row.eta, row.reg);
+    });
 
     // Entry Animations via Anime.js
     if (window.anime) {
