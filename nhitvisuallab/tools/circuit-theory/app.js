@@ -739,19 +739,53 @@
     }
 
     toggleFullscreen() {
-      const target = document.getElementById('canvas-card-container') || this.canvas.parentElement;
-      if (!document.fullscreenElement) {
+      const target = document.getElementById('canvas-card-container');
+      if (!target) return;
+
+      const isCurrentlyFull = !!(document.fullscreenElement || target.classList.contains('is-fullscreen'));
+
+      if (!isCurrentlyFull) {
         if (target.requestFullscreen) {
-          target.requestFullscreen();
+          target.requestFullscreen().catch(() => {
+            target.classList.add('is-fullscreen');
+            this.onFullscreenToggle(true);
+          });
         } else if (target.webkitRequestFullscreen) {
           target.webkitRequestFullscreen();
+        } else {
+          target.classList.add('is-fullscreen');
+          this.onFullscreenToggle(true);
         }
       } else {
         if (document.exitFullscreen) {
-          document.exitFullscreen();
+          document.exitFullscreen().catch(() => {
+            target.classList.remove('is-fullscreen');
+            this.onFullscreenToggle(false);
+          });
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else {
+          target.classList.remove('is-fullscreen');
+          this.onFullscreenToggle(false);
         }
       }
-      setTimeout(() => this.resizeCanvas(), 80);
+    }
+
+    onFullscreenToggle(isFull) {
+      const target = document.getElementById('canvas-card-container');
+      if (target) {
+        target.classList.toggle('is-fullscreen', isFull);
+      }
+      document.body.classList.toggle('is-canvas-fullscreen', isFull);
+
+      const btn = document.getElementById('btn-fullscreen');
+      if (btn) {
+        btn.innerHTML = isFull ? '&#128471; Exit Fullscreen' : '&#9974; Fullscreen';
+      }
+      setTimeout(() => {
+        this.resizeCanvas();
+        this.fitView();
+      }, 100);
     }
 
     initEvents() {
@@ -879,14 +913,23 @@
           this.toggleFullscreen();
         } else if (e.key === 'g' || e.key === 'G') {
           this.toggleGrid();
-        } else if (e.key === 'Escape' && document.fullscreenElement) {
-          document.exitFullscreen();
-          setTimeout(() => this.resizeCanvas(), 80);
+        } else if (e.key === 'Escape') {
+          const target = document.getElementById('canvas-card-container');
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          } else if (target && target.classList.contains('is-fullscreen')) {
+            this.onFullscreenToggle(false);
+          }
         }
       });
 
       document.addEventListener('fullscreenchange', () => {
-        setTimeout(() => this.resizeCanvas(), 80);
+        const isFull = !!document.fullscreenElement;
+        this.onFullscreenToggle(isFull);
+      });
+      document.addEventListener('webkitfullscreenchange', () => {
+        const isFull = !!document.webkitFullscreenElement;
+        this.onFullscreenToggle(isFull);
       });
     }
 
@@ -3415,6 +3458,53 @@
       }
 
       // RLC Instrument Card Readouts
+      // Thevenin Card Readouts
+      const thevSourcePill = document.getElementById('thev-source-pill');
+      if (thevSourcePill) thevSourcePill.textContent = `Vs = ${c.vs.toFixed(1)} V · ${circuitEngine.topology.toUpperCase()}`;
+
+      const thevDiagPill = document.getElementById('thev-diag-pill');
+      if (thevDiagPill) thevDiagPill.textContent = `Voc = ${c.vth.toFixed(2)} V · Rth = ${c.rth.toFixed(2)} Ω`;
+
+      const thevI1 = document.getElementById('thev-i1-sub');
+      const thevVa = document.getElementById('thev-va-sub');
+      const thevI3 = document.getElementById('thev-i3-sub');
+      const thevVb = document.getElementById('thev-vb-sub');
+      const thevLoadSub = document.getElementById('thev-load-sub');
+
+      if (thevI1) thevI1.textContent = `I1 = ${(c.vs / (c.r1 + c.r2)).toFixed(2)} A`;
+      if (thevVa) thevVa.textContent = `Va = ${c.va.toFixed(1)} V`;
+      if (thevI3) thevI3.textContent = `I3 = ${(c.vs / (c.r3 + c.r4)).toFixed(2)} A`;
+      if (thevVb) thevVb.textContent = `Vb = ${c.vb.toFixed(1)} V`;
+      if (thevLoadSub) thevLoadSub.textContent = `PL: ${c.pload.toFixed(3)} W (VL: ${c.vload.toFixed(1)}V)`;
+
+      // MPT Card Readouts
+      const mptSourcePill = document.getElementById('mpt-source-pill');
+      if (mptSourcePill) mptSourcePill.textContent = `Pmax = ${m.pmax.toFixed(3)} W @ RL = ${m.rth.toFixed(1)} Ω`;
+
+      const mptRegimePill = document.getElementById('mpt-regime-pill');
+      if (mptRegimePill) {
+        const isMatched = Math.abs(m.rl - m.rth) < 0.5;
+        mptRegimePill.textContent = isMatched ? '★ MPT MATCH (η = 50.0%)' : (m.rl < m.rth ? `Under-Matched (η = ${m.eta.toFixed(1)}%)` : `High-Efficiency (η = ${m.eta.toFixed(1)}%)`);
+        mptRegimePill.className = isMatched ? 'status-pill highlight' : 'status-pill active';
+      }
+
+      const mptPlSub = document.getElementById('mpt-pl-sub');
+      if (mptPlSub) mptPlSub.textContent = `PL = ${m.pl.toFixed(3)} W (VL = ${m.vl.toFixed(2)} V)`;
+
+      const mptBalPointer = document.getElementById('mpt-balance-pointer');
+      if (mptBalPointer) {
+        let pct = 50;
+        if (m.rth > 0) {
+          if (m.rl < m.rth) {
+            pct = Math.max(6, (m.rl / m.rth) * 50);
+          } else {
+            pct = Math.min(94, 50 + ((m.rl - m.rth) / (m.rth * 3)) * 44);
+          }
+        }
+        mptBalPointer.style.left = `${pct}%`;
+        mptBalPointer.classList.toggle('resonant', Math.abs(m.rl - m.rth) < 0.5);
+      }
+
       const fgenPill = document.getElementById('fgen-status-pill');
       if (fgenPill) fgenPill.textContent = `${r.vrms.toFixed(1)} Vrms · Sine Wave`;
 
@@ -3493,6 +3583,198 @@
       phasorRenderer.render();
     }, 40);
 
+
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // UI-UX-PRO-MAX: Thevenin Presets & Quick Probe Actions
+    // ──────────────────────────────────────────────────────────────────────────
+    document.querySelectorAll('.thev-v-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const v = parseFloat(e.target.dataset.v);
+        circuitEngine.setParam('vs', v);
+        const sl = document.getElementById('sl-vs');
+        const valEl = document.getElementById('sl-vs-val');
+        if (sl) sl.value = v;
+        if (valEl) valEl.textContent = `${v} V`;
+        document.querySelectorAll('.thev-v-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    document.querySelectorAll('.rl-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const rl = parseFloat(e.target.dataset.rl);
+        circuitEngine.setParam('rl', rl);
+        const sl = document.getElementById('sl-rl');
+        const valEl = document.getElementById('sl-rl-val');
+        if (sl) sl.value = rl;
+        if (valEl) valEl.textContent = `${rl} Ω`;
+        document.querySelectorAll('.rl-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    // Quick Probe Action Buttons
+    const btnMeasureVoc = document.getElementById('btn-measure-voc');
+    if (btnMeasureVoc) {
+      btnMeasureVoc.addEventListener('click', () => {
+        circuitEngine.setSwitch('s1', false);
+        circuitEngine.setSwitch('s2', false);
+        circuitEngine.setSwitch('s3', true);
+        const s1 = document.getElementById('sw-s1');
+        const s2 = document.getElementById('sw-s2');
+        const s3 = document.getElementById('sw-s3');
+        if (s1) { s1.checked = false; document.getElementById('sw-s1-val').textContent = 'OPEN'; }
+        if (s2) { s2.checked = false; document.getElementById('sw-s2-val').textContent = 'OPEN'; }
+        if (s3) { s3.checked = true; document.getElementById('sw-s3-val').textContent = 'CLOSED'; }
+        sound.playSwitchToggle();
+        updateDisplays();
+      });
+    }
+
+    const btnMeasureIsc = document.getElementById('btn-measure-isc');
+    if (btnMeasureIsc) {
+      btnMeasureIsc.addEventListener('click', () => {
+        circuitEngine.setSwitch('s1', true);
+        circuitEngine.setSwitch('s2', true);
+        circuitEngine.setSwitch('s3', true);
+        const s1 = document.getElementById('sw-s1');
+        const s2 = document.getElementById('sw-s2');
+        const s3 = document.getElementById('sw-s3');
+        if (s1) { s1.checked = true; document.getElementById('sw-s1-val').textContent = 'CLOSED'; }
+        if (s2) { s2.checked = true; document.getElementById('sw-s2-val').textContent = 'CLOSED'; }
+        if (s3) { s3.checked = true; document.getElementById('sw-s3-val').textContent = 'CLOSED'; }
+        sound.playSwitchToggle();
+        updateDisplays();
+      });
+    }
+
+    const btnKillSources = document.getElementById('btn-kill-sources');
+    if (btnKillSources) {
+      btnKillSources.addEventListener('click', () => {
+        circuitEngine.setSwitch('s1', false);
+        circuitEngine.setSwitch('s2', false);
+        circuitEngine.setSwitch('s3', false);
+        const s1 = document.getElementById('sw-s1');
+        const s2 = document.getElementById('sw-s2');
+        const s3 = document.getElementById('sw-s3');
+        if (s1) { s1.checked = false; document.getElementById('sw-s1-val').textContent = 'OPEN'; }
+        if (s2) { s2.checked = false; document.getElementById('sw-s2-val').textContent = 'OPEN'; }
+        if (s3) { s3.checked = false; document.getElementById('sw-s3-val').textContent = 'OPEN'; }
+        sound.playSwitchToggle();
+        updateDisplays();
+      });
+    }
+
+    const btnResetSwitches = document.getElementById('btn-reset-switches');
+    if (btnResetSwitches) {
+      btnResetSwitches.addEventListener('click', () => {
+        circuitEngine.setSwitch('s1', true);
+        circuitEngine.setSwitch('s2', false);
+        circuitEngine.setSwitch('s3', true);
+        const s1 = document.getElementById('sw-s1');
+        const s2 = document.getElementById('sw-s2');
+        const s3 = document.getElementById('sw-s3');
+        if (s1) { s1.checked = true; document.getElementById('sw-s1-val').textContent = 'CLOSED'; }
+        if (s2) { s2.checked = false; document.getElementById('sw-s2-val').textContent = 'OPEN'; }
+        if (s3) { s3.checked = true; document.getElementById('sw-s3-val').textContent = 'CLOSED'; }
+        sound.playSwitchToggle();
+        updateDisplays();
+      });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // UI-UX-PRO-MAX: MPT Presets, Steppers & Auto-Match Action
+    // ──────────────────────────────────────────────────────────────────────────
+    document.querySelectorAll('.mpt-v-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const v = parseFloat(e.target.dataset.vth);
+        mptEngine.setParam('vth', v);
+        const sl = document.getElementById('sl-mpt-vth');
+        const valEl = document.getElementById('sl-mpt-vth-val');
+        if (sl) sl.value = v;
+        if (valEl) valEl.textContent = `${v.toFixed(1)} V`;
+        document.querySelectorAll('.mpt-v-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    document.querySelectorAll('.mpt-rth-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const rth = parseFloat(e.target.dataset.rth);
+        mptEngine.setParam('rth', rth);
+        const sl = document.getElementById('sl-mpt-rth');
+        const valEl = document.getElementById('sl-mpt-rth-val');
+        if (sl) sl.value = rth;
+        if (valEl) valEl.textContent = `${rth.toFixed(0)} Ω`;
+        document.querySelectorAll('.mpt-rth-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    // Fine RL Steppers for MPT (-5, -1, +1, +5)
+    function adjustMptRl(delta) {
+      const curRl = mptEngine.rl;
+      const newRl = Math.max(0, Math.min(100, Math.round((curRl + delta) * 2) / 2));
+      mptEngine.setParam('rl', newRl);
+      const sl = document.getElementById('sl-mpt-rl');
+      const valEl = document.getElementById('sl-mpt-rl-val');
+      if (sl) sl.value = newRl;
+      if (valEl) valEl.textContent = `${newRl.toFixed(1)} Ω`;
+      sound.playRelayClick();
+      updateDisplays();
+    }
+
+    document.getElementById('btn-rl-minus-5')?.addEventListener('click', () => adjustMptRl(-5));
+    document.getElementById('btn-rl-minus-1')?.addEventListener('click', () => adjustMptRl(-1));
+    document.getElementById('btn-rl-plus-1')?.addEventListener('click', () => adjustMptRl(1));
+    document.getElementById('btn-rl-plus-5')?.addEventListener('click', () => adjustMptRl(5));
+
+    // MPT Load Presets
+    document.querySelectorAll('.mpt-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const type = e.target.dataset.rl;
+        let newRl = 20;
+        if (type === '0') newRl = 0;
+        else if (type === 'match') newRl = mptEngine.rth;
+        else if (type === '2x') newRl = mptEngine.rth * 2;
+        else if (type === '4x') newRl = mptEngine.rth * 4;
+
+        mptEngine.setParam('rl', newRl);
+        const sl = document.getElementById('sl-mpt-rl');
+        const valEl = document.getElementById('sl-mpt-rl-val');
+        if (sl) sl.value = newRl;
+        if (valEl) valEl.textContent = `${newRl.toFixed(1)} Ω`;
+        document.querySelectorAll('.mpt-preset').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        sound.playRelayClick();
+        updateDisplays();
+      });
+    });
+
+    const btnMptAutoMatch = document.getElementById('btn-mpt-auto-match');
+    if (btnMptAutoMatch) {
+      btnMptAutoMatch.addEventListener('click', () => {
+        const matchRl = mptEngine.rth;
+        mptEngine.setParam('rl', matchRl);
+        const sl = document.getElementById('sl-mpt-rl');
+        const valEl = document.getElementById('sl-mpt-rl-val');
+        if (sl) sl.value = matchRl;
+        if (valEl) valEl.textContent = `${matchRl.toFixed(1)} Ω`;
+        document.querySelectorAll('.mpt-preset').forEach(p => p.classList.remove('active'));
+        document.getElementById('preset-mpt-match')?.classList.add('active');
+        sound.playSuccessChord();
+        updateDisplays();
+      });
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // UI-UX-PRO-MAX: RLC Voltage Presets, Frequency Presets & Steppers
